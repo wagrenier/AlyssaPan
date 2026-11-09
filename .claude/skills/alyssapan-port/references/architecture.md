@@ -52,7 +52,28 @@ the GCC-built library objects do: 183 `.text` sections). But ELF local symbols a
 object, in link order: after the library groups (symtab index ~1,003 on), runs of MW locals (`@542`..,
 `iCngFlag$2863`, `ShadowVolume1_vertex_index_data` ..) belong to one object each, and a game function that
 references a run's statics is in that object. That, the five source strings and the name prefixes are
-the TU map's evidence (bootstrap 5, not done yet).
+the TU map's evidence.
+
+**The TU map (bootstrap 5, 2026-11-09, `tumap.py`; `work/tumap_ct3.json`).** What the symtab showed:
+- **MW writes an object's locals in hash order** (`@542, @502, @443, @442, @500 ..` in ahalloc.c's run), so a
+  run is not sorted, but **no two objects' locals interleave**, in any subsection.
+- **The coarse regions mix MW's subsections.** Sorted by address, the locals' symtab index restarts at each
+  subsection start: `.data` 0x01906a00.., `.rodata` 0x01931300 (the libraries' from 0x01930f80)..0x01937610,
+  `.sdata` ..0x0193bc80, `.sbss` ..0x01944b40, `.bss` .. (gp 0x0193f5f0 sits in `.sbss`).
+- A cut between two locals is possible only where every subsection's addresses are sorted across it: 141
+  possible cuts, 142 chunks. Real object bounds are a subset (main's own locals fall in two chunks, 60 and
+  61, symtab 895..911, just before libgcc's): a chunk is an object or part of one.
+- Each game function keyed by the median chunk of what it references (510 of 1,814 functions reference a
+  local; 23 dropped as outliers off the longest non-decreasing run); runs of one key are objects; the `ga`
+  range's `.text` section symbols (0x0189f718, 0x018a1188 .. 0x018a86a8, 0x018a8810) start its asm
+  objects, and its MW objects (`pad_button_read` 0x018a0880, `gaPadInit`, `gaInitInterrupt`) sit between.
+- Result: **66 objects** (51 `game/`, 15 `ga/`), 64 written to `data/tus.json` (main's two pieces stay
+  `game/main.c`). The source strings land where expected: `ahalloc.c` 0x0183d9e0, `movie.c` 0x018bda90,
+  `fileio.c` 0x018c2170, `sound.c` 0x018c7fb0, `xcmd_tn.c` 0x018ee5f0. 1,298 functions reference no
+  local: where they sit between two objects, the cut follows their names; **large objects (QuatSlerp.c 177
+  functions, wideXcmd_DebugPrint.c 109, tiXcmd_TransItem.c 93) are likely several objects without statics**:
+  a TU session pins its real extent (`tus.py define`) and names the rest. Keys other than the five source
+  files are names from the functions (common prefix, else the first), not the game's.
 
 ## Naming sources (bootstrap 4, 2026-11-09, `symtab.py`)
 

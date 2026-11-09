@@ -16,7 +16,8 @@ changes, step by step (open-items.md "Next up" item 0 has the state):
 4. **Names**: the symtab did it. Instead: every symtab name tagged `game-symbol` in `data/tags.json`;
    functions Ghidra missed created; MW's local labels (`@<n>`, `name$<n>`) applied as data labels.
 5. **The TU map**: from the order of the symtab's local symbols (architecture.md "Address map"), not from
-   anchors and link-order fill. Write it as a tool (`symtab.py`), run it once, pin with `tus.py define`.
+   anchors and link-order fill. **Done 2026-11-09** as `tumap.py` (not `symtab.py`): 66 objects in
+   `data/tus.json`; method and doubts in architecture.md "The TU map" and open-items.md item 0.
 6. **Platform layer**: YamiPan's C++ Pan layer, carried and trimmed (cpp-port.md); the siblings' shims come
    over as host tasks (open-items.md "Next up" item 2).
 7. **First build**: the only game code is the stub `gameMain` (`main`, CT3 0x01839d10); a run opens the

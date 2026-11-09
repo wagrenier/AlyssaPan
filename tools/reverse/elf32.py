@@ -1,6 +1,6 @@
 """Minimal little-endian ELF32 reader: sections, VA->bytes, and the MIPS _gp from .reginfo.
 
-An ELF whose loaded image is one unnamed section (CT3's SLUS_206.33, CT3's SLUS_206.33: one `main` section) gets the regions of data/layout.json
+An ELF whose loaded image has no standard section (FS2: one unnamed section; CT3's SLUS_206.33: `main` and an empty `heap`) gets the regions of data/layout.json
 "image_sections" (alyssapan.image_sections(), from architecture.md's address map) in its place, so
 section_of() still tells code from data.
 """
@@ -42,7 +42,8 @@ class Elf:
                 '<IIIIIIII', d, self.e_phoff + i * self.e_phentsize)
             if p_type == 1:
                 self.segments.append((p_vaddr, p_off, p_filesz, p_memsz))
-        if not any(x['name'] for x in self.sections if x['addr']):
+        # No standard ('.'-named) loaded section: FS2's one unnamed section, CT3's `main` + empty `heap`.
+        if not any(x['name'].startswith('.') for x in self.sections if x['addr']):
             import alyssapan          # only the game's own ELF: its address map says nothing of others
             regions = alyssapan.image_sections() if _same(path, alyssapan.ELF) else []
             if regions:

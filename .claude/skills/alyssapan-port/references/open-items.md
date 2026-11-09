@@ -13,20 +13,27 @@ questions. Resolve items here when they are settled (move them to "Done" with th
      FS2's harnesses (`*cmp.py`), script / pack readers, `rtti.py`, `iop.py`, `rxcmp.py` left behind.
      **`refresh.py` runs green on CT3 (2026-11-09):** 2,628 functions, 13,643 calls, 520 tail jumps; 1,814
      game functions (1,807 named), 814 library; `alyssapan_functions.txt` and `status.md` generated.
-     **Gap: `features.py` found 0 string references** (FS2's run found them): its string detection does not
-     see CT3's `.rodata` at 0x01930f80 yet. Fix before the TU map, which leans on strings.
+     The string gap (0 string references) is fixed (2026-11-09): `elf32.py` swapped in layout.json's
+     regions only for an *unnamed* image section, and CT3's is named `main`; now any image without a
+     standard `.`-named section gets them. `features.py`: 1,200 string refs, 1,285 float consts, 13,583
+     calls, 172 tail jumps (the old counts read data as code past 0x018fe500).
    - ~~4. Names~~ done (2026-11-09, scheduled run, `tools/reverse/symtab.py`): `data/tags.json` and
      Ghidra's function tags carry `game-symbol` on all 2,621 symtab-named functions (2,613 FUNC addresses +
      8 asm entry points named by NOTYPE labels); no FUNC symbol lacks a Ghidra function; all 2,657 data /
      code-label symbols (996 `@<n>`, 374 `name$<n>`, 1,287 named) are labels in Ghidra (the loader had
      applied 2,650; 7 added); `tiXcmd___________Free0` (0x018e20b0) restored from Ghidra's demangling.
      Left for the TU sessions that reach them: the 7 Ghidra functions with no symbol (architecture.md
-     "Naming sources"), named `game-inferred` when read. The string gap above is still open: the next
-     run fixes it first, as the start of step 5.
-   - 5. **The TU map** from the symtab's local-symbol order (architecture.md "Address map"): one object per
-     run of locals, a function in the object whose statics it references; the five source strings and the
-     prefixes name the files. Pin each object with `tus.py define`. This is the step that makes CT3
-     cheaper than FS2: do it as one tool, not by hand.
+     "Naming sources"), named `game-inferred` when read.
+   - ~~5. The TU map~~ done (2026-11-09, scheduled run, `tools/reverse/tumap.py`): 66 objects (51 `game/`,
+     15 `ga/`), 64 written to `data/tus.json` beside `game/main.c` (architecture.md "The TU map" has the
+     method and evidence). Doubts for the TU sessions, not blockers: (a) 1,298 of 1,814 functions reference
+     no local, so the larger objects (`QuatSlerp.c` 177 functions, `wideXcmd_DebugPrint.c` 109,
+     `tiXcmd_TransItem.c` 93, `ssSetTexUVforCubeMap.c` 96, `ahRelocateSunPs2ObjectArry.c` 93) are probably
+     several objects each: the session that claims one pins its real extent with `tus.py define` and
+     defines the rest; (b) the keys are names taken from the functions, except the five source files: a
+     session may rename its TU's file when it learns the real name; (c) main's locals fall in two chunks
+     (60, 61): main.c stays one TU (0x01834440..0x0183aed8) until its session says otherwise.
+     **Bootstrap done**: the next run takes the queue (`game/main.c` first).
    - ~~6. Platform layer~~ YamiPan's Pan layer carried over (cpp-port.md); the siblings' shims still to
      come are item 2 below.
    - ~~7. First build~~ green (2026-11-09): `build.py --run 15` opens the window on D3D12, logs

@@ -13,11 +13,11 @@ RosePan (Rule of Rose, `../RosePan`), YamiPan (Forbidden Siren 2, `../YamiPan`),
 C++ Pan layer, and reuses every shim the other Pans have** (the user, 2026-11-09). YamiPan's skill
 (`../YamiPan/.claude/skills/yamipan-port/`) is the closest precedent for anything not written here.
 
-**State (2026-11-09): bootstrap.** Repo created (nothing committed yet: the user decides), YamiPan's Pan
-layer carried over and trimmed to the generic, the tools carried over and renamed, the references
-written; **the build is green** (a run opens the window and reports `main` as its one stub) and
-`refresh.py` runs on CT3. The ELF's symtab names 2,621 of 2,628 functions, so naming is mostly done; the
-TU map (bootstrap 5) and the siblings' shims (open-items.md "Next up" item 2) are not. The game is Clock Tower 3 (USA,
+**State (2026-11-09): bootstrap done, the TU loop next.** YamiPan's Pan layer carried over and trimmed
+to the generic, the tools carried over and renamed, the references written; **the build is green** (a
+run opens the window and reports `main` as its one stub) and `refresh.py` runs on CT3. The ELF's symtab
+names 2,621 of 2,628 functions; `tumap.py` cut the game into 66 objects (`data/tus.json`; boundaries of
+the big ones still to pin per session). The siblings' shims (open-items.md "Next up" item 2) are queued. The game is Clock Tower 3 (USA,
 `SLUS_206.33`, ELF 2003-01-24), annotation tag `CT3`; C compiled by **Metrowerks CodeWarrior** (like FS2),
 linked at 0x01810000 with prebuilt GCC SDK / newlib / libgcc objects.
 
@@ -55,10 +55,9 @@ Read before working:
 
 ## Bootstrap (until the loop runs)
 
-`references/bootstrap.md`: what CT3 changes at each step, then YamiPan's steps. In short: 1-3 and 6 are
-done; 4 is a tagging pass (the symtab named everything); **5, the TU map, comes from the order of the
-symtab's local symbols** (architecture.md "Address map") and should be one tool; 7 is the first green
-build and main's TU. Decisions that shape the tree are the user's: ask, and when no answer can come,
+`references/bootstrap.md`: what CT3 changes at each step, then YamiPan's steps. **All seven are done
+(2026-11-09)**: 4 was a tagging pass (`symtab.py`); **5, the TU map, came from the symtab's local-symbol
+order** (`tumap.py`, architecture.md "The TU map"); 7 is the first green build, then main's TU. Decisions that shape the tree are the user's: ask, and when no answer can come,
 decide, record it in open-items.md "Decisions", and go on.
 
 ## One TU per session (the protocol, YamiPan's)
@@ -137,7 +136,7 @@ examples stand). Not yet run against CT3: start with `python ghidra_mcp.py which
 | which Ghidra | `ghidra_mcp.py list / which / launch` |
 | queue, claim, brief, boundaries, check, finish | `tus.py` |
 | regenerate derived files | `refresh.py` (fetch + features, export, status) |
-| map code | `modview.py range\|tree`, `alyssapan_functions.txt`, `stage.py` |
+| map code | `tumap.py` (the TU map from the symtab), `modview.py range\|tree`, `alyssapan_functions.txt`, `stage.py` |
 | name (rarely: the symtab names) | `ctxcard.py`, `name_ctx.py`, `hidden.py`, `codeptrs.py`, `libmatch.py` (cross-check) |
 | read code | `stage.py`, `dec.py`, `ghidra.py`, `mipsdis.py`, `vudis.py` (the `.vutext` microcode), `mipsemu.py`, `eerun.py`, `sinit.py` |
 | game data | `datadump.py`, `tm2png.py`, readers written as needed (CT3PACK.DAT first) |

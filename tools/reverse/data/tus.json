@@ -25,6 +25,582 @@
   },
   "sdk/libmc.cpp": {
    "task": "Host task, the siblings' shims (d1): a real memory card. RosePan sdk/libmc.cpp (folders under memcard/mc<port>-<slot>/, the async sceMcSync handshake kept; a missing directory answers -4; listings start with . and ..; sceMcGetDir's table 64-byte aligned), rewritten as an alyssapan:: class behind SCE's API (cpp-port.md). CT3's libmc checks mcserv / mcman versions (string 0x01932010): answer what the ROM expects. Done when a scratch test writes, lists and reads a save through sceMc* calls."
+  },
+  "game/ahalloc.c": {
+   "ranges": [
+    [
+     "0183d9e0",
+     "0183e280"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 67..67, 4 functions keyed by their statics, 3 unkeyed; source string ahalloc.c"
+  },
+  "game/ahRelocateSunPs2ObjectArry.c": {
+   "ranges": [
+    [
+     "0183e280",
+     "018514d0"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 69..69, 15 functions keyed by their statics, 77 unkeyed; file name from the names"
+  },
+  "game/LinkMatrixTree.c": {
+   "ranges": [
+    [
+     "018514d0",
+     "018518d0"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 70..70, 2 functions keyed by their statics, 2 unkeyed; file name from the names"
+  },
+  "game/Convert.c": {
+   "ranges": [
+    [
+     "018518d0",
+     "01851bf0"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 71..71, 1 functions keyed by their statics, 1 unkeyed; file name from the names"
+  },
+  "game/QuatSlerp.c": {
+   "ranges": [
+    [
+     "01851bf0",
+     "0185e9d0"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 73..73, 30 functions keyed by their statics, 147 unkeyed; file name from the names"
+  },
+  "game/tiAvoidObject.c": {
+   "ranges": [
+    [
+     "0185e9d0",
+     "018665e0"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 74..74, 14 functions keyed by their statics, 68 unkeyed; file name from the names"
+  },
+  "game/asUseArrow.c": {
+   "ranges": [
+    [
+     "018665e0",
+     "01867fb0"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 79..79, 2 functions keyed by their statics, 9 unkeyed; file name from the names"
+  },
+  "game/tiBrain_ChgTrace_BOSS_BALOWS.c": {
+   "ranges": [
+    [
+     "01867fb0",
+     "01875b10"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 80..80, 14 functions keyed by their statics, 55 unkeyed; file name from the names"
+  },
+  "game/tiBrain_ChgTrace_Ghost.c": {
+   "ranges": [
+    [
+     "01875b10",
+     "0187b160"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 81..81, 18 functions keyed by their statics, 13 unkeyed; file name from the names"
+  },
+  "game/ssBrain_ChgHideAtk1.c": {
+   "ranges": [
+    [
+     "0187b160",
+     "01882890"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 82..82, 2 functions keyed by their statics, 32 unkeyed; file name from the names"
+  },
+  "game/asMothRouteSearch.c": {
+   "ranges": [
+    [
+     "01882890",
+     "01882d60"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 83..83, 1 functions keyed by their statics, 1 unkeyed; file name from the names"
+  },
+  "game/asMothOperate.c": {
+   "ranges": [
+    [
+     "01882d60",
+     "01883ca0"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 84..84, 1 functions keyed by their statics, 0 unkeyed; file name from the names"
+  },
+  "game/asMothPause.c": {
+   "ranges": [
+    [
+     "01883ca0",
+     "01883db0"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 85..85, 1 functions keyed by their statics, 0 unkeyed; file name from the names"
+  },
+  "game/asEyeForcusUP2CamMat.c": {
+   "ranges": [
+    [
+     "01883db0",
+     "01889cd0"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 87..87, 7 functions keyed by their statics, 23 unkeyed; file name from the names"
+  },
+  "game/Clipping_Portal.c": {
+   "ranges": [
+    [
+     "01889cd0",
+     "018951d0"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 88..88, 21 functions keyed by their statics, 52 unkeyed; file name from the names"
+  },
+  "game/ssSetTexUVforCubeMap.c": {
+   "ranges": [
+    [
+     "018951d0",
+     "0189e180"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 89..89, 13 functions keyed by their statics, 83 unkeyed; file name from the names"
+  },
+  "game/ArtoolDebugOpen.c": {
+   "ranges": [
+    [
+     "0189e180",
+     "0189f460"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 91..91, 8 functions keyed by their statics, 3 unkeyed; file name from the names"
+  },
+  "game/IOPGetFileSize.c": {
+   "ranges": [
+    [
+     "0189f460",
+     "0189f620"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 95..95, 3 functions keyed by their statics, 1 unkeyed; file name from the names"
+  },
+  "game/AlignedNum.c": {
+   "ranges": [
+    [
+     "0189f620",
+     "0189f718"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 97..97, 1 functions keyed by their statics, 3 unkeyed; file name from the names"
+  },
+  "ga/gaDrawObject_Redraw_Polygon.c": {
+   "ranges": [
+    [
+     "0189f718",
+     "018a0880"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 6 unkeyed; file name from the names"
+  },
+  "ga/pad_button_read.c": {
+   "ranges": [
+    [
+     "018a0880",
+     "018a1130"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 98..98, 3 functions keyed by their statics, 0 unkeyed; file name from the names"
+  },
+  "ga/gaPadInit.c": {
+   "ranges": [
+    [
+     "018a1130",
+     "018a1188"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 100..100, 1 functions keyed by their statics, 0 unkeyed; file name from the names"
+  },
+  "ga/gaDma.c": {
+   "ranges": [
+    [
+     "018a1188",
+     "018a1738"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 16 unkeyed; file name from the names"
+  },
+  "ga/gaDmaSync_VIF1.c": {
+   "ranges": [
+    [
+     "018a1738",
+     "018a1948"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 5 unkeyed; file name from the names"
+  },
+  "ga/gaVifInit.c": {
+   "ranges": [
+    [
+     "018a1948",
+     "018a1a48"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 6 unkeyed; file name from the names"
+  },
+  "ga/gaInitDrawObject.c": {
+   "ranges": [
+    [
+     "018a1a48",
+     "018a3078"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 24 unkeyed; file name from the names"
+  },
+  "ga/gaObjectClippingCheck.c": {
+   "ranges": [
+    [
+     "018a3078",
+     "018a3148"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 1 unkeyed; file name from the names"
+  },
+  "ga/gaBGT_DrawObject.c": {
+   "ranges": [
+    [
+     "018a3148",
+     "018a4fd8"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 9 unkeyed; file name from the names"
+  },
+  "ga/gaDrawObject.c": {
+   "ranges": [
+    [
+     "018a4fd8",
+     "018a6b70"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 11 unkeyed; file name from the names"
+  },
+  "ga/gaSinCos.c": {
+   "ranges": [
+    [
+     "018a6b70",
+     "018a7538"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 13 unkeyed; file name from the names"
+  },
+  "ga/gaSearchNearLight4.c": {
+   "ranges": [
+    [
+     "018a7538",
+     "018a7700"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 1 unkeyed; file name from the names"
+  },
+  "ga/gaInit3dlib.c": {
+   "ranges": [
+    [
+     "018a7700",
+     "018a85c8"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 25 unkeyed; file name from the names"
+  },
+  "ga/wait.c": {
+   "ranges": [
+    [
+     "018a85c8",
+     "018a86a8"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 20 unkeyed; file name from the names"
+  },
+  "ga/gaInitInterrupt.c": {
+   "ranges": [
+    [
+     "018a86a8",
+     "018a8810"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 101..101, 2 functions keyed by their statics, 1 unkeyed; file name from the names"
+  },
+  "game/gaInitMeter.c": {
+   "ranges": [
+    [
+     "018a8810",
+     "018a88e0"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 6 unkeyed; file name from the names"
+  },
+  "game/ssCalcInversMatrix2.c": {
+   "ranges": [
+    [
+     "018a88e0",
+     "018a9fe0"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 102..102, 3 functions keyed by their statics, 2 unkeyed; file name from the names"
+  },
+  "game/ssHitCheckAttackToScn.c": {
+   "ranges": [
+    [
+     "018a9fe0",
+     "018b20f0"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 103..103, 3 functions keyed by their statics, 33 unkeyed; file name from the names"
+  },
+  "game/main2.c": {
+   "ranges": [
+    [
+     "018b20f0",
+     "018b3a60"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 104..104, 14 functions keyed by their statics, 4 unkeyed; file name from the names"
+  },
+  "game/Character_Init.c": {
+   "ranges": [
+    [
+     "018b3a60",
+     "018bb610"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 105..105, 36 functions keyed by their statics, 13 unkeyed; file name from the names"
+  },
+  "game/AA_SoundMonoSoart.c": {
+   "ranges": [
+    [
+     "018bb610",
+     "018bc690"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 106..106, 14 functions keyed by their statics, 6 unkeyed; file name from the names"
+  },
+  "game/AA_GetDataWord.c": {
+   "ranges": [
+    [
+     "018bc690",
+     "018bda90"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 107..107, 4 functions keyed by their statics, 9 unkeyed; file name from the names"
+  },
+  "game/movie.c": {
+   "ranges": [
+    [
+     "018bda90",
+     "018bf9d0"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 109..109, 15 functions keyed by their statics, 6 unkeyed; source string movie.c"
+  },
+  "game/copy2area.c": {
+   "ranges": [
+    [
+     "018bf9d0",
+     "018bfbf0"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 111..111, 2 functions keyed by their statics, 0 unkeyed; file name from the names"
+  },
+  "game/AA_videoCallback.c": {
+   "ranges": [
+    [
+     "018bfbf0",
+     "018c0310"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 112..112, 3 functions keyed by their statics, 7 unkeyed; file name from the names"
+  },
+  "game/AA_cpuCycles.c": {
+   "ranges": [
+    [
+     "018c0310",
+     "018c0440"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 113..113, 3 functions keyed by their statics, 1 unkeyed; file name from the names"
+  },
+  "game/AA_viBuf.c": {
+   "ranges": [
+    [
+     "018c0440",
+     "018c1340"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 114..114, 1 functions keyed by their statics, 12 unkeyed; file name from the names"
+  },
+  "game/AA_scTag2.c": {
+   "ranges": [
+    [
+     "018c1340",
+     "018c1680"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 115..115, 2 functions keyed by their statics, 5 unkeyed; file name from the names"
+  },
+  "game/AA_mpegTS.c": {
+   "ranges": [
+    [
+     "018c1680",
+     "018c2170"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 117..117, 4 functions keyed by their statics, 26 unkeyed; file name from the names"
+  },
+  "game/fileio.c": {
+   "ranges": [
+    [
+     "018c2170",
+     "018c7fb0"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 118..118, 21 functions keyed by their statics, 19 unkeyed; source string fileio.c"
+  },
+  "game/sound.c": {
+   "ranges": [
+    [
+     "018c7fb0",
+     "018cbf90"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 119..119, 24 functions keyed by their statics, 43 unkeyed; source string sound.c"
+  },
+  "game/SdMasterVolumeSetSE.c": {
+   "ranges": [
+    [
+     "018cbf90",
+     "018d1cb0"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 121..121, 39 functions keyed by their statics, 22 unkeyed; file name from the names"
+  },
+  "game/CpDivideEECom.c": {
+   "ranges": [
+    [
+     "018d1cb0",
+     "018d2a68"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 122..122, 9 functions keyed by their statics, 8 unkeyed; file name from the names"
+  },
+  "game/ssGrpPortalCheck.c": {
+   "ranges": [
+    [
+     "018d2ee0",
+     "018d9a40"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 124..125, 24 functions keyed by their statics, 31 unkeyed; file name from the names"
+  },
+  "game/RotateCamera.c": {
+   "ranges": [
+    [
+     "018d9a40",
+     "018da090"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 127..127, 1 functions keyed by their statics, 1 unkeyed; file name from the names"
+  },
+  "game/PicPaz.c": {
+   "ranges": [
+    [
+     "018da090",
+     "018dab3c"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 129..129, 4 functions keyed by their statics, 5 unkeyed; file name from the names"
+  },
+  "game/asXcmd.c": {
+   "ranges": [
+    [
+     "018dab3c",
+     "018dc1e0"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 130..130, 4 functions keyed by their statics, 17 unkeyed; file name from the names"
+  },
+  "game/hhXcmd_BGM_SE_VOLUME.c": {
+   "ranges": [
+    [
+     "018dc1e0",
+     "018dc330"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 131..131, 1 functions keyed by their statics, 0 unkeyed; file name from the names"
+  },
+  "game/hhXcmd_DressUp.c": {
+   "ranges": [
+    [
+     "018dc330",
+     "018dd550"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 132..132, 4 functions keyed by their statics, 18 unkeyed; file name from the names"
+  },
+  "game/wideXcmd_TriggerInit.c": {
+   "ranges": [
+    [
+     "018dd550",
+     "018e0e80"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 136..136, 7 functions keyed by their statics, 36 unkeyed; file name from the names"
+  },
+  "game/tiXcmd_TransItem.c": {
+   "ranges": [
+    [
+     "018e0e80",
+     "018e90a0"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 137..137, 20 functions keyed by their statics, 73 unkeyed; file name from the names"
+  },
+  "game/tkXDTrg_GetSceneHash.c": {
+   "ranges": [
+    [
+     "018e90a0",
+     "018ee5f0"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 138..138, 15 functions keyed by their statics, 35 unkeyed; file name from the names"
+  },
+  "game/xcmd_tn.c": {
+   "ranges": [
+    [
+     "018ee5f0",
+     "018f3cb0"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 139..139, 17 functions keyed by their statics, 40 unkeyed; source string xcmd_tn.c"
+  },
+  "game/tnXcmd.c": {
+   "ranges": [
+    [
+     "018f3cb0",
+     "018f3f60"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 140..140, 2 functions keyed by their statics, 6 unkeyed; file name from the names"
+  },
+  "game/wideXcmd_DebugPrint.c": {
+   "ranges": [
+    [
+     "018f3f60",
+     "018fe500"
+    ]
+   ],
+   "why": "tumap.py (bootstrap 5): symtab local chunks 141..141, 28 functions keyed by their statics, 80 unkeyed; file name from the names"
   }
  }
 }

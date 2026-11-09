@@ -10,8 +10,8 @@ link order. These names are the game's own: tag `game-symbol`, never renamed.
     python symtab.py missing [--apply]   # FUNC symbols with no Ghidra function start -> create_function
     python symtab.py labels [--apply]    # OBJECT / NOTYPE symbols without a Ghidra label of that name -> create_label
 
-Without --apply each command only reports. The TU map (bootstrap 5) will read the same table (local-symbol
-order): `entries()` is the reader for it.
+Without --apply each command only reports. The TU map (bootstrap 5, tumap.py) reads the same table
+(local-symbol order) through `entries()`.
 """
 import argparse
 import json
