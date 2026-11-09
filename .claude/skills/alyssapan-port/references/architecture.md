@@ -1,0 +1,92 @@
+# Clock Tower 3: what the game is made of
+
+Facts with their address and source; guesses go to open-items.md. Replace what a fact supersedes.
+
+## Binary and toolchain (bootstrap 1, 2026-11-09)
+
+- **Clock Tower 3, USA, `SLUS_206.33`** (ELF dated 2003-01-24, `SYSTEM.CNF`: `BOOT2 = cdrom0:\SLUS_206.33;1`,
+  `VER = 1.00`, `VMODE = NTSC`). The disc's files are in `C:\Users\willi\Documents\Decomp\Clocl Tower 3`
+  (sic): `SLUS_206.33`, `SYSTEM.CNF`, `DATA\CT3PACK.DAT` (one archive), `DATA\MOVIE1`..`MOVIE3`, `IOP\`
+  (`IOPRP255.IMG`, `SNDDRV.IRX`, `MODHSYN.IRX`, `MODMIDI.IRX`, `MODMSIN.IRX`, `SDRDRV.IRX`, `LIBSD.IRX`,
+  `FSYS_IOP.IRX`, `PADMAN.IRX`, `SIO2MAN.IRX`, `MCMAN.IRX`, `MCSERV.IRX`).
+- **Toolchain:** `.comment` = "MW MIPS C Compiler (2.4.1.01)" / "PlayStation2": the game is **C compiled by
+  Metrowerks CodeWarrior** (the same family as FS2), its objects carrying MW's local symbols `@<n>`
+  (anonymous literals) and `<name>$<n>` (function statics). The SDK, newlib and libgcc are prebuilt GCC 2.9x
+  objects (`gcc2_compiled.`, `__gnu_compiled_c` markers). No C++ in the game.
+- **Symbols:** a full `.symtab` (6,179 entries, 0x18230 bytes at file 0x142220, strings at 0x12bd40):
+  2,433 global and 178 local functions, 552 global and 1,456 local objects, 295 section symbols, no file
+  symbols. Ghidra's ELF loader applied them: 2,628 functions, 2,621 named (2026-11-09). These names are
+  the game's own, tag `game-symbol`, never renamed. Source-file strings in the image: `ahalloc.c`,
+  `movie.c`, `fileio.c`, `sound.c`, `xcmd_tn.c` (all game files), plus the SDK's.
+- **Layout:** one loaded section `main` at **0x01810000** (file 0x80, 0x12bc80 bytes), entry 0x01810008,
+  `heap` at 0x01c8d780 (size 0); a `.relmain` relocation section (0x44148 bytes) is kept, unusual for a
+  retail ELF and unused by the port (the port never loads the ELF). Linked high in the 32 MB: what lies
+  below 0x01810000 at run time (a loader, buffers) is open (open-items.md).
+- **SDK versions:** libpad and libmc check their IOP modules' versions (strings 0x01931bf0, 0x01932010);
+  `IOPRP255.IMG` is the IOP replacement image (SDK 2.5.x era). libmatch.py's references (FF3's SDK 3.0, FF2's
+  2.8) are newer: with the symtab, matching is a cross-check, not a naming source.
+- **Same engine as a sibling?** None known: Sunsoft-era code (`SunAlloc`, `SunFree` in `ahalloc.c`), no
+  shared names with FF2, FF3, RoR or FS2 found yet.
+
+## Address map (2026-11-09, from the symtab)
+
+`tools/reverse/data/layout.json` has the regions and library ranges.
+
+| range | what |
+|---|---|
+| 0x01810000..0x01834440 | crt0, SDK (libgraph, libdma, libvifpk, libipu / MPEG, libkernl, libcdvd, libmc, libpad), newlib libc / libm |
+| 0x01834440..0x0183aed8 | the game's main object: `main_rtn_GHOST_DOF`, `main_rtn_GHOST`, `tiItemInit`, `FirstInitialization`, `game_init`, `ControllerMain`, the `ss*DrawAllObject` effects, `AllDrawObject`, `main_rtn*`, `scene_*`, `system_init` / `system_end`, **`main` 0x01839d10** (0x11c8 bytes) |
+| 0x0183aed8..0x0183d9e0 | libgcc: long long and soft double (`__muldi3` .. `dptoul`) |
+| 0x0183d9e0..0x0189f718 | game code (734 functions in one unmarked run; `ahalloc.c`'s `SunAlloc` first) .. `IopLoadModule` 0x0189f6a0 |
+| 0x0189f718..0x018a8810 | the `ga*` library: `gaPad*`, `gaDma*`, `gaVif*`, `gaInit3dlib`, `gaBGT_DrawObject*`, `gaDrawObject_*`, `gaSinCos` / matrices, `gaSearchNearLight4`, `gaDump*`, `gaVsyncCallBack` (asm-shaped objects without `gcc2_compiled.` are hand-written or VU-heavy) |
+| 0x018a8810..0x018d2a68 | game code (425 functions: `gaInitMeter`, `ss*` scene code ..) |
+| 0x018d2a68..0x018d2ed4 | sdremote client: `sceSdRemoteInit`, `sceSdTransToIOP`, `sceSdCallBack`, `sceSdRemote` |
+| 0x018d2ee0..0x018fe4bc | game code (`ssGrpPortalCheck` .. the `as*` character behaviour: `asCheckCharacterHited`, `asInitPlayerBehaviorControler`, `ChrMoveControllerMode_init` last) |
+| 0x018fe500..0x01906a00 | `.vutext`: VU microcode, with `.DVP.overlay` sections in the symtab (dvp-as) and `.vubss` at 0x01c8d780 |
+| 0x01906a00..0x01930f80 | `.data` |
+| 0x01930f80..0x01944b00 | `.rodata` (the string table starts at 0x01930f80) |
+| 0x01944b00..0x01c8d780 | `.bss` / `.sbss` |
+
+**TU boundaries.** The symtab has no file symbols, and the game's objects have no section symbols (only
+the GCC-built library objects do: 183 `.text` sections). But ELF local symbols are emitted per input
+object, in link order: after the library groups (symtab index ~1,003 on), runs of MW locals (`@542`..,
+`iCngFlag$2863`, `ShadowVolume1_vertex_index_data` ..) belong to one object each, and a game function that
+references a run's statics is in that object. That, the five source strings and the name prefixes are
+the TU map's evidence (bootstrap 5, not done yet).
+
+## Modules (name prefixes, 2026-11-09; to be refined as TUs are read)
+
+- `ga*`: the game's own 3D / hardware library (pad, DMA, VIF, draw objects with clipping, lights, math,
+  meters, vsync). `gaBGT_DrawObject_SetupDma_light0..2`: up to three lights, VU1 lighting.
+- `ss*`: scene and screen effects (`ssVaselineDrawAllObject`, `ssWave`, `ssHazy`, `ssUltima`, `ssBlur`,
+  `ssDOF`, `ssHQDOF`, portals `ssGrpPortalCheck` / `ssScnPortalCheck`, `ssCalc*`).
+- `as*`: character behaviour and motion (`asRequestExecute`, `asCheckCharacterHited`, the motion requests).
+- `Sun*`: the allocator (`ahalloc.c`: `SunAlloc`, `SunFree`, `SunAllocUsedBorderCheck`).
+- `tiXcmd*` / `hhXcmd*` (and the `xcmd_tn.c` string): script commands, prefixes perhaps their authors'.
+- `main_rtn*`, `scene_*`, `system_*`: the frame loop and mode switches in main's object.
+- `movie.c`, `sound.c`, `fileio.c`: their own files (strings at 0x01935480, 0x019365f0, 0x01936098).
+
+## Data (2026-11-09)
+
+- `DATA\CT3PACK.DAT` (the ELF names `DATA\CT3PACK.DAT;1` and `\DATA\CT3PACK.DAT;1` at 0x01934b90,
+  0x01934c10): one archive; its format is not read yet. Whether its pictures are TIM2 is open.
+- `DATA\MOVIE1..3`: movies (`movie.c`; "pts buffer overflow" at 0x01935520 says MPEG timestamps: PSS).
+- `game_end.dat` (0x01935308): a file the game opens by name.
+
+## The IOP side (2026-11-09)
+
+The EE loads `cdrom0:\IOP\IOPRP255.IMG;1` (an IOP reboot), then `SIO2MAN`, `PADMAN`, `MCMAN`, `MCSERV`,
+`LIBSD`, `SDRDRV`, `MODHSYN`, `MODMIDI`, `MODMSIN`, `FSYS_IOP` (strings 0x01934ca0..0x01934de0) and,
+from `sound.c`, `SNDDRV.IRX` (0x01936960). `MODHSYN` / `MODMIDI` / `MODMSIN` are SCE's hardware-synth MIDI
+stack; `SDRDRV` serves the EE's sdremote client; `SNDDRV.IRX` (151 KB) is presumably the game's own
+driver and `FSYS_IOP.IRX` its file server. None is read yet. No sibling met modhsyn (MioPan, ReiPan,
+RosePan, YamiPan all ran a game's own driver over libsd).
+
+## PC platform layer (bootstrap 6, 2026-11-09)
+
+YamiPan's Pan layer, carried over and renamed (cpp-port.md has the map): window, render thread, 2D
+canvas, TIM2 texture store, present / HDR grade, screenshots, overlay and panels, input, config, logger,
+crash report, EE kernel and interrupts (one EE thread at a time by priority), IOP kernel, SIF RPC
+servers, the SPU2 model and voices, the audio device, libmpeg on FFmpeg. Left in YamiPan (FS2's own): the
+rena model renderer, smooth motion, the frame passes, the teleport panel. The build's only game code is
+the stub `gameMain` (`main`, CT3 0x01839d10) in `src/lib/unassigned_stubs.cpp`.

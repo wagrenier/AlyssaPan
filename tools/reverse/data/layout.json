@@ -1,0 +1,52 @@
+{
+ "image_sections": [
+  [
+   "01810000",
+   "018fe500",
+   ".text",
+   6
+  ],
+  [
+   "018fe500",
+   "01906a00",
+   ".vutext",
+   6
+  ],
+  [
+   "01906a00",
+   "01930f80",
+   ".data",
+   3
+  ],
+  [
+   "01930f80",
+   "01944b00",
+   ".rodata",
+   2
+  ],
+  [
+   "01944b00",
+   "01c8d780",
+   ".bss",
+   3
+  ]
+ ],
+ "lib_ranges": [
+  [
+   "01810000",
+   "01834440",
+   "SDK (libgraph, libdma, libvifpk, libipu, libkernl, libcdvd, libmc, libpad), newlib libc / libm: symtab section symbols and gcc2_compiled. markers"
+  ],
+  [
+   "0183aed8",
+   "0183d9e0",
+   "libgcc (long long, soft double: __muldi3 .. dptoul): symtab"
+  ],
+  [
+   "018d2a68",
+   "018d2ed4",
+   "sdremote client (sceSdRemoteInit, sceSdTransToIOP, sceSdCallBack, sceSdRemote): symtab"
+  ]
+ ],
+ "satellite_ranges": []
+}
