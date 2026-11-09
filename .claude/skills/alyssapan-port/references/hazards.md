@@ -35,6 +35,9 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 - (2026-11-09, game/main.c) **main's frame waits on `ga_main_timer`**, which only the VSync callback of
   `gaInitInterrupt` advances: with that stubbed, a run spins in main's wait after the first drawn frame
   (the four `SkipMain` frames pass). Not a hang in main's code: write `ga/gaInitInterrupt.c`.
+  **Fixed 2026-11-09** (ga/gaInitInterrupt.c written): a 15 s run now loops main's frame (420+ frames).
+  Host note: `REG_GS_CSR` is a plain variable nobody updates, so gaWaitVSync's FIELD answer is always 0
+  (main ignores it); the SDK could derive it from the interrupt controller's field count if a caller cares.
 - (2026-11-09, game/main.c) **Null tables the EE reads harmlessly.** `FogCtrlAddr[scene]` is null until a
   scene loads; the EE reads kernel RAM there, the host crashed. main.c's `FogClearColor` guards it (black).
   Expect more of these while `main2` / fileio.c are stubs.

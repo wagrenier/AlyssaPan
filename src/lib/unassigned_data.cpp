@@ -11,7 +11,6 @@ int ga_disp_fbuf_address;                       /* sbss 0x0193e680 */
 int ga_draw_fbuf_address = 0x38000;             /* sdata 0x019398c8 */
 int ga_zbuf_address = 0x70000;                  /* sdata 0x019398cc */
 sceGsDispEnv ga_disp;                           /* sbss 0x0193eec0 */
-volatile int ga_main_timer;                     /* bss  0x01c8d730 */
 GA_GSINIT_DATA gsinit;                          /* sbss 0x01941e40 */
 GA_DBUFFER_DATA drawbuffer_frameclear;          /* sbss 0x01941d40 */
 GA_DBUFFER_DATA drawbuffer_0;                   /* sbss 0x01941dc0 */

@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-09 18:10 at commit `412725e` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-09 18:17 at commit `02253e5` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,14 +30,14 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **15**; stubs: **154**
+- reconstructed CT3 functions: **18**; stubs: **152**
 
 | file | reconstructed | stubs |
 |---|---|---|
 | `src/ga/gaDma.c` | 0 | 3 |
 | `src/ga/gaInit3dlib.c` | 0 | 2 |
 | `src/ga/gaInitDrawObject.c` | 0 | 11 |
-| `src/ga/gaInitInterrupt.c` | 0 | 2 |
+| `src/ga/gaInitInterrupt.c` | 3 | 0 |
 | `src/ga/gaVifInit.c` | 0 | 3 |
 | `src/ga/pad_button_read.c` | 0 | 1 |
 | `src/game/ArtoolDebugOpen.c` | 0 | 1 |
@@ -67,13 +67,15 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 66, partial 1
-- next: **ga/gaInitInterrupt.c** (pinned in the queue)
-- pinned queue: ga/gaInitInterrupt.c, game/main.c, alyssapan/core/window.cpp, sdk/libmc.cpp
+- 65 TUs: todo 65, partial 1, verify 1
+- next: **game/main.c** (pinned in the queue)
+- pinned queue: game/main.c, alyssapan/core/window.cpp, sdk/libmc.cpp
 - partial: `game/main.c` 15/29 -- Run reaches main's frame loop and the first drawn frame, then waits on ga_main_timer (gaInitInterrupt is a stub: queued first). Screenshot black, as expected: n
+- verify: `ga/gaInitInterrupt.c` 3/3 -- GCC object; wait_vsync_state (data 0x0192e790), ga_main_timer, ga_down_timer defined here. gaWaitVSync takes no argument and returns the CSR FIELD bit; main.c c
 
 Recent sessions:
 
+- 2026-11-09 18:17 `ga/gaInitInterrupt.c` verify: the ga VSync: gaInitInterrupt, gaVsyncCallBack, gaWaitVSync (3 of 3)
 - 2026-11-09 18:10 `game/main.c` partial: main.c slice 1: main, FirstInitialization, game_init, system_init, ControllerMain, tiItemInit, scene_end and the small draw passes (15 functions); its callees d
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
@@ -83,22 +85,22 @@ Recent sessions:
 | `game/wideXcmd_DebugPrint.c` | todo | 0/12/109 | 40.6 | 79 | 12 |
 | `ga/gaInitDrawObject.c` | todo | 0/11/24 | 5.5 | 78 | 11 |
 | `game/ssGrpPortalCheck.c` | todo | 0/8/59 | 26.4 | 77 | 7 |
-| `game/ahRelocateSunPs2ObjectArry.c` | todo | 0/11/93 | 76.0 | 47 | 7 |
 | `game/ssSetTexUVforCubeMap.c` | todo | 0/22/96 | 35.3 | 47 | 5 |
+| `game/ahRelocateSunPs2ObjectArry.c` | todo | 0/11/93 | 76.0 | 47 | 7 |
 | `game/main.c` | partial | 15/5/29 | 26.5 | 31 | 3 |
 | `game/asEyeForcusUP2CamMat.c` | todo | 0/6/30 | 23.6 | 27 | 4 |
 | `game/fileio.c` | todo | 0/5/40 | 23.3 | 20 | 3 |
 | `game/main2.c` | todo | 0/4/18 | 6.2 | 19 | 3 |
-| `game/gaInitMeter.c` | todo | 0/3/6 | 0.2 | 18 | 3 |
+| `ga/gaVifInit.c` | todo | 0/3/6 | 0.2 | 18 | 3 |
 
 ## Frontier (called by reconstructed code, not written yet)
 
 | CT3 addr | name | call sites | provenance | state | inferred file |
 |---|---|---|---|---|---|
 | `018d9470` | ssTrigSetVariable | 16 | sym | stub | game/ssGrpPortalCheck.c |
-| `018d95e0` | ssTrigRegisterEvent | 9 | sym | stub | game/ssGrpPortalCheck.c |
 | `0188ced0` | tiDrawShadingOff | 9 | sym | stub | game/Clipping_Portal.c |
 | `01837210` | GlobalDrawObject | 9 | sym | stub | game/main.c |
+| `018d95e0` | ssTrigRegisterEvent | 9 | sym | stub | game/ssGrpPortalCheck.c |
 | `01858c90` | XcmdScreenFilter | 8 | sym | stub | game/QuatSlerp.c |
 | `018d9100` | ssTrigCheckEvent | 7 | sym | stub | game/ssGrpPortalCheck.c |
 | `0183e200` | SunAllocInit | 6 | sym | stub | game/ahalloc.c |
@@ -111,28 +113,28 @@ Recent sessions:
 | `018a1f60` | gaBGT_ExecDBufferData_VIF1 | 3 | sym | stub | ga/gaInitDrawObject.c |
 | `018f4fc0` | asCharacterOperate | 3 | sym | stub | game/wideXcmd_DebugPrint.c |
 | `0183d9e0` | CheckAllocNum0 | 3 | sym | stub | game/ahalloc.c |
+| `018a1df8` | gaSetupDBufferData | 2 | sym | stub | ga/gaInitDrawObject.c |
 | `018666c0` | asInitArrowInfo | 2 | sym | stub | game/asUseArrow.c |
 | `01882c10` | asInitMothInfo | 2 | sym | stub | game/asMothRouteSearch.c |
-| `018a1df8` | gaSetupDBufferData | 2 | sym | stub | ga/gaInitDrawObject.c |
 | `01836f30` | DrawObjectRefraction | 2 | sym | stub | game/main.c |
 | `0188df70` | tiDrawLensFlares | 2 | sym | stub | game/Clipping_Portal.c |
 | `01853620` | PanicFilter | 2 | sym | stub | game/QuatSlerp.c |
-| `018f42e0` | asPanicStatusCheck | 2 | sym | stub | game/wideXcmd_DebugPrint.c |
-| `018fb940` | asMonsterDistanceStack_inPanic | 2 | sym | stub | game/wideXcmd_DebugPrint.c |
 | `018881a0` | camera_main | 2 | sym | stub | game/asEyeForcusUP2CamMat.c |
 | `018a22b0` | gaBGT_ExecDrawCtrlData_VIF1 | 2 | sym | stub | ga/gaInitDrawObject.c |
 | `018a2e70` | gaBGT_ExecDrawCommandData_VIF1 | 2 | sym | stub | ga/gaInitDrawObject.c |
 | `018a1a48` | gaInitDrawObject | 2 | sym | stub | ga/gaInitDrawObject.c |
-| `018a8740` | gaWaitVSync | 2 | sym | stub | ga/gaInitInterrupt.c |
 | `018a0b40` | gaPadRead | 2 | sym | stub | ga/pad_button_read.c |
 | `01844df0` | asShadowPolygonPositions | 2 | sym | stub | game/ahRelocateSunPs2ObjectArry.c |
+| `018f42e0` | asPanicStatusCheck | 2 | sym | stub | game/wideXcmd_DebugPrint.c |
 | `0188cdc0` | tiVibrationOff | 2 | sym | stub | game/Clipping_Portal.c |
 | `018f6f80` | asCharacterPositioning | 2 | sym | stub | game/wideXcmd_DebugPrint.c |
+| `018fb940` | asMonsterDistanceStack_inPanic | 2 | sym | stub | game/wideXcmd_DebugPrint.c |
 | `018517d0` | ahTimeMaintenance | 2 | sym | stub | game/LinkMatrixTree.c |
+| `018a1fd8` | gaSetupDrawCtrlData | 1 | sym | stub | ga/gaInitDrawObject.c |
+| `018cbda0` | Sound_FirstInitialization | 1 | sym | stub | game/sound.c |
 | `018b3480` | SelfDiscardSceneLoadInit | 1 | sym | stub | game/main2.c |
 | `0185bf80` | WarpObjectUpdateInit | 1 | sym | stub | game/QuatSlerp.c |
 | `018c7e00` | FS_work_init | 1 | sym | stub | game/fileio.c |
 | `018b4070` | Character_All_Init | 1 | sym | stub | game/Character_Init.c |
 | `018ed880` | tkXcmd_DoorTrigger_Init | 1 | sym | stub | game/tkXDTrg_GetSceneHash.c |
-| `018a1fd8` | gaSetupDrawCtrlData | 1 | sym | stub | ga/gaInitDrawObject.c |
 

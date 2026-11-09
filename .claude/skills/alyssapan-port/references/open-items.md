@@ -43,7 +43,7 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    ControllerMain, tiItemInit, scene_end, the small draw passes; 15 functions). Left in main.c:
    `AllDrawObject`, `DrawObjectRefraction`, `GlobalDrawObject`, `ssHQDOF_DrawAllObject`, `main_rtn*` (5),
    `scene_init`, `scene_draw_init`, `system_end`, `get_draw_obj` (stubs in main.c). **Next:**
-   `ga/gaInitInterrupt.c` (queued first: main's frame waits on `ga_main_timer`), then in the order a smoke
+   ~~`ga/gaInitInterrupt.c`~~ (verify, 2026-11-09: main's frame loops now), then in the order a smoke
    run reaches the stubs: `main2` (game/main2.c: title and scene set-up), `IOPInit` / `Character_All_Init`
    (Character_Init.c), `FS_work_init` / `FileSoundServer` (fileio.c), `SunAllocInit` (ahalloc.c), the ga
    library (`gaDmaInit`, `gaVifInit`, `gaSetupGSInitData`, the BGT packets, `gaPadRead`), `movie.c`.

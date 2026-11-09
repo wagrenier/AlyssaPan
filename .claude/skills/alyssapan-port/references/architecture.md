@@ -131,6 +131,14 @@ the TU map's evidence.
   7 vaseline, 8 HQ DOF, 9 global objects only; frame clear colour = the scene's fog colour), fades,
   VSync **by busy-waiting on `ga_main_timer`** (the VSync callback `gaInitInterrupt` installs), movies,
   time. `SkipMain` / `DemoSkip` fast-forward: no pad, no drawing, ticks advanced by 5 / 10.
+- **The ga library's VSync (`ga/gaInitInterrupt.c`, 2026-11-09)**, a GCC object (`gcc2_compiled.` in
+  its local run; its `.data` is `wait_vsync_state` alone, 0x0192e790 = 0): `gaVsyncCallBack` (static)
+  counts `ga_main_timer` every VSync and `ga_down_timer` for VSyncs no wait was pending on; a pending
+  `gaWaitVSync` is released and T1 zeroed (the CPU meter's origin). `gaWaitVSync()` takes no argument
+  (main passes nothing it reads), spins until the next VSync, sets DISPFB's FBP to
+  `ga_draw_fbuf_address >> 11` (word address -> 2048-word page), swaps `ga_draw_fbuf_address` /
+  `ga_disp_fbuf_address` and calls `sceGsPutDispEnv(&ga_disp)`; it answers the CSR FIELD bit read on entry.
+  `ga_main_timer` / `ga_down_timer` (bss 0x01c8d730 / 0x01c8d734) are commons defined here.
 - **main.c's globals** are taken to be the .sbss run 0x01942ab0..0x01942b48 (`pad_key_button` ..
   `gArgc`): contiguous, all used by main.c's functions, `gArgv` / `gArgc` surely its own. A guess from
   placement; the locals (symtab 895..911) are `a$1034`, `skip_wait_temp$61`, `focusPos$905` and the

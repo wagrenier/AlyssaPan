@@ -18,7 +18,6 @@ extern int ga_disp_fbuf_address;                /* sbss 0x0193e680 */
 extern int ga_draw_fbuf_address;                /* sdata 0x019398c8 */
 extern int ga_zbuf_address;                     /* sdata 0x019398cc */
 extern sceGsDispEnv ga_disp;                    /* sbss 0x0193eec0 */
-extern volatile int ga_main_timer;              /* bss  0x01c8d730: counted by the VSync handler */
 extern GA_GSINIT_DATA gsinit;                   /* sbss 0x01941e40 */
 extern GA_DBUFFER_DATA drawbuffer_frameclear;   /* sbss 0x01941d40 */
 extern GA_DBUFFER_DATA drawbuffer_0;            /* sbss 0x01941dc0 */

@@ -1,6 +1,5 @@
 {
  "queue": [
-  "ga/gaInitInterrupt.c",
   "game/main.c",
   "alyssapan/core/window.cpp",
   "sdk/libmc.cpp"
@@ -79,12 +78,21 @@
    "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 24 unkeyed; file name from the names"
   },
   "ga/gaInitInterrupt.c": {
+   "notes": "GCC object; wait_vsync_state (data 0x0192e790), ga_main_timer, ga_down_timer defined here. gaWaitVSync takes no argument and returns the CSR FIELD bit; main.c calls updated. A 15 s smoke run now loops main's frame (420+ frames, AA_MovieProc reached); the screen stays black (nothing draws yet), so verify. Host REG_GS_CSR never updates FIELD (hazards.md).",
    "ranges": [
     [
      "018a86a8",
      "018a8810"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-09 18:17",
+     "status": "verify",
+     "summary": "the ga VSync: gaInitInterrupt, gaVsyncCallBack, gaWaitVSync (3 of 3)"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 101..101, 2 functions keyed by their statics, 1 unkeyed; file name from the names"
   },
   "ga/gaObjectClippingCheck.c": {

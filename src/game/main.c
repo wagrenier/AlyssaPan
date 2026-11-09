@@ -545,7 +545,7 @@ int main(int argc, char **argv)
         gaBGT_ExecDrawCommandData_VIF1(&drawcom_frameclear);
         gaBGT_End();
         gaInitDrawObject();
-        gaWaitVSync(0);
+        gaWaitVSync();
     }
     // PMODE EN2; SMODE2 INT (frame mode); DISPFB FBW 8 (512); DISPLAY DX 636 DY 50 MAGH 4, DW 2559
     // DH 447 (512 x 448); BGCOLOR black.
@@ -904,7 +904,7 @@ int main(int argc, char **argv)
                     ;
             }
             if (SkipMain == 0 && DemoSkip == 0) {
-                gaWaitVSync(0);
+                gaWaitVSync();
                 AA_MovieProc();
             } else {
                 if (SkipMain != 0) {
