@@ -43,9 +43,8 @@ file(GLOB_RECURSE ALYSSAPAN_GAME_SOURCES CONFIGURE_DEPENDS
 set_source_files_properties(${ALYSSAPAN_GAME_SOURCES} PROPERTIES LANGUAGE CXX)
 
 # The process entry belongs to the host (src/main.cpp); the game's main stays as the ROM has it, and its
-# file, once written, is built with main=gameMain:
-#   set_source_files_properties(src/game/<main's file> PROPERTIES COMPILE_DEFINITIONS main=gameMain)
-# Until then lib/unassigned_stubs.cpp has the stub gameMain.
+# file (game/main.c, written 2026-11-09) is built with main=gameMain.
+set_source_files_properties(src/game/main.c PROPERTIES COMPILE_DEFINITIONS main=gameMain)
 
 add_library(alyssapan_game OBJECT ${ALYSSAPAN_GAME_SOURCES})
 target_include_directories(alyssapan_game PUBLIC src src/sdk)

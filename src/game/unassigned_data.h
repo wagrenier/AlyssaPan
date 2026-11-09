@@ -1,0 +1,140 @@
+// game/unassigned_data.h -- CT3 globals that game/main.c's slice uses and whose owning TU is not written
+// yet (2026-11-09). Names, addresses and sizes are the symtab's; types are what the code reads. Each moves
+// to its owner's header when that TU is written; lib/unassigned_data.cpp defines them until then.
+// Pointers the ROM keeps as EE addresses are host pointers here (no EE memory behind them).
+#pragma once
+
+#include "sdk/scetypes.h"
+#include "sdk/sce_gs.h"
+#include "ga/gaInitDrawObject.h"
+#include "game/ahalloc.h"
+#include "game/ct3_types.h"
+#include "ga/pad_button_read.h"
+
+// ---- the ga library's frame (gaInit3dlib.c, gaInitDrawObject.c, gaInitInterrupt.c) ------------------
+extern void *bgt_ringbuffer;                    /* sbss 0x01941808: 1 KB-aligned start in bgt_ringbuffer_work */
+extern u_char bgt_ringbuffer_work[0x10000];     /* bss  0x01ad7c20 */
+extern int ga_disp_fbuf_address;                /* sbss 0x0193e680 */
+extern int ga_draw_fbuf_address;                /* sdata 0x019398c8 */
+extern int ga_zbuf_address;                     /* sdata 0x019398cc */
+extern sceGsDispEnv ga_disp;                    /* sbss 0x0193eec0 */
+extern volatile int ga_main_timer;              /* bss  0x01c8d730: counted by the VSync handler */
+extern GA_GSINIT_DATA gsinit;                   /* sbss 0x01941e40 */
+extern GA_DBUFFER_DATA drawbuffer_frameclear;   /* sbss 0x01941d40 */
+extern GA_DBUFFER_DATA drawbuffer_0;            /* sbss 0x01941dc0 */
+extern GA_DRAWCTRL_DATA drawctrl_frameclear;    /* sbss 0x01941c80 */
+extern GA_DRAWCOMMAND_DATA drawcom_frameclear;  /* sdata 0x01939cc0 */
+extern PAD_DATA pad[2];                         /* sbss 0x01941eb0: gaPadRead's two controllers */
+extern u_char ga3dlibwork[0x400];               /* sbss 0x0193eac0: copied to the scratchpad each frame */
+
+// ---- heaps (ahalloc.c) -------------------------------------------------------------------------------
+extern SUN_HEAP gHeapJunc;                      /* sdata 0x0193bd30 */
+extern SUN_HEAP gHeapSound;                     /* sdata 0x0193bcb0 */
+extern SUN_HEAP gHeapGlobalScene;               /* sdata 0x0193bcf0 */
+extern u_char gJuncAllocArea[0x96000];          /* bss  0x01bce3c0 */
+extern u_char gSoundAllocArea[0xe1000];         /* bss  0x01aed3c0 */
+extern u_char *gGlobalBankArea;                 /* sdata 0x01939c54: EE 0x00400000, 3 MB below the ELF */
+
+// ---- game state --------------------------------------------------------------------------------------
+extern u_int OMAKE_FLAG;                        /* sbss 0x0193f9f0: OMAKE_* (the extras unlocked) */
+extern int pause;                               /* sbss 0x01941804: PAUSE_* */
+extern int pause_reservation;                   /* sbss 0x01941800: next frame's pause */
+extern int time_stop_fream;                     /* sbss 0x019417f8 (sic) */
+extern int time_stop_flag;                      /* sbss 0x019417fc: TIME_STOP_* */
+extern int fReset;                              /* sbss 0x0193f9d0 */
+extern int load_continue;                       /* sbss 0x0193fa10 */
+extern int progress_time;                       /* sbss 0x0193fa1c: play time in frames */
+extern u_int AA_UidCount;                       /* sbss 0x0193fa0c */
+extern u_int tnRandSeed;                        /* sbss 0x01942390 */
+extern int PowerOn;                             /* sbss 0x0193fa08 */
+extern int mcMain_ID;                           /* sbss 0x0193fa04 */
+extern int mcSlot_ID;                           /* sbss 0x0193fa00 */
+extern int mcFile_ID;                           /* sbss 0x0193f9fc */
+extern int mcErr_ID;                            /* sbss 0x0193f9f8 */
+extern int mcAccess_ID;                         /* sbss 0x0193f9f4 */
+extern char SkipEventFlag[20];                  /* sbss 0x01941170 */
+extern u_char SOUND_STEREO_MONAURAL_BUFF;       /* sbss 0x0193f9ec */
+extern u_char BGM_MASTER_VOLUME_BUFF;           /* sbss 0x0193f9e8 */
+extern u_char SE_MASTER_VOLUME_BUFF;            /* sbss 0x0193f9e4 */
+extern u_char LOAD_SLOT_NUM;                    /* sbss 0x0193f9e0 */
+extern u_char TITLE_SELECT_NUM;                 /* sbss 0x0193f9d8 */
+extern u_char TITLE_CANCEL_FLAG;                /* sbss 0x0193f9d4 */
+extern u_short KEY_MAP[105];                    /* sdata 0x0193b9a0: button bits by action */
+extern char Backup_Filename[255];               /* sbss 0x019404e0 */
+extern u_char MoviePlayCheck;                   /* sbss 0x0194238c */
+extern u_char MovieEndCheck;                    /* sbss 0x01942388 */
+extern int ControlDisableflag;                  /* sbss 0x01944830 */
+extern int TexFileSysInitStop;                  /* sbss 0x01941694 */
+extern int anim_play_slow;                      /* sdata 0x01937600: 100 */
+
+// ---- scenes and banks --------------------------------------------------------------------------------
+extern BANK_INFO BankInfo[BANK_MAX];            /* bss  0x01aea360 */
+extern int idCurrentScene;                      /* sbss 0x01940e34 */
+extern int ACTRESS_LIGHT_BASE_MAX_ID[BANK_MAX]; /* sbss 0x01941f00: < 0 = the scene has no actress light */
+extern int Omni1_num[BANK_MAX];                 /* sbss 0x01942060 */
+extern int Omni0_num[BANK_MAX];                 /* sbss 0x019421c0 */
+extern char ActressLightFlag[BANK_MAX];         /* sbss 0x01942320 */
+extern u_char *ActressMP;                       /* sbss 0x01942380: the actress's model (matrix at +0x1c0) */
+extern void *All_table_TBL[BANK_MAX];           /* sbss 0x019416a0 */
+extern u_char *FogCtrlAddr[BANK_MAX];           /* sbss 0x019405f0: fog colour bytes at +4, +8, +0xc */
+extern FOG_ANIME FogAnimeBuff[BANK_MAX];        /* bss  0x01a58040 */
+
+// ---- characters --------------------------------------------------------------------------------------
+extern CHARACTER Character[CHARACTER_MAX];      /* bss  0x01a4bfc0 */
+extern int DirectLightCharaCounter[CHARACTER_MAX]; /* sbss 0x019400e0 */
+extern short AI_flag[CHARACTER_MAX];            /* sbss 0x0193fca0 */
+extern u_short CharDirectLightSet[CHARACTER_MAX][6]; /* sbss 0x0193ff30 */
+extern u_short CharOmniEffect[CHARACTER_MAX][8];     /* sbss 0x0193fd00 */
+extern u_short AllOmniEffect[8];                /* sbss 0x0193fcf0 */
+extern int CharStopFlag;                        /* sbss 0x019401c8 */
+extern int TrgCharStopFlag;                     /* sbss 0x019401c4: TRG_CHAR_STOP_* */
+extern int PlayerPanicMode;                     /* sbss 0x019401c0 */
+extern int MonsterHpDispCounter;                /* sbss 0x019401bc */
+extern int MonsterHpDispCharID;                 /* sbss 0x019401b8 */
+extern u_char *pBossInfo;                       /* sbss 0x0193f78c: byte +0x91 = Alyssa's own light belt */
+extern char sFirstCheck;                        /* sdata 0x01939c8c */
+extern int save_count;                          /* sbss 0x0193fa20 */
+extern int msg_num;                             /* sbss 0x0193fa14 */
+
+// ---- camera, clipping, drawing -----------------------------------------------------------------------
+extern float CameraPosBefore[4];                /* sbss 0x01941810 */
+extern float CameraPos[4];                      /* sbss 0x01941820 */
+extern float Clipping_X1_pos;                   /* sbss 0x01940ea8 */
+extern float Clipping_Y1_pos;                   /* sbss 0x01940ea0 */
+extern float Clipping_X2_pos;                   /* sbss 0x01940ea4 */
+extern float Clipping_Y2_pos;                   /* sbss 0x01940e9c */
+extern int VistaVisionNumber;                   /* sbss 0x0193fc90 */
+extern int VistaVisionMode;                     /* sbss 0x0193fc94 */
+extern int SS_fb_write_msb;                     /* sbss 0x019405e8 */
+extern u_char SS_ZDrawMode;                     /* sbss 0x019405e4 */
+extern u_char SS_ForceAlphaMode;                /* sbss 0x019405e0 */
+extern int DrawMode;                            /* sbss 0x0194296c: DRAW_MODE_* */
+extern int prevDrawMode;                        /* sbss 0x01942968 */
+extern int ScreenHazyLevel;                     /* sbss 0x01942960 */
+extern int HazeTransTime;                       /* sbss 0x0194295c */
+extern int ScreenBlurLevel;                     /* sbss 0x01942964 */
+extern FILTER_CHANGE_WORK FilterChangeWork;     /* sbss 0x0193fc60 */
+extern char fFade;                              /* sbss 0x0193f74c */
+extern char fXFade;                             /* sbss 0x0193f748 */
+extern char fVibTimer;                          /* sbss 0x0193f768 */
+extern char fShadeOff;                          /* sbss 0x0193f750 */
+extern int nowShadeOffFrame;                    /* sbss 0x01942944 */
+extern int FadeStartTicks;                      /* sbss 0x0194294c */
+extern int XfadeStartTicks;                     /* sbss 0x01942954 */
+extern int VibTimeTicks;                        /* sbss 0x0193f76c */
+
+// ---- time (LinkMatrixTree.c's ahTime*) ---------------------------------------------------------------
+extern int gNextTicksInterval;                  /* sbss 0x0193cb18 */
+extern int gNextTicks;                          /* sbss 0x0193cb1c */
+extern int gTotalTicks;                         /* sbss 0x0193cb20 */
+extern int gGlobalNextTicksInterval;            /* sbss 0x0193cb08 */
+extern int gGlobalNextTicks;                    /* sbss 0x0193cb0c */
+extern int gGlobalTotalTicks;                   /* sbss 0x0193cb10 */
+
+// ---- items (tiItemInit) ------------------------------------------------------------------------------
+extern int ItemList[12];                        /* sbss 0x0193f9a0 */
+extern u_char ItemData[100][0x18];              /* data 0x0192e810: the item table (byte +1 = held) */
+extern int KeyItemList[24];                     /* sbss 0x0193f940 */
+extern int LetterList[5][10];                   /* sbss 0x0193f870 */
+extern int ArrowData[3];                        /* sbss 0x0193f858 */
+extern int ArrowList[50];                       /* sbss 0x0193f790 */

@@ -28,6 +28,21 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
   data symbols, yet `create_label` skipped 2,650 of them as existing. `create_label` (batch) is idempotent
   for the same name and address: use its `labels_skipped` count to compare.
 
+- (2026-11-09, game/main.c) **Ghidra drops register arguments CT3 sets before a loop's call.**
+  `asCharacterForceMoveOperate()` shows no argument, but a0 is the character (`addu a0,v1,a1` survives to
+  the jal); `asWarpSceneObject` takes a third, the VU0 result on the stack (`addiu a2,sp,0x30`). Read the
+  instructions before each jal in a function you write (`mipsdis.py <lo> +<len>`).
+- (2026-11-09, game/main.c) **main's frame waits on `ga_main_timer`**, which only the VSync callback of
+  `gaInitInterrupt` advances: with that stubbed, a run spins in main's wait after the first drawn frame
+  (the four `SkipMain` frames pass). Not a hang in main's code: write `ga/gaInitInterrupt.c`.
+- (2026-11-09, game/main.c) **Null tables the EE reads harmlessly.** `FogCtrlAddr[scene]` is null until a
+  scene loads; the EE reads kernel RAM there, the host crashed. main.c's `FogClearColor` guards it (black).
+  Expect more of these while `main2` / fileio.c are stubs.
+- (2026-11-09, game/main.c) **layoutcheck had never passed under MSVC**: `sdk/sif.cpp` (an IOP module start
+  typed `int(int, char**)` against `runModuleStart(int (*)())`) and `iop/system_memory.cpp`
+  (`std::max` against windows.h's macro) failed `cl`; fixed with the TU, as `tus.py finish` refuses a red
+  layoutcheck.
+
 ## From the siblings (2026-11-09 digest of MioPan, ReiPan, RosePan, MikuPan)
 
 - **Ghidra misses functions even with symbols**: code reached only through data (dispatch tables,

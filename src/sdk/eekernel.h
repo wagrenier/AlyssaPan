@@ -87,6 +87,7 @@ using DmacHandler = int (*)(int channel);
 using IntcHandler = int (*)(int cause);
 
 void FlushCache(int mode);
+void InitThread(void);          // libkernl's main-thread setup (CT3 calls it from main): the host's thread
 int SetDebugHandler(int cause, AlyssaPanDebugHandler handler);
 int AddDmacHandler(int channel, DmacHandler handler, int next);
 int AddIntcHandler(int cause, IntcHandler handler, int next);

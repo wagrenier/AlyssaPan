@@ -1,4 +1,4 @@
-// The process entry. The game's own main is gameMain (game/gamesystem.cpp), run on the EE's main thread.
+// The process entry. The game's own main is gameMain (game/main.c), run on the EE's main thread.
 #include <span>
 
 #include <SDL3/SDL_main.h>

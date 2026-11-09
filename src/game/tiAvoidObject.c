@@ -1,0 +1,19 @@
+// game/tiAvoidObject.c -- Clock Tower 3 module (file from the inference in alyssapan_functions.txt).
+// Functions below are stubs until reconstructed; see tools/reverse/stage.py.
+
+#include "common/alyssapan_stub.h"
+#include "game/tiAvoidObject.h"
+
+// ---- stubs (tools/reverse/stubgen.py) ----
+
+// stub of CT3 0x01866490
+void ssAI_GlobalInit(void)
+{
+    ALYSSAPAN_STUB("ssAI_GlobalInit", 0x01866490);
+}
+
+// stub of CT3 0x01863ed0
+void ssAI_main(void)
+{
+    ALYSSAPAN_STUB("ssAI_main", 0x01863ed0);
+}

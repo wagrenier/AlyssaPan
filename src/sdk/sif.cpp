@@ -45,7 +45,7 @@ bool namesModule(std::string_view path, std::string_view file)
 struct IopModule
 {
     std::string_view file;
-    int (*start)(int argc, char **argv);
+    int (*start)();                     // the module's start, as Kernel::runModuleStart takes it
 };
 constexpr std::array<IopModule, 0> kIopModules{};
 

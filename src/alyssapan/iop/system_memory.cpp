@@ -111,7 +111,7 @@ std::size_t SystemMemory::largestFree() const
     std::lock_guard lock(m_lock);
     std::size_t largest = 0;
     for (const auto &[offset, size] : m_free)
-        largest = std::max(largest, size);
+        largest = (std::max)(largest, size); // parenthesised: windows.h's max macro (MSVC)
     return largest;
 }
 

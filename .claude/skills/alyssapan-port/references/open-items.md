@@ -39,10 +39,20 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    - ~~7. First build~~ green (2026-11-09): `build.py --run 15` opens the window on D3D12, logs
      `[stub] main (CT3 0x01839d10) reached`, writes shots (black: nothing draws yet). `io::Disc` mounts
      only the root's 2 files (the path table is root-only: item 3). Then the queue.
-1. **`main`'s TU first** (0x01834440..0x0183aed8: `main_rtn*`, `game_init`, `system_init`, `main`), then
-   what its run reaches, in the order a smoke run reaches the stubs. Expect early: `SunAlloc` (`ahalloc.c`),
-   `IopLoadModule` and the IOP module list, `fileio.c` on `CT3PACK.DAT`, `gaInit3dlib` / `gaInitInterrupt`,
-   pad (`gaPadInit`), `movie.c` for the opening films.
+1. **`main`'s TU first** -- **partial (2026-11-09):** slice 1 written (main, the boot and init functions,
+   ControllerMain, tiItemInit, scene_end, the small draw passes; 15 functions). Left in main.c:
+   `AllDrawObject`, `DrawObjectRefraction`, `GlobalDrawObject`, `ssHQDOF_DrawAllObject`, `main_rtn*` (5),
+   `scene_init`, `scene_draw_init`, `system_end`, `get_draw_obj` (stubs in main.c). **Next:**
+   `ga/gaInitInterrupt.c` (queued first: main's frame waits on `ga_main_timer`), then in the order a smoke
+   run reaches the stubs: `main2` (game/main2.c: title and scene set-up), `IOPInit` / `Character_All_Init`
+   (Character_Init.c), `FS_work_init` / `FileSoundServer` (fileio.c), `SunAllocInit` (ahalloc.c), the ga
+   library (`gaDmaInit`, `gaVifInit`, `gaSetupGSInitData`, the BGT packets, `gaPadRead`), `movie.c`.
+   Open from slice 1, for the TUs that own them: (a) the 106 globals main.c's slice uses live in
+   `lib/unassigned_data.cpp` (declared in `game/unassigned_data.h`, structs in `game/ct3_types.h`): move
+   each to its owner when written; (b) `BANK_INFO.loaded` (+0x20) is an int here, maybe a pointer;
+   (c) the trigger events' names in main.c (`EV_HOLD_*`, 0xca / 0xcc) and `controller_mode` 100 are read
+   from main's use only; (d) the prototypes in the new TU headers come from call sites: confirm each when
+   its function is written; (e) main.c's .sbss run is a placement guess (architecture.md).
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
    class: (a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale

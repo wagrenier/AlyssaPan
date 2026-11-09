@@ -107,6 +107,35 @@ the TU map's evidence.
 - `main_rtn*`, `scene_*`, `system_*`: the frame loop and mode switches in main's object.
 - `movie.c`, `sound.c`, `fileio.c`: their own files (strings at 0x01935480, 0x019365f0, 0x01936098).
 
+## main's object, game/main.c (2026-11-09, first slice)
+
+- **The boot** (main 0x01839d10): GS / DMA reset, `gaDmaInit`, `gaVifInit`, the GS init packet (`gsinit`),
+  the BGT ring buffer (`bgt_ringbuffer` = 0x01ad8000, the first 1 KB boundary inside `bgt_ringbuffer_work`
+  0x01ad7c20, 0x8000 bytes used), frame buffers at 0 / 0x38000, Z at 0x70000, `gaInitInterrupt`,
+  `FirstInitialization` (the three SunAlloc heaps, the frame-clear packets, `SkipMain = 4`), two cleared
+  frames, then the display: **512 x 448 interlaced frame mode** (DISPLAY 0x001bf9ff0203227c: DX 636 DY 50
+  MAGH 4, DW 2559 DH 447; DISPFB FBW 8), `IOPInit(argv)`, `ArtoolDebugOpen`, `game_init`.
+- **Then forever:** `system_init`, `main2` (title and scene set-up), the frame loop until `fReset` or
+  `load_continue`, and the teardown (`SceneEndBank(0, 86)`, `system_end`, the heaps rebuilt).
+- **The heaps:** `gHeapJunc` "JUNC" over `gJuncAllocArea` (0x96000), `gHeapSound` "SUND" over
+  `gSoundAllocArea` (0xe1000), `gHeapGlobalScene` "GLBL" over `gGlobalBankArea` = **EE 0x00400000, 3 MB of
+  free RAM below the ELF** (the host gives it a buffer: lib/unassigned_data.cpp).
+- **The frame:** pad (`gaPadRead(pad, mode)`, `pad` = two 0x24-byte PAD_DATA; `pad_*_button[0..1]` are the
+  frame's copies), `ControllerMain`, the BGT packets, `ga3dlibwork` DMA'd to the scratchpad (0x70000400,
+  0x40 qw), animation and shadows (banks of type 1 and characters with flag 0x40000000), triggers, the
+  time stop (`time_stop_fream` / `time_stop_flag` bits 1/2/4/8), the demo skip (`DEMO_SKIP_FLAG` 0..5,
+  10..13, START = `KEY_MAP[11]`, fades through `DemoFilterChangeWork`), characters (pos copied to
+  posBefore at +0xb0), effects, the camera, the actress light (her model's matrix at `ActressMP`+0x1c0
+  times the vector at +0x20, VU0 in the ROM, passed to `asWarpSceneObject`), **the draw pass by
+  `DrawMode`** (0 normal, 1 DOF, 2 reflect map -- empty in retail, 3 blur, 4 ultima, 5 hazy, 6 wave,
+  7 vaseline, 8 HQ DOF, 9 global objects only; frame clear colour = the scene's fog colour), fades,
+  VSync **by busy-waiting on `ga_main_timer`** (the VSync callback `gaInitInterrupt` installs), movies,
+  time. `SkipMain` / `DemoSkip` fast-forward: no pad, no drawing, ticks advanced by 5 / 10.
+- **main.c's globals** are taken to be the .sbss run 0x01942ab0..0x01942b48 (`pad_key_button` ..
+  `gArgc`): contiguous, all used by main.c's functions, `gArgv` / `gArgc` surely its own. A guess from
+  placement; the locals (symtab 895..911) are `a$1034`, `skip_wait_temp$61`, `focusPos$905` and the
+  literals ("JUNC", "SUND", "GLBL", "GAME.BIN" = @2700, the DrawMode jump table @1669).
+
 ## Data (2026-11-09)
 
 - `DATA\CT3PACK.DAT` (the ELF names `DATA\CT3PACK.DAT;1` and `\DATA\CT3PACK.DAT;1` at 0x01934b90,

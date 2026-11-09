@@ -16,8 +16,7 @@
 #include "alyssapan/ee/kernel.h"
 #include "alyssapan/io/disc.h"
 
-// The game's own main (CT3 0x01839d10, built with main=gameMain; until its TU is written, the stub in
-// game/main_stub.cpp reports it reached).
+// The game's own main (0x01839d10): game/main.c, built with main=gameMain.
 int gameMain(int argc, char **argv);
 
 namespace alyssapan
