@@ -2,8 +2,9 @@
 // game_init, system_init), the main loop, and the draw passes it picks by DrawMode. Built with
 // main=gameMain (CMakeLists.txt): the process entry is the host's (src/main.cpp).
 // Written 2026-11-09: slice 1 (the boot, the loop, the small draw passes), slice 2 (GlobalDrawObject,
-// scene_draw_init, system_end, get_draw_obj); main_rtn*, AllDrawObject, DrawObjectRefraction,
-// ssHQDOF_DrawAllObject and scene_init are the TU's later slices.
+// scene_draw_init, system_end, get_draw_obj), slice 3 (main_rtn, main_rtn_Particle); main_rtn_Particle2,
+// main_rtn_DOF / _GHOST / _GHOST_DOF, AllDrawObject, DrawObjectRefraction, ssHQDOF_DrawAllObject and
+// scene_init are the TU's later slices.
 #include "game/main.h"
 #include "common/alyssapan_stub.h"
 
@@ -13,7 +14,9 @@
 #include "sdk/libdma.h"
 #include "sdk/libgraph.h"
 #include "game/unassigned_data.h"
+#include "ga/gaBGT_DrawObject.h"
 #include "ga/gaDma.h"
+#include "ga/gaObjectClippingCheck.h"
 #include "ga/gaInit3dlib.h"
 #include "ga/gaInitDrawObject.h"
 #include "ga/gaInitInterrupt.h"
@@ -70,6 +73,15 @@ int gArgc;                                      /* sbss 0x01942b44 */
 #define BGT_RINGBUFFER_SIZE 0x8000
 #define SPR_3DLIB_WORK ((void *)0x70000400)    /* ga3dlibwork's copy in the scratchpad */
 #define SPR_3DLIB_WORK_QWC 0x40
+
+// main_rtn's flags: the low 15 bits name the pass (0 and 4 sort the list first), 0x8000 skips the
+// clip check.
+#define MAIN_RTN_PASS_MASK 0x7fff
+#define MAIN_RTN_PASS_SORT 0
+#define MAIN_RTN_PASS_SORT2 4
+#define MAIN_RTN_NO_CLIP 0x8000
+#define MAIN_RTN_CLIP_FAR 50000.0f              /* gaSet3dlibStruct's far clip */
+#define BANK_NAME_MENU "MENU.BIN"               /* @2324: bank 0 is the menu -> every texture restarts the BGT ring */
 
 #define FRAMECLEAR_RGBAQ 0x3f80000080000000ull  /* Q = 1.0f, A = 0x80, RGB = 0 */
 
@@ -410,6 +422,228 @@ void GlobalDrawObject(void)
             GlobalDrawBank(i, &exported, &lastTex);
     }
     asChangeViewMatrix_forTheBank(BANK_SCENE_MAX);
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// A bank's particle systems (ALL_TABLE.particles) under the bank's fog, or the current scene's
+// character fog (fog != 0): each system's live ring slots head .. tail, clip-checked, texture and draw
+// control switched when they change (a new texture restarts the BGT ring). *lastTex as in main_rtn.
+// CT3 0x018379d0
+
+void main_rtn_Particle(int bank, int fog, void **lastTex)
+{
+    TEX_INFO *texNow = (TEX_INFO *)*lastTex;
+    int ctrlNow = -1;
+    u_int *timNow = NULL;
+    void **list = All_table_TBL[bank]->particles;
+    FOG_INFO *info;
+    int i;
+
+    if (asCheckBankType(bank) == 0)
+        asChangeViewMatrix_forTheBank(asCheckBankID(bank));
+    if (fog == 0) {
+        info = (FOG_INFO *)FogCtrlAddr[bank];
+        gaSetupFogCtrlData(&fogctrl[bank], info->fog[0], info->fog[1], info->fog[2],
+                           info->fogArg[0], info->fogArg[1], info->fogArg[2]);
+    } else {
+        info = (FOG_INFO *)FogCtrlAddr[idCurrentScene];
+        gaSetupFogCtrlData(&fogctrl[bank], info->charaFog[0], info->charaFog[1], info->charaFog[2],
+                           info->charaFogArg[0], info->charaFogArg[1], info->charaFogArg[2]);
+    }
+    gaSet3dlibStruct(MAIN_RTN_CLIP_FAR, ga3dlibwork, &drawbuffer_0, &fogctrl[bank], screen_0);
+    tnInit3dlibWork(ga3dlibwork, SPR_3DLIB_WORK);
+    gaBGT_ExecFogCtrlData_VIF1(&fogctrl[bank]);
+    {
+        int fogBank = fog == 0 ? bank : idCurrentScene;
+        MODEL_PARTS *fogParts = (MODEL_PARTS *)pModelPartsHeader[fogBank];
+
+        if (fogParts[((FOG_INFO *)FogCtrlAddr[fogBank])->parts].flags & PARTS_FLAG_FOG)
+            FOG_mode = 1;
+    }
+
+    for (i = 0; list[i] != NULL; i++) {
+        PARTICLE_ENTRY *ent = (PARTICLE_ENTRY *)list[i];
+        PARTICLE_STATE *state = ent->state;
+        TEX_INFO *tex = ent->tex;
+        u_int slot = state->head;
+        u_int tail = state->tail;
+
+        if (slot == tail)
+            continue;
+        if (ent->drawCtrlId != 0 && ent->drawCtrlId != ctrlNow)
+            gaBGT_ExecDrawCtrlData_VIF1((GA_DRAWCTRL_DATA *)ent->drawCtrl);
+        if (tex != NULL && tex != texNow) {
+            if (tex->tim != timNow) {
+                sunBGT_LoadGSTexClutData_VIF1(ent->tbuffer);
+                gaBGT_End();
+                gaBGT_Start(bgt_ringbuffer, BGT_RINGBUFFER_SIZE);
+                timNow = tex->tim;
+            }
+            sunBGT_ExecTBufferData_VIF1(ent->tbuffer);
+        }
+        texNow = tex;
+        ctrlNow = ent->drawCtrlId;
+
+        while (slot != tail) {
+            u_char *obj = ParticleObject[bank][i] + slot * PARTICLE_OBJ_SIZE;
+
+            obj[DRAW_OBJ_CLIP] = (u_char)gaObjectClippingCheck(obj);
+            if ((s_char)obj[DRAW_OBJ_CLIP] >= 0) {
+                drawobj_attr = 0;
+                gaBGT_DrawObject(obj, 0);
+            }
+            slot++;
+            if (slot == state->ringSize)
+                slot = 0;
+        }
+    }
+    *lastTex = texNow;
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// One draw list of a bank (ALLobject[bank]), sorted for the passes that sort it (mode 1 lists into
+// osTotalObjTable[mode][bank], motion-blurred parts inserted), under the bank's fog -- or, for a
+// character pass (chara != 0), the current scene's character fog and the light of the character's
+// light bank, eased in over DirectLightCharaCounter frames. Each part: skipped when it is a fog volume
+// or hidden (partsPos w), clip-checked unless MAIN_RTN_NO_CLIP, its texture uploaded and its draw
+// control switched only when they change; *lastTex carries the last texture across calls.
+// CT3 0x01838600
+
+void main_rtn(int bank, int mode, int chara, u_int flags, int charaIndex, void **lastTex)
+{
+    short lightBank = -1;
+    float lightFrames = 0.0f;
+    int count;
+    int blur;
+    u_char *table;
+    MODEL_PARTS *parts;
+    FOG_INFO *fog;
+    TEX_INFO *texNow;
+    u_int *timNow = NULL;
+    int ctrlNow = -1;
+    int zonlyParts = -1;
+    u_int pass = flags & MAIN_RTN_PASS_MASK;
+    int i;
+
+    if (chara != 0) {
+        lightBank = Character[charaIndex].lightBank;
+        lightFrames = (float)DirectLightCharaCounter[charaIndex];
+    }
+    if (asCheckBankType(bank) == 0)
+        asChangeViewMatrix_forTheBank(asCheckBankID(bank));
+    asViewMatrix2PosRUF(&matrix_global_view[0][0], CameraPos, NULL, NULL, NULL);
+    count = get_draw_obj(bank);
+    if (count == 1)
+        return;
+
+    blur = ssGetNumBlurDrawObjForScene(bank, mode);
+    texNow = (TEX_INFO *)*lastTex;
+    table = osTotalObjTable[mode][bank];
+    if (mode != 0 && count != 0) {
+        if (pass == MAIN_RTN_PASS_SORT || pass == MAIN_RTN_PASS_SORT2) {
+            if (blur == 0)
+                objSort(bank, count, table);
+            else
+                objSortWithBlurIdx(bank, count, table);
+        }
+        ALLobject[bank] = (void **)table;
+    }
+    if ((pass == MAIN_RTN_PASS_SORT || pass == MAIN_RTN_PASS_SORT2) && blur != 0) {
+        ssPartMotionBlurInsertObjToDrawTable(bank, table, ALLobject[bank], count, mode);
+        ALLobject[bank] = (void **)table;
+    }
+
+    if (chara == 0) {
+        fog = (FOG_INFO *)FogCtrlAddr[bank];
+        gaSetupFogCtrlData(&fogctrl[bank], fog->fog[0], fog->fog[1], fog->fog[2],
+                           fog->fogArg[0], fog->fogArg[1], fog->fogArg[2]);
+    } else {
+        fog = (FOG_INFO *)FogCtrlAddr[idCurrentScene];
+        gaSetupFogCtrlData(&fogctrl[bank], fog->charaFog[0], fog->charaFog[1], fog->charaFog[2],
+                           fog->charaFogArg[0], fog->charaFogArg[1], fog->charaFogArg[2]);
+    }
+    gaSet3dlibStruct(MAIN_RTN_CLIP_FAR, ga3dlibwork, &drawbuffer_0, &fogctrl[bank], screen_0);
+    if (Clipping_System == 1)
+        Clipping_Portal(ga3dlibwork, screen_0);
+    tnInit3dlibWork(ga3dlibwork, SPR_3DLIB_WORK);
+    gaBGT_ExecFogCtrlData_VIF1(&fogctrl[bank]);
+
+    {
+        int fogBank = chara == 0 ? bank : idCurrentScene;
+        MODEL_PARTS *fogParts = (MODEL_PARTS *)pModelPartsHeader[fogBank];
+
+        if (fogParts[((FOG_INFO *)FogCtrlAddr[fogBank])->parts].flags & PARTS_FLAG_FOG)
+            FOG_mode = 1;
+    }
+
+    for (i = 0; ALLobject[bank][i] != NULL; i++) {
+        DRAW_OBJ_ENTRY *ent = (DRAW_OBJ_ENTRY *)ALLobject[bank][i];
+        u_char *obj = ent->obj;
+        TEX_INFO *tex = ent->tex;
+        int clip;
+
+        parts = &((MODEL_PARTS *)pModelPartsHeader[bank])[ent->parts];
+        if (parts->flags & PARTS_FLAG_FOG)
+            continue;
+        if (!(All_table_TBL[bank]->partsPos[ent->parts][3] > PARTS_POS_HIDDEN_W))
+            continue;
+        if ((parts->flags & PARTS_FLAG_ZONLY_FIRST) && zonlyParts != ent->parts) {
+            zonlyParts = OneMaxObjectDrawZOnly(bank, i);
+            ctrlNow = -1;
+        }
+        clip = (flags & MAIN_RTN_NO_CLIP) == 0 ? gaObjectClippingCheck(obj) : 0;
+        if (clip < 0)
+            continue;
+
+        if (texNow != tex && tex != NULL && tex->tim != timNow && tex->tim != NULL) {
+            sunSetupTBufferData(ent->tbuffer, tex->tim, tex->tbuf[0], tex->tbuf[1], tex->tbuf[2],
+                                tex->tbuf[3], tex->tbuf[4], tex->tbuf[5]);
+            sunBGT_LoadGSTexClutData_VIF1(ent->tbuffer);
+        }
+        if (ctrlNow != ent->drawCtrlId && ent->drawCtrlId != 0) {
+            gaBGT_ExecDrawCtrlData_VIF1((GA_DRAWCTRL_DATA *)ent->drawCtrl);
+            ctrlNow = ent->drawCtrlId;
+        }
+        *(int *)(obj + DRAW_OBJ_ATTR) = parts->attr;
+        if (tex != NULL) {
+            float *light = (float *)(obj + DRAW_OBJ_LIGHT);
+
+            if (chara == 0) {
+                if (tex->kind == TEX_KIND_LIGHT)
+                    *light = All_table_TBL[bank]->partsLight[ent->parts];
+            } else if (tex->kind == TEX_KIND_LIGHT && lightBank != -1 && BankInfo[lightBank].loaded == 1) {
+                float target = All_table_TBL[lightBank]->light[2] * All_table_TBL[bank]->partsLight[ent->parts];
+
+                if (lightFrames == 0.0f)
+                    *light = target;
+                else
+                    *light = *light + (target - *light) / lightFrames;
+            }
+        }
+
+        drawobj_attr = 0;
+        if (texNow != tex && tex != NULL) {
+            if (tex->tim != timNow && tex->tim != NULL) {
+                if (bank < BANK_SCENE_MAX && strcmp(BANK_NAME_MENU, BankInfo[0].name) == 0) {
+                    gaBGT_End();
+                    gaBGT_Start(bgt_ringbuffer, BGT_RINGBUFFER_SIZE);
+                } else if (tex->tim[0] <= TEX_SMALL_MAX && tex->tim[1] <= TEX_SMALL_MAX) {
+                    gaBGT_End();
+                    gaBGT_Start(bgt_ringbuffer, BGT_RINGBUFFER_SIZE);
+                }
+                timNow = tex->tim;
+            }
+            sunBGT_ExecTBufferData_VIF1(ent->tbuffer);
+            texNow = tex;
+        }
+        if (clip == 0 && !(obj[DRAW_OBJ_FLAGS] & DRAW_OBJ_FLAG_CLIP)) {
+            gaBGT_DrawObject_NoClippingCheck2(obj, drawobj_attr);
+        } else {
+            obj[DRAW_OBJ_CLIP] = (u_char)clip;
+            gaBGT_DrawObject(obj, drawobj_attr);
+        }
+    }
+    *lastTex = texNow;
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -1132,19 +1366,6 @@ void DrawObjectRefraction(int mode)
 void ssHQDOF_DrawAllObject(void)
 {
     ALYSSAPAN_STUB("ssHQDOF_DrawAllObject", 0x01835d40);
-}
-
-
-// stub of CT3 0x01838600
-void main_rtn(int bank, int mode, int a2, u_int a3, int a4, void **lastTex)
-{
-    ALYSSAPAN_STUB("main_rtn", 0x01838600);
-}
-
-// stub of CT3 0x018379d0
-void main_rtn_Particle(int bank, int fog, void **lastTex)
-{
-    ALYSSAPAN_STUB("main_rtn_Particle", 0x018379d0);
 }
 
 // stub of CT3 0x01837570

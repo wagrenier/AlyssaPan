@@ -6,3 +6,5 @@
 
 void gaInit3dlib(void);                                                                  // CT3 0x018a7700
 void gaSetZRollMatrix(int roll);                                                         // CT3 0x018a8548
+// clipZ: main_rtn passes 50000.0f ($f12); screen: screen_0's twelve floats.
+void gaSet3dlibStruct(float clipZ, void *work, void *drawbuffer, void *fogctrl, void *screen); // CT3 0x018a7db8

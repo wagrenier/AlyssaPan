@@ -25,3 +25,9 @@ int asFindModelPartsID(u_char *header, u_int hash);                             
 int asCheckBankID(int bank);                                                             // CT3 0x0185e360
 int asCheckBankType(int bank);                                                           // CT3 0x0185e380
 u_int ahGetHash(const char *name);                                                       // CT3 0x0185e580
+void tnInit3dlibWork(void *work, void *spr);                                            // CT3 0x01854560
+int OneMaxObjectDrawZOnly(int bank, int index);                                          // CT3 0x01858f20
+void sunBGT_LoadGSTexClutData_VIF1(void *tbuffer);                                      // CT3 0x018590b0
+void sunBGT_ExecTBufferData_VIF1(void *tbuffer);                                        // CT3 0x01859520
+void sunSetupTBufferData(void *tbuffer, u_int *tim, int a2, int a3, int a4, int a5, int a6, int a7); // CT3 0x01859530
+void asViewMatrix2PosRUF(float *view, float *pos, float *right, float *up, float *front); // CT3 0x0185a8a0

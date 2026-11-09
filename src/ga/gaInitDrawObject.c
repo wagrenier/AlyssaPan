@@ -71,3 +71,15 @@ void gaSetupGSInitData(GA_GSINIT_DATA *gsinit)
 {
     ALYSSAPAN_STUB("gaSetupGSInitData", 0x018a1d58);
 }
+
+// stub of CT3 0x018a2358
+void gaBGT_ExecFogCtrlData_VIF1(GA_FOGCTRL_DATA *fog)
+{
+    ALYSSAPAN_STUB("gaBGT_ExecFogCtrlData_VIF1", 0x018a2358);
+}
+
+// stub of CT3 0x018a22c8
+void gaSetupFogCtrlData(GA_FOGCTRL_DATA *fog, float f0, float f1, float f2, int i0, int i1, int i2)
+{
+    ALYSSAPAN_STUB("gaSetupFogCtrlData", 0x018a22c8);
+}

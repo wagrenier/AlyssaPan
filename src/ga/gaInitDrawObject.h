@@ -32,6 +32,12 @@ typedef struct GA_DRAWCOMMAND_DATA {
 static_assert(sizeof(GA_DRAWCOMMAND_DATA) == 0x50, "GA_DRAWCOMMAND_DATA");
 static_assert(offsetof(GA_DRAWCOMMAND_DATA, rgbaq) == 0x38, "GA_DRAWCOMMAND_DATA.rgbaq");
 
+// One bank's fog packet (fogctrl[86], 0x50 bytes each; the symtab's 6880 / 86).
+typedef struct GA_FOGCTRL_DATA {
+    u_char data[0x50];
+} GA_FOGCTRL_DATA;
+static_assert(sizeof(GA_FOGCTRL_DATA) == 0x50, "GA_FOGCTRL_DATA");
+
 void gaInitDrawObject(void);                                                             // CT3 0x018a1a48
 void gaInit3dlibWork(void *work);                                                        // CT3 0x018a1c40
 void gaSetupGSInitData(GA_GSINIT_DATA *gsinit);                                          // CT3 0x018a1d58
@@ -40,6 +46,8 @@ void gaSetupDBufferData(GA_DBUFFER_DATA *dbuf, int a1, int a2, int a3, int a4, i
 void gaBGT_ExecDBufferData_VIF1(GA_DBUFFER_DATA *dbuf);                                  // CT3 0x018a1f60
 void gaSetupDrawCtrlData(GA_DRAWCTRL_DATA *ctrl, int a1, int a2, int a3, int a4, int a5, int a6, int a7); // CT3 0x018a1fd8
 void gaBGT_ExecDrawCtrlData_VIF1(GA_DRAWCTRL_DATA *ctrl);                                // CT3 0x018a22b0
+void gaSetupFogCtrlData(GA_FOGCTRL_DATA *fog, float f0, float f1, float f2, int i0, int i1, int i2); // CT3 0x018a22c8
+void gaBGT_ExecFogCtrlData_VIF1(GA_FOGCTRL_DATA *fog);                                  // CT3 0x018a2358
 void gaBGT_ExecDrawCommandData_VIF1(GA_DRAWCOMMAND_DATA *com);                           // CT3 0x018a2e70
 void gaBGT_Start(void *ringbuffer, int size);                                            // CT3 0x018a2f30
 void gaBGT_End(void);                                                                    // CT3 0x018a3000

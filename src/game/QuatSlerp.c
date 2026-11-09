@@ -128,3 +128,47 @@ int asFindModelPartsID(u_char *header, u_int hash)
     ALYSSAPAN_STUB("asFindModelPartsID", 0x0185e150);
     return {};
 }
+
+// stub of CT3 0x01858f20
+int OneMaxObjectDrawZOnly(int bank, int index)
+{
+    ALYSSAPAN_STUB("OneMaxObjectDrawZOnly", 0x01858f20);
+    return {};
+}
+
+// stub of CT3 0x0185e380
+int asCheckBankType(int bank)
+{
+    ALYSSAPAN_STUB("asCheckBankType", 0x0185e380);
+    return {};
+}
+
+// stub of CT3 0x0185a8a0
+void asViewMatrix2PosRUF(float *view, float *pos, float *right, float *up, float *front)
+{
+    ALYSSAPAN_STUB("asViewMatrix2PosRUF", 0x0185a8a0);
+}
+
+// stub of CT3 0x01859520
+void sunBGT_ExecTBufferData_VIF1(void *tbuffer)
+{
+    ALYSSAPAN_STUB("sunBGT_ExecTBufferData_VIF1", 0x01859520);
+}
+
+// stub of CT3 0x018590b0
+void sunBGT_LoadGSTexClutData_VIF1(void *tbuffer)
+{
+    ALYSSAPAN_STUB("sunBGT_LoadGSTexClutData_VIF1", 0x018590b0);
+}
+
+// stub of CT3 0x01859530
+void sunSetupTBufferData(void *tbuffer, u_int *tim, int a2, int a3, int a4, int a5, int a6, int a7)
+{
+    ALYSSAPAN_STUB("sunSetupTBufferData", 0x01859530);
+}
+
+// stub of CT3 0x01854560
+void tnInit3dlibWork(void *work, void *spr)
+{
+    ALYSSAPAN_STUB("tnInit3dlibWork", 0x01854560);
+}

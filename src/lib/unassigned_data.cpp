@@ -17,6 +17,13 @@ GA_DBUFFER_DATA drawbuffer_0;                   /* sbss 0x01941dc0 */
 GA_DRAWCTRL_DATA drawctrl_frameclear;           /* sbss 0x01941c80 */
 PAD_DATA pad[2];                                /* sbss 0x01941eb0 */
 alignas(16) u_char ga3dlibwork[0x400];          /* sbss 0x0193eac0 */
+GA_FOGCTRL_DATA fogctrl[BANK_MAX];              /* bss  0x01ae8880 */
+/* sdata 0x01939d10: 0, 0, 512, 448, 256, 224, 0.832 (0x3f54fdf4), 0.94, 512, 5, 40000, 16777215 */
+float screen_0[12] = {0.0f, 0.0f, 512.0f, 448.0f, 256.0f, 224.0f, 0.832f, 0.94f, 512.0f, 5.0f, 40000.0f, 16777215.0f};
+alignas(16) float matrix_global_view[4][4];     /* sbss 0x01941840 */
+int FOG_mode;                                   /* sbss 0x019405ec */
+int drawobj_attr;                               /* sbss 0x0193f788 */
+u_char **ParticleObject[BANK_MAX];              /* sbss 0x01940b70 */
 
 /* sdata 0x01939cc0 */
 static const u_char drawcom_frameclear_init[0x50] = {

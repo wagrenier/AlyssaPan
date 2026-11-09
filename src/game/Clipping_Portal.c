@@ -131,3 +131,9 @@ void tiWindEnd_All(void)
 {
     ALYSSAPAN_STUB("tiWindEnd_All", 0x0188cb60);
 }
+
+// stub of CT3 0x01889cd0
+void Clipping_Portal(void *work, void *screen)
+{
+    ALYSSAPAN_STUB("Clipping_Portal", 0x01889cd0);
+}

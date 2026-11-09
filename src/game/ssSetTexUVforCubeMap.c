@@ -150,3 +150,9 @@ int ssGetNumBlurDrawObjForScene(int scene, int mode)
     ALYSSAPAN_STUB("ssGetNumBlurDrawObjForScene", 0x01896920);
     return {};
 }
+
+// stub of CT3 0x01896a90
+void ssPartMotionBlurInsertObjToDrawTable(int bank, void *table, void **list, int count, int mode)
+{
+    ALYSSAPAN_STUB("ssPartMotionBlurInsertObjToDrawTable", 0x01896a90);
+}

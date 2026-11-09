@@ -149,6 +149,26 @@ the TU map's evidence.
   type 0 banks `M<digit>*`; finds the parts `ACTRESS_OMNI_1` / `_2` / `_BASE` (`ahGetHash` +
   `asFindModelPartsID`) into `Omni0_num` / `Omni1_num` / `ACTRESS_LIGHT_BASE_MAX_ID`; sorts the +0x1c list
   into `osTotalObjTable` (bss 0x01a59870, 516000 bytes = [3][86][2000]; `objSort` gets [1][scene]).
+- **The list draw, main_rtn (slice 3, 2026-11-09):** `main_rtn(bank, mode, chara, flags, charaIndex,
+  lastTex)`: banks >= 6 switch the view matrix, `asViewMatrix2PosRUF(matrix_global_view, CameraPos, 0,
+  0, 0)`; an empty list (`get_draw_obj` == 1) returns at once. Mode 1 lists are sorted into
+  `osTotalObjTable[mode][bank]` for passes (flags & 0x7fff) 0 and 4, blurred parts inserted
+  (`ssPartMotionBlurInsertObjToDrawTable`). Fog: `gaSetupFogCtrlData(&fogctrl[bank], 3 floats, 3 ints)`
+  ($f12..$f14 + a1..a3) from the bank's FogCtrlAddr record +0x10, or the current scene's +0x28 for a
+  character pass; then `gaSet3dlibStruct(50000.0f, ga3dlibwork, &drawbuffer_0, &fogctrl[bank],
+  screen_0)` (screen_0, sdata 0x01939d10: 0, 0, 512, 448, 256, 224, 0.832, 0.94, 512, 5, 40000, 2^24-1),
+  `Clipping_Portal` when `Clipping_System` == 1, `tnInit3dlibWork(ga3dlibwork, SPR 0x70000400)`. The fog
+  record's part (+0x00) with parts flag bit 0 sets `FOG_mode`. Per entry (0x1c bytes: obj, draw-ctrl id,
+  tex, parts, -, tbuffer, drawctrl): parts flag bit 0 (fog volume) or `partsPos[parts].w` <= -255 skip;
+  bit 3 runs `OneMaxObjectDrawZOnly` once per part; clip unless flags 0x8000; texture upload
+  (`sunSetupTBufferData` + `sunBGT_LoadGSTexClutData_VIF1`) and draw-ctrl switch only on change; obj+0x3c
+  = parts +0x44; texture kind 3 sets obj+0x30 from All_table +0x70[parts] (character pass: times the
+  light bank's All_table +0x28 [2], eased over `DirectLightCharaCounter` frames); a new texture restarts
+  the BGT ring (`gaBGT_End` / `gaBGT_Start(bgt_ringbuffer, 0x8000)`) when bank 0 is `MENU.BIN` (bank <
+  6) or the texture is <= 32 x 32. `main_rtn_Particle`: the same fog set-up, then each particle system's
+  ring slots head .. tail (u16 at state +0x48 / +0x4a, wrap at +0x46), objects `ParticleObject[bank][i]`
+  + slot * 0x80. `main_rtn_Particle2` reads a qword pointer at the draw object's +0x38 (open-items (h)).
+  screen_0 holds a fixed 512 x 448 viewport: the 3D TU must widen it from DisplayGeometry (any aspect).
 - **main.c's globals** are taken to be the .sbss run 0x01942ab0..0x01942b48 (`pad_key_button` ..
   `gArgc`): contiguous, all used by main.c's functions, `gArgv` / `gArgc` surely its own. A guess from
   placement; the locals (symtab 895..911) are `a$1034`, `skip_wait_temp$61`, `focusPos$905` and the

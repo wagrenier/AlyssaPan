@@ -25,6 +25,12 @@ extern GA_DRAWCTRL_DATA drawctrl_frameclear;    /* sbss 0x01941c80 */
 extern GA_DRAWCOMMAND_DATA drawcom_frameclear;  /* sdata 0x01939cc0 */
 extern PAD_DATA pad[2];                         /* sbss 0x01941eb0: gaPadRead's two controllers */
 extern u_char ga3dlibwork[0x400];               /* sbss 0x0193eac0: copied to the scratchpad each frame */
+extern GA_FOGCTRL_DATA fogctrl[BANK_MAX];      /* bss  0x01ae8880: each bank's fog packet */
+extern float screen_0[12];                     /* sdata 0x01939d10: gaSet3dlibStruct's screen (512 x 448, ...) */
+extern float matrix_global_view[4][4];         /* sbss 0x01941840 */
+extern int FOG_mode;                           /* sbss 0x019405ec: set by main_rtn when the bank's fog part is a fog volume */
+extern int drawobj_attr;                       /* sbss 0x0193f788: gaBGT_DrawObject's attr (main_rtn: 0) */
+extern u_char **ParticleObject[BANK_MAX];      /* sbss 0x01940b70: per particle list entry, its slots' draw objects */
 
 // ---- heaps (ahalloc.c) -------------------------------------------------------------------------------
 extern SUN_HEAP gHeapJunc;                      /* sdata 0x0193bd30 */

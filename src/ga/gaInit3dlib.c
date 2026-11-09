@@ -17,3 +17,9 @@ void gaSetZRollMatrix(int roll)
 {
     ALYSSAPAN_STUB("gaSetZRollMatrix", 0x018a8548);
 }
+
+// stub of CT3 0x018a7db8
+void gaSet3dlibStruct(float clipZ, void *work, void *drawbuffer, void *fogctrl, void *screen)
+{
+    ALYSSAPAN_STUB("gaSet3dlibStruct", 0x018a7db8);
+}

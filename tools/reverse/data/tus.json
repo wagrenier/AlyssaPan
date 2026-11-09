@@ -447,7 +447,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 132..132, 4 functions keyed by their statics, 18 unkeyed; file name from the names"
   },
   "game/main.c": {
-   "notes": "Smoke run: main loops, GlobalDrawObject runs every frame but draws nothing (no bank loaded: main2 is a stub); screenshot black, no reference yet. callcheck flags GlobalDrawObject's calls as missing: they are in its static helper GlobalDrawBank, the body the ROM inlines in both loops. system_end clears only DemoFilterChangeWork.active (sh in the ROM). Left in main.c: AllDrawObject, DrawObjectRefraction, ssHQDOF_DrawAllObject, main_rtn, main_rtn_Particle, main_rtn_Particle2, main_rtn_DOF / GHOST / GHOST_DOF, scene_init. Doubts (f) ALL_TABLE pointer layout and (g) main_rtn args in open-items.md item 1.",
+   "notes": "Smoke run: build green, layoutcheck OK, both new functions pass callcheck (GlobalDrawObject's flag is its static helper GlobalDrawBank); screenshot black, main2 is still a stub so no bank loads and main_rtn never draws. main_rtn_Particle2 left as a stub: it writes through a pointer at the draw object's +0x38 that overlaps +0x3c on a 64-bit host (open-items item 1 (h)); the bank loader TU must decide EE-layout draw objects with u_int addresses. Left in main.c: main_rtn_Particle2, main_rtn_DOF / GHOST / GHOST_DOF, AllDrawObject, DrawObjectRefraction, ssHQDOF_DrawAllObject, scene_init. screen_0 is a fixed 512x448 viewport the 3D TU must widen.",
    "ranges": [
     [
      "01834440",
@@ -464,6 +464,11 @@
      "date": "2026-11-09 18:28",
      "status": "partial",
      "summary": "main.c slice 2: GlobalDrawObject, scene_draw_init, system_end, get_draw_obj; BANK_INFO.flags (+0x28, BANK_FLAG_DRAW_FIRST), ALL_TABLE (layout host), osTotalObjTable, 17 callee prototypes in their TU headers"
+    },
+    {
+     "date": "2026-11-09 18:58",
+     "status": "partial",
+     "summary": "main.c slice 3: main_rtn (the bank list draw: sort, fog, 3dlib set-up, per-part texture / draw-ctrl / light / clip) and main_rtn_Particle (particle rings); DRAW_OBJ_ENTRY, TEX_INFO, MODEL_PARTS, FOG_INFO, PARTICLE_ENTRY / STATE, CHARACTER.lightBank; fogctrl, screen_0, FOG_mode, drawobj_attr, ParticleObject"
     }
    ],
    "status": "partial",

@@ -25,3 +25,4 @@ void tiRefractionMapUpdate(void);                                               
 void tiFreeBossData(void);                                                               // CT3 0x01889df0
 void tiWindEnd_All(void);                                                                // CT3 0x0188cb60
 void ExportDrawToTex(void);                                                              // CT3 0x01893cf0
+void Clipping_Portal(void *work, void *screen);                                         // CT3 0x01889cd0
