@@ -15,11 +15,14 @@ questions. Resolve items here when they are settled (move them to "Done" with th
      game functions (1,807 named), 814 library; `alyssapan_functions.txt` and `status.md` generated.
      **Gap: `features.py` found 0 string references** (FS2's run found them): its string detection does not
      see CT3's `.rodata` at 0x01930f80 yet. Fix before the TU map, which leans on strings.
-   - 4. Names: **mostly done by the ELF itself** (2,621 of 2,628 functions). Left: functions Ghidra missed
-     (compare the symtab's 2,611 FUNC entries with Ghidra's starts: `hidden.py`, `mkfunc`), the MW locals
-     (`@<n>`, `name$<n>`) as data labels, and `data/tags.json` filled with `game-symbol` for every symtab name
-     (a small `symtab.py --apply`: the ELF reader is in the scratch work of 2026-11-09, architecture.md
-     has the offsets).
+   - ~~4. Names~~ done (2026-11-09, scheduled run, `tools/reverse/symtab.py`): `data/tags.json` and
+     Ghidra's function tags carry `game-symbol` on all 2,621 symtab-named functions (2,613 FUNC addresses +
+     8 asm entry points named by NOTYPE labels); no FUNC symbol lacks a Ghidra function; all 2,657 data /
+     code-label symbols (996 `@<n>`, 374 `name$<n>`, 1,287 named) are labels in Ghidra (the loader had
+     applied 2,650; 7 added); `tiXcmd___________Free0` (0x018e20b0) restored from Ghidra's demangling.
+     Left for the TU sessions that reach them: the 7 Ghidra functions with no symbol (architecture.md
+     "Naming sources"), named `game-inferred` when read. The string gap above is still open: the next
+     run fixes it first, as the start of step 5.
    - 5. **The TU map** from the symtab's local-symbol order (architecture.md "Address map"): one object per
      run of locals, a function in the object whose statics it references; the five source strings and the
      prefixes name the files. Pin each object with `tus.py define`. This is the step that makes CT3

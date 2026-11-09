@@ -20,6 +20,13 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
   default and `data/tus.json` use that spelling; do not "fix" it in one place only.
 - (2026-11-09, bootstrap) **Bash heredocs with apostrophes or backslashes break in the harness** (as in
   YamiPan): write a script with the Write tool and run it.
+- (2026-11-09, bootstrap 4) **Ghidra's demangler eats C names with `__F` in them.** The loader showed
+  `tiXcmd___________Free0` (0x018e20b0) as `::tiXcmd_________(long_double,...)(...)`, keeping the real name
+  as a second label, so a plain rename failed ("already exists"): delete the label, then rename.
+  `symtab.py tags` reports any function whose Ghidra name differs from the symtab's.
+- (2026-11-09, bootstrap 4) **`list_globals` is no census of labels**: it showed 202 of the 2,657 symtab
+  data symbols, yet `create_label` skipped 2,650 of them as existing. `create_label` (batch) is idempotent
+  for the same name and address: use its `labels_skipped` count to compare.
 
 ## From the siblings (2026-11-09 digest of MioPan, ReiPan, RosePan, MikuPan)
 
