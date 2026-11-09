@@ -6,3 +6,4 @@
 
 void ssProcessHit(void);                                                                 // CT3 0x018b1e60
 void ssHitGlobalInit(void);                                                              // CT3 0x018b20e0
+void ssHitInit(int scene);                                                               // CT3 0x018b2070

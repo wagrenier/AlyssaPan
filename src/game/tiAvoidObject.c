@@ -17,3 +17,9 @@ void ssAI_main(void)
 {
     ALYSSAPAN_STUB("ssAI_main", 0x01863ed0);
 }
+
+// stub of CT3 0x018660a0
+void ssAI_SceneInit(int scene)
+{
+    ALYSSAPAN_STUB("ssAI_SceneInit", 0x018660a0);
+}

@@ -35,3 +35,15 @@ void SceneEndBank(int first, int count)
 {
     ALYSSAPAN_STUB("SceneEndBank", 0x018c5780);
 }
+
+// stub of CT3 0x018c2880
+void objSort(int scene, int count, void *table)
+{
+    ALYSSAPAN_STUB("objSort", 0x018c2880);
+}
+
+// stub of CT3 0x018c23b0
+void objSortWithBlurIdx(int scene, int count, void *table)
+{
+    ALYSSAPAN_STUB("objSortWithBlurIdx", 0x018c23b0);
+}

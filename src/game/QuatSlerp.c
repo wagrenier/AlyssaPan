@@ -107,3 +107,24 @@ void ssMenuUpdate(int mode)
 {
     ALYSSAPAN_STUB("ssMenuUpdate", 0x01854d30);
 }
+
+// stub of CT3 0x0185e580
+u_int ahGetHash(const char *name)
+{
+    ALYSSAPAN_STUB("ahGetHash", 0x0185e580);
+    return {};
+}
+
+// stub of CT3 0x0185e360
+int asCheckBankID(int bank)
+{
+    ALYSSAPAN_STUB("asCheckBankID", 0x0185e360);
+    return {};
+}
+
+// stub of CT3 0x0185e150
+int asFindModelPartsID(u_char *header, u_int hash)
+{
+    ALYSSAPAN_STUB("asFindModelPartsID", 0x0185e150);
+    return {};
+}

@@ -17,3 +17,9 @@ void ssProcessHit(void)
 {
     ALYSSAPAN_STUB("ssProcessHit", 0x018b1e60);
 }
+
+// stub of CT3 0x018b2070
+void ssHitInit(int scene)
+{
+    ALYSSAPAN_STUB("ssHitInit", 0x018b2070);
+}

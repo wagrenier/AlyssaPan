@@ -40,9 +40,13 @@ questions. Resolve items here when they are settled (move them to "Done" with th
      `[stub] main (CT3 0x01839d10) reached`, writes shots (black: nothing draws yet). `io::Disc` mounts
      only the root's 2 files (the path table is root-only: item 3). Then the queue.
 1. **`main`'s TU first** -- **partial (2026-11-09):** slice 1 written (main, the boot and init functions,
-   ControllerMain, tiItemInit, scene_end, the small draw passes; 15 functions). Left in main.c:
-   `AllDrawObject`, `DrawObjectRefraction`, `GlobalDrawObject`, `ssHQDOF_DrawAllObject`, `main_rtn*` (5),
-   `scene_init`, `scene_draw_init`, `system_end`, `get_draw_obj` (stubs in main.c). **Next:**
+   ControllerMain, tiItemInit, scene_end, the small draw passes; 15 functions); slice 2 (2026-11-09):
+   `GlobalDrawObject`, `scene_draw_init`, `system_end`, `get_draw_obj`. Left in main.c:
+   `AllDrawObject`, `DrawObjectRefraction`, `ssHQDOF_DrawAllObject`, `main_rtn*` (5), `scene_init`
+   (stubs in main.c). Open from slice 2: (f) `ALL_TABLE` (All_table_TBL's records, ct3_types.h) is
+   `layout: host` with pointer fields at EE 0x10..0x7c; the file TU decides whether the bank's relocated
+   words become host pointers or stay `u_int` EE addresses; (g) `main_rtn`'s args 3..5 are unnamed (all 0
+   from GlobalDrawObject). **Next:**
    ~~`ga/gaInitInterrupt.c`~~ (verify, 2026-11-09: main's frame loops now), then in the order a smoke
    run reaches the stubs: `main2` (game/main2.c: title and scene set-up), `IOPInit` / `Character_All_Init`
    (Character_Init.c), `FS_work_init` / `FileSoundServer` (fileio.c), `SunAllocInit` (ahalloc.c), the ga

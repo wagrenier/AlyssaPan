@@ -1,9 +1,9 @@
 // game/main.c -- CT3 main's object (0x01834440..0x0183aed8): the boot (main, FirstInitialization,
 // game_init, system_init), the main loop, and the draw passes it picks by DrawMode. Built with
 // main=gameMain (CMakeLists.txt): the process entry is the host's (src/main.cpp).
-// Written 2026-11-09 (slice 1: the boot, the loop, the small draw passes); main_rtn*, AllDrawObject,
-// DrawObjectRefraction, GlobalDrawObject, ssHQDOF_DrawAllObject, scene_init / scene_draw_init / system_end
-// and get_draw_obj are the TU's later slices.
+// Written 2026-11-09: slice 1 (the boot, the loop, the small draw passes), slice 2 (GlobalDrawObject,
+// scene_draw_init, system_end, get_draw_obj); main_rtn*, AllDrawObject, DrawObjectRefraction,
+// ssHQDOF_DrawAllObject and scene_init are the TU's later slices.
 #include "game/main.h"
 #include "common/alyssapan_stub.h"
 
@@ -101,6 +101,16 @@ enum DEMO_SKIP {                                /* DEMO_SKIP_FLAG: the demo skip
 
 #define DEMO_SKIP_FADE_FRAMES 10
 #define DEMO_SKIP_HOLD_FRAMES 4
+
+// scene_draw_init's bank names (@2360 "ARRW.BIN", @2361 "E_", @2362 "M") and the actress's light parts.
+#define BANK_NAME_ARROW "ARRW.BIN"
+#define BANK_PREFIX_E "E_"
+#define BANK_PREFIX_M "M"
+#define PARTS_ACTRESS_OMNI_1 "ACTRESS_OMNI_1"
+#define PARTS_ACTRESS_OMNI_2 "ACTRESS_OMNI_2"
+#define PARTS_ACTRESS_OMNI_BASE "ACTRESS_OMNI_BASE"
+
+#define EV_TITLE_CANCEL 0x10                    /* system_end: TITLE_CANCEL_FLAG = the event's state */
 
 #define KEY_MAP_SKIP 11                         /* KEY_MAP[11] (+0x16): skip a demo */
 #define KEY_MAP_DRAWN_OUT 23                    /* KEY_MAP[23] (+0x2e): the trigger forced while CntDrawnOut */
@@ -348,6 +358,60 @@ void CaptureReflectMap(void)
 {
 }
 
+// One loaded scene bank of GlobalDrawObject's: its view matrix, a cleared Z buffer, its lights, then the
+// lists main_rtn and the particle passes draw. The first non-empty "after" list exports the frame to
+// the refraction texture once (*exported). The ROM has this body twice, inlined in both loops.
+static void GlobalDrawBank(int bank, int *exported, void **lastTex)
+{
+    ALL_TABLE *tbl = All_table_TBL[bank];
+
+    asChangeViewMatrix_forTheBank(asCheckBankID(bank));
+    FlushCache(0);
+    ssBGT_ZBufferClear();
+    SceneLightSet(bank);
+    ALLobject[bank] = tbl->objOpaque;
+    main_rtn(bank, 0, 0, 0, 0, lastTex);
+    ALLobject[bank] = tbl->objTrans;
+    main_rtn(bank, 1, 0, 0, 0, lastTex);
+    main_rtn_Particle(bank, 0, lastTex);
+    main_rtn_Particle2(bank, 0, 0, lastTex);
+    ALLobject[bank] = tbl->objAfter;
+    if (!*exported && *ALLobject[bank] != NULL) {
+        ExportDrawToTex();
+        *exported = 1;
+    }
+    main_rtn(bank, 0, 0, 0, 0, lastTex);
+    if (!*exported && *tbl->particles2After != NULL) {
+        ExportDrawToTex();
+        *exported = 1;
+    }
+    main_rtn_Particle2(bank, 0, 1, lastTex);
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Every draw mode's last pass: the loaded scene banks 0..5 over the frame, those flagged
+// BANK_FLAG_DRAW_FIRST (arrows, "E_" / "M<n>" banks) first, then the rest; the view matrix back to the
+// shared bank 6's.
+// CT3 0x01837210
+
+void GlobalDrawObject(void)
+{
+    void *lastTex = NULL;
+    int exported = 0;
+    int i;
+
+    Clipping_System = 0;
+    for (i = 0; i < BANK_SCENE_MAX; i++) {
+        if (BankInfo[i].loaded != 0 && (BankInfo[i].flags & BANK_FLAG_DRAW_FIRST))
+            GlobalDrawBank(i, &exported, &lastTex);
+    }
+    for (i = 0; i < BANK_SCENE_MAX; i++) {
+        if (BankInfo[i].loaded != 0 && !(BankInfo[i].flags & BANK_FLAG_DRAW_FIRST))
+            GlobalDrawBank(i, &exported, &lastTex);
+    }
+    asChangeViewMatrix_forTheBank(BANK_SCENE_MAX);
+}
+
 // ──────────────────────────────────────────────────────────────────────
 // A scene's teardown: triggers, particles, motion blur, its camera, shadows, wind, the seek bars, the
 // lock-on list (100000000 = all) and its animations.
@@ -364,6 +428,85 @@ void scene_end(int scene)
     asSeekBarFreeForX(scene);
     asXcmd_AddForLockToTargChara(100000000, 0, scene);
     asForceOperateAnimation_Scene(scene, 0);
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// A loaded scene's draw set-up (TrgSceneDraw, TrgGLBLSceneDraw): matrices, hits, AI; the draw-first flag
+// by bank name; the actress's three light parts; the second object list sorted into osTotalObjTable[1].
+// CT3 0x01838fa0
+
+void scene_draw_init(int scene)
+{
+    BANK_INFO *bank = &BankInfo[scene];
+    char name[16];
+    char head[16];
+    int n;
+
+    BuildMatrixTree(scene, 1, 1);
+    ssHitInit(scene);
+    ssAI_SceneInit(scene);
+
+    if (bank->type == 1 || bank->type == 0) {
+        strcpy(name, bank->name);
+        if (strcmp(name, BANK_NAME_ARROW) == 0)
+            bank->flags |= BANK_FLAG_DRAW_FIRST;
+        strcpy(name, bank->name);
+        name[2] = '\0';
+        if (strcmp(name, BANK_PREFIX_E) == 0)
+            bank->flags |= BANK_FLAG_DRAW_FIRST;
+    }
+    if (bank->type == 0) {
+        strcpy(head, bank->name);
+        head[1] = '\0';
+        if (strcmp(head, BANK_PREFIX_M) == 0 && bank->name[1] >= '0' && bank->name[1] <= '9')
+            bank->flags |= BANK_FLAG_DRAW_FIRST;
+    }
+
+    Omni0_num[scene] = asFindModelPartsID(pModelPartsHeader[scene], ahGetHash(PARTS_ACTRESS_OMNI_1));
+    Omni1_num[scene] = asFindModelPartsID(pModelPartsHeader[scene], ahGetHash(PARTS_ACTRESS_OMNI_2));
+    ACTRESS_LIGHT_BASE_MAX_ID[scene] =
+        asFindModelPartsID(pModelPartsHeader[scene], ahGetHash(PARTS_ACTRESS_OMNI_BASE));
+
+    for (n = 0; All_table_TBL[scene]->objTrans[n] != NULL; n++)
+        ;
+    if (ssGetNumBlurDrawObjForScene(scene, 1) != 0)
+        objSortWithBlurIdx(scene, n + 1, osTotalObjTable[1][scene]);
+    else
+        objSort(scene, n + 1, osTotalObjTable[1][scene]);
+    asForceOperateAnimation_Scene(scene, 0);
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Each game's end (main's outer loop, before the heaps are rebuilt): the title's cancel flag from
+// event 0x10, scene loads, warps, files, characters, wind, fades, sound, the boss, animation history,
+// the monsters' panic stack, arrows, moths, vibration and the demo skip.
+// CT3 0x01839670
+
+void system_end(void)
+{
+    fReset = 0;
+    TITLE_CANCEL_FLAG = (u_char)ssTrigCheckEvent(EV_TITLE_CANCEL, 1, 0);
+    SelfDiscardSceneLoadInit();
+    WarpObjectUpdateInit();
+    FS_work_init();
+    Character_All_Init();
+    tiWindEnd_All();
+    fFade = 0;
+    fShadeOff = 0;
+    fKeepScreen = 0;
+    Sound_system_end();
+    tiFreeBossData();
+    ExecuteAnimationHistory_Free();
+    asMonsterDistanceStack_inPanic(1, 0, 0);
+    asDestroyArrowInfo();
+    asDestroyMothInfo(0);
+    DEMO_SKIP_SET = 0;
+    tiVibrationOff(0);
+    SkipMain = 0;
+    DemoSkip = 0;
+    DEMO_SKIP_FLAG = 0;
+    DemoFilterChangeWork.active = 0;
+    Demo_Skip_Set = 0;
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -498,6 +641,19 @@ static u_long FogClearColor(const u_char *fog)
     if (fog == 0)
         return FRAMECLEAR_RGBAQ;
     return (u_long)(u_int)(fog[0xc] << 16 | fog[8] << 8 | fog[4]) | FRAMECLEAR_RGBAQ;
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// The objects in the bank's current list (ALLobject[bank]) plus one: its terminator.
+// CT3 0x01839cd0
+
+int get_draw_obj(int bank)
+{
+    int n = 0;
+
+    while (ALLobject[bank][n] != NULL)
+        n++;
+    return n + 1;
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -972,20 +1128,27 @@ void DrawObjectRefraction(int mode)
     ALYSSAPAN_STUB("DrawObjectRefraction", 0x01836f30);
 }
 
-// stub of CT3 0x01837210
-void GlobalDrawObject(void)
-{
-    ALYSSAPAN_STUB("GlobalDrawObject", 0x01837210);
-}
-
 // stub of CT3 0x01835d40
 void ssHQDOF_DrawAllObject(void)
 {
     ALYSSAPAN_STUB("ssHQDOF_DrawAllObject", 0x01835d40);
 }
 
-// stub of CT3 0x01839670
-void system_end(void)
+
+// stub of CT3 0x01838600
+void main_rtn(int bank, int mode, int a2, u_int a3, int a4, void **lastTex)
 {
-    ALYSSAPAN_STUB("system_end", 0x01839670);
+    ALYSSAPAN_STUB("main_rtn", 0x01838600);
+}
+
+// stub of CT3 0x018379d0
+void main_rtn_Particle(int bank, int fog, void **lastTex)
+{
+    ALYSSAPAN_STUB("main_rtn_Particle", 0x018379d0);
+}
+
+// stub of CT3 0x01837570
+void main_rtn_Particle2(int bank, int fog, int after, void **lastTex)
+{
+    ALYSSAPAN_STUB("main_rtn_Particle2", 0x01837570);
 }

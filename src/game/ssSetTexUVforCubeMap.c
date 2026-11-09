@@ -137,3 +137,16 @@ void ssTrigScreenBlurEnd(void)
 {
     ALYSSAPAN_STUB("ssTrigScreenBlurEnd", 0x0189d900);
 }
+
+// stub of CT3 0x0189dec0
+void ssBGT_ZBufferClear(void)
+{
+    ALYSSAPAN_STUB("ssBGT_ZBufferClear", 0x0189dec0);
+}
+
+// stub of CT3 0x01896920
+int ssGetNumBlurDrawObjForScene(int scene, int mode)
+{
+    ALYSSAPAN_STUB("ssGetNumBlurDrawObjForScene", 0x01896920);
+    return {};
+}

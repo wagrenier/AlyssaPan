@@ -7,3 +7,4 @@
 void Character_All_Init(void);                                                           // CT3 0x018b4070
 void IOPInit(char **argv);                                                               // CT3 0x018b4430
 void MemorycardUpdate(void);                                                             // CT3 0x018b6080
+void SceneLightSet(int scene);                                                           // CT3 0x018b4480

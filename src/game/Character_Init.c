@@ -23,3 +23,9 @@ void MemorycardUpdate(void)
 {
     ALYSSAPAN_STUB("MemorycardUpdate", 0x018b6080);
 }
+
+// stub of CT3 0x018b4480
+void SceneLightSet(int scene)
+{
+    ALYSSAPAN_STUB("SceneLightSet", 0x018b4480);
+}

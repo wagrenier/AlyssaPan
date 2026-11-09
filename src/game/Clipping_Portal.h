@@ -22,3 +22,6 @@ void tiHurikoUpdate(void);                                                      
 void tiHurikoHitUpdate(void);                                                            // CT3 0x018931f0
 void tiBumpSTValueUpdate(void);                                                          // CT3 0x01893850
 void tiRefractionMapUpdate(void);                                                        // CT3 0x01894230
+void tiFreeBossData(void);                                                               // CT3 0x01889df0
+void tiWindEnd_All(void);                                                                // CT3 0x0188cb60
+void ExportDrawToTex(void);                                                              // CT3 0x01893cf0

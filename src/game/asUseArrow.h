@@ -5,3 +5,4 @@
 #include "sdk/scetypes.h"
 
 void asInitArrowInfo(void);                                                              // CT3 0x018666c0
+void asDestroyArrowInfo(void);                                                           // CT3 0x018666e0

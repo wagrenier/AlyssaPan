@@ -71,3 +71,15 @@ void asUpdateAnimation_Matrix(void)
 {
     ALYSSAPAN_STUB("asUpdateAnimation_Matrix", 0x018427f0);
 }
+
+// stub of CT3 0x0184fd30
+void BuildMatrixTree(int scene, int a1, int a2)
+{
+    ALYSSAPAN_STUB("BuildMatrixTree", 0x0184fd30);
+}
+
+// stub of CT3 0x0184eed0
+void ExecuteAnimationHistory_Free(void)
+{
+    ALYSSAPAN_STUB("ExecuteAnimationHistory_Free", 0x0184eed0);
+}

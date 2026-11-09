@@ -9,3 +9,5 @@ void SceneEndBank(int first, int count);                                        
 void FSMltLoadEndWaitAll(void);                                                          // CT3 0x018c60a0
 void FileSoundServer(void);                                                              // CT3 0x018c7dc0
 void FS_work_init(void);                                                                 // CT3 0x018c7e00
+void objSortWithBlurIdx(int scene, int count, void *table);                              // CT3 0x018c23b0
+void objSort(int scene, int count, void *table);                                         // CT3 0x018c2880

@@ -11,3 +11,9 @@ void asInitMothInfo(void)
 {
     ALYSSAPAN_STUB("asInitMothInfo", 0x01882c10);
 }
+
+// stub of CT3 0x01882c40
+void asDestroyMothInfo(int mode)
+{
+    ALYSSAPAN_STUB("asDestroyMothInfo", 0x01882c40);
+}

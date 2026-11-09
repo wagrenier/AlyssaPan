@@ -92,7 +92,10 @@ int Omni1_num[BANK_MAX];                        /* sbss 0x01942060 */
 int Omni0_num[BANK_MAX];                        /* sbss 0x019421c0 */
 char ActressLightFlag[BANK_MAX];                /* sbss 0x01942320 */
 u_char *ActressMP;                              /* sbss 0x01942380 */
-void *All_table_TBL[BANK_MAX];                  /* sbss 0x019416a0 */
+ALL_TABLE *All_table_TBL[BANK_MAX];             /* sbss 0x019416a0 */
+void **ALLobject[BANK_MAX];                     /* sbss 0x01940cd0 */
+u_char *pModelPartsHeader[BANK_MAX];            /* sbss 0x01940380 */
+u_char osTotalObjTable[3][BANK_MAX][OS_OBJ_TABLE_BYTES]; /* bss 0x01a59870 */
 u_char *FogCtrlAddr[BANK_MAX];                  /* sbss 0x019405f0 */
 FOG_ANIME FogAnimeBuff[BANK_MAX];               /* bss  0x01a58040 */
 
@@ -133,6 +136,8 @@ char fFade;                                     /* sbss 0x0193f74c */
 char fXFade;                                    /* sbss 0x0193f748 */
 char fVibTimer;                                 /* sbss 0x0193f768 */
 char fShadeOff;                                 /* sbss 0x0193f750 */
+int fKeepScreen;                                /* sbss 0x0193f754 */
+int Clipping_System;                            /* sbss 0x01940eac */
 int nowShadeOffFrame;                           /* sbss 0x01942944 */
 int FadeStartTicks;                             /* sbss 0x0194294c */
 int XfadeStartTicks;                            /* sbss 0x01942954 */

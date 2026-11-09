@@ -41,15 +41,40 @@ typedef struct BANK_INFO {
     int type;                           /* 0x18: BANK_TYPE_* */
     u_char pad1c[4];
     int loaded;                         /* 0x20: non-zero while the bank is in memory */
-    u_char pad24[0x6c];
+    u_char pad24[4];
+    u_int flags;                        /* 0x28: BANK_FLAG_* */
+    u_char pad2c[0x64];
 } BANK_INFO;
 static_assert(sizeof(BANK_INFO) == 0x90, "BANK_INFO");
 static_assert(offsetof(BANK_INFO, name) == 0x08, "BANK_INFO.name");
 static_assert(offsetof(BANK_INFO, type) == 0x18, "BANK_INFO.type");
 static_assert(offsetof(BANK_INFO, loaded) == 0x20, "BANK_INFO.loaded");
+static_assert(offsetof(BANK_INFO, flags) == 0x28, "BANK_INFO.flags");
 
 #define BANK_MAX 86                     /* 0x56: BankInfo[], the per-scene tables (FogCtrlAddr, ...) */
 #define BANK_TYPE_SHADOW 1              /* main: banks of this type cast shadow polygons */
+#define BANK_SCENE_MAX 6                /* asCheckBankID: banks 0..5 have their own view matrix, the
+                                           rest share bank 6's; GlobalDrawObject draws banks 0..5 */
+#define BANK_FLAG_DRAW_FIRST 0x2        /* scene_draw_init: ARRW.BIN, "E_*" and "M<digit>*" banks;
+                                           GlobalDrawObject draws them before the other banks */
+
+// A loaded scene's object tables (All_table_TBL[86], a record of the scene's bank): each list is a
+// NULL-terminated array of draw objects. Only the fields main.c reads; fileio.c owns the layout.
+// layout: host -- pointers (EE offsets in the comments); the file TU decides whether the bank's
+// relocated words become host pointers or stay u_int EE addresses (open-items.md item 1).
+typedef struct ALL_TABLE {
+    u_char pad00[0x10];
+    u_char *particlePos;                /* EE 0x10: 16-byte positions main_rtn_Particle2 starts from */
+    void **objOpaque;                   /* EE 0x18: GlobalDrawObject's first main_rtn list */
+    void **objTrans;                    /* EE 0x1c: main_rtn mode 1; scene_draw_init sorts it */
+    void **particles;                   /* EE 0x58: main_rtn_Particle's list */
+    void **objAfter;                    /* EE 0x60: after the particles; non-empty -> ExportDrawToTex */
+    void **particles2;                  /* EE 0x78: main_rtn_Particle2 mode 0 */
+    void **particles2After;             /* EE 0x7c: main_rtn_Particle2 mode 1; non-empty -> ExportDrawToTex */
+} ALL_TABLE;
+static_assert(offsetof(ALL_TABLE, particlePos) == 0x10, "ALL_TABLE.particlePos");
+
+#define OS_OBJ_TABLE_BYTES 2000         /* osTotalObjTable: one scene's sort table, 3 x 86 of them */
 
 // A screen filter's fade (DemoFilterChangeWork, FilterChangeWork: 0x28 bytes). from[0] / to[0] are the
 // alpha main sets to 0xff or 0, the next three the colour; timer counts down to 0.

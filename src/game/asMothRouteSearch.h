@@ -5,3 +5,4 @@
 #include "sdk/scetypes.h"
 
 void asInitMothInfo(void);                                                               // CT3 0x01882c10
+void asDestroyMothInfo(int mode);                                                        // CT3 0x01882c40

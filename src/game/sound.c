@@ -23,3 +23,9 @@ void Sound_system_init(void)
 {
     ALYSSAPAN_STUB("Sound_system_init", 0x018cbd00);
 }
+
+// stub of CT3 0x018cbca0
+void Sound_system_end(void)
+{
+    ALYSSAPAN_STUB("Sound_system_end", 0x018cbca0);
+}

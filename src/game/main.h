@@ -87,6 +87,11 @@ void CaptureReflectMap(void);                                                   
 void AllDrawObject(int mode);                                                           // CT3 0x018362b0
 void DrawObjectRefraction(int mode);                                                    // CT3 0x01836f30
 void GlobalDrawObject(void);                                                            // CT3 0x01837210
+void main_rtn_Particle2(int bank, int fog, int after, void **lastTex);                  // CT3 0x01837570
+void main_rtn_Particle(int bank, int fog, void **lastTex);                              // CT3 0x018379d0
+void main_rtn(int bank, int mode, int a2, u_int a3, int a4, void **lastTex);            // CT3 0x01838600
 void scene_end(int scene);                                                              // CT3 0x01838f20
+void scene_draw_init(int scene);                                                        // CT3 0x01838fa0
 void system_end(void);                                                                  // CT3 0x01839670
 void system_init(void);                                                                 // CT3 0x01839720
+int get_draw_obj(int bank);                                                             // CT3 0x01839cd0

@@ -447,7 +447,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 132..132, 4 functions keyed by their statics, 18 unkeyed; file name from the names"
   },
   "game/main.c": {
-   "notes": "Run reaches main's frame loop and the first drawn frame, then waits on ga_main_timer (gaInitInterrupt is a stub: queued first). Screenshot black, as expected: nothing draws yet, no reference picture. Left in main.c: AllDrawObject, DrawObjectRefraction, GlobalDrawObject, ssHQDOF_DrawAllObject, main_rtn x5, scene_init, scene_draw_init, system_end, get_draw_obj. Host changes: InitThread no-op in sdk/eekernel, MSVC fixes in sdk/sif.cpp and iop/system_memory.cpp (layoutcheck had never passed), FogClearColor null guard. Doubts in open-items.md item 1.",
+   "notes": "Smoke run: main loops, GlobalDrawObject runs every frame but draws nothing (no bank loaded: main2 is a stub); screenshot black, no reference yet. callcheck flags GlobalDrawObject's calls as missing: they are in its static helper GlobalDrawBank, the body the ROM inlines in both loops. system_end clears only DemoFilterChangeWork.active (sh in the ROM). Left in main.c: AllDrawObject, DrawObjectRefraction, ssHQDOF_DrawAllObject, main_rtn, main_rtn_Particle, main_rtn_Particle2, main_rtn_DOF / GHOST / GHOST_DOF, scene_init. Doubts (f) ALL_TABLE pointer layout and (g) main_rtn args in open-items.md item 1.",
    "ranges": [
     [
      "01834440",
@@ -459,6 +459,11 @@
      "date": "2026-11-09 18:10",
      "status": "partial",
      "summary": "main.c slice 1: main, FirstInitialization, game_init, system_init, ControllerMain, tiItemInit, scene_end and the small draw passes (15 functions); its callees declared in their TU headers and stubbed, the slice's 106 globals in lib/unassigned_data.cpp"
+    },
+    {
+     "date": "2026-11-09 18:28",
+     "status": "partial",
+     "summary": "main.c slice 2: GlobalDrawObject, scene_draw_init, system_end, get_draw_obj; BANK_INFO.flags (+0x28, BANK_FLAG_DRAW_FIRST), ALL_TABLE (layout host), osTotalObjTable, 17 callee prototypes in their TU headers"
     }
    ],
    "status": "partial",

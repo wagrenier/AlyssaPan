@@ -26,3 +26,5 @@ void ssBGT_BlurSetDrawEnvPostRend(void);                                        
 void ssBGT_DOFDrawSprite(int pass, int level);                                           // CT3 0x0189db60
 void ssBGT_DOFSetDrawEnvPostRend(int pass, int level);                                   // CT3 0x0189dc40
 void ssBGT_DOFSetDrawEnvPreRend(int pass, int level);                                    // CT3 0x0189dd70
+int ssGetNumBlurDrawObjForScene(int scene, int mode);                                    // CT3 0x01896920
+void ssBGT_ZBufferClear(void);                                                           // CT3 0x0189dec0

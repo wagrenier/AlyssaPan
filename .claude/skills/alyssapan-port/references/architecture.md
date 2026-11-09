@@ -139,6 +139,16 @@ the TU map's evidence.
   `ga_draw_fbuf_address >> 11` (word address -> 2048-word page), swaps `ga_draw_fbuf_address` /
   `ga_disp_fbuf_address` and calls `sceGsPutDispEnv(&ga_disp)`; it answers the CSR FIELD bit read on entry.
   `ga_main_timer` / `ga_down_timer` (bss 0x01c8d730 / 0x01c8d734) are commons defined here.
+- **Banks and the global pass (slice 2, 2026-11-09):** `asCheckBankID(b)` = min(b, 6) and
+  `asCheckBankType(b)` = b >= 6: banks 0..5 have their own view matrix, the rest share bank 6's.
+  `GlobalDrawObject` (every DrawMode's last pass) draws the loaded banks 0..5 -- those with
+  `BANK_INFO.flags` (+0x28) bit 2 first, then the rest -- each: view matrix, `FlushCache`, Z clear,
+  `SceneLightSet`, then `ALLobject[b]` set to the All_table record's lists +0x18 / +0x1c / +0x60 for
+  `main_rtn` and the particle passes (+0x58, +0x78 / +0x7c); the first non-empty +0x60 / +0x7c list calls
+  `ExportDrawToTex` once. `scene_draw_init` sets bit 2 for type 0/1 banks named `ARRW.BIN` or `E_*`, and
+  type 0 banks `M<digit>*`; finds the parts `ACTRESS_OMNI_1` / `_2` / `_BASE` (`ahGetHash` +
+  `asFindModelPartsID`) into `Omni0_num` / `Omni1_num` / `ACTRESS_LIGHT_BASE_MAX_ID`; sorts the +0x1c list
+  into `osTotalObjTable` (bss 0x01a59870, 516000 bytes = [3][86][2000]; `objSort` gets [1][scene]).
 - **main.c's globals** are taken to be the .sbss run 0x01942ab0..0x01942b48 (`pad_key_button` ..
   `gArgc`): contiguous, all used by main.c's functions, `gArgv` / `gArgc` surely its own. A guess from
   placement; the locals (symtab 895..911) are `a$1034`, `skip_wait_temp$61`, `focusPos$905` and the

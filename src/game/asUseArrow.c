@@ -11,3 +11,9 @@ void asInitArrowInfo(void)
 {
     ALYSSAPAN_STUB("asInitArrowInfo", 0x018666c0);
 }
+
+// stub of CT3 0x018666e0
+void asDestroyArrowInfo(void)
+{
+    ALYSSAPAN_STUB("asDestroyArrowInfo", 0x018666e0);
+}

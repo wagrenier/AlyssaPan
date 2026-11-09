@@ -113,3 +113,21 @@ void tiXFadeOut_Draw(void)
 {
     ALYSSAPAN_STUB("tiXFadeOut_Draw", 0x0188d3f0);
 }
+
+// stub of CT3 0x01893cf0
+void ExportDrawToTex(void)
+{
+    ALYSSAPAN_STUB("ExportDrawToTex", 0x01893cf0);
+}
+
+// stub of CT3 0x01889df0
+void tiFreeBossData(void)
+{
+    ALYSSAPAN_STUB("tiFreeBossData", 0x01889df0);
+}
+
+// stub of CT3 0x0188cb60
+void tiWindEnd_All(void)
+{
+    ALYSSAPAN_STUB("tiWindEnd_All", 0x0188cb60);
+}

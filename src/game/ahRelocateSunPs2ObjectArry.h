@@ -15,3 +15,5 @@ void asShadowDrawing_Fin(int scene);                                            
 void Shadow_OnceInit(void);                                                              // CT3 0x01847c30
 void ExecuteAnimationHistory_init(void);                                                 // CT3 0x0184ef00
 void asCopyDoubleBuffer(void);                                                           // CT3 0x01851150
+void ExecuteAnimationHistory_Free(void);                                                 // CT3 0x0184eed0
+void BuildMatrixTree(int scene, int a1, int a2);                                         // CT3 0x0184fd30

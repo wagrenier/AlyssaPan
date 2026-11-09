@@ -7,3 +7,4 @@
 void Sound_system_init(void);                                                            // CT3 0x018cbd00
 void Sound_FirstInitialization(void);                                                    // CT3 0x018cbda0
 void SSSetSoundMode(int mode);                                                           // CT3 0x018cbe30
+void Sound_system_end(void);                                                             // CT3 0x018cbca0

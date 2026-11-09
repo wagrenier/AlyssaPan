@@ -6,3 +6,4 @@
 
 void ssAI_main(void);                                                                    // CT3 0x01863ed0
 void ssAI_GlobalInit(void);                                                              // CT3 0x01866490
+void ssAI_SceneInit(int scene);                                                          // CT3 0x018660a0

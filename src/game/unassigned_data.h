@@ -74,7 +74,10 @@ extern int Omni1_num[BANK_MAX];                 /* sbss 0x01942060 */
 extern int Omni0_num[BANK_MAX];                 /* sbss 0x019421c0 */
 extern char ActressLightFlag[BANK_MAX];         /* sbss 0x01942320 */
 extern u_char *ActressMP;                       /* sbss 0x01942380: the actress's model (matrix at +0x1c0) */
-extern void *All_table_TBL[BANK_MAX];           /* sbss 0x019416a0 */
+extern ALL_TABLE *All_table_TBL[BANK_MAX];      /* sbss 0x019416a0 */
+extern void **ALLobject[BANK_MAX];              /* sbss 0x01940cd0: the list main_rtn draws next */
+extern u_char *pModelPartsHeader[BANK_MAX];     /* sbss 0x01940380 */
+extern u_char osTotalObjTable[3][BANK_MAX][OS_OBJ_TABLE_BYTES]; /* bss 0x01a59870: [1] = objSort's */
 extern u_char *FogCtrlAddr[BANK_MAX];           /* sbss 0x019405f0: fog colour bytes at +4, +8, +0xc */
 extern FOG_ANIME FogAnimeBuff[BANK_MAX];        /* bss  0x01a58040 */
 
@@ -117,6 +120,8 @@ extern char fFade;                              /* sbss 0x0193f74c */
 extern char fXFade;                             /* sbss 0x0193f748 */
 extern char fVibTimer;                          /* sbss 0x0193f768 */
 extern char fShadeOff;                          /* sbss 0x0193f750 */
+extern int fKeepScreen;                         /* sbss 0x0193f754 */
+extern int Clipping_System;                     /* sbss 0x01940eac */
 extern int nowShadeOffFrame;                    /* sbss 0x01942944 */
 extern int FadeStartTicks;                      /* sbss 0x0194294c */
 extern int XfadeStartTicks;                     /* sbss 0x01942954 */
