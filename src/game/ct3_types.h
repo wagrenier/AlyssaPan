@@ -387,8 +387,8 @@ typedef struct PANIC_INFO {
     short h02;                          /* 0x02: data_load_set: 0 */
     int w04[8];                         /* 0x04 */
     int w24;                            /* 0x24 */
-    int w28;                            /* 0x28 */
-    int w2c;                            /* 0x2c */
+    float f28;                          /* 0x28: PanicModeInit: 10000.0 */
+    int w2c;                            /* 0x2c: PanicModeInit: -1 */
 } PANIC_INFO;
 static_assert(sizeof(PANIC_INFO) == 0x30, "PANIC_INFO");
 static_assert(offsetof(MODEL_PARTS, kind) == 0x42, "MODEL_PARTS.kind");

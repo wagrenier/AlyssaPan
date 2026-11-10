@@ -18,7 +18,34 @@ void AmbientAlphaUpdate(void);                                                  
 void XcmdScreenFilterSkip(void);                                                         // CT3 0x01858bc0
 void XcmdScreenFilter(void);                                                             // CT3 0x01858c90
 void VistaVisionMain(void);                                                              // CT3 0x0185aa50
-void asWarpObjectBody(int a0, int a1);                                                   // CT3 0x0185b980
+// A warp command (0x20 bytes): move a character to a part (a marker) of a scene bank. WarpObject
+// (the trigger scripts' warp) queues it at once when the room's bank is loaded, else parks it in
+// ReservationWarpCommand until WarpObjectUpdate sees the bank drawn. asWarpObjectBody(WARP_QUEUE, cmd)
+// queues it; main runs the queue (WARP_EXECUTE) at a safe point of the frame.
+typedef struct WARP_CMD {
+    short mode;                         /* 0x00: ExecuteWarpObject's first argument */
+    short chara;                        /* 0x02: Character[] index */
+    short bank;                         /* 0x04: the scene bank (WarpObject's last argument when no room) */
+    short state;                        /* 0x06: ReservationWarpCommand: -1 free, 1 waiting */
+    u_long partHash;                    /* 0x08: the target part's name hash (parked warps) */
+    int part;                           /* 0x10: the target part's index (-1: by hash) */
+    int bank2;                          /* 0x14: the bank ExecuteWarpObject2 searches */
+    u_long roomHash;                    /* 0x18: 0: ExecuteWarpObject (indices); else ExecuteWarpObject2 */
+} WARP_CMD;
+static_assert(sizeof(WARP_CMD) == 0x20, "WARP_CMD");
+static_assert(offsetof(WARP_CMD, roomHash) == 0x18, "WARP_CMD.roomHash");
+#define WARP_RESERVE_MAX 10
+#define WARP_QUEUE 0                    /* asWarpObjectBody: append cmd to the queue */
+#define WARP_EXECUTE 1                  /* asWarpObjectBody: run and empty the queue */
+#define WARP_QUEUE_GROW 16              /* the queue grows by this many commands (gHeapJunc) */
+#define WARP_FOLLOWER_1 11              /* Character[] the player's parked warps take along when flagged */
+#define WARP_FOLLOWER_2 12
+extern WARP_CMD ReservationWarpCommand[WARP_RESERVE_MAX];                                // CT3 0x019423a0
+void asWarpObjectBody(int mode, const WARP_CMD *cmd);                                    // CT3 0x0185b980
+void WarpObject(const char *room, int mode, int chara, u_long partHash, int bank);       // CT3 0x0185bb20
+void WarpObjectUpdateSet(const WARP_CMD *cmd);                                           // CT3 0x0185bec0
+void ExecuteWarpObject(int mode, int chara, int part, int bank);                         // CT3 0x0185b4c0
+void ExecuteWarpObject2(int mode, int bank, int chara, int bank2);                       // CT3 0x0185ae90
 void WarpObjectUpdate(void);                                                             // CT3 0x0185bd50
 void WarpObjectUpdateInit(void);                                                         // CT3 0x0185bf80
 void asWarpSceneObject(void *table, int maxId, float *pos);                              // CT3 0x0185c100
@@ -189,12 +216,71 @@ typedef struct SCENE_ALPHA_ANIM {       /* 0x14 bytes: AmbientAlphaInit zeroes i
 } SCENE_ALPHA_ANIM;
 static_assert(sizeof(SCENE_ALPHA_ANIM) == 0x14, "SCENE_ALPHA_ANIM");
 extern SCENE_ALPHA_ANIM scene_alpha_anim[BANK_MAX];                                      // CT3 0x01a4b900
-typedef struct CLATTERING {             /* 0x20 bytes: one controller rattle */
-    u_char pad00[0x10];
-    int id;                             /* 0x10: CLATTERING_FREE when unused */
-    u_char pad14[0xc];
+// A controller rattle (a struggle: the player shakes the sticks or presses buttons until a count is
+// reached). The attacking ghosts / bosses, the moths and the rapid lever open one with
+// ControllerClatteringSet, poll it with ControllerClatteringGet, and drop it with ControllerClatteringFree.
+typedef struct CLATTERING {             /* 0x20 bytes */
+    int timeLeft;                       /* 0x00: frames left; at 0 the rattle is lost */
+    int decayFrames;                    /* 0x04: idle frames before count drops by one */
+    int w08;                            /* 0x08: set (default 0x70), not read by Update */
+    int goal;                           /* 0x0c: the count that wins */
+    int state;                          /* 0x10: CLATTERING_* */
+    u_char stick[4];                    /* 0x14: the sticks' last position that counted */
+    int count;                          /* 0x18: presses and stick swings, less the decay */
+    int idle;                           /* 0x1c: frames since the last press or swing */
 } CLATTERING;
 static_assert(sizeof(CLATTERING) == 0x20, "CLATTERING");
+static_assert(offsetof(CLATTERING, stick) == 0x14, "CLATTERING.stick");
 #define CLATTERING_MAX 10
 #define CLATTERING_FREE -1
+#define CLATTERING_RUNNING 0
+#define CLATTERING_WON 1                /* count reached goal */
+#define CLATTERING_LOST 2               /* timeLeft ran out */
+#define CLATTERING_STICK_SWING 0x60     /* a stick byte must move this far to count */
+// ControllerClatteringSet's argument: four ints, < 0 takes the default.
+typedef struct CLATTERING_SET {
+    int time;                           /* default 150 */
+    int decayFrames;                    /* default 10 */
+    int w08;                            /* default 0x70 */
+    int goal;                           /* default 50 */
+} CLATTERING_SET;
+static_assert(sizeof(CLATTERING_SET) == 0x10, "CLATTERING_SET");
+#define CLATTERING_DEF_TIME 150
+#define CLATTERING_DEF_DECAY 10
+#define CLATTERING_DEF_W08 0x70
+#define CLATTERING_DEF_GOAL 50
+int ControllerClatteringFree(int slot);                                                  // CT3 0x01852f10
+int ControllerClatteringGet(int slot);                                                   // CT3 0x01852f60
+int ControllerClatteringSet(const CLATTERING_SET *set);                                  // CT3 0x01853150
+int DemoSkipCheckEvent(int event);                                                       // CT3 0x01852010
+
+// Panicdef (0x01940e80, 0x1c bytes): the panic tuning PanicModeInit sets. Fields by offset until the
+// panic TU (PanicUpdate) reads them.
+typedef struct PANIC_DEF {
+    float f00;                          /* 3.5 */
+    float f04;                          /* 8.0 */
+    float f08;                          /* 5000.0 */
+    float f0c;                          /* 2.0 */
+    int w10;                            /* 30 */
+    int w14;                            /* 4 */
+    int w18;                            /* 8 */
+} PANIC_DEF;
+static_assert(sizeof(PANIC_DEF) == 0x1c, "PANIC_DEF");
+extern PANIC_DEF Panicdef;                                                               // CT3 0x01940e80
+extern int AdvantageousTimeTime;                                                         // CT3 0x01940e44
+#define PANIC_TRANSPARENT_TIME 360      /* TransparentBodyTime (MC_LOAD_TRANSPARENT_TIME too) */
+#define PANIC_ADVANTAGEOUS_TIME 90
+#define TRIG_VAR_PANIC 0x1c             /* PanicModeInit sets it to 0 */
+#define TRIG_EVENT_PANIC_3 0x03         /* the three events PanicModeInit removes (named from this use) */
+#define TRIG_EVENT_PANIC_26 0x26
+#define TRIG_EVENT_PANIC_48 0x48
+
+// GetAreaNumber: RoomNameID_STR_Tbl / RoomNameID_ID_Tbl (0x019392f0 / 0x01939110) give each room its
+// area number (1..52, the save file's area message). A room listed more than once answers its first
+// row, its second while TRIG_EVENT_AREA_PASS2 is set, its third while TRIG_EVENT_AREA_PASS3 is.
+#define AREA_TBL_COUNT 118
+#define TRIG_EVENT_AREA_PASS2 0x5db     /* named from this use */
+#define TRIG_EVENT_AREA_PASS3 0x5da
+#define AREA_STAGE3_HOME 52             /* stage 3 (TRIG_VAR_STAGE): 0A11 / 0A10 / 0A01 */
+#define AREA_STAGE4_0A16 47             /* stage 4: 0A16 */
 extern CLATTERING ClatteringData[CLATTERING_MAX];                                        // CT3 0x01942970

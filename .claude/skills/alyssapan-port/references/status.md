@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-10 09:20 at commit `36fd751` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-10 09:37 at commit `54abf50` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **459**; stubs: **214**
+- reconstructed CT3 functions: **477**; stubs: **207**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -55,7 +55,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/CpDivideEECom.c` | 0 | 1 |
 | `src/game/IOPGetFileSize.c` | 0 | 3 |
 | `src/game/LinkMatrixTree.c` | 4 | 0 |
-| `src/game/QuatSlerp.c` | 71 | 34 |
+| `src/game/QuatSlerp.c` | 89 | 27 |
 | `src/game/SdMasterVolumeSetSE.c` | 0 | 34 |
 | `src/game/ahRelocateSunPs2ObjectArry.c` | 93 | 0 |
 | `src/game/ahalloc.c` | 7 | 0 |
@@ -83,7 +83,7 @@ Least-named game-code regions (64 KB blocks):
 - 65 TUs: todo 48, partial 2, verify 15, done 3
 - next: **game/QuatSlerp.c** (pinned in the queue)
 - pinned queue: game/QuatSlerp.c
-- partial: `game/QuatSlerp.c` 66/177 -- Queue was empty: refilled with game/QuatSlerp.c (asFindModelParts was the recorded blocker). 15 s smoke run ends without a fault, shot black (ga draw calls are 
+- partial: `game/QuatSlerp.c` 81/177 -- 15 s smoke run: no fault, 27000 frames, shot black (ga draw calls and the sun texture upload are stubs). Next in this TU: sunSetupTBufferData and the sunBGT tex
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaInitDrawObject.c` 24/24 -- No ROM caller for the texture three (the game uses its sun* copies in QuatSlerp.c): complete, nothing on screen can show them. Shot black as before: packets go 
 - verify: `ga/gaInitInterrupt.c` 3/3 -- GCC object; wait_vsync_state (data 0x0192e790), ga_main_timer, ga_down_timer defined here. gaWaitVSync takes no argument and returns the CSR FIELD bit; main.c c
@@ -102,6 +102,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-10 09:37 `game/QuatSlerp.c` partial: slice 2: GetAreaNumber (RoomNameID tables), the controller rattles (Free, Get, Update, Set), DemoSkipCheckEvent, PanicModeInit, QuatSlerp, asMakeRotMatrixByQuar
 - 2026-11-10 09:20 `game/QuatSlerp.c` partial: slice 1: part lookup and name hashes (ahGetHash reads back: Bip01, BasePoint), ahAcos with the ROM table, the camera read-back, packed blends, bank/character/ro
 - 2026-11-10 08:49 `game/fileio.c` verify: slice 4: Round2ChangeChar, the second-round file swap; the code is complete
 - 2026-11-10 08:35 `game/fileio.c` partial: slice 3: the sorts (CharacterSort, objSort, objSortWithBlurIdx, SortAlphaObjects), SceneEndBankMovie, Round2ChangeSectInfo
@@ -109,35 +110,34 @@ Recent sessions:
 - 2026-11-10 08:01 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 14: asCheckAnimationFlamePassing_S (time1c pass test, forward / backward / either, character motion behaviour), asShadowEnd (shadow buffer fold, then the 
 - 2026-11-10 07:41 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 13: asShadowPolygonPositions (casters to volume quads: lit-face edges and segment rings, plus or minus by the camera side of the light-edge plane, the ang
 - 2026-11-10 07:12 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 12: asMakeMirrorMatrixByPlane (mrr_ReverseMatrix from the mirror plane: RY, RX, the Y flip, the plane offset row), asSceneAnimationStop_S and asCheckAnima
-- 2026-11-10 06:57 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 11: asBuildMirrorMatrixTree and _Back (mrr_ReverseMatrix then Cam[6].view2), asMirrorCulling (the mirror's four corners projected to the portal clip recta
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `game/ssGrpPortalCheck.c` | todo | 0/11/59 | 26.4 | 227 | 10 |
-| `game/QuatSlerp.c` | partial | 66/34/177 | 50.3 | 181 | 18 |
+| `game/ssGrpPortalCheck.c` | todo | 0/11/59 | 26.4 | 235 | 10 |
 | `game/Clipping_Portal.c` | todo | 0/33/73 | 44.8 | 150 | 18 |
 | `game/SdMasterVolumeSetSE.c` | todo | 0/34/61 | 22.9 | 134 | 9 |
+| `game/QuatSlerp.c` | partial | 81/27/177 | 50.3 | 121 | 11 |
 | `game/wideXcmd_DebugPrint.c` | todo | 0/16/109 | 40.6 | 86 | 12 |
 | `game/ssSetTexUVforCubeMap.c` | todo | 0/30/96 | 35.3 | 84 | 9 |
 | `ga/gaInit3dlib.c` | partial | 2/6/25 | 3.6 | 77 | 6 |
 | `game/asEyeForcusUP2CamMat.c` | todo | 0/9/30 | 23.6 | 57 | 6 |
 | `ga/gaDmaSync_VIF1.c` | todo | 0/3/5 | 0.5 | 35 | 3 |
 | `game/tiAvoidObject.c` | todo | 0/6/82 | 30.5 | 26 | 4 |
-| `game/Convert.c` | todo | 0/2/2 | 0.8 | 22 | 0 |
+| `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/ssHitCheckAttackToScn.c` | todo | 0/3/37 | 32.0 | 18 | 3 |
 
 ## Frontier (called by reconstructed code, not written yet)
 
 | CT3 addr | name | call sites | provenance | state | inferred file |
 |---|---|---|---|---|---|
-| `018d9100` | ssTrigCheckEvent | 58 | sym | stub | game/ssGrpPortalCheck.c |
-| `018d9470` | ssTrigSetVariable | 33 | sym | stub | game/ssGrpPortalCheck.c |
+| `018d9100` | ssTrigCheckEvent | 60 | sym | stub | game/ssGrpPortalCheck.c |
+| `018d9560` | ssTrigRemoveEvent | 34 | sym | stub | game/ssGrpPortalCheck.c |
+| `018d9470` | ssTrigSetVariable | 34 | sym | stub | game/ssGrpPortalCheck.c |
 | `018a7900` | gaMulMatrix | 32 | sym | stub | ga/gaInit3dlib.c |
 | `018d95e0` | ssTrigRegisterEvent | 31 | sym | stub | game/ssGrpPortalCheck.c |
-| `018d9560` | ssTrigRemoveEvent | 31 | sym | stub | game/ssGrpPortalCheck.c |
 | `018d1600` | SdSetEffect | 27 | sym | stub | game/SdMasterVolumeSetSE.c |
-| `018d9430` | ssTrigGetVariable | 18 | sym | stub | game/ssGrpPortalCheck.c |
-| `01851b10` | ConvertQuat2Matrix | 16 | sym | stub | game/Convert.c |
+| `018d9430` | ssTrigGetVariable | 20 | sym | stub | game/ssGrpPortalCheck.c |
+| `01851b10` | ConvertQuat2Matrix | 17 | sym | stub | game/Convert.c |
 | `018a17f8` | gaBGT_DmaSendN_fromSPR_VIF1 | 12 | sym | stub | ga/gaDmaSync_VIF1.c |
 | `01886690` | asChangeViewMatrix_forTheBank | 12 | sym | stub | game/asEyeForcusUP2CamMat.c |
 | `018cd190` | SdSetParamSE | 9 | sym | stub | game/SdMasterVolumeSetSE.c |
@@ -145,17 +145,14 @@ Recent sessions:
 | `01893cf0` | ExportDrawToTex | 8 | sym | stub | game/Clipping_Portal.c |
 | `01858c90` | XcmdScreenFilter | 8 | sym | stub | game/QuatSlerp.c |
 | `018ce0d0` | SdVolumeSQ | 7 | sym | stub | game/SdMasterVolumeSetSE.c |
-| `01851bf0` | QuatSlerp | 7 | sym | stub | game/QuatSlerp.c |
 | `01859520` | sunBGT_ExecTBufferData_VIF1 | 7 | sym | stub | game/QuatSlerp.c |
 | `018a7db8` | gaSet3dlibStruct | 7 | sym | stub | ga/gaInit3dlib.c |
 | `018a3150` | gaBGT_DrawObject | 7 | sym | stub | ga/gaBGT_DrawObject.c |
 | `018518d0` | ConvertMatrix2Quat | 6 | sym | stub | game/Convert.c |
 | `01859530` | sunSetupTBufferData | 6 | sym | stub | game/QuatSlerp.c |
-| `01854560` | tnInit3dlibWork | 6 | sym | stub | game/QuatSlerp.c |
 | `018590b0` | sunBGT_LoadGSTexClutData_VIF1 | 6 | sym | stub | game/QuatSlerp.c |
 | `018a3078` | gaObjectClippingCheck | 6 | sym | stub | ga/gaObjectClippingCheck.c |
 | `018cc0f0` | SdStopSE | 6 | sym | stub | game/SdMasterVolumeSetSE.c |
-| `0185ddf0` | asMakeRotMatrixByQuartanion | 5 | sym | stub | game/QuatSlerp.c |
 | `01896920` | ssGetNumBlurDrawObjForScene | 5 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `0188d3c0` | tiFade_Start | 4 | sym | stub | game/Clipping_Portal.c |
 | `01854d60` | MonsterAIUpdate | 4 | sym | stub | game/QuatSlerp.c |
@@ -170,4 +167,7 @@ Recent sessions:
 | `018db340` | asXcmd_AddForLockToTargChara | 3 | sym | stub | game/asXcmd.c |
 | `018a7b50` | gaInversMatrix | 3 | sym | stub | ga/gaInit3dlib.c |
 | `018cddd0` | SdStopStream | 3 | sym | stub | game/SdMasterVolumeSetSE.c |
+| `01854d30` | ssMenuUpdate | 3 | sym | stub | game/QuatSlerp.c |
+| `018550b0` | PlayerControlUpdate | 3 | sym | stub | game/QuatSlerp.c |
+| `01883ca0` | asMothPause | 3 | sym | stub | game/asMothPause.c |
 

@@ -559,6 +559,34 @@ view * matrix (+0x180) and +0x300 = that * diag(record +0x2c0 xyz).
 - **Angles** are 0x10000 per turn; ahAcos interpolates the ROM's 4098-entry ah_acos_table below 0.9988
   and calls acosf above (that branch returns acosf's own 16 bits, also for a negative cosine).
 
+## Areas, rattles, warps, the slerp, game/QuatSlerp.c (2026-11-10, slice 2)
+
+- **Areas** (GetAreaNumber): a room's area number 1..52 (the save file's area, the map / scene name
+  menus) from RoomNameID_STR_Tbl / RoomNameID_ID_Tbl (0x019392f0 / 0x01939110, 118 rows). Rooms listed
+  two or three times (0A01, 0A10, 0A11, 1C01, 1B08, ...) answer their later rows while the trigger
+  events 0x5db / 0x5da are set (later story passes); stage 3 makes 0A11 / 0A10 / 0A01 area 52, stage 4
+  makes 0A16 area 47. A character with lightBank -1 is in no area (-1).
+- **Controller rattles** (ClatteringData, 10 x 0x20): the struggle the ghost / boss attacks, the moths
+  and the rapid lever start. Each frame a button press on controller 1, or a 0x60 swing of any analog
+  byte (PAD_DATA +0x1c..0x1f) from the last counted position, adds one; decayFrames idle frames take one
+  back; count >= goal wins (state 1), timeLeft reaching 0 loses (state 2). Defaults 150 frames, decay 10,
+  goal 50. ControllerClatteringGet answers the state and frees a finished slot.
+- **Warps** (WarpObject, the trigger scripts' warp command): a character goes to a part (marker) of a
+  room's scene bank. A loaded room queues the command (asWarpObjectBody(0), a block in gHeapJunc that
+  grows by 16); main runs the queue with asWarpObjectBody(1) at a safe point of the frame. A room not
+  loaded parks the command in ReservationWarpCommand (10 slots); WarpObjectUpdate queues it once the
+  room's bank is loaded and drawn. The player's parked warps take Character[11] / [12] along when their
+  flags have bit 31 (CHARACTER_FLAG_REFRACTION: so that bit is more than the refraction pass -- maybe
+  "follows the player"). The execution (ExecuteWarpObject / 2) is not written yet.
+- **QuatSlerp(q, q0, q1, ts)**: ts = {1 - t, t}; q0 negated while the dot is negative; dot >=
+  0.9999998 answers q1; ts[3] is overwritten with the angle (0x10000 a turn) as a float; the weights are
+  ahSin(ts[i] * angle) / ahSin(angle) and the result is renormalised. asMakeRotMatrixByQuartanion
+  builds the unit quaternion of an axis and an angle (half angle through gaSinCos) and converts it.
+- **PanicModeInit** resets PanicInfoData (b01 0xff, +0x28 10000.0, +0x2c -1), TransparentBodyTime 360,
+  AdvantageousTimeTime 90, and Panicdef (3.5, 8.0, 5000.0, 2.0, 30, 4, 8), trigger variable 0x1c = 0,
+  and removes events 3, 0x26, 0x48.
+- **tnInit3dlibWork(src, dst)** is gaInit3dlibWork with the 32-float copy to the scratchpad built in.
+
 ## The IOP side (2026-11-09)
 
 The EE loads `cdrom0:\IOP\IOPRP255.IMG;1` (an IOP reboot), then `SIO2MAN`, `PADMAN`, `MCMAN`, `MCSERV`,

@@ -12,8 +12,12 @@ typedef struct PAD_DATA {
     u_short pad02;
     u_short trg;                        /* 0x04: buttons pressed this frame */
     u_short key;                        /* 0x06: key repeat */
-    u_char rest[0x1c];
+    u_char rest08[0x14];
+    u_char stick[4];                    /* 0x1c: the analog bytes (ControllerClatteringUpdate reads them in
+                                           the order 2, 3, 0, 1; which is which stick: gaPadRead's TU) */
+    u_char rest20[4];
 } PAD_DATA;
+static_assert(offsetof(PAD_DATA, stick) == 0x1c, "PAD_DATA.stick");
 static_assert(sizeof(PAD_DATA) == 0x24, "PAD_DATA");
 static_assert(offsetof(PAD_DATA, trg) == 0x04, "PAD_DATA.trg");
 static_assert(offsetof(PAD_DATA, key) == 0x06, "PAD_DATA.key");

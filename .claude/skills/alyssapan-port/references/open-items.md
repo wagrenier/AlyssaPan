@@ -548,6 +548,25 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    zeros. Left in this TU (frontier): GetAreaNumber (next reached), sunSetupTBufferData /
    sunBGT_*_VIF1, PanicModeInit, AmbientAlphaUpdate, the warp objects, asMakeRotMatrixByQuartanion,
    QuatSlerp, ControllerClatteringUpdate and the brief's other 100.
+   **game/QuatSlerp.c slice 2 (partial, 2026-11-10):** GetAreaNumber (RoomNameID tables from the ELF),
+   the controller rattles (ControllerClatteringFree / Get / Update / Set, CLATTERING named), DemoSkipCheckEvent,
+   PanicModeInit (PANIC_DEF Panicdef, PANIC_INFO +0x28 now float f28), QuatSlerp,
+   asMakeRotMatrixByQuartanion, the warp family (WarpObject, WarpObjectUpdate / _Set / _Init,
+   asWarpObjectBody; WARP_CMD), tnInit3dlibWork. A 15 s smoke run: no fault, 27,000 frames, shot black.
+   Open: (et) the rattle's stick bytes are PAD_DATA +0x1c..0x1f read as [2], [3], [0], [1]: which stick is
+   which is gaPadRead's TU (pad_button_read.c); CLATTERING +0x08 (default 0x70) is set but never read
+   here; ControllerClatteringSet with no free slot writes slot 10 past the array in the ROM (over
+   pad_key_button): the host answers 10 without writing; (eu) TRIG_EVENT_AREA_PASS2 / _PASS3 (0x5db /
+   0x5da), AREA_STAGE3_HOME 52, AREA_STAGE4_0A16 47, TRIG_VAR_PANIC (0x1c) and TRIG_EVENT_PANIC_3 / _26
+   / _48 are named from this use only; PANIC_DEF's fields by offset until PanicUpdate is read;
+   (ev) WarpObject's followers (Character[11] / [12] with flags bit 31) suggest CHARACTER_FLAG_REFRACTION
+   (0x80000000) is a wider "accompanies the player" bit: rename when the character TU reads it;
+   WARP_CMD.bank2 / mode and the ExecuteWarpObject / 2 argument order come from asWarpObjectBody's calls
+   (stubs: confirm when written); WarpObject's prototype (room, mode, chara, partHash, bank) is from its
+   body -- ssTrigExecuteActCmd / tkXDTrg_ActorProc_AlsOpn call it. Left (frontier): ExecuteWarpObject /
+   2, PanicFilter, XcmdScreenFilter / Skip, DemoScreenFilter (the screen filters), sunSetupTBufferData,
+   sunBGT_LoadGSTexClutData_VIF1 / _ExecTBufferData_VIF1 / _SetLoadGSEnv (the texture upload: the next
+   blocker for the picture with the ga draw stubs), and the brief's other 92.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
    class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~

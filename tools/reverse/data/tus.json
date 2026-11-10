@@ -416,7 +416,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 129..129, 4 functions keyed by their statics, 5 unkeyed; file name from the names"
   },
   "game/QuatSlerp.c": {
-   "notes": "Queue was empty: refilled with game/QuatSlerp.c (asFindModelParts was the recorded blocker). 15 s smoke run ends without a fault, shot black (ga draw calls are stubs). gaSinCos is a new stub (ga/gaSinCos.c); gaInversMatrix still a stub so the camera read-back answers zeros. Next reached stub in this TU: GetAreaNumber. open-items.md (ep)..(es).",
+   "notes": "15 s smoke run: no fault, 27000 frames, shot black (ga draw calls and the sun texture upload are stubs). Next in this TU: sunSetupTBufferData and the sunBGT texture upload (the picture's blocker), then PanicFilter, XcmdScreenFilter and Skip, DemoScreenFilter, ExecuteWarpObject and ExecuteWarpObject2. open-items.md (et)..(ev).",
    "ranges": [
     [
      "01851bf0",
@@ -428,6 +428,11 @@
      "date": "2026-11-10 09:20",
      "status": "partial",
      "summary": "slice 1: part lookup and name hashes (ahGetHash reads back: Bip01, BasePoint), ahAcos with the ROM table, the camera read-back, packed blends, bank/character/room lookups, room trigger flags, OmniRangeChange, AmbientAlphaInit, ControllerClatteringInit; the ActressMP crash at main.c:2106 is gone"
+    },
+    {
+     "date": "2026-11-10 09:37",
+     "status": "partial",
+     "summary": "slice 2: GetAreaNumber (RoomNameID tables), the controller rattles (Free, Get, Update, Set), DemoSkipCheckEvent, PanicModeInit, QuatSlerp, asMakeRotMatrixByQuartanion, the warp family (WarpObject, WarpObjectUpdate, Set, Init, asWarpObjectBody), tnInit3dlibWork"
     }
    ],
    "status": "partial",

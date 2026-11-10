@@ -199,6 +199,14 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 - **Ghidra prints `_name` for a symbol sharing its address with a smaller one** ("Globals starting with
   '_' overlap smaller symbols"): `_gPlayingChaseBGM` is the symtab's `gPlayingChaseBGM`. Strip the `_`
   and look the name up in `work/symtab_ct3.json` (sizes there are hex).
+- **mipsdis.py prints COP2 registers with GPR names** (2026-11-10, QuatSlerp.c slice 2): `lqc2 at,0(v1)`
+  is `lqc2 vf1`, `v0` is vf2, `v1` vf3, `a2` vf6 (the register number printed as a GPR's name). Read
+  the VU0 macro instructions (`vmul.xyzw vf4,vf1,vf2`) for the real vf numbers.
+- **The symtab's `@<n>` literals repeat across objects** (2026-11-10): `@3344`..`@3347` exist twice
+  (0x01933758.. 5-byte room names, 0x01933b70.. 13..16-byte strings). Pick the copy by address next to
+  the function's other data, or dump both (`datadump.py <addr> <n> "x5:s" --stride 8`).
+- **The smoke run's `last.png` can be 0 bytes** (2026-11-10): written as the process exits; the numbered
+  shots (`shot_<frame>.png`) are complete. Read the newest numbered shot when last.png is empty.
 
 ## From the siblings (2026-11-09 digest of MioPan, ReiPan, RosePan, MikuPan)
 

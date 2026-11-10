@@ -7,8 +7,17 @@
 #include "game/unassigned_data.h"
 #include "ga/gaSinCos.h"
 #include "game/ssGrpPortalCheck.h"
+#include "game/main.h"
+#include "sdk/eekernel.h"
+#include "ga/gaInitDrawObject.h"
+#include "game/main2.h"
+#include "game/fileio.h"
+#include "game/ahalloc.h"
+#include "game/Convert.h"
+#include "game/sound.h"
 
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 
 // CT3 0x019395b0 (RoomNameTbl, 95 names) and 0x01939730 (RoomIdTbl, 95 trigger events + -1): row i
@@ -189,22 +198,113 @@ void AmbientAlphaUpdate(void)
     ALYSSAPAN_STUB("AmbientAlphaUpdate", 0x01856c30);
 }
 
-// CT3 0x01942970 (ClatteringData): the controller rattles (vibration requests).
+// CT3 0x01942970 (ClatteringData): the controller rattles (struggles the player shakes free of).
 CLATTERING ClatteringData[CLATTERING_MAX];
+
+// CT3 0x01852f10: drop a rattle; 1 for a slot out of range or already free, else 0.
+int ControllerClatteringFree(int slot)
+{
+    if (slot < 0 || slot >= CLATTERING_MAX)
+        return 1;
+    if (ClatteringData[slot].state < 0)
+        return 1;
+    ClatteringData[slot].state = CLATTERING_FREE;
+    return 0;
+}
+
+// CT3 0x01852f60: the rattle's state; a finished one (WON / LOST) is freed as it is read.
+// (No range check: the ROM's.)
+int ControllerClatteringGet(int slot)
+{
+    int state = ClatteringData[slot].state;
+    if (state > 0)
+        ClatteringData[slot].state = CLATTERING_FREE;
+    return state;
+}
+
+// CT3 0x01852f90: per frame unless paused (PAUSE_RUNNING still runs): a button press on controller
+// 1, or any of its stick bytes moving CLATTERING_STICK_SWING from the last counted position, counts
+// one; decayFrames idle frames take one back. Won at goal, lost when timeLeft runs out.
+void ControllerClatteringUpdate(void)
+{
+    int moved = 0;
+    int i;
+
+    if (pause != 0 && (pause & PAUSE_RUNNING) == 0)
+        return;
+    for (i = 0; i < CLATTERING_MAX; i++) {
+        CLATTERING *c = &ClatteringData[i];
+        if (c->state != CLATTERING_RUNNING)
+            continue;
+        // the ROM compares stick[2], [3], [0], [1] with the slot's [0..3] (it stores them so too)
+        if (abs(pad[0].stick[2] - c->stick[0]) >= CLATTERING_STICK_SWING
+            || abs(pad[0].stick[3] - c->stick[1]) >= CLATTERING_STICK_SWING
+            || abs(pad[0].stick[0] - c->stick[2]) >= CLATTERING_STICK_SWING
+            || abs(pad[0].stick[1] - c->stick[3]) >= CLATTERING_STICK_SWING) {
+            // (moved stays set for the later slots: the ROM's)
+            moved = 1;
+            c->stick[0] = pad[0].stick[2];
+            c->stick[1] = pad[0].stick[3];
+            c->stick[2] = pad[0].stick[0];
+            c->stick[3] = pad[0].stick[1];
+        }
+        if (pad_trg_button[0] != 0 || moved) {
+            c->count++;
+            c->idle = 0;
+        } else if (++c->idle >= c->decayFrames) {
+            c->idle = 0;
+            if (--c->count < 0)
+                c->count = 0;
+        }
+        if (--c->timeLeft == 0)
+            c->state = CLATTERING_LOST;
+        else if (c->count >= c->goal)
+            c->state = CLATTERING_WON;
+    }
+}
+
+// CT3 0x01853150: open a rattle in the first free slot and answer the slot.
+int ControllerClatteringSet(const CLATTERING_SET *set)
+{
+    CLATTERING *c;
+    int i;
+
+    for (i = 0; i < CLATTERING_MAX; i++)
+        if (ClatteringData[i].state < 0)
+            break;
+    // PORT: with no free slot the ROM fills slot 10, past the array (over pad_key_button); the host
+    // answers CLATTERING_MAX without writing (ControllerClatteringFree refuses it).
+    if (i == CLATTERING_MAX)
+        return i;
+    c = &ClatteringData[i];
+    c->state = CLATTERING_RUNNING;
+    c->count = 0;
+    c->idle = 0;
+    c->stick[0] = c->stick[1] = c->stick[2] = c->stick[3] = 0;
+    c->w08 = set->w08 < 0 ? CLATTERING_DEF_W08 : set->w08;
+    c->decayFrames = set->decayFrames < 0 ? CLATTERING_DEF_DECAY : set->decayFrames;
+    c->goal = set->goal < 0 ? CLATTERING_DEF_GOAL : set->goal;
+    c->timeLeft = set->time < 0 ? CLATTERING_DEF_TIME : set->time;
+    return i;
+}
 
 // CT3 0x01853220: every slot free (the ROM unrolls the first eight).
 void ControllerClatteringInit(void)
 {
     int i;
     for (i = 0; i < CLATTERING_MAX; i++)
-        ClatteringData[i].id = CLATTERING_FREE;
+        ClatteringData[i].state = CLATTERING_FREE;
 }
 
-// stub of CT3 0x01852f90
-void ControllerClatteringUpdate(void)
+// CT3 0x01852010: bit `event` of SkipEventFlag (the demos the player has seen and may skip).
+int DemoSkipCheckEvent(int event)
 {
-    ALYSSAPAN_STUB("ControllerClatteringUpdate", 0x01852f90);
+    return (u_char)SkipEventFlag[event >> 3] >> (event & 7) & 1;
 }
+
+// CT3 0x01940e80 (Panicdef) and 0x01940e44 (AdvantageousTimeTime): .sbss beside PanicInfoData.
+PANIC_DEF Panicdef;
+int AdvantageousTimeTime;
 
 // stub of CT3 0x01856660
 void FogAnimeUpdate(void)
@@ -224,10 +324,32 @@ void PanicFilter(void)
     ALYSSAPAN_STUB("PanicFilter", 0x01853620);
 }
 
-// stub of CT3 0x01854410
+// CT3 0x01854410: the player's panic state back to calm, and the panic tuning.
 void PanicModeInit(void)
 {
-    ALYSSAPAN_STUB("PanicModeInit", 0x01854410);
+    int i;
+
+    TransparentBodyTime = PANIC_TRANSPARENT_TIME;
+    AdvantageousTimeTime = PANIC_ADVANTAGEOUS_TIME;
+    PanicInfoData.mode = 0;
+    PanicInfoData.b01 = 0xff;
+    PanicInfoData.h02 = 0;
+    for (i = 0; i < 8; i++)
+        PanicInfoData.w04[i] = 0;
+    PanicInfoData.w24 = 0;
+    PanicInfoData.f28 = 10000.0f;
+    PanicInfoData.w2c = -1;
+    Panicdef.f00 = 3.5f;
+    Panicdef.f04 = 8.0f;
+    Panicdef.f08 = 5000.0f;
+    Panicdef.f0c = 2.0f;
+    Panicdef.w10 = 30;
+    Panicdef.w14 = 4;
+    Panicdef.w18 = 8;
+    ssTrigSetVariable(TRIG_VAR_PANIC, 0, 1, 0);
+    ssTrigRemoveEvent(TRIG_EVENT_PANIC_3, 1, 0);
+    ssTrigRemoveEvent(TRIG_EVENT_PANIC_26, 1, 0);
+    ssTrigRemoveEvent(TRIG_EVENT_PANIC_48, 1, 0);
 }
 
 // stub of CT3 0x018537b0
@@ -248,16 +370,156 @@ void VistaVisionMain(void)
     ALYSSAPAN_STUB("VistaVisionMain", 0x0185aa50);
 }
 
-// stub of CT3 0x0185bd50
-void WarpObjectUpdate(void)
+// The scene bank (a loaded BANK_TYPE_SHADOW group head) whose room is roomHash, or -1. drawn: also
+// require DRAW_BANK_ON (WarpObjectUpdate's test; WarpObject's has none). The ROM inlines it in both.
+static int WarpFindRoomBank(u_long roomHash, int drawn)
 {
-    ALYSSAPAN_STUB("WarpObjectUpdate", 0x0185bd50);
+    int i;
+    for (i = 0; i < BANK_MAX; i++) {
+        if (BankInfo[i].state != BANK_STATE_LOADED)
+            continue;
+        if (BankInfo[i].type == BANK_TYPE_SHADOW && (!drawn || BankInfo[i].drawOn == DRAW_BANK_ON)
+            && roomHash == GetRoomName_file(BankInfo[i].name))
+            return i;
+        i += BankInfo[i].groupCount - 1;
+    }
+    return -1;
 }
 
-// stub of CT3 0x0185bf80
+static void WarpReservationClear(WARP_CMD *cmd)
+{
+    cmd->state = -1;
+    cmd->mode = 0;
+    cmd->chara = 0;
+    cmd->bank = 0;
+    cmd->part = 0;
+    cmd->bank2 = 0;
+    cmd->partHash = 0;
+    cmd->roomHash = 0;
+}
+
+// CT3 0x0185bd50: each parked warp whose room's bank is now loaded and drawn is queued (by hash,
+// through ExecuteWarpObject2) and its slot freed.
+void WarpObjectUpdate(void)
+{
+    // callcheck: GetRoomName_file (in WarpFindRoomBank: the ROM inlines the bank search)
+    int i, bank;
+
+    for (i = 0; i < WARP_RESERVE_MAX; i++) {
+        WARP_CMD *cmd = &ReservationWarpCommand[i];
+        if (cmd->state < 0)
+            continue;
+        bank = WarpFindRoomBank(cmd->roomHash, 1);
+        if (bank < 0)
+            continue;
+        cmd->bank2 = bank;
+        cmd->part = -1;
+        cmd->roomHash = cmd->partHash;
+        asWarpObjectBody(WARP_QUEUE, cmd);
+        WarpReservationClear(cmd);
+    }
+}
+
+// CT3 0x019423a0 (ReservationWarpCommand), 0x0193cb30 / 34 / 38 (lpWC, iWCnum, iWCcnt: the queue).
+WARP_CMD ReservationWarpCommand[WARP_RESERVE_MAX];
+static WARP_CMD *lpWC;
+static int iWCnum;
+static int iWCcnt;
+
+// CT3 0x0185bf80: no parked warps, an empty queue (the ROM unrolls the clear by eight; it drops the
+// queue's block without freeing it).
 void WarpObjectUpdateInit(void)
 {
-    ALYSSAPAN_STUB("WarpObjectUpdateInit", 0x0185bf80);
+    int i;
+    for (i = 0; i < WARP_RESERVE_MAX; i++)
+        WarpReservationClear(&ReservationWarpCommand[i]);
+    lpWC = NULL;
+    iWCnum = 0;
+    iWCcnt = 0;
+}
+
+// CT3 0x0185bec0: park a warp in the first free slot (none free: dropped).
+void WarpObjectUpdateSet(const WARP_CMD *cmd)
+{
+    int i;
+    for (i = 0; i < WARP_RESERVE_MAX; i++) {
+        WARP_CMD *r = &ReservationWarpCommand[i];
+        if (r->state < 0) {
+            r->state = 1;
+            r->mode = cmd->mode;
+            r->chara = cmd->chara;
+            r->bank = cmd->bank;
+            r->roomHash = cmd->roomHash;
+            r->partHash = cmd->partHash;
+            r->part = -1;
+            r->bank2 = 0;
+            return;
+        }
+    }
+}
+
+// CT3 0x0185bb20: warp chara to the part partHash of room's scene bank. An empty room name queues
+// the warp with partHash's low word as the part index and bank as given. A room not loaded parks it
+// (and, for the player, the warps of characters 11 / 12 whose CHARACTER_FLAG_REFRACTION bit is set);
+// a loaded one finds the part's index in the bank and queues it.
+void WarpObject(const char *room, int mode, int chara, u_long partHash, int bank)
+{
+    // callcheck: GetRoomName_file (in WarpFindRoomBank: the ROM inlines the bank search)
+    WARP_CMD cmd;
+    const u_char *hdr;
+    int i;
+
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.mode = (short)mode;
+    cmd.chara = (short)chara;
+    cmd.bank = (short)bank;
+    if (room[0] == 0) {
+        cmd.bank2 = -1;
+        cmd.part = (int)partHash;
+        cmd.roomHash = 0;
+        asWarpObjectBody(WARP_QUEUE, &cmd);
+        return;
+    }
+    cmd.roomHash = ahGetHash(room);
+    cmd.bank2 = WarpFindRoomBank(cmd.roomHash, 0);
+    if (cmd.bank2 < 0) {
+        cmd.part = -1;
+        cmd.bank2 = -1;
+        cmd.partHash = partHash;
+        WarpObjectUpdateSet(&cmd);
+        if (cmd.chara == 0) {
+            if (Character[WARP_FOLLOWER_1].flags & CHARACTER_FLAG_REFRACTION)
+                WarpObject(room, mode, WARP_FOLLOWER_1, partHash, bank);
+            if (Character[WARP_FOLLOWER_2].flags & CHARACTER_FLAG_REFRACTION)
+                WarpObject(room, mode, WARP_FOLLOWER_2, partHash, bank);
+        }
+        return;
+    }
+    cmd.roomHash = 0;
+    cmd.bank = (short)cmd.bank2;
+    cmd.part = -1;
+    hdr = (const u_char *)pModelPartsHeader[cmd.bank2];
+    for (i = 0; (s_char)hdr[PARTS_HDR_RECORDS + i * PARTS_REC_SIZE + 2] != PARTS_KIND_END; i++) {
+        u_long h;
+        memcpy(&h, hdr + PARTS_HDR_RECORDS + i * PARTS_REC_SIZE + PARTS_REC_HASH, sizeof(h));
+        if (h == partHash) {
+            cmd.part = i;
+            break;
+        }
+    }
+    asWarpObjectBody(WARP_QUEUE, &cmd);
+}
+
+// stub of CT3 0x0185b4c0
+void ExecuteWarpObject(int mode, int chara, int part, int bank)
+{
+    ALYSSAPAN_STUB("ExecuteWarpObject", 0x0185b4c0);
+}
+
+// stub of CT3 0x0185ae90
+void ExecuteWarpObject2(int mode, int bank, int chara, int bank2)
+{
+    ALYSSAPAN_STUB("ExecuteWarpObject2", 0x0185ae90);
 }
 
 // stub of CT3 0x01858c90
@@ -272,10 +534,41 @@ void XcmdScreenFilterSkip(void)
     ALYSSAPAN_STUB("XcmdScreenFilterSkip", 0x01858bc0);
 }
 
-// stub of CT3 0x0185b980
-void asWarpObjectBody(int a0, int a1)
+// CT3 0x0185b980: WARP_QUEUE appends cmd (the block grows by WARP_QUEUE_GROW in gHeapJunc);
+// WARP_EXECUTE runs every queued warp in order and frees the queue. Other modes do nothing.
+void asWarpObjectBody(int mode, const WARP_CMD *cmd)
 {
-    ALYSSAPAN_STUB("asWarpObjectBody", 0x0185b980);
+    int i;
+
+    if ((char)mode == WARP_EXECUTE) {
+        for (i = 0; i < iWCcnt; i++) {
+            const WARP_CMD *w = &lpWC[i];
+            if (w->roomHash == 0)
+                ExecuteWarpObject(w->mode, w->chara, w->part, w->bank);
+            else
+                ExecuteWarpObject2(w->mode, w->bank, w->chara, w->bank2);
+        }
+        if (lpWC != NULL)
+            _SunFree(&gHeapJunc, (void **)&lpWC);
+        lpWC = NULL;
+        iWCnum = 0;
+        iWCcnt = 0;
+    } else if ((char)mode == WARP_QUEUE) {
+        if (iWCcnt >= iWCnum) {
+            WARP_CMD *grown;
+            iWCnum += WARP_QUEUE_GROW;
+            grown = (WARP_CMD *)_SunAlloc(&gHeapJunc, iWCnum * (int)sizeof(WARP_CMD), 0x10);
+            if (lpWC == NULL) {
+                lpWC = grown;
+            } else {
+                for (i = 0; i < iWCcnt; i++)
+                    grown[i] = lpWC[i];
+                _SunFree(&gHeapJunc, (void **)&lpWC);
+                lpWC = grown;
+            }
+        }
+        lpWC[iWCcnt++] = *cmd;
+    }
 }
 
 // stub of CT3 0x0185c100
@@ -458,10 +751,36 @@ void sunSetupTBufferData(void *tbuffer, TEX_INFO tex)
     ALYSSAPAN_STUB("sunSetupTBufferData", 0x01859530);
 }
 
-// stub of CT3 0x01854560
-void tnInit3dlibWork(void *work, void *spr)
+// CT3 0x01854560: gaInit3dlibWork with the copy built in: the 3dlib work (32 floats, ga3dlibwork) is
+// copied to dst (the scratchpad's 0x400 in every caller), then the renderer's constants are derived
+// from the copy, store for store as gaInit3dlibWork does (the ROM keeps dst's address at +0xec; the
+// host keeps its EE address, as gaInit3dlibWork does).
+void tnInit3dlibWork(void *work, void *dst)
 {
-    ALYSSAPAN_STUB("tnInit3dlibWork", 0x01854560);
+    GA_SPR_WORK *spr = (GA_SPR_WORK *)SCRATCHPAD(GA_SPR_WORK_OFFSET);
+    float *w = (float *)dst;
+    int i;
+
+    spr->work3dlibEE = SCRATCHPAD_EE_BASE + (u_int)((u_char *)dst - g_eeScratchpad);
+    for (i = 0; i < 32; i++)
+        w[i] = ((const float *)work)[i];
+    spr->viewScaleX = w[2] / w[0];
+    spr->viewScaleY = w[3] / w[1];
+    spr->zScale = 1.0f / (w[11] - w[10]);
+    spr->work6 = w[6];
+    spr->zOffset = ((w[11] + w[10]) * -0.5f) / (w[11] - w[10]);
+    spr->work21 = w[21];
+    spr->work22 = w[22];
+    spr->work23x16 = w[23] * 16.0f;
+    spr->zero06c = 0;
+    spr->work26 = w[26];
+    spr->work27 = w[27];
+    spr->work6b = w[6];
+    spr->work9 = w[9];
+    spr->work25 = w[25];
+    spr->colourMax = 255.0f;
+    spr->work24 = w[24];
+    // (the ROM ends with SYNC)
 }
 
 // CT3 0x0185a6f0
@@ -568,11 +887,69 @@ int CharID_TO_BankID(int chara)
     return -1;
 }
 
-// stub of CT3 0x01852240
-int GetAreaNumber(int a0)
+// CT3 0x019392f0 (RoomNameID_STR_Tbl) and 0x01939110 (RoomNameID_ID_Tbl, + -1): a room's area number.
+static const char *const RoomNameID_STR_Tbl[AREA_TBL_COUNT] = {
+    "0A01", "0A02", "0A03", "0A19", "0A01", "0A10", "0A11", "0A06", "0A07", "0A27",
+    "1A02", "1A10", "1A11", "1C01", "1C02", "1C03", "1C01", "1C02", "1C04", "1C05",
+    "1C06", "1A04", "1B01", "1B03", "1B04", "1B08", "1B11", "1B05", "1B07", "1B04",
+    "1B08", "1B09", "1B11", "1B12", "1B08", "2A01", "2B01", "2B06", "2B02", "2B03",
+    "2B04", "2B01", "2A02", "2B08", "2B07", "2B05", "2D01", "2D02", "2D03", "0B01",
+    "0B19", "0B03", "0A16", "0B01", "0A10", "0A11", "0A07", "0A17", "0B06", "0B07",
+    "0A23", "3A01", "3A02", "3C06", "3C05", "3C01", "3C02", "3C03", "3C07", "0A11",
+    "0A10", "0A01", "0A01", "0A02", "3D03", "3D01", "3D02", "3E01", "3F01", "3D05",
+    "4A08", "4A03", "4A02", "4A01", "4A04", "4A10", "4A09", "4A07", "4A04", "4A06",
+    "4A12", "4A11", "4A05", "4A06", "4C01", "5A01", "4B05", "4B04", "4B06", "4B07",
+    "4B08", "4N01", "4N02", "4B09", "4N03", "4B01", "4B10", "4B02", "4B03", "0A16",
+    "0A30", "5A01", "5A03", "5A04", "5A02", "0A11", "0A10", "0A01",
+};
+static const int RoomNameID_ID_Tbl[AREA_TBL_COUNT + 1] = {
+     1,  1,  1,  1,  2,  2,  2,  2,  2,  2,  3,  4,  4,  5,  5,  5,  6,  6,  6,  6,
+     6,  7,  8,  8,  8,  8,  8,  9,  9,  9,  9,  9,  9, 10, 10, 11, 12, 12, 12, 12,
+    13, 13, 14, 14, 14, 14, 15, 16, 16, 17, 17, 17, 17, 18, 18, 18, 18, 18, 18, 18,
+    18, 19, 20, 21, 21, 22, 23, 24, 25, 26, 26, 26, 27, 27, 28, 29, 29, 30, 31, 31,
+    32, 33, 34, 34, 35, 36, 36, 36, 36, 37, 38, 38, 38, 38, 39, 40, 41, 42, 43, 43,
+    43, 43, 43, 44, 44, 45, 46, 46, 47, 47, 47, 48, 49, 50, 51, 52, 52, 52, -1,
+};
+
+// CT3 0x01852240: the area (1..52) the character's room belongs to, -1 when it is in no listed room
+// (or in no bank: lightBank -1). Stages 3 and 4 override a few rooms of the home.
+int GetAreaNumber(int chara)
 {
-    ALYSSAPAN_STUB("GetAreaNumber", 0x01852240);
-    return {};
+    char room[16];
+    int pass;
+    int i;
+
+    if (ssTrigGetVariable(TRIG_VAR_STAGE, 1, 0) == 3 && Character[chara].lightBank != -1) {
+        strcpy(room, asConvertHash2String(Character[chara].roomHash));
+        if (memcmp(room, "0A11", ROOM_NAME_LEN) == 0 || memcmp(room, "0A10", ROOM_NAME_LEN) == 0
+            || memcmp(room, "0A01", ROOM_NAME_LEN) == 0)
+            return AREA_STAGE3_HOME;
+    }
+    if (ssTrigGetVariable(TRIG_VAR_STAGE, 1, 0) == 4 && Character[chara].lightBank != -1) {
+        strcpy(room, asConvertHash2String(Character[chara].roomHash));
+        if (memcmp(room, "0A16", ROOM_NAME_LEN) == 0)
+            return AREA_STAGE4_0A16;
+    }
+    pass = 0;
+    if (Character[chara].lightBank != -1) {
+        strcpy(room, asConvertHash2String(Character[chara].roomHash));
+        for (i = 0; RoomNameID_ID_Tbl[i] != -1; i++) {
+            if (memcmp(room, RoomNameID_STR_Tbl[i], ROOM_NAME_LEN) != 0)
+                continue;
+            // the ROM's test order: PASS2 skips a row unless one was skipped already; PASS3 then
+            // skips one more unless two were
+            if (ssTrigCheckEvent(TRIG_EVENT_AREA_PASS2, 1, 0) != 0 && pass != 1) {
+                pass++;
+                continue;
+            }
+            if (ssTrigCheckEvent(TRIG_EVENT_AREA_PASS3, 1, 0) != 0 && pass != 2) {
+                pass++;
+                continue;
+            }
+            return RoomNameID_ID_Tbl[i];
+        }
+    }
+    return -1;
 }
 
 // CT3 0x0185c2e0: ahGetHash of the name's first four characters (a room's files share them).
@@ -906,16 +1283,67 @@ float ahSin(int angle)
     return s;
 }
 
-// stub of CT3 0x0185ddf0
+// CT3 0x0185ddf0: the rotation of angle (0x10000 a turn) about axis, through the unit quaternion.
 void asMakeRotMatrixByQuartanion(float (*m)[4], float *axis, int angle)
 {
-    ALYSSAPAN_STUB("asMakeRotMatrixByQuartanion", 0x0185ddf0);
+    float q[4];
+    float s, c;
+    float inv;
+
+    // VU0: xyz normalised by RSQRT (w keeps axis[3] until the cosine replaces it)
+    inv = 1.0f / sqrtf(axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]);
+    q[0] = axis[0] * inv;
+    q[1] = axis[1] * inv;
+    q[2] = axis[2] * inv;
+    gaSinCos(&s, &c, (int)((u_int)angle >> 1));
+    q[0] *= s;
+    q[1] *= s;
+    q[2] *= s;
+    q[3] = c;
+    ConvertQuat2Matrix(m, q);
 }
 
-// stub of CT3 0x01851bf0
+// VU0's 4-lane dot as the ROM sums it (ACC: w + z + y + x).
+static float QuatDot(const float *a, const float *b)
+{
+    return a[3] * b[3] + a[2] * b[2] + a[1] * b[1] + a[0] * b[0];
+}
+
+// CT3 0x01851bf0: spherical blend of two unit quaternions, ts = {weight of q0, weight of q1} (1 - t,
+// t). q0 is negated while the dot is negative (the short way round); nearly equal quaternions
+// (dot >= 0.9999998) answer q1. ts[3] is overwritten with the angle as a float (the ROM's scratch).
 void QuatSlerp(float *q, float *q0, float *q1, float *ts)
 {
-    ALYSSAPAN_STUB("QuatSlerp", 0x01851bf0);
+    float a[4];
+    float dot, inv, s0, s1, len;
+    int angle, i;
+
+    for (i = 0; i < 4; i++)
+        a[i] = q0[i];
+    for (;;) {
+        dot = QuatDot(a, q1);
+        if (!(dot < 0.0f))
+            break;
+        for (i = 0; i < 4; i++)
+            a[i] *= -1.0f;
+    }
+    if (!(dot < 0.9999998f)) {
+        for (i = 0; i < 4; i++)
+            q[i] = q1[i];
+        return;
+    }
+    angle = ahAcos(dot);
+    inv = 1.0f / ahSin(angle);
+    ts[3] = (float)angle;
+    // vmulw.xyz + vftoi0: each weight times the angle, truncated
+    s0 = ahSin((int)(ts[0] * ts[3])) * inv;
+    s1 = ahSin((int)(ts[1] * ts[3])) * inv;
+    for (i = 0; i < 4; i++)
+        q[i] = a[i] * s0 + q1[i] * s1;
+    // VU0 RSQRT of the w + z + y + x sum of squares, all four lanes
+    len = 1.0f / sqrtf(QuatDot(q, q));
+    for (i = 0; i < 4; i++)
+        q[i] *= len;
 }
 
 // stub of CT3 0x0185d380
