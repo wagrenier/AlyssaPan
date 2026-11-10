@@ -158,6 +158,7 @@ char fShadeOff;                                 /* sbss 0x0193f750 */
 int fKeepScreen;                                /* sbss 0x0193f754 */
 int Clipping_System;                            /* sbss 0x01940eac */
 int nowShadeOffFrame;                           /* sbss 0x01942944 */
+int FadeEndTicks;                               /* sbss 0x01942948 */
 int FadeStartTicks;                             /* sbss 0x0194294c */
 int XfadeStartTicks;                            /* sbss 0x01942954 */
 int VibTimeTicks;                               /* sbss 0x0193f76c */

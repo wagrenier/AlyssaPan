@@ -309,7 +309,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 91..91, 8 functions keyed by their statics, 3 unkeyed; file name from the names"
   },
   "game/Character_Init.c": {
-   "notes": "Left: MemorycardUpdate (0x17e8, reached every frame), mc_check2/3, mc_save_system_init, mc_save_set / mc_save_new / mc_save_normal, format paths, SceneLightSet, CharLightSet. CHARACTER gained the fields the reset writes (named by offset; hp/hpMax order a guess) and a host pointer junc at +0x570 (CHARA_JUNC, buffer at EE +0xc). IopLoadModules declared taking argv[0]. mc_alloc answers 1 on success (ROM: the block address); SdAlloc/SdFree are stubs so the card buffer does not exist yet. mc_load_new keeps the ROM bumping mc_save_normal_num. Shot black as before; last.png was 0 bytes this run (shot_25980.png black). open-items.md (ag)-(al).",
+   "notes": "Left: system_data_load_set, mc_load_set, mc_save_new, mc_save_normal, mc_free_area, mc_Getinfo_count, mc_check_always2, mc_check2/3, mc_save_system_init, data_save_set and ContinueBackupSet/Get, mc_char_set, SceneLightSet, CharLightSet. MemorycardUpdate is split into static mc_update_* flows (callcheck comment in its body); mcErr/mcAccess names are read from the flows only (open-items am-ap). Unset a2 on SE calls passes 1. Shot black as before (main2 is still a stub).",
    "ranges": [
     [
      "018b3a60",
@@ -321,6 +321,11 @@
      "date": "2026-11-09 23:56",
      "status": "partial",
      "summary": "slice 1: Character_All_Init, IOPInit, McInit, the memory card work buffer (mc_alloc, mc_free, mc_save_data_init), card checks (mc_check, mc_check_always, MemorycardAutoLoadInsertedCheck3), mc_make_checksum, mc_load_new"
+    },
+    {
+     "date": "2026-11-10 00:15",
+     "status": "partial",
+     "summary": "slice 2: MemorycardUpdate (the four card flows: save menu, load menu, auto save, auto load), mc_save_init, mc_formatcheck, mc_formatcheck2, mc_check4, MemorycardAutoLoadFormatCheck"
     }
    ],
    "status": "partial",

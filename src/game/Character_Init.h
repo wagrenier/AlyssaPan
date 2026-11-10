@@ -70,11 +70,73 @@ static_assert(offsetof(MC_SAVE_RECORD, id) == 0x10, "MC_SAVE_RECORD.id");
 // mc_check_always: polls the card once every MC_CHECK_ALWAYS_PERIOD + 1 calls (frames).
 #define MC_CHECK_ALWAYS_PERIOD 10
 
-// mcErr_ID values written here (MemorycardUpdate names the rest when it is written).
+// mcErr_ID: the card menus' message (MemorycardUpdate, 2026-11-10). Named where every write agrees;
+// MC_ERR_MSG_<n> where the ROM sets the same number on unlike paths (the menu TU that prints them names
+// them).
 #define MC_ERR_NONE 0
+#define MC_ERR_CHECKING 1               /* the buffer was just taken / the card is being looked at */
 #define MC_ERR_NO_CARD 2
+#define MC_ERR_UNFORMATTED 3            /* the format check said unformatted twice */
+#define MC_ERR_MSG_04 4                 /* format failed; auto-load: a card without the save */
+#define MC_ERR_NEW_DATA 5               /* no save on the card: the images were reset for a new one */
+#define MC_ERR_MSG_06 6                 /* load: the file chosen holds nothing, or the load failed */
+#define MC_ERR_FORMAT_ASK 7
+#define MC_ERR_MSG_08 8                 /* no room on the card, or the format failed */
+#define MC_ERR_SAVE_FAILED 9
+#define MC_ERR_OVERWRITE_ASK 10         /* the image chosen already holds a save */
+#define MC_ERR_SAVING 0xb
+#define MC_ERR_SAVED 0xc
+#define MC_ERR_MSG_0E 0xe
+#define MC_ERR_LOADED 0xf
+#define MC_ERR_MSG_11 0x11              /* the file is not the game's (header id != MC_HEADER_ID), or no room */
+
+// mcAccess_ID: which card flow MemorycardUpdate runs (the names are read from the flows' shape).
+#define MC_ACCESS_NONE (-1)
+#define MC_ACCESS_AUTO_LOAD 0           /* load, fade out, mc_load_set, TRIG_EVENT_MC_LOADED */
+#define MC_ACCESS_AUTO_SAVE 1           /* load the header, then save new / over (format offered) */
+#define MC_ACCESS_LOAD 3                /* the load menu: format checks, file choice, fade, load */
+#define MC_ACCESS_SAVE 4                /* the save menu: format checks, file choice, save */
+
+// The card SEs (bank "C_0000"): MC_SE_ACCESS sounds while the card works, MC_SE_DONE when it is done.
+#define MC_SE_ACCESS 0x47
+#define MC_SE_DONE 0x48
+
+// Trigger events MemorycardUpdate sets or reads (named from this use only).
+#define TRIG_EVENT_LOAD_SLOT2 0x0f      /* set while the save lives in slot 2 (LOAD_SLOT_NUM == 1) */
+#define TRIG_EVENT_MC_LOADED 0x99       /* a save was loaded: the game picks up from it */
+#define TRIG_EVENT_SAVE_ALT 0xa9        /* set: the save menu passes 1 to mc_save_new / mc_save_normal */
+
+// The header (mc_header): word 0 is the game's id, word 1 the uid (high 28 bits) and last file (low 4).
+#define MC_HEADER_ID 3
+#define MC_HEADER_FILE_MASK 0xfu
+#define MC_HEADER_UID_MASK 0xfffffff0u
+
+// A save image's word at +0xc710: non-zero once the image holds a save (the save flow asks before
+// writing over it). Named from MemorycardUpdate's use only.
+#define MC_DATA_USED 0xc710
+
+// mc_check4's answer: sceMcGetInfo's refusal - 200, or sceMcSync's result. MemorycardUpdate treats
+// -1..-80 as the card gone (sceMcRes*), anything else as go on.
+#define MC_CHECK4_CARD_ERROR(r) ((r) < 0 && (r) > -0x51)
+
+// mc_formatcheck2's answers.
+#define MC_FORMAT_NO 0
+#define MC_FORMAT_YES 1
+#define MC_FORMAT_BUSY 2                /* sceMcGetInfo refused: ask again next frame */
+
+// The vblanks MemorycardUpdate waits between card checks (AA_count).
+#define MC_RETRY_WAIT 5
+#define MC_FORMAT_WAIT 3
+
+// fream_counter's preset after a load: mc_check_always polls at once.
+#define MC_FRAME_COUNTER_NOW 1000
+
+#define MC_FILE_NONE (-1)               /* mc_cursor[]: no file chosen in that slot */
+#define MC_INFO_COUNT 8                 /* mc_Getinfo_count's files */
 
 #define MC_SLOT_COUNT 2                 /* SlotErr[] */
+#define MC_SLOT_ERR_NO_CARD 1           /* mc_check3 found no card */
+#define MC_SLOT_ERR_UNFORMATTED 4       /* mc_formatcheck said unformatted */
 
 #define CHAR_INIT_MAX_HP_COUNT 41       /* Char_Init_MAX_HP: 164 bytes; Character_All_Init reads 35 */
 extern int Char_Init_MAX_HP[CHAR_INIT_MAX_HP_COUNT]; /* data 0x01939000 */
@@ -83,9 +145,21 @@ void Character_All_Init(void);                                                  
 void IOPInit(char **argv);                                                               // CT3 0x018b4430
 void SceneLightSet(int scene);                                                           // CT3 0x018b4480
 void CharLightSet(int chara);                                                            // CT3 0x018b49f0
+int MemorycardAutoLoadFormatCheck(void);                                                 // CT3 0x018b5cc0
 void MemorycardAutoLoadInsertedCheck3(void);                                             // CT3 0x018b5d00
+int mc_Getinfo_count(int file);                                                          // CT3 0x018b6020
 void MemorycardUpdate(void);                                                             // CT3 0x018b6080
+void mc_check_always2(int clearError);                                                   // CT3 0x018b7870
 void mc_check_always(int clearError);                                                    // CT3 0x018b78d0
+void mc_load_set(void);                                                                  // CT3 0x018b7930
+void system_data_load_set(int mode);                                                     // CT3 0x018b8680
+int mc_save_new(int alt);                                                                // CT3 0x018b8eb0
+int mc_save_normal(int alt);                                                             // CT3 0x018b9790
+int mc_free_area(void);                                                                  // CT3 0x018baac0
+void mc_save_init(void);                                                                 // CT3 0x018bac60
+int mc_formatcheck2(void);                                                               // CT3 0x018bb070
+int mc_formatcheck(void);                                                                // CT3 0x018bb150
+int mc_check4(void);                                                                     // CT3 0x018bb280
 int mc_load_new(void);                                                                   // CT3 0x018b8b90
 void mc_free(void);                                                                      // CT3 0x018b89b0
 int mc_alloc(void);                                                                      // CT3 0x018b8a10

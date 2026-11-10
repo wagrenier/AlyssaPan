@@ -138,6 +138,7 @@ extern char fShadeOff;                          /* sbss 0x0193f750 */
 extern int fKeepScreen;                         /* sbss 0x0193f754 */
 extern int Clipping_System;                     /* sbss 0x01940eac */
 extern int nowShadeOffFrame;                    /* sbss 0x01942944 */
+extern int FadeEndTicks;                        /* sbss 0x01942948: a fade is over once FadeStartTicks reaches it */
 extern int FadeStartTicks;                      /* sbss 0x0194294c */
 extern int XfadeStartTicks;                     /* sbss 0x01942954 */
 extern int VibTimeTicks;                        /* sbss 0x0193f76c */

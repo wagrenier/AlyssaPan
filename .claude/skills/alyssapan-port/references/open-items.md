@@ -135,7 +135,18 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    stubs, so the card buffer never exists yet; (ak) CHARACTER still lives in ct3_types.h, not this TU's
    header: move it when the rest of its users are written); (al) mc_load_new bumps mc_save_normal_num,
    not its own step (disassembly 0x018b8d10 / 0x018b8df0): kept as the ROM's slip -- mc_save_normal's
-   session checks whether it matters), game/ArtoolDebugOpen.c, game/main2.c,
+   session checks whether it matters), slice 2 (2026-11-10: MemorycardUpdate -- its four flows split into
+   static mc_update_* helpers, callcheck comment -- plus mc_save_init, mc_formatcheck, mc_formatcheck2,
+   mc_check4, MemorycardAutoLoadFormatCheck; left: system_data_load_set, mc_load_set, mc_save_new,
+   mc_save_normal, mc_free_area, mc_Getinfo_count, mc_check_always2, mc_check2/3, mc_save_system_init,
+   data_save_set / ContinueBackupSet / ContinueBackupGet (data_save_set takes 0x01a31450, an unnamed bss
+   address: name it there), mc_char_set, the lights. Open: (am) the mcErr_ID / mcAccess_ID names
+   (Character_Init.h MC_ERR_*, MC_ACCESS_*) are read from MemorycardUpdate's flows only: numbers set on
+   unlike paths stay MC_ERR_MSG_n until the menu TU that prints them names them; (an) SSStopSE /
+   SSPlaySE(MC_SE_ACCESS) calls whose a2 the ROM leaves unset pass 1 (every traceable site holds 1);
+   (ao) TRIG_EVENT_LOAD_SLOT2 (0x0f), TRIG_EVENT_MC_LOADED (0x99), TRIG_EVENT_SAVE_ALT (0xa9) and
+   MC_DATA_USED (save image +0xc710) are named from this use only; (ap) tiFade_Start(float) is declared
+   from the call (10.0f in f12); FadeEndTicks sits in lib/unassigned_data.cpp), game/ArtoolDebugOpen.c, game/main2.c,
    game/fileio.c.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
