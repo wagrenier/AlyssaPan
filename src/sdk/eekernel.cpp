@@ -14,6 +14,8 @@
 
 using alyssapan::ee::Kernel;
 
+alignas(16) u_char g_eeScratchpad[SCRATCHPAD_SIZE];
+
 namespace
 {
 

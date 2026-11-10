@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-09 20:31 at commit `db70427` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-09 20:50 at commit `b2accde` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,12 +30,12 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **32**; stubs: **219**
+- reconstructed CT3 functions: **48**; stubs: **216**
 
 | file | reconstructed | stubs |
 |---|---|---|
 | `src/ga/gaBGT_DrawObject.c` | 0 | 2 |
-| `src/ga/gaDma.c` | 0 | 3 |
+| `src/ga/gaDma.c` | 16 | 0 |
 | `src/ga/gaInit3dlib.c` | 0 | 3 |
 | `src/ga/gaInitDrawObject.c` | 0 | 13 |
 | `src/ga/gaInitInterrupt.c` | 3 | 0 |
@@ -69,14 +69,16 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 63, verify 2, done 2
-- next: **game/QuatSlerp.c** (frontier score 151)
-- pinned queue: (empty)
+- 65 TUs: todo 62, verify 3, done 2
+- next: **ga/gaVifInit.c** (pinned in the queue)
+- pinned queue: ga/gaVifInit.c, ga/gaInitDrawObject.c, game/gaInitMeter.c, game/ahalloc.c, game/sound.c, game/Character_Init.c, game/ArtoolDebugOpen.c, game/main2.c, game/fileio.c
+- verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaInitInterrupt.c` 3/3 -- GCC object; wait_vsync_state (data 0x0192e790), ga_main_timer, ga_down_timer defined here. gaWaitVSync takes no argument and returns the CSR FIELD bit; main.c c
 - verify: `game/main.c` 29/29 -- Smoke run: build green, layoutcheck OK, callcheck: main_rtn_Particle2 matches the ROM (extra BankEePtr only); AllDrawObject / GlobalDrawObject / DrawObjectRefra
 
 Recent sessions:
 
+- 2026-11-09 20:50 `ga/gaDma.c` verify: ga DMA wrappers: all 16 functions; host scratchpad buffer, libdma SPR transfers, D_CTRL and D_ENABLEW registers
 - 2026-11-09 20:31 `sdk/libmc.cpp` done: the real memory card: io::MemoryCards (RosePan libmc as a class, folders memcard/mc<port>-<slot>/, the async sceMcSync handshake kept) behind every sceMc entry 
 - 2026-11-09 20:20 `alyssapan/core/window.cpp` done: siblings shims (a): pad database, window and exe icon, mute and pause in the background, overlay DPI scale, cursor auto-hide
 - 2026-11-09 19:50 `game/main.c` verify: main.c slice 7: main_rtn_Particle2 (the second particle list: ring records placed at their model part position plus an offset, w scaled around 128); PARTICLE2_E
@@ -84,7 +86,6 @@ Recent sessions:
 - 2026-11-09 19:28 `game/main.c` partial: main.c slice 5: AllDrawObject (the scene draw: banks, sorted characters, mirrors, translucent banks, particles, translucent and ghost characters), ssHQDOF_DrawA
 - 2026-11-09 19:11 `game/main.c` partial: main.c slice 4: DrawObjectRefraction (the refraction pass over type-1 banks 6..85 and refracting characters) and main_rtn_DOF (main_rtn for one depth-of-field s
 - 2026-11-09 18:58 `game/main.c` partial: main.c slice 3: main_rtn (the bank list draw: sort, fog, 3dlib set-up, per-part texture / draw-ctrl / light / clip) and main_rtn_Particle (particle rings); DRAW
-- 2026-11-09 18:28 `game/main.c` partial: main.c slice 2: GlobalDrawObject, scene_draw_init, system_end, get_draw_obj; BANK_INFO.flags (+0x28, BANK_FLAG_DRAW_FIRST), ALL_TABLE (layout host), osTotalObjT
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|

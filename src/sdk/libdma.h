@@ -93,4 +93,13 @@ int         sceDmaPutEnv(sceDmaEnv *env);
 sceDmaChan *sceDmaGetChan(int id);
 void        sceDmaSend(sceDmaChan *d, void *tag);
 int         sceDmaSync(sceDmaChan *d, int mode, int timeout);
+/* Interleave mode (the env's tqwc / sqwc): toSPR sends, fromSPR receives. */
+void        sceDmaSendI(sceDmaChan *d, void *addr, int qwc);
+void        sceDmaRecvI(sceDmaChan *d, void *addr, int qwc);
+
+/* The channels' CHCR bits as the ga library sets them by hand. */
+#define D_CHCR_DIR_M 0x001 /* 1 = from memory */
+#define D_CHCR_MOD_M 0x00c
+#define D_CHCR_MOD_CHAIN 0x004
+#define D_CHCR_STR_M 0x100 /* running */
 

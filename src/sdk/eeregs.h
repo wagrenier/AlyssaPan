@@ -24,6 +24,8 @@ inline volatile u_int g_regDStat;
 inline volatile u_int g_regIpuToChcr;
 inline volatile u_int g_regIpuToMadr;
 inline volatile u_int g_regIpuToQwc;
+inline volatile u_int g_regDCtrl;    // D_CTRL 0x1000e000: kept as written, nothing reads its bits on the host
+inline volatile u_int g_regDEnableW; // D_ENABLEW 0x1000f590: the DMAC never runs on its own here
 inline volatile u_long g_regGsPmode;
 inline volatile u_long g_regGsSmode2;
 inline volatile u_long g_regGsDispfb1;
@@ -40,6 +42,8 @@ inline volatile u_long g_regGsCsr;
 #define REG_DMAC_4_IPU_TO_CHCR g_regIpuToChcr
 #define REG_DMAC_4_IPU_TO_MADR g_regIpuToMadr
 #define REG_DMAC_4_IPU_TO_QWC g_regIpuToQwc
+#define REG_DMAC_CTRL g_regDCtrl
+#define REG_DMAC_ENABLEW g_regDEnableW
 #define REG_GS_PMODE g_regGsPmode
 #define REG_GS_SMODE2 g_regGsSmode2
 #define REG_GS_DISPFB1 g_regGsDispfb1

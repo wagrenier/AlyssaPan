@@ -71,6 +71,13 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
   (`%APPDATA%\Mikompilation\AlyssaPan\alyssapan.ini`): test an ini round trip on a copy and put the
   original back; any `ALYSSAPAN_*` setting in the environment stops the run from saving.
 
+- (2026-11-09, ga/gaDma.c) **Ghidra's last function of a GCC object can run into the next asm object.**
+  Symptom: callcheck says `gaDmaSendN_GIF` misses `gaDMAStopMessage_VIF1`. Cause: Ghidra's body for
+  0x018a16f0 takes in 0x018a1738, `_DmaVIF1_Sync_error`, the next object's `j` stub. The symtab size (0x44)
+  is right; explain it in the notes, do not write the call. **A file-scope helper placed before the first
+  annotated function is read by callcheck as that function** (the file header's `CT3 0x...` range
+  counts as an annotation): write such helpers as macros or after an annotated function.
+
 ## From the siblings (2026-11-09 digest of MioPan, ReiPan, RosePan, MikuPan)
 
 - **Ghidra misses functions even with symbols**: code reached only through data (dispatch tables,

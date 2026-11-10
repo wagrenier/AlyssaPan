@@ -84,6 +84,10 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    (c) the trigger events' names in main.c (`EV_HOLD_*`, 0xca / 0xcc) and `controller_mode` 100 are read
    from main's use only; (d) the prototypes in the new TU headers come from call sites: confirm each when
    its function is written; (e) main.c's .sbss run is a placement guess (architecture.md).
+   **Queue refilled 2026-11-09 (scheduled run, the queue was empty)** in the order the smoke run reaches
+   the stubs: ~~ga/gaDma.c~~ (verify), ga/gaVifInit.c, ga/gaInitDrawObject.c, game/gaInitMeter.c,
+   game/ahalloc.c, game/sound.c, game/Character_Init.c, game/ArtoolDebugOpen.c, game/main2.c,
+   game/fileio.c.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
    class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~
@@ -172,6 +176,13 @@ apply here):
   MIDI, which no sibling met) against `sdremote`? `sound.c`'s TU answers it.
 - (2026-11-09) `CT3PACK.DAT`'s format, and whether CT3's pictures are TIM2 (TextureStore decodes TIM2 only).
 - (2026-11-09) Is the "one EE thread at a time, by priority" model right for CT3? (YamiPan's for FS2.)
+
+- (2026-11-09, ga/gaDma.c) gaDmaOpen_MFIFO_VIF1 writes `ga_dma_env.mfd = 1` and D_CTRL with RELE set,
+  RCYC cleared and MFD untouched; D_CTRL's MFD for VIF1 is 2. So either the SDK's sceDmaPutEnv translates
+  mfd (1 -> VIF1), or the ga library's D_CTRL bitfield struct differs from the EE manual's. Harmless on the
+  host (no MFIFO); read sceDmaPutEnv (0x01811b78) when the BGT ring buffer (gaBGT_*) TU needs it.
+- (2026-11-09, ga/gaDma.c) The host's `sceDmaSend` (chain) does nothing on any channel, toSPR included.
+  If a TU chains packets into the scratchpad (gaDmaSendS_toSPR has no caller yet), libdma must walk tags.
 
 ## Done
 

@@ -1,5 +1,15 @@
 {
- "queue": [],
+ "queue": [
+  "ga/gaVifInit.c",
+  "ga/gaInitDrawObject.c",
+  "game/gaInitMeter.c",
+  "game/ahalloc.c",
+  "game/sound.c",
+  "game/Character_Init.c",
+  "game/ArtoolDebugOpen.c",
+  "game/main2.c",
+  "game/fileio.c"
+ ],
  "settings": {
   "data_dir": "C:/Users/willi/Documents/Decomp/Clocl Tower 3",
   "frontier_ignore": [],
@@ -29,12 +39,21 @@
    "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 9 unkeyed; file name from the names"
   },
   "ga/gaDma.c": {
+   "notes": "Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaInitMeter, ahalloc, sound, Character_Init, ArtoolDebugOpen, main2, fileio). callcheck: gaDmaSendN_GIF misses gaDMAStopMessage_VIF1 only because Ghidra's body runs into the next asm object's _DmaVIF1_Sync_error at 0x018a1738 (hazards.md). main.c's SPR_3DLIB_WORK is now SCRATCHPAD(0x400), a host pointer, since toSPR copies for real. Open: MFIFO mfd=1 versus D_CTRL MFD (open-items); host sceDmaSend chain does nothing.",
    "ranges": [
     [
      "018a1188",
      "018a1738"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-09 20:50",
+     "status": "verify",
+     "summary": "ga DMA wrappers: all 16 functions; host scratchpad buffer, libdma SPR transfers, D_CTRL and D_ENABLEW registers"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 16 unkeyed; file name from the names"
   },
   "ga/gaDmaSync_VIF1.c": {

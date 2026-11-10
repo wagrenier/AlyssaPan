@@ -206,6 +206,26 @@ the TU map's evidence.
   placement; the locals (symtab 895..911) are `a$1034`, `skip_wait_temp$61`, `focusPos$905` and the
   literals ("JUNC", "SUND", "GLBL", "GAME.BIN" = @2700, the DrawMode jump table @1669).
 
+## The ga library's DMA, ga/gaDma.c (2026-11-09)
+
+- A GCC object 0x018a1188..0x018a1738 (16 functions, bss 0x01c8d708..0x01c8d730: `ga_dma_env`, then
+  `dmaVif0`, `dmaVif1`, `dmafromSPR`, `dmatoSPR`, `dmaGIF` from sceDmaGetChan 0, 1, 8, 9, 2). The next
+  object is hand asm (`gaDmaSync_VIF1.c` in the TU map): its first word, the label `_DmaVIF1_Sync_error`
+  (0x018a1738), is `j gaDMAStopMessage_VIF1`, shared by its VIF1 waits that give up after 0x4000000 polls.
+- Signatures (the decompiler drops forwarded arguments): `gaDmaSendN_toSPR(spr, addr, qwc, rele)`,
+  `gaDmaSendN_fromSPR(addr, spr, qwc, rele)`, `gaDma*I_*SPR(spr|addr, addr|spr, tqwc, sqwc, qwc)` (qwc in
+  t0, the 5th argument register), `gaDmaOpen_MFIFO_VIF1(ring, size)`. `rele` << 1 lands on D_CTRL.RELE.
+  SADR is written by hand (`chan + 0x80`) as `spr - 0x70000000 | 0x80000000`; VIF0 / GIF sends turn a
+  scratchpad address (>= 0x70000000) into that form, other addresses pass unchanged.
+- MFIFO: Open suspends the DMAC (D_ENABLEW 0x10000), sets `ga_dma_env` rbadr / rbmsk ((size-1) & ~0xf) and
+  **mfd = 1** (sceDmaPutEnv's input; not D_CTRL's MFD encoding, see open-items), clears RCYC and sets
+  RELE in D_CTRL, points fromSPR's MADR at the ring and starts VIF1 in chain mode from it (TADR = ring,
+  CHCR DIR | MOD chain | STR). Close clears STR on both and mfd.
+- **Host:** the scratchpad is `g_eeScratchpad` (sdk/eekernel.h, `SCRATCHPAD(offset)`); libdma's toSPR /
+  fromSPR normal and interleave transfers copy for real with SADR a host pointer; VIF / GIF sends and
+  chain (`sceDmaSend`) transfers do nothing. D_CTRL / D_ENABLEW are host variables (sdk/eeregs.h).
+  main.c's `SPR_3DLIB_WORK` is `SCRATCHPAD(0x400)` since this TU (ga3dlibwork's per-frame copy).
+
 ## Data (2026-11-09)
 
 - `DATA\CT3PACK.DAT` (the ELF names `DATA\CT3PACK.DAT;1` and `\DATA\CT3PACK.DAT;1` at 0x01934b90,

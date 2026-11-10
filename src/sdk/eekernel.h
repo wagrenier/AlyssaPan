@@ -4,6 +4,14 @@
 
 #include "scetypes.h"
 
+// ---- the scratchpad --------------------------------------------------------------------------
+// The EE's 16 KB scratchpad RAM (0x70000000..0x70004000) is a host buffer. Game code that names a
+// scratchpad address writes SCRATCHPAD(offset); libdma's toSPR / fromSPR channels copy into and out of it.
+#define SCRATCHPAD_EE_BASE 0x70000000u
+#define SCRATCHPAD_SIZE 0x4000
+extern u_char g_eeScratchpad[SCRATCHPAD_SIZE];
+#define SCRATCHPAD(offset) ((void *)(g_eeScratchpad + (offset)))
+
 // ---- semaphores ------------------------------------------------------------------------------
 struct SemaParam
 {

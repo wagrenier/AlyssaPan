@@ -71,7 +71,7 @@ int gArgc;                                      /* sbss 0x01942b44 */
 #define HEAP_NAME_GLOBAL "GLBL"
 
 #define BGT_RINGBUFFER_SIZE 0x8000
-#define SPR_3DLIB_WORK ((void *)0x70000400)    /* ga3dlibwork's copy in the scratchpad */
+#define SPR_3DLIB_WORK SCRATCHPAD(0x400)      /* ga3dlibwork's copy in the scratchpad (EE 0x70000400) */
 #define SPR_3DLIB_WORK_QWC 0x40
 
 // main_rtn's flags: the low 15 bits name the pass (0 and 4 sort the list first), 0x8000 skips the
