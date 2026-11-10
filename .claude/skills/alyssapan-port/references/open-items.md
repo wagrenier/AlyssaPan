@@ -73,7 +73,14 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    host-pointer helper for relocated bank data (the file TU's decision, with (f)); (i) the draw list and
    particle records (`DRAW_OBJ_ENTRY`, `TEX_INFO`, `PARTICLE_ENTRY`, ct3_types.h) are `layout: host`
    for the same reason: their owner (objSort / the bank loader) decides; osTotalObjTable keeps the EE
-   2000 bytes per bank, so on the host it holds 250 pointers, not 500. **Next:**
+   2000 bytes per bank, so on the host it holds 250 pointers, not 500. Open from wideXcmd_DebugPrint.c slice 1 (2026-11-10): (u) `CHARACTER_FLAG_REFRACTION` (0x80000000) is also
+   asCharacterOperate's gate (set: the whole operation; clear: only asRequestExecute) -- probably an "active /
+   operated" flag rather than refraction: rename when the flag's writer is read; `CHARACTER_FLAG_PLAYER`
+   (0x20000000) is named from the same function; (v) `CHARA_TARGET` (w300[0]) is an EE word for an object with
+   flags at +0x194 and a vector at +0x90: `CharaTarget` answers none until the TU that writes it decides the host
+   form; (w) asCharacterOperate clears the first slot's `keyTicks` (chr, not ch) when the keys are off: kept as the
+   ROM does, harmless since only Alyssa (slot 0) counts; (x) the TU is probably two objects (wideXcmd_* then the
+   as* player code from 0x018f3fa0): not split yet, no local-symbol evidence read. **Next:**
    ~~`ga/gaInitInterrupt.c`~~ (verify, 2026-11-09: main's frame loops now), then in the order a smoke
    run reaches the stubs: `main2` (game/main2.c: title and scene set-up), `IOPInit` / `Character_All_Init`
    (Character_Init.c), `FS_work_init` / `FileSoundServer` (fileio.c), `SunAllocInit` (ahalloc.c), the ga

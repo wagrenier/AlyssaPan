@@ -1022,12 +1022,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 140..140, 2 functions keyed by their statics, 6 unkeyed; file name from the names"
   },
   "game/wideXcmd_DebugPrint.c": {
+   "notes": "Next slice: asCheckCharacterHited (0x1dc4 bytes, reached from asCharacterOperate), asRequestExecute, asPlayerInputAnalyze, asCharacterAnimationExecute and the other functions asCharacterOperate calls (stubs at the end of the file). CharaTarget answers none: CHARACTER.w300[0] is an EE word nobody writes yet (open-items 1 v). CHARACTER_FLAG_REFRACTION doubles as the operate gate (open-items 1 u). The TU is probably two objects, wideXcmd_* then as* (open-items 1 x). asChangeMortionInfo_NextMortion and asChangeCharacterMotionSettingPlayRate write the motion table (CHARA_MOTION_TABLE, an EE word) and wait for asInitPlayerBehaviorControler, which sets it. The shot is black as before: nothing draws yet.",
    "ranges": [
     [
      "018f3f60",
      "018fe500"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-10 17:17",
+     "status": "partial",
+     "summary": "slice 1: asCharacterOperate, the vibration helpers, Alyssa's hit reactions (Hiting, Hirumi), the key enable, the motion request queue, asClearBehaviorChangeFlag, the debug print and empty functions (19 functions); CHARACTER.targetDot / targetState / keyTicks named"
+    }
+   ],
+   "status": "partial",
    "why": "tumap.py (bootstrap 5): symtab local chunks 141..141, 28 functions keyed by their statics, 80 unkeyed; file name from the names"
   },
   "game/wideXcmd_TriggerInit.c": {

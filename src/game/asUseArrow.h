@@ -6,3 +6,4 @@
 
 void asInitArrowInfo(void);                                                              // CT3 0x018666c0
 void asDestroyArrowInfo(void);                                                           // CT3 0x018666e0
+void asArrowOperate(void);                                                               // CT3 0x01866d80

@@ -30,7 +30,10 @@ typedef struct CHARACTER {
     u_char pad0d0[0x18];
     int rotBefore;                      /* 0x0e8: last frame's value of 0x0ec */
     int rot;                            /* 0x0ec */
-    u_char pad0f0[0xc];
+    float targetDot;                    /* 0x0f0: facing (rot's Y-rotation row 2) . the target's vector
+                                           (asCharacterOperate; CHARA_TARGET in wideXcmd_DebugPrint.h) */
+    u_char targetState;                 /* 0x0f4: bit 0 = the target's CHARA_TARGET_FLAG_F4; 0 with no target */
+    u_char pad0f5[7];
     u_int brain;                        /* 0x0fc: its AI brain (EE address; +0x24e: the brain's id that
                                            ssAI_BrainEnd takes). Character_All_Init: 0. The AI TU decides
                                            the host form (open-items.md 1 am) */
@@ -46,7 +49,8 @@ typedef struct CHARACTER {
     qword refractAxis;                  /* 0x4b0: asUpdateAnimation_Matrix, for a refracting shadowed
                                            character: row 1 of part CHARA_AXIS_HASH_ROW1's world matrix,
                                            else row 2 of part CHARA_AXIS_HASH_ROW2's, else (0, 0, 0, 1) */
-    u_char pad4c0[0x524 - 0x4c0];
+    u_char pad4c0[0x520 - 0x4c0];
+    int keyTicks;                       /* 0x520: global ticks summed while the keys are enabled (asCharacterOperate) */
     int hp;                             /* 0x524: Character_All_Init: Char_Init_MAX_HP[i] */
     int hpMax;                          /* 0x528: Character_All_Init: Char_Init_MAX_HP[i] (which of the
                                            two is the maximum is a guess from the table's name) */
@@ -69,6 +73,9 @@ static_assert(offsetof(CHARACTER, flagsPrev) == 0x8c, "CHARACTER.flagsPrev");
 static_assert(offsetof(CHARACTER, bank) == 0x002, "CHARACTER.bank");
 static_assert(offsetof(CHARACTER, refractAxis) == 0x4b0, "CHARACTER.refractAxis");
 static_assert(offsetof(CHARACTER, hp) == 0x524, "CHARACTER.hp");
+static_assert(offsetof(CHARACTER, targetDot) == 0x0f0, "CHARACTER.targetDot");
+static_assert(offsetof(CHARACTER, targetState) == 0x0f4, "CHARACTER.targetState");
+static_assert(offsetof(CHARACTER, keyTicks) == 0x520, "CHARACTER.keyTicks");
 static_assert(offsetof(CHARACTER, flags) == 0x088, "CHARACTER.flags");
 static_assert(offsetof(CHARACTER, lightBank) == 0x0a0, "CHARACTER.lightBank");
 static_assert(offsetof(CHARACTER, posBefore) == 0x0b0, "CHARACTER.posBefore");

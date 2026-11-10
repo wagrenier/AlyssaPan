@@ -174,6 +174,7 @@ extern int TransparentBodyTime;                 /* sbss 0x01940e48: data_load_se
 extern int KekkaiOn;                            /* sbss 0x0193f9a4 (no symbol; game-inferred): cleared when
                                                    Kekkai_Check spends the last barrier charm */
 extern PANIC_INFO PanicInfoData;                /* sbss 0x01940e50 */
+extern int GlobalCameraMode;                    /* sbss 0x0193cf08: CAMERA_MODE_* (wideXcmd_DebugPrint.h) */
 extern u_char act_small;                        /* sbss 0x0193f740: the pad's small motor is running (vibration TU) */
 extern u_char act_large;                        /* sbss 0x0193f744: its large motor */
 extern int GlobalVariable[GLOBAL_VARIABLE_COUNT]; /* sbss 0x01941190 */

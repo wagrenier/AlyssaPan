@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-10 16:54 at commit `f3f4bb2` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-10 17:18 at commit `2f9a622` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **706**; stubs: **186**
+- reconstructed CT3 functions: **725**; stubs: **189**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -66,9 +66,10 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/ahRelocateSunPs2ObjectArry.c` | 93 | 0 |
 | `src/game/ahalloc.c` | 7 | 0 |
 | `src/game/asEyeForcusUP2CamMat.c` | 0 | 9 |
+| `src/game/asMothOperate.c` | 0 | 1 |
 | `src/game/asMothPause.c` | 0 | 1 |
 | `src/game/asMothRouteSearch.c` | 0 | 2 |
-| `src/game/asUseArrow.c` | 0 | 2 |
+| `src/game/asUseArrow.c` | 0 | 3 |
 | `src/game/asXcmd.c` | 0 | 1 |
 | `src/game/copy2area.c` | 0 | 1 |
 | `src/game/fileio.c` | 40 | 0 |
@@ -83,14 +84,15 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/ssSetTexUVforCubeMap.c` | 0 | 31 |
 | `src/game/tiAvoidObject.c` | 0 | 6 |
 | `src/game/tkXDTrg_GetSceneHash.c` | 0 | 3 |
-| `src/game/wideXcmd_DebugPrint.c` | 0 | 17 |
+| `src/game/wideXcmd_DebugPrint.c` | 19 | 18 |
 | `src/lib/unassigned_stubs.cpp` | 0 | 1 |
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 42, verify 23, done 3
+- 65 TUs: todo 41, partial 1, verify 23, done 3
 - next: **game/wideXcmd_DebugPrint.c** (pinned in the queue)
 - pinned queue: game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/asEyeForcusUP2CamMat.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c, game/ssGrpPortalCheck.c
+- partial: `game/wideXcmd_DebugPrint.c` 19/109 -- Next slice: asCheckCharacterHited (0x1dc4 bytes, reached from asCharacterOperate), asRequestExecute, asPlayerInputAnalyze, asCharacterAnimationExecute and the o
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaDmaSync_VIF1.c` 5/5 -- Host: kicks leave CHCR.STR clear (the transfer is over), so the syncs return at once; the BGT send keeps the copy and the flip, the packet goes nowhere (draw mo
 - verify: `ga/gaInit3dlib.c` 25/25 -- 15 s smoke run: no fault, shot black (no host draw module). gaMulMatrix is dst = b * a (hazards.md). gaSetZRollMatrix now reaches gaSinCos: ga/gaSinCos.c is que
@@ -117,6 +119,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-10 17:17 `game/wideXcmd_DebugPrint.c` partial: slice 1: asCharacterOperate, the vibration helpers, Alyssa's hit reactions (Hiting, Hirumi), the key enable, the motion request queue, asClearBehaviorChangeFlag
 - 2026-11-10 16:54 `game/movie.c` verify: slice 2: the playback (AA_movie, initAll, readMpeg, termAll); all 20 functions written
 - 2026-11-10 16:41 `game/movie.c` partial: slice 1: the movie front end, bank choice and memory map (16 of 20 functions); AA_movie, initAll, readMpeg, termAll left
 - 2026-11-10 16:09 `ga/gaPadInit.c` verify: reconstruct gaPadInit (scePadInit, both ports on pad_dma_buf0/1)
@@ -124,15 +127,14 @@ Recent sessions:
 - 2026-11-10 15:35 `game/SdMasterVolumeSetSE.c` partial: slice 5: SdPlayADSProc (the stream player, SD_ADS_PHASE), IopLoadCapcomSound (the driver boot: FSS_Thread runs from boot now), SdSetParamSESDT, SdFindLoadSEInfo
 - 2026-11-10 15:14 `game/SdMasterVolumeSetSE.c` partial: slice 4: the SE stops (SdStopSEAll, SdStopSESDT, SdStopSEAllSp1, SdStopSESp1, SdStopSESp1ByHandle), SdReqPlaySESp1, IsPlaySEReady, SdLoadSEEndWaitAll, SdLoadSQE
 - 2026-11-10 14:54 `game/SdMasterVolumeSetSE.c` partial: slice 3: SdReqLoadSE, FindSEFile, FindSEFile_JLS_SPU2, SdReqLoadSECancel, SdPurgeSE and the SE play side (SdReqPlaySE, SdSetParamSE, NextPlaySE, SdPlaySE, SdSup
-- 2026-11-10 14:36 `game/SdMasterVolumeSetSE.c` partial: slice 2: SdProc, the SE bank loader (SdLoadSEProc and its steps, NextLoadSE), SdVolumeSetSQ, SdMasterVolumeSetSQ; FL_PACK_INFO.partSize; host IOP heap and sceSd
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `game/ssGrpPortalCheck.c` | todo | 0/11/59 | 26.4 | 382 | 10 |
-| `game/Clipping_Portal.c` | todo | 0/34/73 | 44.8 | 156 | 18 |
-| `game/wideXcmd_DebugPrint.c` | todo | 0/17/109 | 40.6 | 91 | 12 |
+| `game/ssGrpPortalCheck.c` | todo | 0/11/59 | 26.4 | 391 | 10 |
+| `game/Clipping_Portal.c` | todo | 0/34/73 | 44.8 | 160 | 18 |
 | `game/ssSetTexUVforCubeMap.c` | todo | 0/31/96 | 35.3 | 86 | 9 |
 | `game/CpDivideEECom.c` | todo | 0/10/18 | 3.3 | 80 | 10 |
+| `game/wideXcmd_DebugPrint.c` | partial | 19/18/109 | 40.6 | 78 | 9 |
 | `game/asEyeForcusUP2CamMat.c` | todo | 0/9/30 | 23.6 | 57 | 6 |
 | `game/tiAvoidObject.c` | todo | 0/6/82 | 30.5 | 26 | 4 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
@@ -145,11 +147,11 @@ Recent sessions:
 
 | CT3 addr | name | call sites | provenance | state | inferred file |
 |---|---|---|---|---|---|
+| `018d9100` | ssTrigCheckEvent | 105 | sym | stub | game/ssGrpPortalCheck.c |
 | `018d9560` | ssTrigRemoveEvent | 105 | sym | stub | game/ssGrpPortalCheck.c |
-| `018d9100` | ssTrigCheckEvent | 100 | sym | stub | game/ssGrpPortalCheck.c |
 | `018d95e0` | ssTrigRegisterEvent | 59 | sym | stub | game/ssGrpPortalCheck.c |
 | `018d9470` | ssTrigSetVariable | 36 | sym | stub | game/ssGrpPortalCheck.c |
-| `018d9430` | ssTrigGetVariable | 26 | sym | stub | game/ssGrpPortalCheck.c |
+| `018d9430` | ssTrigGetVariable | 30 | sym | stub | game/ssGrpPortalCheck.c |
 | `01851b10` | ConvertQuat2Matrix | 17 | sym | stub | game/Convert.c |
 | `018d1e70` | CpGetEEIOPStatus | 14 | sym | stub | game/CpDivideEECom.c |
 | `01886690` | asChangeViewMatrix_forTheBank | 12 | sym | stub | game/asEyeForcusUP2CamMat.c |
@@ -159,21 +161,21 @@ Recent sessions:
 | `018a3078` | gaObjectClippingCheck | 7 | sym | stub | ga/gaObjectClippingCheck.c |
 | `0188d3c0` | tiFade_Start | 6 | sym | stub | game/Clipping_Portal.c |
 | `018518d0` | ConvertMatrix2Quat | 6 | sym | stub | game/Convert.c |
+| `0188cdc0` | tiVibrationOff | 6 | sym | stub | game/Clipping_Portal.c |
 | `018d1fa0` | CpSifDmaTransEEToIOP | 6 | sym | stub | game/CpDivideEECom.c |
+| `018fbc20` | asRequestExecute | 6 | sym | stub | game/wideXcmd_DebugPrint.c |
+| `0188ce10` | tiVibrationOn | 5 | sym | stub | game/Clipping_Portal.c |
 | `01896920` | ssGetNumBlurDrawObjForScene | 5 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `018a3d20` | gaBGT_DrawObject_NoClippingCheck2 | 5 | sym | stub | ga/gaBGT_DrawObject.c |
-| `0188cdc0` | tiVibrationOff | 5 | sym | stub | game/Clipping_Portal.c |
 | `018bd830` | AA_clearGsMem | 4 | sym | stub | game/AA_GetDataWord.c |
 | `01883ca0` | asMothPause | 4 | sym | stub | game/asMothPause.c |
 | `018a7538` | gaSearchNearLight4 | 4 | sym | stub | ga/gaSearchNearLight4.c |
-| `018f4fc0` | asCharacterOperate | 4 | sym | stub | game/wideXcmd_DebugPrint.c |
 | `01896a90` | ssPartMotionBlurInsertObjToDrawTable | 4 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `01889cd0` | Clipping_Portal | 4 | sym | stub | game/Clipping_Portal.c |
 | `018a0b40` | gaPadRead | 4 | sym | stub | ga/pad_button_read.c |
 | `018db340` | asXcmd_AddForLockToTargChara | 3 | sym | stub | game/asXcmd.c |
 | `018870c0` | camera_init0 | 3 | sym | stub | game/asEyeForcusUP2CamMat.c |
 | `01886dc0` | CamChange_S | 3 | sym | stub | game/asEyeForcusUP2CamMat.c |
-| `018fe370` | asSetCharacterKeyEnable | 3 | sym | stub | game/wideXcmd_DebugPrint.c |
 | `018881a0` | camera_main | 3 | sym | stub | game/asEyeForcusUP2CamMat.c |
 | `018f6f80` | asCharacterPositioning | 3 | sym | stub | game/wideXcmd_DebugPrint.c |
 | `0188df70` | tiDrawLensFlares | 3 | sym | stub | game/Clipping_Portal.c |
@@ -183,6 +185,6 @@ Recent sessions:
 | `018c1ce0` | AA_videoDecAbort | 3 | sym | stub | game/AA_mpegTS.c |
 | `018666c0` | asInitArrowInfo | 2 | sym | stub | game/asUseArrow.c |
 | `01882c10` | asInitMothInfo | 2 | sym | stub | game/asMothRouteSearch.c |
-| `018fe1f0` | asCharacterMortionStopRequest | 2 | sym | stub | game/wideXcmd_DebugPrint.c |
 | `018f4bd0` | asCharacterPositionReviewInPausing | 2 | sym | stub | game/wideXcmd_DebugPrint.c |
+| `0189dec0` | ssBGT_ZBufferClear | 2 | sym | stub | game/ssSetTexUVforCubeMap.c |
 
