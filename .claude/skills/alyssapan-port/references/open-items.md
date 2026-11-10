@@ -285,6 +285,27 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    matrix_global_view_for_shadow is a symtab local, assumed this TU's (made static here); SkinWork and
    the EAS / shadow globals are defined here or in lib/unassigned_data.cpp with their EE addresses;
    (cd) ALL_TABLE +0x50 named `straw` from asMakeStraw's call only.
+   **Slice 3 (partial, 2026-11-10):** asSeekBarInitializeForX / FreeForX / Animation, asSeatArrange_Init,
+   BMT_01, ExecuteAnimationHistory_Free; asSceneAnimationStart (14 args, from the disassembly),
+   asSeatArrange_ObjectMatchGlid / _FlameInit stubbed. **Next in this TU: BuildMatrixTree (0xa38) and
+   BMT_20 (0x848)** -- read BuildMatrixTree from mipsdis.py, not the decompiler: it drops arguments
+   (a `gaMulMatrix(dst, parent)` with two) and the record +0x8c parent matrix pointer is an EE word
+   (BANK_PTR) or a host pointer InitMatrixTree / LinkMatrixTree set: decide with those (LinkMatrixTree.c);
+   then asMakeStraw, ExecuteAnimation, Execute_ExecuteAnimationHistory. Open: (ce) **decided (Claude's
+   call)**: ALL_TABLE +0xe8 holds a _SunAlloc'd SEEKBAR_X in the ROM; a host pointer does not fit the EE
+   word, so the host keeps it in `SeekBarX[bank]` (PORT) and the word stays 0 -- a reader of +0xe8 in
+   another TU must use SeekBarX; SEEKBAR / SEEKBAR_X are host layout (host-only memory); (cf) who fills
+   SEEKBAR +0x20..+0x30 (hash, planePart, chara, anims) is not read yet: init zeroes them, so the bars
+   stay idle until that TU; (cg) **MODEL_PARTS (ct3_types.h) is indexed from the parts header, but the
+   records start at header + 0x40** (asFindModelParts answers header + 0x40 + i * 0x380; BMT_01 walks
+   from +0x40 to a negative index): every MODEL_PARTS offset is the record's + 0x40, so fields at record
+   0x340.. (BMT_01's view matrix) do not fit it -- BMT_01 uses record offsets (REC_*, PARTS_REC); main.c's
+   `ActressMP + 0x1c0` is a record offset (= MODEL_PARTS 0x200), not MODEL_PARTS.matrix. A later session
+   could re-base MODEL_PARTS on the record (a 0x40 header struct + records) across its users; (ch)
+   asSceneAnimationStart's arguments 7..14 are unnamed (the seek bar passes the mode as one of 7 / 8 / 9
+   set, and 0, 1, 0, 1, 0 after); (ci) the smoke run is not deterministic: of two 15 s runs one crashed
+   at main.c's ActressMP read (frame ~1560) and one logged the same crash but ran on (the crash handler
+   or the frame thread), so the ActressMP blocker stands either way.
    (bw) Extract is untested against a known image: the first scene_init that runs on relocated data is
    its test (a wrong decode shows as garbage tables); a harness decoding one CT3X file from CT3PACK.DAT
    beside the ROM's (eerun.py) would prove it sooner.

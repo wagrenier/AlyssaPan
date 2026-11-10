@@ -72,6 +72,74 @@ void asMirrorPlaneCalc(float *planeVec, float *planePoint);                     
 int asEnumMirror(ALL_TABLE *tbl);                                                        // CT3 0x0184fb40
 void asInitMirrorMatrix(void);                                                           // CT3 0x0184fd00
 void asBuildDOFMatrixTree(u_char *partsHeader);                                          // CT3 0x0184f020
+// ---- seek bars (slice 3, 2026-11-10) ----
+// ALL_TABLE.ctrl (bank data, layout: ee): +8 u_int OBJ_CTRL[], +0xe u_char their count.
+typedef struct OBJ_CTRL {               /* 8 bytes, layout: ee */
+    u_int ends;                         /* 0x0: float[2][4]: the bar's two ends in its part's space */
+    short kind;                         /* 0x4: CTRL_KIND_* */
+    u_short part;                       /* 0x6: the bar's part (MODEL_PARTS index of the bank) */
+} OBJ_CTRL;
+static_assert(sizeof(OBJ_CTRL) == 8, "OBJ_CTRL");
+#define OBJ_CTRL_LIST 0x8               /* ALL_TABLE.ctrl: u_int OBJ_CTRL[] */
+#define OBJ_CTRL_COUNT 0xe              /* ALL_TABLE.ctrl: u_char */
+#define CTRL_KIND_SEEKBAR 2             /* asSeekBarInitializeForX's kind (others unread) */
+
+// One frame-range animation a seek bar drives (12 bytes; asSeekBarAnimation).
+typedef struct SEEKBAR_ANIM {
+    u_short id;                         /* 0x0: asSceneAnimationStart's animation */
+    short mode;                         /* 0x2: SEEKBAR_ANIM_* (which start flag) */
+    int frameA;                         /* 0x4: the frame at t = 0 */
+    int frameB;                         /* 0x8: the frame at t = 1 */
+} SEEKBAR_ANIM;
+static_assert(sizeof(SEEKBAR_ANIM) == 12, "SEEKBAR_ANIM");
+#define SEEKBAR_ANIM_0 0                /* asSceneAnimationStart's 7th argument set */
+#define SEEKBAR_ANIM_1 1                /* its 8th */
+#define SEEKBAR_ANIM_2 2                /* its 9th */
+
+// A seek bar: a line in a part's space; where a plane (a part's position) crosses it sets t in [0, 1],
+// and t picks each animation's frame. 0x40 bytes, _SunAlloc'd (layout: host; EE offsets kept: the
+// pointer at 0x30 fits the EE record's size). Who fills hash..anims is not read yet (init zeroes them).
+typedef struct SEEKBAR {
+    float ends[2][4];                   /* 0x00: from OBJ_CTRL.ends */
+    u_long hash;                        /* 0x20: the plane part's hash in the character's bank */
+    u_short planePart;                  /* 0x28: chara < 0: the plane is this part of the bar's bank */
+    short chara;                        /* 0x2a: the character whose part is the plane; -1: the bank */
+    u_short part;                       /* 0x2c: OBJ_CTRL.part */
+    u_short animCount;                  /* 0x2e */
+    SEEKBAR_ANIM *anims;                /* 0x30: _SunAlloc'd (asSeekBarFreeForX frees it); NULL: idle */
+    u_char pad38[8];                    /* the EE record's 0x34..0x40 (host: after the 8-byte pointer) */
+} SEEKBAR;
+static_assert(offsetof(SEEKBAR, hash) == 0x20, "SEEKBAR.hash");
+static_assert(offsetof(SEEKBAR, anims) == 0x30, "SEEKBAR.anims");
+static_assert(sizeof(SEEKBAR) == 0x40, "SEEKBAR");
+// layout: host (EE: 8 bytes, _SunAlloc'd; host-only memory, nothing else reads it).
+typedef struct SEEKBAR_X {
+    int count;
+    SEEKBAR *bars;                      /* _SunAlloc'd count * 0x40, align 0x10 */
+} SEEKBAR_X;
+// PORT: ALL_TABLE.seekBarX on the host (a host pointer does not fit the EE word).
+extern SEEKBAR_X *SeekBarX[BANK_MAX];
+
+// ALL_TABLE.seat (layout: ee): {int count; u_int rows}, rows 0x10 bytes: +4 u_int cells, +0xe u_char
+// their count; a cell is 0x10 bytes, bytes 2..3 its home position, copied to 4..5 and 6..7 at init.
+#define SEAT_ROW_SIZE 0x10
+#define SEAT_ROW_CELLS 0x4
+#define SEAT_ROW_COUNT 0xe
+#define SEAT_CELL_SIZE 0x10
+
+// The model part records (pModelPartsHeader[bank] + 0x40 + i * 0x380: asFindModelParts' answer, the
+// records BMT_01 walks). MODEL_PARTS (ct3_types.h) is indexed from the header, so its offsets are the
+// record's + 0x40; fields past record 0x340 do not fit it: BMT_01 reads them as record offsets.
+#define PARTS_RECORDS 0x40              /* the first record, from the header */
+#define PARTS_REC(hdr, i) ((u_char *)(hdr) + PARTS_RECORDS + (i) * 0x380)
+#define PARTS_FLAG_HIDDEN 0x1           /* MODEL_PARTS.flags: asSeekBarAnimation skips the bar's part (the
+                                           same bit as PARTS_FLAG_FOG) */
+
+u_long asSceneAnimationStart(float speed, int a0, ALL_TABLE *tbl, int a2, int frame, int id, int a6,
+                             int a7, int a8, int a9, int a10, int a11, int a12, int a13); // CT3 0x018483d0
+void asSeatArrange_ObjectMatchGlid(int row, int cell);                                   // CT3 0x018437c0
+void asSeatArrange_FlameInit(int scene);                                                 // CT3 0x01843270
+void BMT_01(u_char *partsHeader, int bank);                                              // CT3 0x01850fc0
 void asSeekBarInitializeForX(int scene);                                                 // CT3 0x018430d0
 void asSeatArrange_Init(int scene);                                                      // CT3 0x018436a0
 void asShadowDrawing_Init(int scene);                                                    // CT3 0x01847b10

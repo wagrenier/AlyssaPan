@@ -4,8 +4,11 @@
 #include "common/alyssapan_stub.h"
 #include "game/ahRelocateSunPs2ObjectArry.h"
 
+#include <math.h>
 #include <string.h>
 
+#include "ga/gaInit3dlib.h"
+#include "game/QuatSlerp.h"
 #include "game/ahalloc.h"
 #include "game/fileio.h"
 #include "game/main.h"
@@ -809,7 +812,249 @@ void asInitMirrorMatrix(void)
     mrr_ReverseMatrix[0][0] = mrr_ReverseMatrix[1][1] = mrr_ReverseMatrix[2][2] = mrr_ReverseMatrix[3][3] = 1.0f;
 }
 
+// ---- seek bars (0x01842b20..0x01843270, slice 3, 2026-11-10) ----
+//
+// A scene's OBJ_CTRL records of CTRL_KIND_SEEKBAR become SEEKBARs at scene_init; every animated frame
+// asSeekBarAnimation finds where a plane (a part's position: the bank's own, or a character's part by
+// hash) crosses each bar, as t in [0, 1] along it, and starts the bar's animations at the frame t picks.
+
+SEEKBAR_X *SeekBarX[BANK_MAX];          /* PORT: ALL_TABLE +0xe8 (the ROM's word) */
+
+// out = m applied to v as the VU does it: m[0] v.x + m[1] v.y + m[2] v.z + m[3] v.w.
+static void SeekBarApply(float out[4], const float m[4][4], const float v[4])
+{
+    int i;
+    for (i = 0; i < 4; i++)
+        out[i] = m[0][i] * v[0] + m[1][i] * v[1] + m[2][i] * v[2] + m[3][i] * v[3];
+}
+
+// CT3 0x018430d0
+void asSeekBarInitializeForX(int scene)
+{
+    ALL_TABLE *tbl = All_table_TBL[scene];
+    u_char *ctrl;
+    OBJ_CTRL *list;
+    int i, n;
+    if (scene < 0 || BankInfo[scene].type != BANK_TYPE_SHADOW || tbl == NULL || tbl->ctrl == 0)
+        return;
+    ctrl = BANK_PTR(u_char *, scene, tbl->ctrl);
+    list = BANK_PTR(OBJ_CTRL *, scene, *(u_int *)(ctrl + OBJ_CTRL_LIST));
+    if (list == NULL)
+        return;
+    n = 0;
+    for (i = 0; i < ctrl[OBJ_CTRL_COUNT]; i++)
+        if (list[i].kind == CTRL_KIND_SEEKBAR)
+            n++;
+    if (n < 1) {
+        SeekBarX[scene] = NULL;
+        return;
+    }
+    {
+        SEEKBAR_X *x = (SEEKBAR_X *)_SunAlloc(&gHeapJunc, sizeof(SEEKBAR_X), 4);
+        SeekBarX[scene] = x;
+        x->count = n;
+        x->bars = (SEEKBAR *)_SunAlloc(&gHeapJunc, n * (int)sizeof(SEEKBAR), 0x10);
+        n = 0;
+        for (i = 0; i < ctrl[OBJ_CTRL_COUNT]; i++) {
+            SEEKBAR *bar;
+            if (list[i].kind != CTRL_KIND_SEEKBAR)
+                continue;
+            bar = &x->bars[n++];
+            bar->hash = 0;
+            bar->planePart = 0;
+            bar->chara = 0;
+            bar->animCount = 0;
+            bar->anims = NULL;
+            bar->part = list[i].part;
+            memcpy(bar->ends, BANK_PTR(float *, scene, list[i].ends), sizeof(bar->ends));
+        }
+    }
+}
+
+// CT3 0x01842fe0
+void asSeekBarFreeForX(int scene)
+{
+    SEEKBAR_X *x;
+    int i;
+    if (scene < 0 || BankInfo[scene].type != BANK_TYPE_SHADOW || All_table_TBL[scene] == NULL)
+        return;
+    x = SeekBarX[scene];
+    if (x == NULL)
+        return;
+    if (x->bars != NULL) {
+        for (i = 0; i < x->count; i++)
+            if (x->bars[i].anims != NULL)
+                _SunFree(&gHeapJunc, (void **)&x->bars[i].anims);
+        _SunFree(&gHeapJunc, (void **)&x->bars);
+    }
+    _SunFree(&gHeapJunc, (void **)&SeekBarX[scene]);
+}
+
+// CT3 0x01842b20
+void asSeekBarAnimation(int scene)
+{
+    SEEKBAR_X *x;
+    SEEKBAR *bar;
+    u_char *hdr;
+    int n;
+    if (scene < 0 || BankInfo[scene].state != BANK_STATE_LOADED || BankInfo[scene].type != BANK_TYPE_SHADOW)
+        return;
+    x = SeekBarX[scene];
+    if (x == NULL || x->count == 0)
+        return;
+    hdr = pModelPartsHeader[scene];
+    for (n = x->count, bar = x->bars; n > 0; n--, bar++) {
+        alignas(16) float a[4], b[4], d[4], dir[4], cross[4], plane[4];
+        const MODEL_PARTS *part;
+        SEEKBAR_ANIM *an;
+        float len, t, s;
+        int i, k;
+        if (bar->anims == NULL)
+            continue;
+        part = &((const MODEL_PARTS *)hdr)[bar->part];
+        if (part->flags & PARTS_FLAG_HIDDEN)
+            continue;
+        SeekBarApply(a, part->matrix, bar->ends[0]);
+        SeekBarApply(b, part->matrix, bar->ends[1]);
+        for (i = 0; i < 4; i++)
+            d[i] = b[i] - a[i];
+        len = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];  /* vmul, vaddbc twice; vrsqrt vf0w / sqrt */
+        len = 1.0f / sqrtf(len);
+        for (i = 0; i < 4; i++)
+            dir[i] = d[i] * len;
+        if (bar->chara == -1) {
+            memcpy(plane, ((const MODEL_PARTS *)hdr)[bar->planePart].pos, sizeof(plane));
+        } else {
+            CHARACTER *chr = &Character[bar->chara];
+            u_char *rec;
+            if (!(chr->flags & CHARACTER_FLAG_REFRACTION))
+                continue;
+            rec = asFindModelParts(pModelPartsHeader[chr->bank], bar->hash);
+            if (rec == NULL)
+                continue;
+            memcpy(plane, ((const MODEL_PARTS *)(rec - PARTS_RECORDS))->pos, sizeof(plane));
+        }
+        asGetCrossPointInPlaneWithLine(cross, a, b, dir, plane);
+        for (i = 0; i < 4; i++)
+            cross[i] -= a[i];
+        if (d[0] != 0.0f)
+            t = cross[0] / d[0];
+        else if (d[1] != 0.0f)
+            t = cross[1] / d[1];
+        else if (d[2] != 0.0f)
+            t = cross[2] / d[2];
+        else
+            t = 1.0f;
+        if (t < 0.0f)
+            t = 0.0f;
+        else if (t > 1.0f)
+            t = 1.0f;
+        s = 1.0f - t;
+        for (k = bar->animCount, an = bar->anims; k > 0; k--, an++) {
+            int frame = (int)((float)an->frameB * t + (float)an->frameA * s); /* mula.s / madd.s */
+            if (an->mode == SEEKBAR_ANIM_2)
+                asSceneAnimationStart(1.0f, 0, All_table_TBL[scene], 0, frame, an->id, 0, 0, 1, 0, 1, 0, 1, 0);
+            else if (an->mode == SEEKBAR_ANIM_1)
+                asSceneAnimationStart(1.0f, 0, All_table_TBL[scene], 0, frame, an->id, 0, 1, 0, 0, 1, 0, 1, 0);
+            else if (an->mode == SEEKBAR_ANIM_0)
+                asSceneAnimationStart(1.0f, 0, All_table_TBL[scene], 0, frame, an->id, 1, 0, 0, 0, 1, 0, 1, 0);
+        }
+    }
+}
+
+// ---- seats (slice 3) ----
+
+// CT3 0x018436a0
+// Every cell of the scene's seat table back to its home position, matched to the grid, then the frame.
+void asSeatArrange_Init(int scene)
+{
+    u_int *seat;
+    int i, j;
+    if (BankInfo[scene].state != BANK_STATE_LOADED)
+        return;
+    seat = BANK_PTR(u_int *, scene, All_table_TBL[scene]->seat);
+    if (seat == NULL)
+        return;
+    for (i = 0; i < (int)seat[0]; i++) {
+        u_char *row = BANK_PTR(u_char *, scene, seat[1]) + i * SEAT_ROW_SIZE;
+        for (j = 0; j < row[SEAT_ROW_COUNT]; j++) {
+            u_char *cell = BANK_PTR(u_char *, scene, *(u_int *)(row + SEAT_ROW_CELLS)) + j * SEAT_CELL_SIZE;
+            cell[6] = cell[4] = cell[2];
+            cell[7] = cell[5] = cell[3];
+            asSeatArrange_ObjectMatchGlid(i, j);
+        }
+    }
+    asSeatArrange_FlameInit(scene);
+}
+
+// ---- matrix trees (slice 3) ----
+
+// The part record fields BMT_01 reads and writes (record offsets: PARTS_REC).
+#define REC_KIND 0x2                    /* u_char: 1 = BMT_01 leaves the part alone */
+#define REC_BITS 0x3                    /* u_char: BMT_01 clears REC_BIT_2 */
+#define REC_BIT_2 0x2
+#define REC_POS 0xf0                    /* float[4]: MODEL_PARTS.pos */
+#define REC_MATRIX 0x180                /* float[4][4]: MODEL_PARTS.matrix */
+#define REC_SCALE 0x2c0                 /* float[3]: the diagonal of the scale BMT_01 applies */
+#define REC_POS_PREV 0x2f0              /* float[4]: REC_POS copied by BMT_01 */
+#define REC_DRAW_MATRIX 0x300           /* float[4][4]: view * matrix * scale */
+#define REC_VIEW_MATRIX 0x340           /* float[4][4]: view * matrix */
+#define REC_VIEW_HOLD 0x34c             /* float: != 0 keeps the view matrices (BMT_01 skips them);
+                                           inside REC_VIEW_MATRIX's first row: its w */
+#define PARTS_END(rec) (*(short *)(rec) < 0) /* the records end at a negative index */
+#define PARTS_KIND_STATIC 1             /* REC_KIND: BMT_01 skips it */
+
+// CT3 0x01850fc0
+void BMT_01(u_char *partsHeader, int bank)
+{
+    alignas(16) float scale[4][4] = { { 1, 0, 0, 0 }, { 0, 1, 0, 0 }, { 0, 0, 1, 0 }, { 0, 0, 0, 1 } }; /* 0x01937620 */
+    u_char *rec;
+    if (bank < 0)
+        bank = -bank;
+    for (rec = partsHeader + PARTS_RECORDS; !PARTS_END(rec); rec += sizeof(MODEL_PARTS)) {
+        if (rec[REC_KIND] == PARTS_KIND_STATIC)
+            continue;
+        rec[REC_BITS] &= ~REC_BIT_2;
+        memcpy(rec + REC_POS_PREV, rec + REC_POS, 0x10);
+        if (*(float *)(rec + REC_VIEW_HOLD) == 0.0f) {
+            scale[0][0] = ((float *)(rec + REC_SCALE))[0];
+            scale[1][1] = ((float *)(rec + REC_SCALE))[1];
+            scale[2][2] = ((float *)(rec + REC_SCALE))[2];
+            gaMulMatrix((float (*)[4])(rec + REC_VIEW_MATRIX), Cam[asCheckBankID(bank)].view,
+                        (float (*)[4])(rec + REC_MATRIX));
+            gaMulMatrix((float (*)[4])(rec + REC_DRAW_MATRIX), (float (*)[4])(rec + REC_VIEW_MATRIX), scale);
+        }
+    }
+}
+
+// CT3 0x0184eed0
+void ExecuteAnimationHistory_Free(void)
+{
+    if (lpEAS != NULL)
+        _SunFree(&gHeapJunc, &lpEAS);
+}
+
 // ---- stubs (tools/reverse/stubgen.py) ----
+
+// stub of CT3 0x018483d0
+u_long asSceneAnimationStart(float speed, int a0, ALL_TABLE *tbl, int a2, int frame, int id, int a6,
+                             int a7, int a8, int a9, int a10, int a11, int a12, int a13)
+{
+    ALYSSAPAN_STUB("asSceneAnimationStart", 0x018483d0);
+    return {};
+}
+
+// stub of CT3 0x018437c0
+void asSeatArrange_ObjectMatchGlid(int row, int cell)
+{
+    ALYSSAPAN_STUB("asSeatArrange_ObjectMatchGlid", 0x018437c0);
+}
+
+// stub of CT3 0x01843270
+void asSeatArrange_FlameInit(int scene)
+{
+    ALYSSAPAN_STUB("asSeatArrange_FlameInit", 0x01843270);
+}
 
 // stub of CT3 0x0184ec20
 void Execute_ExecuteAnimationHistory(void)
@@ -821,12 +1066,6 @@ void Execute_ExecuteAnimationHistory(void)
 void asMakeStraw(int bank, u_int straw, u_int partsHeader)
 {
     ALYSSAPAN_STUB("asMakeStraw", 0x018497d0);
-}
-
-// stub of CT3 0x01842b20
-void asSeekBarAnimation(int scene)
-{
-    ALYSSAPAN_STUB("asSeekBarAnimation", 0x01842b20);
 }
 
 // stub of CT3 0x0184a570
@@ -845,12 +1084,6 @@ void asSearchObject(int scene)
 void asCopyDoubleBuffer(void)
 {
     ALYSSAPAN_STUB("asCopyDoubleBuffer", 0x01851150);
-}
-
-// stub of CT3 0x01842fe0
-void asSeekBarFreeForX(int scene)
-{
-    ALYSSAPAN_STUB("asSeekBarFreeForX", 0x01842fe0);
 }
 
 // stub of CT3 0x01847bd0
@@ -875,12 +1108,6 @@ void asUpdateAnimation_Matrix(void)
 void BuildMatrixTree(int scene, int a1, int a2)
 {
     ALYSSAPAN_STUB("BuildMatrixTree", 0x0184fd30);
-}
-
-// stub of CT3 0x0184eed0
-void ExecuteAnimationHistory_Free(void)
-{
-    ALYSSAPAN_STUB("ExecuteAnimationHistory_Free", 0x0184eed0);
 }
 
 // stub of CT3 0x0184f220
@@ -949,17 +1176,5 @@ void asBehaviorStopAnimation(void *behavior)
 void asSceneAutoStartAnimation(void *behavior)
 {
     ALYSSAPAN_STUB("asSceneAutoStartAnimation", 0x01847fd0);
-}
-
-// stub of CT3 0x018436a0
-void asSeatArrange_Init(int scene)
-{
-    ALYSSAPAN_STUB("asSeatArrange_Init", 0x018436a0);
-}
-
-// stub of CT3 0x018430d0
-void asSeekBarInitializeForX(int scene)
-{
-    ALYSSAPAN_STUB("asSeekBarInitializeForX", 0x018430d0);
 }
 

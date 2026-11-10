@@ -424,6 +424,19 @@ shadow". CAMERA +0 is the view matrix: asGetShadowMatrixGlobalView copies Cam[6]
 matrix_global_view_for_shadow. asInitMirrorMatrix sets mrr_ReverseMatrix to identity (vf0 rotated by
 vmr32). asGetBeziePosition is a cubic Bezier with weights t^3, 3t^2 s, 3ts^2, s^3.
 
+Seek bars and seats (slice 3, 2026-11-10). ALL_TABLE +0xc0 is a table of controlled parts (+8 a list of
+8-byte {ends, kind, part}, +0xe its count); scene_init's asSeekBarInitializeForX copies the kind-2 ones
+into 0x40-byte SEEKBARs (_SunAlloc'd, kept at ALL_TABLE +0xe8). Each animated frame asSeekBarAnimation
+transforms a bar's two ends by its part's world matrix, crosses that line with a plane (a part's
+position: the bank's own part, or a character's part found by hash while the character is active),
+takes t = the crossing's distance along the bar (first non-zero axis), clamped to [0, 1], and starts
+each of the bar's 12-byte animations at frame (int)(B t + A (1 - t)) via asSceneAnimationStart. Seats:
+ALL_TABLE +0xdc {count, rows}, rows of 0x10 bytes (+4 cells, +0xe their count), cells of 0x10 bytes
+whose bytes 2..3 (home) are copied to 4..5 and 6..7 at init. Model part records start at parts header
++ 0x40, 0x380 each, ended by a negative index; BMT_01 (BuildMatrixTree(bank, 0, 1)) copies each
+non-kind-1 record's position (+0xf0) to +0x2f0 and, unless record +0x34c is set, builds record +0x340 =
+view * matrix (+0x180) and +0x300 = that * diag(record +0x2c0 xyz).
+
 ## The IOP side (2026-11-09)
 
 The EE loads `cdrom0:\IOP\IOPRP255.IMG;1` (an IOP reboot), then `SIO2MAN`, `PADMAN`, `MCMAN`, `MCSERV`,

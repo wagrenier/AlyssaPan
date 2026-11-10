@@ -7,6 +7,14 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-10, ahRelocateSunPs2ObjectArry.c slice 3) **A model part record starts at header + 0x40, not
+  at the header**: MODEL_PARTS is declared from the header, so its offsets are record + 0x40 and a record
+  pointer from asFindModelParts must step back PARTS_RECORDS before it is a MODEL_PARTS. Fields past
+  record 0x340 (BMT_01's view matrix) are outside MODEL_PARTS: use the record offsets (open-items (cg)).
+- (2026-11-10, slice 3) **callcheck takes a section heading with `CT3 0x...` in it for a function's
+  annotation**: a helper under `// ---- x (CT3 0x0184..) ----` was checked as that function. Write
+  section ranges without the CT3 prefix.
+
 - (2026-11-10, game/fileio.c slice 2) **FSMltLoadProc's last packed read ends a sector short when the
   packed size is a whole number of sectors**: the end is ExtBuf + (size & 0x7ff) + (sRsect - 1) * 0x800.
   Kept as the ROM has it (the disc's files presumably never hit it); suspect it first if an unpacked bank

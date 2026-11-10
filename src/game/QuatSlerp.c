@@ -250,3 +250,9 @@ int asJointParts_byMatrix(float (*mat)[4], int *pos, int bank)
     ALYSSAPAN_STUB("asJointParts_byMatrix", 0x01854750);
     return {};
 }
+
+// stub of CT3 0x01859f00
+void asGetCrossPointInPlaneWithLine(float out[4], float a[4], float b[4], float dir[4], float plane[4])
+{
+    ALYSSAPAN_STUB("asGetCrossPointInPlaneWithLine", 0x01859f00);
+}

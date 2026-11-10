@@ -45,5 +45,8 @@ u_long GetRoomName_file(const char *name);                                      
 // From game/main2.c's calls (2026-11-10). asJointParts / _byMatrix answer 1 or 2 when no joint portal
 // part is found; _byMatrix also reads DrawOnPosSetHashTemp.
 u_char *asFindModelParts(u_char *header, u_long hash);                                   // CT3 0x0185e100
+// From asSeekBarAnimation (2026-11-10): out = where the line a..b (direction dir, unit) crosses the
+// plane given by a part's position qword (its use there; the function is unread).
+void asGetCrossPointInPlaneWithLine(float out[4], float a[4], float b[4], float dir[4], float plane[4]); // CT3 0x01859f00
 int asJointParts(int srcBank, int bank, u_long hash);                                    // CT3 0x01854b20
 int asJointParts_byMatrix(float (*mat)[4], int *pos, int bank);                          // CT3 0x01854750
