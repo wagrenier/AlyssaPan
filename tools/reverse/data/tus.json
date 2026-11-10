@@ -1022,7 +1022,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 140..140, 2 functions keyed by their statics, 6 unkeyed; file name from the names"
   },
   "game/wideXcmd_DebugPrint.c": {
-   "notes": "Next slice: asCharacterMortionFunctionOperation (0x1578, the biggest left: alone or split), then asMotionAdderByNowMotion, asPlayerInputAnalyze, asChainLengthCheck, asPIA0_KEY_TBL_PULLED, asWater_Run_Check, asPIA1_KEY_TBL_PRUN and the remaining key-table entries. callcheck flags Hited's SdRnd / SdReqPlaySE (inside its AlyssaScream helper) and Damaging's asRadianByVectors / gaSetRotMatrixY (TurnToDamage): explained. The attacker word's bank is a guess (open-items 1 am2). The shot is black as before: nothing draws yet.",
+   "notes": "Next slice: asCharacterMortionFunctionOperation (0x1578, alone or split), asMotionAdderByNowMotion (needs pAM / pAME nested .data tables: datadump them), asPanicEventOperation, then the stubbed key-table entries (asPIA1 STAND / SIT / SITGO / WALK / RUN / MOVEEND / LOCK / CATWALK / KAIDAN / YUMI / BEHIND / SITBEHIND / PSTAND / PRUN / SITGONOUP, asPIA0 SIT / MOVEEND / CATWALK / YUMI / BEHIND / SITBEHIND) and asCharacterMoveByPad / asCharacterMoveByPadUD. pBossInfo pointer words have no host form (open-items 1 as): no chain is seen. callcheck flags only the explained Damaging / Hited helpers. The shot stays black: nothing draws yet.",
    "ranges": [
     [
      "018f3f60",
@@ -1054,6 +1054,11 @@
      "date": "2026-11-10 18:34",
      "status": "partial",
      "summary": "slice 5: asCheckCharacterHited (the boss battle invulnerability vsBossMuteki / AfterPanicStartMuteki, the stage bosses scripted strikes, then Alyssa's hit table: per attacker character 2..6 / 32 and object bank E_93 / E_14 / E_95 / SCSR / E_97 the reaction, SE and her cry); ALL_TABLE.hits, HIT_TABLE / HIT_REC named; ssAI_IsDoorOpenPlaying stubbed (1 function)"
+    },
+    {
+     "date": "2026-11-10 18:56",
+     "status": "partial",
+     "summary": "slice 6: the player key dispatch (asPlayerInputAnalyze with its typed tables asPIA0 / asPIA1 / asPIAK, every key-table entry now (CHARACTER *, PIA_KEY *)), 19 small key-table and pad entries, the boss chains (asChainLengthCheck, asPIA0_KEY_TBL_PULLED) and the holy water check (asWater_Run_Check); 24 functions, 23 entries stubbed"
     }
    ],
    "status": "partial",

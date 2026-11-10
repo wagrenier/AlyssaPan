@@ -18,6 +18,9 @@
 // small key-table entries (HAIHAI's step, PSITGO, PSIT, PSTAND, KAIDAN, DOOR, SITGONOUP, GOUP1M).
 // Slice 5 (2026-11-10): asCheckCharacterHited (the boss battle's invulnerability and scripted strikes,
 // then Alyssa's hit table: each attacker's reaction, SE and her cry).
+// Slice 6 (2026-11-10): the player's key dispatch (asPlayerInputAnalyze and its tables asPIA0 / asPIA1 /
+// asPIAK: every entry now takes (CHARACTER *, PIA_KEY *)), the small key-table entries, the boss's chains
+// (asChainLengthCheck, asPIA0_KEY_TBL_PULLED) and the holy water check (asWater_Run_Check).
 //
 // PORT: CHARACTER.w300[0] (CHARA_TARGET) is an EE address no written TU sets yet (Character_All_Init
 // clears it): CharaTarget answers none until its writer decides the host form (open-items.md 1 h).
@@ -603,52 +606,62 @@ void asCharacterAutoAiming(CHARACTER *ch)
 }
 
 // CT3 0x018f7ec0
-void asPIA1_KEY_TBL_PULLED(void)
+void asPIA1_KEY_TBL_PULLED(CHARACTER *ch, PIA_KEY *key)
 {
+    (void)ch;
+    (void)key;
 }
 
 // CT3 0x018f8020
-void asPIA0_KEY_TBL_HAIHAI(CHARACTER *ch, u_char *key)
+int asPIA0_KEY_TBL_HAIHAI(CHARACTER *ch, PIA_KEY *key)
 {
-    short on = 1;
     (void)ch;
-    memcpy(key + PIA_KEY_H0C, &on, sizeof(on));
+    key->h0c = 1;
+    return PIA_MOVE;
 }
 
 // CT3 0x018f8030
-void asPIA1_KEY_TBL_WATER(void)
+void asPIA1_KEY_TBL_WATER(CHARACTER *ch, PIA_KEY *key)
 {
+    (void)ch;
+    (void)key;
 }
 
 // CT3 0x018f8040
-int asPIA0_KEY_TBL_WATER(CHARACTER *ch)
+int asPIA0_KEY_TBL_WATER(CHARACTER *ch, PIA_KEY *key)
 {
     (void)ch;
+    (void)key;
     return 0;
 }
 
 // CT3 0x018f8600
-int asPIA0_KEY_TBL_LOCK(CHARACTER *ch)
+int asPIA0_KEY_TBL_LOCK(CHARACTER *ch, PIA_KEY *key)
 {
     (void)ch;
+    (void)key;
     return 1;
 }
 
 // CT3 0x018f8610
-void asPIA1_KEY_TBL_PMOVEEND(void)
+void asPIA1_KEY_TBL_PMOVEEND(CHARACTER *ch, PIA_KEY *key)
 {
+    (void)ch;
+    (void)key;
 }
 
 // CT3 0x018f8620
-int asPIA0_KEY_TBL_PMOVEEND(CHARACTER *ch)
+int asPIA0_KEY_TBL_PMOVEEND(CHARACTER *ch, PIA_KEY *key)
 {
     (void)ch;
+    (void)key;
     return 1;
 }
 
 // CT3 0x018f86d0
-int asPIA0_KEY_TBL_PRUN(CHARACTER *ch)
+int asPIA0_KEY_TBL_PRUN(CHARACTER *ch, PIA_KEY *key)
 {
+    (void)key;
     const u_char *rec = MotionRecord(ch, CharaShort(ch, CHARA_MOTION_SLOTS));
     // PORT: no table on the host yet answers 1 (the ROM reads through the word)
     return rec != NULL && rec[MOTION_REC_RUN] == MOTION_RUN_FAST ? 2 : 1;
@@ -1461,77 +1474,519 @@ void asChangeAlyssaMortionByDamaging(const float *hit, u_long flags)
 }
 
 // CT3 0x018f7fa0
-// Crawling (HAIHAI): with the key's PIA_KEY_H0A at 1 in the crawl motion, a step: the second motion
-// while PIA_KEY_H0C is set, else the first.
-void asPIA1_KEY_TBL_HAIHAI(CHARACTER *ch, u_char *key)
+// Crawling (HAIHAI): with the key's h0a at 1 in the crawl motion, a step: the second motion while h0c
+// is set, else the first.
+void asPIA1_KEY_TBL_HAIHAI(CHARACTER *ch, PIA_KEY *key)
 {
-    short h0a, h0c;
-    memcpy(&h0a, key + PIA_KEY_H0A, sizeof(h0a));
-    memcpy(&h0c, key + PIA_KEY_H0C, sizeof(h0c));
-    if (h0a == 1 && CharaShort(ch, CHARA_MOTION_SLOTS) == MOTION_HAIHAI)
-        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, h0c == 0 ? MOTION_HAIHAI_STEP : MOTION_HAIHAI_STEP2);
+    if (key->h0a == 1 && CharaShort(ch, CHARA_MOTION_SLOTS) == MOTION_HAIHAI)
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, key->h0c == 0 ? MOTION_HAIHAI_STEP : MOTION_HAIHAI_STEP2);
 }
 
 // CT3 0x018f8710
-void asPIA1_KEY_TBL_PSITGO(void)
+void asPIA1_KEY_TBL_PSITGO(CHARACTER *ch, PIA_KEY *key)
 {
+    (void)ch;
+    (void)key;
 }
 
 // CT3 0x018f8720
-int asPIA0_KEY_TBL_PSITGO(CHARACTER *ch)
+int asPIA0_KEY_TBL_PSITGO(CHARACTER *ch, PIA_KEY *key)
 {
     (void)ch;
+    (void)key;
     return 1;
 }
 
 // CT3 0x018f8730
-void asPIA1_KEY_TBL_PSIT(void)
+void asPIA1_KEY_TBL_PSIT(CHARACTER *ch, PIA_KEY *key)
 {
+    (void)ch;
+    (void)key;
 }
 
 // CT3 0x018f8740
-int asPIA0_KEY_TBL_PSIT(CHARACTER *ch)
+int asPIA0_KEY_TBL_PSIT(CHARACTER *ch, PIA_KEY *key)
 {
     (void)ch;
+    (void)key;
     return 1;
 }
 
 // CT3 0x018f8850
-int asPIA0_KEY_TBL_PSTAND(CHARACTER *ch)
+int asPIA0_KEY_TBL_PSTAND(CHARACTER *ch, PIA_KEY *key)
 {
     (void)ch;
+    (void)key;
     return 1;
 }
 
 // CT3 0x018f8fb0
-int asPIA0_KEY_TBL_KAIDAN(CHARACTER *ch)
+int asPIA0_KEY_TBL_KAIDAN(CHARACTER *ch, PIA_KEY *key)
 {
     (void)ch;
+    (void)key;
     return 1;
 }
 
 // CT3 0x018f8fc0
-void asPIA1_KEY_TBL_DOOR(void)
+void asPIA1_KEY_TBL_DOOR(CHARACTER *ch, PIA_KEY *key)
 {
+    (void)ch;
+    (void)key;
 }
 
 // CT3 0x018f8fd0
-int asPIA0_KEY_TBL_DOOR(CHARACTER *ch)
+int asPIA0_KEY_TBL_DOOR(CHARACTER *ch, PIA_KEY *key)
 {
     (void)ch;
+    (void)key;
     return 0;
 }
 
 // CT3 0x018f96b0
-int asPIA0_KEY_TBL_SITGONOUP(CHARACTER *ch)
+int asPIA0_KEY_TBL_SITGONOUP(CHARACTER *ch, PIA_KEY *key)
 {
     (void)ch;
+    (void)key;
     return 1;
 }
 
 // CT3 0x018f9730
-void asPIA1_KEY_TBL_GOUP1M(void)
+void asPIA1_KEY_TBL_GOUP1M(CHARACTER *ch, PIA_KEY *key)
 {
+    (void)ch;
+    (void)key;
+}
+
+// ---- slice 6 (2026-11-10): the player's key dispatch and the small key-table entries -------------------
+
+// Motion indices the small entries test (names from these uses).
+#define MOTION_STAND_HOLD 0x0c          /* asPIA0_KEY_TBL_STAND: no pad move in it */
+#define MOTION_WALK_HOLD 0xc6           /* asPIA0_KEY_TBL_WALK: no pad move in it */
+#define MOTION_RUN_HOLD 0xc7            /* asPIA0_KEY_TBL_RUN: no pad move in it */
+#define MOTION_DOWN 0xd9                /* lying down: DOWN's gate */
+#define MOTION_DOWN_GETUP_TIME 201      /* asPIA0_KEY_TBL_DOWN: slot 0's time from which the pad moves her */
+#define MOTION_SITNOUP_STEP 0xb5        /* asPIA1_KEY_TBL_SITNOUP with h0c clear */
+#define MOTION_SITNOUP_STEP2 0xc1       /* ... with h0c set */
+
+// The record kinds (MOTION_REC_FACING) whose keys asPlayerInputAnalyze clears before the pad move, and
+// those that do not move by the pad (no asPIAK entry); bit k = kind k.
+#define PIA_KIND_NO_KEYS ((1u << 3) | (1u << 4) | (1u << 5) | (1u << 9) | (1u << 10) | (1u << 11) | (1u << 15) | (1u << 16))
+#define PIA_KIND_NO_MOVE ((1u << 3) | (1u << 6) | (1u << 9) | (1u << 12))
+// The kinds (and the motion groups 0x10 / 0x11) for which the targets are copied this frame.
+#define PIA_KIND_COPY_TARGETS ((1u << 0) | (1u << 4) | (1u << 7) | (1u << 10) | (1u << 13))
+#define PIA_GROUP_COPY_TARGETS 0x10
+#define PIA_GROUP_COPY_TARGETS2 0x11
+
+int iGacha;                             /* sbss 0x01944a08 */
+
+typedef int (*PIA0_FUNC)(CHARACTER *ch, PIA_KEY *key);
+typedef void (*PIA1_FUNC)(CHARACTER *ch, PIA_KEY *key);
+
+// asPIA0 / asPIA1 (sdata 0x0193baf0 / 0x0193bb60), by CHARA_MOTION_GROUP.
+static const PIA0_FUNC asPIA0[28] = {
+    asPIA0_KEY_TBL_STAND,     asPIA0_KEY_TBL_SIT,      asPIA0_KEY_TBL_SITGO,     asPIA0_KEY_TBL_WALK,
+    asPIA0_KEY_TBL_RUN,       asPIA0_KEY_TBL_MOVEEND,  asPIA0_KEY_TBL_CATCH,     asPIA0_KEY_TBL_HASHIGO,
+    asPIA0_KEY_TBL_JUMPDOWN,  asPIA0_KEY_TBL_GOUP1M,   asPIA0_KEY_TBL_SITGONOUP, asPIA0_KEY_TBL_SITNOUP,
+    asPIA0_KEY_TBL_DOWN,      asPIA0_KEY_TBL_YUMI,     asPIA0_KEY_TBL_DOOR,      asPIA0_KEY_TBL_KAIDAN,
+    asPIA0_KEY_TBL_BEHIND,    asPIA0_KEY_TBL_SITBEHIND, asPIA0_KEY_TBL_PSTAND,   asPIA0_KEY_TBL_PSIT,
+    asPIA0_KEY_TBL_PSITGO,    asPIA0_KEY_TBL_PRUN,     asPIA0_KEY_TBL_PMOVEEND,  asPIA0_KEY_TBL_LOCK,
+    asPIA0_KEY_TBL_CATWALK,   asPIA0_KEY_TBL_WATER,    asPIA0_KEY_TBL_HAIHAI,    asPIA0_KEY_TBL_PULLED,
+};
+static const PIA1_FUNC asPIA1[28] = {
+    asPIA1_KEY_TBL_STAND,     asPIA1_KEY_TBL_SIT,      asPIA1_KEY_TBL_SITGO,     asPIA1_KEY_TBL_WALK,
+    asPIA1_KEY_TBL_RUN,       asPIA1_KEY_TBL_MOVEEND,  asPIA1_KEY_TBL_CATCH,     asPIA1_KEY_TBL_HASHIGO,
+    asPIA1_KEY_TBL_JUMPDOWN,  asPIA1_KEY_TBL_GOUP1M,   asPIA1_KEY_TBL_SITGONOUP, asPIA1_KEY_TBL_SITNOUP,
+    asPIA1_KEY_TBL_DOWN,      asPIA1_KEY_TBL_YUMI,     asPIA1_KEY_TBL_DOOR,      asPIA1_KEY_TBL_KAIDAN,
+    asPIA1_KEY_TBL_BEHIND,    asPIA1_KEY_TBL_SITBEHIND, asPIA1_KEY_TBL_PSTAND,   asPIA1_KEY_TBL_PSIT,
+    asPIA1_KEY_TBL_PSITGO,    asPIA1_KEY_TBL_PRUN,     asPIA1_KEY_TBL_PMOVEEND,  asPIA1_KEY_TBL_LOCK,
+    asPIA1_KEY_TBL_CATWALK,   asPIA1_KEY_TBL_WATER,    asPIA1_KEY_TBL_HAIHAI,    asPIA1_KEY_TBL_PULLED,
+};
+// asPIAK (sdata 0x0193bbd0), by the motion record's MOTION_REC_FACING; NULL for the PIA_KIND_NO_MOVE kinds.
+static const PIA1_FUNC asPIAK[PIAK_KIND_COUNT] = {
+    asPIAK_BHVC1_MoveLR,  asPIAK_BHVC1_MoveUD,  asPIAK_BHVC1_Stop,     NULL,
+    asPIAK_BHVC1_MoveLR,  asPIAK_BHVC1_MoveUD,  NULL,
+    asPIAK_BHVC1_MoveLR,  asPIAK_BHVC1_MoveUD,  NULL,
+    asPIAK_BHVC1_MoveLR,  asPIAK_BHVC1_MoveUD,  NULL,
+    asPIAK_BHVC1_MoveLR,  asPIAK_BHVC1_MoveUD,  asPIAK_BHVC1_MoveBLR,
+    asPIAK_BHVC1_MoveBLR, asPIAK_BHVC1_MoveBLR, asPIAK_BHVC1_MoveBLR,
+};
+
+static int KindIn(u_int set, int kind)
+{
+    return kind >= 0 && kind < 32 && (set >> kind & 1u) != 0;
+}
+
+// Copies a target object's vector, flags and part into the character at `off`; part -1 with none.
+static void CopyTarget(CHARACTER *ch, int off, const u_char *target)
+{
+    if (target == NULL) {
+        SetCharaShort(ch, off + CHARA_TARGET_COPY_PART, -1);
+        return;
+    }
+    memcpy((u_char *)ch + off, target + CHARA_TARGET_VEC, sizeof(qword));
+    SetCharaInt(ch, off + CHARA_TARGET_COPY_FLAGS, (int)TargetFlags(target));
+    memcpy((u_char *)ch + off + CHARA_TARGET_COPY_PART, target + CHARA_TARGET_PART, sizeof(short));
+}
+
+// CT3 0x018f79f0
+// The player's keys this frame: nothing while a forced action holds (CHARA_BHV_W518 != -1); with no
+// motion group, the free control (PlayerControlUpdate2(1)). Else the targets are copied for the kinds
+// that aim, asPIA0[group] decides, asPIAK[kind] moves by the pad, asPIA1[group] reacts.
+void asPlayerInputAnalyze(CHARACTER *ch)
+{
+    PIA_KEY key;
+    const u_char *rec;
+    int group, kind, kind2, answer;
+
+    key.h08 = 0;
+    if (CharaInt(ch, CHARA_BHV_W518) != -1)
+        return;
+    group = (s_char)((const u_char *)ch)[CHARA_MOTION_GROUP];
+    if (group == CHARA_MOTION_NONE_GROUP) {
+        iGacha = 0;
+        PlayerControlUpdate2(1);
+        return;
+    }
+    PlayerControlUpdate2(0);
+    rec = MotionRecord(ch, CharaShort(ch, CHARA_MOTION_SLOTS));
+    // PORT: no table on the host yet: kind 0 (the ROM reads through the word)
+    kind = rec != NULL ? (s_char)rec[MOTION_REC_FACING] : 0;
+    kind2 = rec != NULL ? (s_char)rec[MOTION_REC_KIND] : 0;
+    if (KindIn(PIA_KIND_COPY_TARGETS, kind) || group == PIA_GROUP_COPY_TARGETS || group == PIA_GROUP_COPY_TARGETS2) {
+        if (ch->w300[1] == 0) {
+            SetCharaShort(ch, CHARA_TARGET2_COPY + CHARA_TARGET_COPY_PART, -1);
+        } else {
+            memcpy((u_char *)ch + CHARA_TARGET2_POS, &ch->pos, sizeof(qword));
+            SetCharaInt(ch, CHARA_TARGET2_ROT, ch->rot);
+            CopyTarget(ch, CHARA_TARGET2_COPY, CharaTarget2(ch));
+        }
+        if (ch->w300[0] == 0)
+            SetCharaShort(ch, CHARA_TARGET_COPY + CHARA_TARGET_COPY_PART, -1);
+        else
+            CopyTarget(ch, CHARA_TARGET_COPY, CharaTarget(ch));
+    }
+    key.h0a = 0;
+    key.h0c = 0;
+    key.pad0e = 0;
+    key.cnt = pad_cnt_button[0];
+    key.trg = pad_trg_button[0];
+    answer = asPIA0[group](ch, &key);
+    if (!asCharacterKeyEnable())
+        return;
+    if (answer == PIA_HOLD) {
+        key.h0a = 0;
+    } else if (answer == PIA_MOVE) {
+        if (KindIn(PIA_KIND_NO_KEYS, kind)) {
+            key.cnt = 0;
+            key.trg = 0;
+        }
+        if (kind < -1 || kind >= PIAK_KIND_COUNT) {
+            /* outside the ROM's jump table: straight to asPIA1 */
+        } else if (kind == -1 || KindIn(PIA_KIND_NO_MOVE, kind)) {
+            key.h0a = 0;
+        } else if ((Character[0].targetState & 1) != 0 && kind2 == 1) {
+            key.h0a = 0;
+        } else if (ssTrigCheckEvent(TRIG_EVENT_NO_PAD_MOVE, 1, 0) != 0) {
+            key.h0a = 0;
+        } else {
+            asPIAK[kind](ch, &key);
+        }
+    } else if (answer == PIA_NONE) {
+        return;
+    }
+    asPIA1[(s_char)((const u_char *)ch)[CHARA_MOTION_GROUP]](ch, &key);
+}
+
+// CT3 0x018f9540
+// Lying down: unless the pad moved her, MOTION_DOWN asks for motion 0.
+void asPIA1_KEY_TBL_DOWN(CHARACTER *ch, PIA_KEY *key)
+{
+    if (key->h0a != 0)
+        return;
+    if (CharaShort(ch, CHARA_MOTION_SLOTS) == MOTION_DOWN)
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, 0);
+}
+
+// CT3 0x018f9590
+// The pad moves her once MOTION_DOWN has played MOTION_DOWN_GETUP_TIME.
+int asPIA0_KEY_TBL_DOWN(CHARACTER *ch, PIA_KEY *key)
+{
+    (void)key;
+    if (CharaShort(ch, CHARA_MOTION_SLOTS) != MOTION_DOWN)
+        return PIA_NONE;
+    return CharaInt(ch, CHARA_SLOT_TIME) < MOTION_DOWN_GETUP_TIME ? PIA_NONE : PIA_MOVE;
+}
+
+// CT3 0x018f96c0
+void asPIA1_KEY_TBL_SITNOUP(CHARACTER *ch, PIA_KEY *key)
+{
+    (void)ch;
+    if (key->h0a != 1)
+        return;
+    asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, key->h0c != 0 ? MOTION_SITNOUP_STEP2 : MOTION_SITNOUP_STEP);
+}
+
+// CT3 0x018f9720
+int asPIA0_KEY_TBL_SITNOUP(CHARACTER *ch, PIA_KEY *key)
+{
+    (void)ch;
+    (void)key;
+    return PIA_MOVE;
+}
+
+// CT3 0x018f9740
+int asPIA0_KEY_TBL_GOUP1M(CHARACTER *ch, PIA_KEY *key)
+{
+    (void)ch;
+    (void)key;
+    return PIA_NONE;
+}
+
+// CT3 0x018f9750
+void asPIA1_KEY_TBL_JUMPDOWN(CHARACTER *ch, PIA_KEY *key)
+{
+    (void)ch;
+    (void)key;
+}
+
+// CT3 0x018f9760
+int asPIA0_KEY_TBL_JUMPDOWN(CHARACTER *ch, PIA_KEY *key)
+{
+    (void)ch;
+    (void)key;
+    return PIA_NONE;
+}
+
+// CT3 0x018f9770
+void asPIA1_KEY_TBL_HASHIGO(CHARACTER *ch, PIA_KEY *key)
+{
+    (void)ch;
+    (void)key;
+}
+
+// CT3 0x018f9780
+int asPIA0_KEY_TBL_HASHIGO(CHARACTER *ch, PIA_KEY *key)
+{
+    (void)ch;
+    (void)key;
+    return PIA_MOVE;
+}
+
+// CT3 0x018f9790
+void asPIA1_KEY_TBL_CATCH(CHARACTER *ch, PIA_KEY *key)
+{
+    (void)ch;
+    (void)key;
+}
+
+// CT3 0x018f97a0
+int asPIA0_KEY_TBL_CATCH(CHARACTER *ch, PIA_KEY *key)
+{
+    (void)ch;
+    (void)key;
+    return PIA_MOVE;
+}
+
+// Walk and run: PIA_HOLD in a fast-run record, PIA_MOVE otherwise, none in the hold motion; h0c set.
+static int WalkRunAnswer(CHARACTER *ch, PIA_KEY *key, short hold)
+{
+    short motion = CharaShort(ch, CHARA_MOTION_SLOTS);
+    const u_char *rec = MotionRecord(ch, motion);
+    // PORT: no table on the host yet answers PIA_MOVE (the ROM reads through the word)
+    int answer = rec != NULL && (s_char)rec[MOTION_REC_RUN] == MOTION_RUN_FAST ? PIA_HOLD : PIA_MOVE;
+    if (motion == hold)
+        answer = PIA_NONE;
+    key->h0c = 1;
+    return answer;
+}
+
+// CT3 0x018f9ee0
+int asPIA0_KEY_TBL_RUN(CHARACTER *ch, PIA_KEY *key)
+{
+    return WalkRunAnswer(ch, key, MOTION_RUN_HOLD);
+}
+
+// CT3 0x018fa1e0
+int asPIA0_KEY_TBL_WALK(CHARACTER *ch, PIA_KEY *key)
+{
+    return WalkRunAnswer(ch, key, MOTION_WALK_HOLD);
+}
+
+// CT3 0x018fa380
+int asPIA0_KEY_TBL_SITGO(CHARACTER *ch, PIA_KEY *key)
+{
+    (void)ch;
+    key->h0c = 1;
+    return PIA_MOVE;
+}
+
+// CT3 0x018fa8e0
+int asPIA0_KEY_TBL_STAND(CHARACTER *ch, PIA_KEY *key)
+{
+    key->h0c = 1;
+    return CharaShort(ch, CHARA_MOTION_SLOTS) == MOTION_STAND_HOLD ? PIA_NONE : PIA_MOVE;
+}
+
+// CT3 0x018fa900
+void asPIAK_BHVC1_MoveBLR(CHARACTER *ch, PIA_KEY *key)
+{
+    asCharacterMoveByPad(ch, key, -1);
+}
+
+// CT3 0x018fa910
+void asPIAK_BHVC1_Stop(CHARACTER *ch, PIA_KEY *key)
+{
+    asCharacterMoveByPad(ch, key, 1);
+}
+
+// CT3 0x018fa920
+void asPIAK_BHVC1_MoveUD(CHARACTER *ch, PIA_KEY *key)
+{
+    (void)ch;
+    asCharacterMoveByPadUD(key);
+}
+
+// CT3 0x018fa930
+void asPIAK_BHVC1_MoveLR(CHARACTER *ch, PIA_KEY *key)
+{
+    asCharacterMoveByPad(ch, key, 1);
+}
+
+// The boss's chains (pBossInfo; names from asChainLengthCheck's use, the boss TU confirms them).
+#define BOSS_INFO_CHAIN_COUNT 0x91      /* u_char: chains (main.c's light belt test reads the same byte) */
+#define BOSS_INFO_CHAIN_POS 0x100       /* EE word -> EE word[count] -> qword: each chain's anchor */
+#define BOSS_INFO_CHAIN_ON 0x110        /* EE word -> u_char[count]: the chain holds Alyssa */
+#define BOSS_INFO_PULL_TIME 0x44        /* int: += CHAIN_PULL_LENGTH when a chain pulls her */
+#define CHAIN_PULL_LENGTH 300           /* the distance from which one or two chains pull her (and the add) */
+#define CHAIN_MANY 3                    /* this many chains: she is held (MOTION_CHAINED) */
+#define MOTION_PULLED 0x41              /* pulled by a chain (asPIA0_KEY_TBL_PULLED aims away from it) */
+#define MOTION_CHAINED 0x03             /* held by CHAIN_MANY chains */
+#define MOTION_PULLED_FREE 0x08         /* asPIA0_KEY_TBL_PULLED: no chain holds her any more */
+#define PULLED_AIM_SPEED 0x6d
+// Holy water (asWater_Run_Check; names from this use).
+#define TRIG_VAR_WATER_STATE 7          /* the trigger variable that must read WATER_READY */
+#define WATER_READY 6
+#define TRIG_VAR_WATER_USED 0x34        /* set to 1 when she drinks */
+#define TRIG_VAR_MAGIC_WATER 0x3e       /* the holy water count MagicWaterCount takes */
+#define MOTION_WATER 0x51               /* drinking holy water */
+
+int MagicWaterCount;                    /* sbss 0x01944954 */
+
+// The boss info's EE word at `off` as a host pointer; NULL for none. PORT: pBossInfo's pointer words
+// have no host form until the boss TU that fills them decides it (as CharaTarget): no chain is seen.
+static const u_char *BossInfoPtr(int off)
+{
+    (void)off;
+    return NULL;
+}
+
+// Chain i's anchor (BOSS_INFO_CHAIN_POS's word [i]); NULL for none. PORT: as BossInfoPtr.
+static const float *ChainAnchor(int i)
+{
+    const u_char *words = BossInfoPtr(BOSS_INFO_CHAIN_POS);
+    (void)i;
+    (void)words;
+    return NULL;
+}
+
+// CT3 0x018f4140
+// The chains holding Alyssa (the boss battle): -1 with none (or no boss). One or two: the farthest
+// chain's index when `query`, else its distance, and from CHAIN_PULL_LENGTH on she is pulled
+// (MOTION_PULLED, the boss's pull time grows). Three or more: she is held (MOTION_CHAINED), 0 when
+// `query`, else CHAIN_PULL_LENGTH.
+int asChainLengthCheck(int query)
+{
+    const u_char *on;
+    float alyssa[4];
+    float far = 0.0f;
+    int i, count = 0, farthest = -1;
+
+    if (pBossInfo == NULL)
+        return -1;
+    memcpy(alyssa, &Character[0].pos, sizeof(alyssa));
+    on = BossInfoPtr(BOSS_INFO_CHAIN_ON);
+    for (i = 0; i < pBossInfo[BOSS_INFO_CHAIN_COUNT]; i++) {
+        const float *anchor;
+        float d;
+        if (on == NULL || on[i] == 0)
+            continue;
+        count++;
+        anchor = ChainAnchor(i);
+        if (anchor == NULL)
+            continue;
+        d = asVectorDistance2(alyssa, anchor);
+        if (!(d < far)) {
+            far = d;
+            farthest = i;
+        }
+    }
+    if (count == 0)
+        return -1;
+    if (count >= CHAIN_MANY) {
+        if (CharaShort(&Character[0], CHARA_MOTION_SLOTS) != MOTION_CHAINED)
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_CHAINED);
+        return query != 0 ? 0 : CHAIN_PULL_LENGTH;
+    }
+    if (query != 0)
+        return farthest;
+    if ((int)far >= CHAIN_PULL_LENGTH && CharaShort(&Character[0], CHARA_MOTION_SLOTS) != MOTION_PULLED) {
+        int t;
+        memcpy(&t, pBossInfo + BOSS_INFO_PULL_TIME, sizeof(t));
+        t += CHAIN_PULL_LENGTH;
+        memcpy(pBossInfo + BOSS_INFO_PULL_TIME, &t, sizeof(t));
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_PULLED);
+    }
+    return (int)far;
+}
+
+// CT3 0x018f7ed0
+// Pulled by a chain: in MOTION_PULLED she aims away from the farthest chain (index 0 excepted, as the
+// ROM's > 0 test); held (MOTION_CHAINED) with no chain left, she is freed. Always PIA_MOVE.
+int asPIA0_KEY_TBL_PULLED(CHARACTER *ch, PIA_KEY *key)
+{
+    int chain = asChainLengthCheck(1);
+    short motion = CharaShort(ch, CHARA_MOTION_SLOTS);
+    (void)key;
+    if (motion == MOTION_PULLED) {
+        if (chain > 0) {
+            const float *anchor = ChainAnchor(chain);
+            if (anchor != NULL) {
+                float a[4], p[4], aim[4];
+                float w = 1.0f;
+                u_short speed = PULLED_AIM_SPEED;
+                int k;
+                memcpy(a, anchor, sizeof(a));
+                memcpy(p, &ch->pos, sizeof(p));
+                for (k = 0; k < 4; k++)
+                    aim[k] = p[k] + (p[k] - a[k]);
+                memcpy((u_char *)ch + CHARA_AIM_POINT, aim, sizeof(aim));
+                memcpy((u_char *)ch + CHARA_AIM_W, &w, sizeof(w));
+                memcpy((u_char *)ch + CHARA_AIM_SPEED, &speed, sizeof(speed));
+            }
+        }
+    } else if (motion == MOTION_CHAINED && chain == -1) {
+        float w = 0.0f;
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_PULLED_FREE);
+        memcpy((u_char *)ch + CHARA_AIM_W, &w, sizeof(w));
+    }
+    return PIA_MOVE;
+}
+
+// CT3 0x018f8050
+// Holy water: when the trigger state allows it (WATER_READY), she is not panicking and not drinking
+// already, she drinks (MOTION_WATER) and MagicWaterCount takes the trigger's count. 1 when she drinks.
+int asWater_Run_Check(CHARACTER *ch)
+{
+    short motion = CharaShort(ch, CHARA_MOTION_SLOTS);
+    if (ssTrigGetVariable(TRIG_VAR_WATER_STATE, 1, 0) != WATER_READY)
+        return 0;
+    if ((PanicInfoData.mode & PANIC_MODE_FULL) != 0 || motion == MOTION_WATER)
+        return 0;
+    ssTrigSetVariable(TRIG_VAR_WATER_USED, 1, 1, 0);
+    asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_WATER);
+    MagicWaterCount = ssTrigGetVariable(TRIG_VAR_MAGIC_WATER, 1, 0);
+    return 1;
 }
 
 // ---- stubs (tools/reverse/stubgen.py) ----
@@ -1546,12 +2001,6 @@ void asCharacterMortionFunctionOperation(CHARACTER *ch)
 void asMotionAdderByNowMotion(CHARACTER *ch)
 {
     ALYSSAPAN_STUB("asMotionAdderByNowMotion", 0x018f6b50);
-}
-
-// stub of CT3 0x018f79f0
-void asPlayerInputAnalyze(CHARACTER *ch)
-{
-    ALYSSAPAN_STUB("asPlayerInputAnalyze", 0x018f79f0);
 }
 
 
@@ -1932,4 +2381,148 @@ void asCheckCharacterHited(int chara)
             }
         }
     }
+}
+
+// stub of CT3 0x018faa80
+void asCharacterMoveByPad(CHARACTER *ch, PIA_KEY *key, int dir)
+{
+    ALYSSAPAN_STUB("asCharacterMoveByPad", 0x018faa80);
+}
+
+// stub of CT3 0x018fa940
+void asCharacterMoveByPadUD(PIA_KEY *key)
+{
+    ALYSSAPAN_STUB("asCharacterMoveByPadUD", 0x018fa940);
+}
+
+// stub of CT3 0x018f8c90
+int asPIA0_KEY_TBL_BEHIND(CHARACTER *ch, PIA_KEY *key)
+{
+    ALYSSAPAN_STUB("asPIA0_KEY_TBL_BEHIND", 0x018f8c90);
+    return {};
+}
+
+// stub of CT3 0x018f81e0
+int asPIA0_KEY_TBL_CATWALK(CHARACTER *ch, PIA_KEY *key)
+{
+    ALYSSAPAN_STUB("asPIA0_KEY_TBL_CATWALK", 0x018f81e0);
+    return {};
+}
+
+// stub of CT3 0x018f9980
+int asPIA0_KEY_TBL_MOVEEND(CHARACTER *ch, PIA_KEY *key)
+{
+    ALYSSAPAN_STUB("asPIA0_KEY_TBL_MOVEEND", 0x018f9980);
+    return {};
+}
+
+// stub of CT3 0x018fa570
+int asPIA0_KEY_TBL_SIT(CHARACTER *ch, PIA_KEY *key)
+{
+    ALYSSAPAN_STUB("asPIA0_KEY_TBL_SIT", 0x018fa570);
+    return {};
+}
+
+// stub of CT3 0x018f8a00
+int asPIA0_KEY_TBL_SITBEHIND(CHARACTER *ch, PIA_KEY *key)
+{
+    ALYSSAPAN_STUB("asPIA0_KEY_TBL_SITBEHIND", 0x018f8a00);
+    return {};
+}
+
+// stub of CT3 0x018f91d0
+int asPIA0_KEY_TBL_YUMI(CHARACTER *ch, PIA_KEY *key)
+{
+    ALYSSAPAN_STUB("asPIA0_KEY_TBL_YUMI", 0x018f91d0);
+    return {};
+}
+
+// stub of CT3 0x018f8af0
+void asPIA1_KEY_TBL_BEHIND(CHARACTER *ch, PIA_KEY *key)
+{
+    ALYSSAPAN_STUB("asPIA1_KEY_TBL_BEHIND", 0x018f8af0);
+}
+
+// stub of CT3 0x018f8110
+void asPIA1_KEY_TBL_CATWALK(CHARACTER *ch, PIA_KEY *key)
+{
+    ALYSSAPAN_STUB("asPIA1_KEY_TBL_CATWALK", 0x018f8110);
+}
+
+// stub of CT3 0x018f8d70
+void asPIA1_KEY_TBL_KAIDAN(CHARACTER *ch, PIA_KEY *key)
+{
+    ALYSSAPAN_STUB("asPIA1_KEY_TBL_KAIDAN", 0x018f8d70);
+}
+
+// stub of CT3 0x018f8350
+void asPIA1_KEY_TBL_LOCK(CHARACTER *ch, PIA_KEY *key)
+{
+    ALYSSAPAN_STUB("asPIA1_KEY_TBL_LOCK", 0x018f8350);
+}
+
+// stub of CT3 0x018f97b0
+void asPIA1_KEY_TBL_MOVEEND(CHARACTER *ch, PIA_KEY *key)
+{
+    ALYSSAPAN_STUB("asPIA1_KEY_TBL_MOVEEND", 0x018f97b0);
+}
+
+// stub of CT3 0x018f8630
+void asPIA1_KEY_TBL_PRUN(CHARACTER *ch, PIA_KEY *key)
+{
+    ALYSSAPAN_STUB("asPIA1_KEY_TBL_PRUN", 0x018f8630);
+}
+
+// stub of CT3 0x018f8750
+void asPIA1_KEY_TBL_PSTAND(CHARACTER *ch, PIA_KEY *key)
+{
+    ALYSSAPAN_STUB("asPIA1_KEY_TBL_PSTAND", 0x018f8750);
+}
+
+// stub of CT3 0x018f9b00
+void asPIA1_KEY_TBL_RUN(CHARACTER *ch, PIA_KEY *key)
+{
+    ALYSSAPAN_STUB("asPIA1_KEY_TBL_RUN", 0x018f9b00);
+}
+
+// stub of CT3 0x018fa390
+void asPIA1_KEY_TBL_SIT(CHARACTER *ch, PIA_KEY *key)
+{
+    ALYSSAPAN_STUB("asPIA1_KEY_TBL_SIT", 0x018fa390);
+}
+
+// stub of CT3 0x018f8860
+void asPIA1_KEY_TBL_SITBEHIND(CHARACTER *ch, PIA_KEY *key)
+{
+    ALYSSAPAN_STUB("asPIA1_KEY_TBL_SITBEHIND", 0x018f8860);
+}
+
+// stub of CT3 0x018fa230
+void asPIA1_KEY_TBL_SITGO(CHARACTER *ch, PIA_KEY *key)
+{
+    ALYSSAPAN_STUB("asPIA1_KEY_TBL_SITGO", 0x018fa230);
+}
+
+// stub of CT3 0x018f95c0
+void asPIA1_KEY_TBL_SITGONOUP(CHARACTER *ch, PIA_KEY *key)
+{
+    ALYSSAPAN_STUB("asPIA1_KEY_TBL_SITGONOUP", 0x018f95c0);
+}
+
+// stub of CT3 0x018fa640
+void asPIA1_KEY_TBL_STAND(CHARACTER *ch, PIA_KEY *key)
+{
+    ALYSSAPAN_STUB("asPIA1_KEY_TBL_STAND", 0x018fa640);
+}
+
+// stub of CT3 0x018f9f30
+void asPIA1_KEY_TBL_WALK(CHARACTER *ch, PIA_KEY *key)
+{
+    ALYSSAPAN_STUB("asPIA1_KEY_TBL_WALK", 0x018f9f30);
+}
+
+// stub of CT3 0x018f8fe0
+void asPIA1_KEY_TBL_YUMI(CHARACTER *ch, PIA_KEY *key)
+{
+    ALYSSAPAN_STUB("asPIA1_KEY_TBL_YUMI", 0x018f8fe0);
 }

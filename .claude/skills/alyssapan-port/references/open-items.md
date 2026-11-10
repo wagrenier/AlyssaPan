@@ -127,7 +127,21 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    (0x95 MUTEKI, 0x46 / 0x50 BOSS_STRIKE / STRUCK, 0x52 BOSS_ACTION, 0x6f / 0x88 / 0xb0 NO_HIT) too;
    (ao2) the ROM's dead test kept as a comment: the SWO / SMA flinch tests attack == 0x2b / 0x2c inside
    the attack == 0x20 / 0x1e case, so that flinch never sounds; vsBossMuteki / AfterPanicStartMuteki live
-   in unassigned_data until their owner (the boss / panic TU) is written. **Next:**
+   in unassigned_data until their owner (the boss / panic TU) is written. Open from wideXcmd_DebugPrint.c slice 6
+   (2026-11-10, the key dispatch): (ap) **every key-table entry now takes (CHARACTER *, PIA_KEY *)** --
+   asPIA0_* answer int (PIA_NONE / PIA_MOVE / PIA_HOLD), asPIA1_* and asPIAK_* are void -- so asPIA0 /
+   asPIA1 / asPIAK are typed host tables (the ROM's sdata 0x0193baf0 / 0x0193bb60 / 0x0193bbd0); PIA_KEY
+   (cnt, trg, h08, h0a, h0c) is the stack record, h0a / h0c named from their uses only; (aq) the record's
+   +0x1d (MOTION_REC_FACING) indexes asPIAK (19 kinds: 3 / 6 / 9 / 12 no pad move, 15..18 the backward
+   MoveBLR): it is the pad-control kind more than a facing -- rename with the motion table's reader;
+   (ar) the target copies at 0x490 / 0x4b0 (vec, flags, part) overlap refractAxis (0x4b0) and CHARA_BOSS_STRIKE
+   (0x4e0, the pos copy): CHARACTER's 0x490..0x4f0 wants a union once the readers are known; (as) pBossInfo's
+   pointer words (+0x100 chain anchors, +0x110 chain flags) have no host form: BossInfoPtr / ChainAnchor answer
+   none, so asChainLengthCheck sees no chain (-1) and PULLED never aims -- the boss TU decides (with h);
+   (at) motion names from one use each: MOTION_PULLED 0x41, MOTION_CHAINED 3, MOTION_PULLED_FREE 8,
+   MOTION_WATER 0x51, MOTION_DOWN 0xd9, the hold motions 0x0c / 0xc6 / 0xc7, SITNOUP's 0xb5 / 0xc1; trigger
+   variables 7 (WATER_READY 6), 0x34, 0x3e and event 0x91 (TRIG_EVENT_NO_PAD_MOVE) too; (au) the smoke run
+   wrote an empty last.png once (shot_27180.png was fine): if it recurs, look at the shot writer's last frame. **Next:**
    ~~`ga/gaInitInterrupt.c`~~ (verify, 2026-11-09: main's frame loops now), then in the order a smoke
    run reaches the stubs: `main2` (game/main2.c: title and scene set-up), `IOPInit` / `Character_All_Init`
    (Character_Init.c), `FS_work_init` / `FileSoundServer` (fileio.c), `SunAllocInit` (ahalloc.c), the ga

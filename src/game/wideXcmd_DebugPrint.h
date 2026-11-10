@@ -32,11 +32,37 @@
 #define MOTION_KIND_STAIRS2 1
 #define MOTION_REC_RUN 0x1f             /* u_char: MOTION_RUN_FAST makes asPIA0_KEY_TBL_PRUN answer 2 */
 #define MOTION_RUN_FAST 2
-#define PIA_KEY_H0C 0x0c                /* asPIA0_KEY_TBL_HAIHAI's second argument: short set to 1 */
-#define PIA_KEY_H0A 0x0a                /* short: asPIA1_KEY_TBL_HAIHAI steps while it is 1 */
 #define MOTION_HAIHAI 0x30              /* motion index: crawling (asPIA1_KEY_TBL_HAIHAI's gate; names from this use) */
-#define MOTION_HAIHAI_STEP 0x31         /* ... its step with PIA_KEY_H0C clear */
-#define MOTION_HAIHAI_STEP2 0x32        /* ... with PIA_KEY_H0C set */
+#define MOTION_HAIHAI_STEP 0x31         /* ... its step with PIA_KEY.h0c clear */
+#define MOTION_HAIHAI_STEP2 0x32        /* ... with PIA_KEY.h0c set */
+
+// The frame's key record asPlayerInputAnalyze builds on its stack (sp+0x60) and hands to every key-table
+// entry (layout: EE, the stack slot's; field names from their uses so far).
+typedef struct PIA_KEY {
+    u_int cnt;                          /* 0x0: pad_cnt_button[0] (held); cleared for the no-key kinds */
+    u_int trg;                          /* 0x4: pad_trg_button[0] (pressed this frame); cleared with cnt */
+    short h08;                          /* 0x8: 0 */
+    short h0a;                          /* 0xa: 0; the pad handlers' result (asPIA1_KEY_TBL_HAIHAI steps at 1) */
+    short h0c;                          /* 0xc: 0; set to 1 by most asPIA0 entries */
+    short pad0e;
+} PIA_KEY;
+static_assert(sizeof(PIA_KEY) == 0x10, "PIA_KEY");
+static_assert(offsetof(PIA_KEY, h0a) == 0xa, "PIA_KEY.h0a");
+static_assert(offsetof(PIA_KEY, h0c) == 0xc, "PIA_KEY.h0c");
+// asPIA0's answer: what asPlayerInputAnalyze does before asPIA1.
+#define PIA_NONE 0                      /* nothing more: asPIA1 is not called either */
+#define PIA_MOVE 1                      /* the pad moves the character (asPIAK by the record's kind) */
+#define PIA_HOLD 2                      /* no move (h0a cleared), then asPIA1 */
+#define TRIG_EVENT_NO_PAD_MOVE 0x91     /* set: PIA_MOVE does not move (asPlayerInputAnalyze; name from this use) */
+#define PIAK_KIND_COUNT 19              /* asPIAK's entries: MOTION_REC_FACING 0..18 */
+#define CHARA_TARGET_COPY 0x490         /* CHARACTER: qword the target's vec, +0x10 its flags, +0x14 short part (-1 none) */
+#define CHARA_TARGET2_COPY 0x4b0        /* CHARACTER: the same for CHARA_TARGET2 (0x4b0 is also refractAxis) */
+#define CHARA_TARGET2_POS 0x4e0         /* CHARACTER: qword pos when CHARA_TARGET2 was copied (= CHARA_BOSS_STRIKE) */
+#define CHARA_TARGET2_ROT 0x4d0         /* CHARACTER: int, rot then */
+#define CHARA_TARGET_COPY_FLAGS 0x10    /* within a copy: u_int the target's flags */
+#define CHARA_TARGET_COPY_PART 0x14     /* within a copy: short the target's part, -1 no target */
+#define CHARA_TARGET_PART 0x198         /* target: short part index */
+#define CHARA_MOTION_NONE_GROUP (-1)    /* CHARA_MOTION_GROUP with no motion: the pad drives the player directly */
 
 // ---- the motion request queue (CHARA_MOTION_QUEUE / _MODE, ahRelocateSunPs2ObjectArry.h) ---------------
 #define CHARA_MOTION_REQ_PLAY 0         /* asCharacterMortionChangeRequestHash's mode */
@@ -242,6 +268,8 @@ static_assert(offsetof(HIT_TABLE, recs) == 0x28, "HIT_TABLE.recs");
 extern int MsgCnt;                      /* sbss 0x01944958: FrameCounter while TRIG_VAR_PANIC_OFF is set */
 extern int sndKAKOKYU;                  /* sbss 0x01944950: the breath SE plays */
 extern int bCharKeyEnable;              /* sbss 0x01944a04: the player's keys are enabled */
+extern int MagicWaterCount;             /* sbss 0x01944954: the holy water count (asWater_Run_Check) */
+extern int iGacha;                      /* sbss 0x01944a08: cleared while no motion group (asPlayerInputAnalyze) */
 extern u_int pDstMPstock;               /* sbss 0x01944a40: EE word, cleared after the player pass */
 extern u_int pSrcMPstock;               /* sbss 0x01944a80: EE word, cleared after the player pass */
 // Statics (symtab name$n): iLocked$529 0x01944970, pMDS$545 0x01944978, iMaxSize$546 0x0194497c,
@@ -295,29 +323,83 @@ void asResetCharacterRotation(int unused, u_char *recs, int rot);               
 int asCharacterAnimationExecute(CHARACTER *ch);                                          // CT3 0x018f7430
 void asPlayerInputAnalyze(CHARACTER *ch);                                                // CT3 0x018f79f0
 void asCharacterAutoAiming(CHARACTER *ch);                                               // CT3 0x018f7cd0
-void asPIA1_KEY_TBL_PULLED(void);                                                        // CT3 0x018f7ec0
-void asPIA0_KEY_TBL_HAIHAI(CHARACTER *ch, u_char *key);                                  // CT3 0x018f8020
-void asPIA1_KEY_TBL_WATER(void);                                                         // CT3 0x018f8030
-int asPIA0_KEY_TBL_WATER(CHARACTER *ch);                                                 // CT3 0x018f8040
-int asPIA0_KEY_TBL_LOCK(CHARACTER *ch);                                                  // CT3 0x018f8600
-void asPIA1_KEY_TBL_PMOVEEND(void);                                                      // CT3 0x018f8610
-int asPIA0_KEY_TBL_PMOVEEND(CHARACTER *ch);                                              // CT3 0x018f8620
-// 2 when the current motion's record is a fast run (MOTION_RUN_FAST), else 1.
-int asPIA0_KEY_TBL_PRUN(CHARACTER *ch);                                                  // CT3 0x018f86d0
 // Alyssa damaged at `hit` (a qword); flags DAMAGE_JITTER.
 void asChangeAlyssaMortionByDamaging(const float *hit, u_long flags);                    // CT3 0x018f46e0
-// Crawling: a step while the key's PIA_KEY_H0A is 1 in MOTION_HAIHAI (PIA_KEY_H0C picks which).
-void asPIA1_KEY_TBL_HAIHAI(CHARACTER *ch, u_char *key);                                  // CT3 0x018f7fa0
-void asPIA1_KEY_TBL_PSITGO(void);                                                        // CT3 0x018f8710
-int asPIA0_KEY_TBL_PSITGO(CHARACTER *ch);                                                // CT3 0x018f8720
-void asPIA1_KEY_TBL_PSIT(void);                                                          // CT3 0x018f8730
-int asPIA0_KEY_TBL_PSIT(CHARACTER *ch);                                                  // CT3 0x018f8740
-int asPIA0_KEY_TBL_PSTAND(CHARACTER *ch);                                                // CT3 0x018f8850
-int asPIA0_KEY_TBL_KAIDAN(CHARACTER *ch);                                                // CT3 0x018f8fb0
-void asPIA1_KEY_TBL_DOOR(void);                                                          // CT3 0x018f8fc0
-int asPIA0_KEY_TBL_DOOR(CHARACTER *ch);                                                  // CT3 0x018f8fd0
-int asPIA0_KEY_TBL_SITGONOUP(CHARACTER *ch);                                             // CT3 0x018f96b0
-void asPIA1_KEY_TBL_GOUP1M(void);                                                        // CT3 0x018f9730
+
+// ---- the key tables (asPlayerInputAnalyze's dispatch; slice 6, 2026-11-10) -----------------------------
+// Every entry takes the character and the frame's key record. asPIA0[CHARA_MOTION_GROUP] answers whether
+// the pad moves the character (PIA_MOVE_*); asPIAK[the motion record's MOTION_REC_FACING] moves it;
+// asPIA1[CHARA_MOTION_GROUP] then reacts to the keys. All three are .data tables of the ROM (asPIA0 sdata
+// 0x0193baf0, asPIA1 0x0193bb60, asPIAK 0x0193bbd0).
+void asPIA1_KEY_TBL_PULLED(CHARACTER *ch, PIA_KEY *key);                                 // CT3 0x018f7ec0
+int asPIA0_KEY_TBL_PULLED(CHARACTER *ch, PIA_KEY *key);                                  // CT3 0x018f7ed0
+void asPIA1_KEY_TBL_HAIHAI(CHARACTER *ch, PIA_KEY *key);                                 // CT3 0x018f7fa0
+int asPIA0_KEY_TBL_HAIHAI(CHARACTER *ch, PIA_KEY *key);                                  // CT3 0x018f8020
+void asPIA1_KEY_TBL_WATER(CHARACTER *ch, PIA_KEY *key);                                  // CT3 0x018f8030
+int asPIA0_KEY_TBL_WATER(CHARACTER *ch, PIA_KEY *key);                                   // CT3 0x018f8040
+void asPIA1_KEY_TBL_CATWALK(CHARACTER *ch, PIA_KEY *key);                                // CT3 0x018f8110
+int asPIA0_KEY_TBL_CATWALK(CHARACTER *ch, PIA_KEY *key);                                 // CT3 0x018f81e0
+void asPIA1_KEY_TBL_LOCK(CHARACTER *ch, PIA_KEY *key);                                   // CT3 0x018f8350
+int asPIA0_KEY_TBL_LOCK(CHARACTER *ch, PIA_KEY *key);                                    // CT3 0x018f8600
+void asPIA1_KEY_TBL_PMOVEEND(CHARACTER *ch, PIA_KEY *key);                               // CT3 0x018f8610
+int asPIA0_KEY_TBL_PMOVEEND(CHARACTER *ch, PIA_KEY *key);                                // CT3 0x018f8620
+void asPIA1_KEY_TBL_PRUN(CHARACTER *ch, PIA_KEY *key);                                   // CT3 0x018f8630
+int asPIA0_KEY_TBL_PRUN(CHARACTER *ch, PIA_KEY *key);                                    // CT3 0x018f86d0
+void asPIA1_KEY_TBL_PSITGO(CHARACTER *ch, PIA_KEY *key);                                 // CT3 0x018f8710
+int asPIA0_KEY_TBL_PSITGO(CHARACTER *ch, PIA_KEY *key);                                  // CT3 0x018f8720
+void asPIA1_KEY_TBL_PSIT(CHARACTER *ch, PIA_KEY *key);                                   // CT3 0x018f8730
+int asPIA0_KEY_TBL_PSIT(CHARACTER *ch, PIA_KEY *key);                                    // CT3 0x018f8740
+void asPIA1_KEY_TBL_PSTAND(CHARACTER *ch, PIA_KEY *key);                                 // CT3 0x018f8750
+int asPIA0_KEY_TBL_PSTAND(CHARACTER *ch, PIA_KEY *key);                                  // CT3 0x018f8850
+void asPIA1_KEY_TBL_SITBEHIND(CHARACTER *ch, PIA_KEY *key);                              // CT3 0x018f8860
+int asPIA0_KEY_TBL_SITBEHIND(CHARACTER *ch, PIA_KEY *key);                               // CT3 0x018f8a00
+void asPIA1_KEY_TBL_BEHIND(CHARACTER *ch, PIA_KEY *key);                                 // CT3 0x018f8af0
+int asPIA0_KEY_TBL_BEHIND(CHARACTER *ch, PIA_KEY *key);                                  // CT3 0x018f8c90
+void asPIA1_KEY_TBL_KAIDAN(CHARACTER *ch, PIA_KEY *key);                                 // CT3 0x018f8d70
+int asPIA0_KEY_TBL_KAIDAN(CHARACTER *ch, PIA_KEY *key);                                  // CT3 0x018f8fb0
+void asPIA1_KEY_TBL_DOOR(CHARACTER *ch, PIA_KEY *key);                                   // CT3 0x018f8fc0
+int asPIA0_KEY_TBL_DOOR(CHARACTER *ch, PIA_KEY *key);                                    // CT3 0x018f8fd0
+void asPIA1_KEY_TBL_YUMI(CHARACTER *ch, PIA_KEY *key);                                   // CT3 0x018f8fe0
+int asPIA0_KEY_TBL_YUMI(CHARACTER *ch, PIA_KEY *key);                                    // CT3 0x018f91d0
+void asPIA1_KEY_TBL_DOWN(CHARACTER *ch, PIA_KEY *key);                                   // CT3 0x018f9540
+int asPIA0_KEY_TBL_DOWN(CHARACTER *ch, PIA_KEY *key);                                    // CT3 0x018f9590
+void asPIA1_KEY_TBL_SITGONOUP(CHARACTER *ch, PIA_KEY *key);                              // CT3 0x018f95c0
+int asPIA0_KEY_TBL_SITGONOUP(CHARACTER *ch, PIA_KEY *key);                               // CT3 0x018f96b0
+void asPIA1_KEY_TBL_SITNOUP(CHARACTER *ch, PIA_KEY *key);                                // CT3 0x018f96c0
+int asPIA0_KEY_TBL_SITNOUP(CHARACTER *ch, PIA_KEY *key);                                 // CT3 0x018f9720
+void asPIA1_KEY_TBL_GOUP1M(CHARACTER *ch, PIA_KEY *key);                                 // CT3 0x018f9730
+int asPIA0_KEY_TBL_GOUP1M(CHARACTER *ch, PIA_KEY *key);                                  // CT3 0x018f9740
+void asPIA1_KEY_TBL_JUMPDOWN(CHARACTER *ch, PIA_KEY *key);                               // CT3 0x018f9750
+int asPIA0_KEY_TBL_JUMPDOWN(CHARACTER *ch, PIA_KEY *key);                                // CT3 0x018f9760
+void asPIA1_KEY_TBL_HASHIGO(CHARACTER *ch, PIA_KEY *key);                                // CT3 0x018f9770
+int asPIA0_KEY_TBL_HASHIGO(CHARACTER *ch, PIA_KEY *key);                                 // CT3 0x018f9780
+void asPIA1_KEY_TBL_CATCH(CHARACTER *ch, PIA_KEY *key);                                  // CT3 0x018f9790
+int asPIA0_KEY_TBL_CATCH(CHARACTER *ch, PIA_KEY *key);                                   // CT3 0x018f97a0
+void asPIA1_KEY_TBL_MOVEEND(CHARACTER *ch, PIA_KEY *key);                                // CT3 0x018f97b0
+int asPIA0_KEY_TBL_MOVEEND(CHARACTER *ch, PIA_KEY *key);                                 // CT3 0x018f9980
+void asPIA1_KEY_TBL_RUN(CHARACTER *ch, PIA_KEY *key);                                    // CT3 0x018f9b00
+int asPIA0_KEY_TBL_RUN(CHARACTER *ch, PIA_KEY *key);                                     // CT3 0x018f9ee0
+void asPIA1_KEY_TBL_WALK(CHARACTER *ch, PIA_KEY *key);                                   // CT3 0x018f9f30
+int asPIA0_KEY_TBL_WALK(CHARACTER *ch, PIA_KEY *key);                                    // CT3 0x018fa1e0
+void asPIA1_KEY_TBL_SITGO(CHARACTER *ch, PIA_KEY *key);                                  // CT3 0x018fa230
+int asPIA0_KEY_TBL_SITGO(CHARACTER *ch, PIA_KEY *key);                                   // CT3 0x018fa380
+void asPIA1_KEY_TBL_SIT(CHARACTER *ch, PIA_KEY *key);                                    // CT3 0x018fa390
+int asPIA0_KEY_TBL_SIT(CHARACTER *ch, PIA_KEY *key);                                     // CT3 0x018fa570
+void asPIA1_KEY_TBL_STAND(CHARACTER *ch, PIA_KEY *key);                                  // CT3 0x018fa640
+int asPIA0_KEY_TBL_STAND(CHARACTER *ch, PIA_KEY *key);                                   // CT3 0x018fa8e0
+void asPIAK_BHVC1_MoveBLR(CHARACTER *ch, PIA_KEY *key);                                  // CT3 0x018fa900
+void asPIAK_BHVC1_Stop(CHARACTER *ch, PIA_KEY *key);                                     // CT3 0x018fa910
+void asPIAK_BHVC1_MoveUD(CHARACTER *ch, PIA_KEY *key);                                   // CT3 0x018fa920
+void asPIAK_BHVC1_MoveLR(CHARACTER *ch, PIA_KEY *key);                                   // CT3 0x018fa930
+// The chains holding Alyssa: -1 none; 1..2 the farthest one's index (query) or distance (and the pull);
+// 3+ 0 (query) or CHAIN_PULL_LENGTH (she is held).
+int asChainLengthCheck(int query);                                                       // CT3 0x018f4140
+// She drinks holy water when the triggers allow it; 1 when she does.
+int asWater_Run_Check(CHARACTER *ch);                                                    // CT3 0x018f8050
+void asCharacterMoveByPadUD(PIA_KEY *key);                                               // CT3 0x018fa940
+// Moves the character by the pad; dir 1 forward (MoveLR / Stop), -1 backward (MoveBLR).
+void asCharacterMoveByPad(CHARACTER *ch, PIA_KEY *key, int dir);                         // CT3 0x018faa80
+
 // The lever mash (ControllerClattering*): RLC_SET starts one with the four settings (< 0: default) and
 // answers its state (> 0: over, forgotten); RLC_FREE drops it.
 // The cat walk's random events: CATWALK_RESET / _TICK (the time on by this frame's ticks) / _CHECK (1
