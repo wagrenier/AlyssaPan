@@ -50,3 +50,9 @@ u_char *asFindModelParts(u_char *header, u_long hash);                          
 void asGetCrossPointInPlaneWithLine(float out[4], float a[4], float b[4], float dir[4], float plane[4]); // CT3 0x01859f00
 int asJointParts(int srcBank, int bank, u_long hash);                                    // CT3 0x01854b20
 int asJointParts_byMatrix(float (*mat)[4], int *pos, int bank);                          // CT3 0x01854750
+// From BuildMatrixTree's calls (ahRelocateSunPs2ObjectArry.c slice 4, 2026-11-10); confirm when written.
+int absi(int v);                                                                         // CT3 0x0185e040
+// out = m turned to look at target; `axis` is the part's +0x34 byte.
+void asMakeWatchMeMatrixToPosition(float (*out)[4], float (*m)[4], float *target, int axis); // CT3 0x0185d4d0
+// a point light part's range (its record, MODEL_PARTS + 0x40).
+void OmniRangeChange(u_char *rec);                                                       // CT3 0x018520b0

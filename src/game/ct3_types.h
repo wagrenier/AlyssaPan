@@ -131,7 +131,8 @@ typedef struct BANK_INFO {
                                            asShadowDrawing_Disable: the shadow's on word */
     u_char pad40[0x14];
     u_int shadowLightPos;               /* 0x54: the attached light position (0: detached) */
-    int shadow58;                       /* 0x58: 0 at init */
+    int shadow58;                       /* 0x58: the bank's _SunAlloc'd shadow block (asShadowDrawing_Fin frees it);
+                                           0 at init. PORT: the host keeps it in ShadowBlock[bank] */
     float shadowLength;                 /* 0x5c: 500 at init (the ROM stores 1000, 250, then 500) */
     u_char shadowColor[4];              /* 0x60: RGBA, 0xff each; _Disable sets alpha 0xff */
     float shadow64;                     /* 0x64: 200 at init */

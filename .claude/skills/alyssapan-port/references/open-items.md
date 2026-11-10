@@ -306,6 +306,28 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    set, and 0, 1, 0, 1, 0 after); (ci) the smoke run is not deterministic: of two 15 s runs one crashed
    at main.c's ActressMP read (frame ~1560) and one logged the same crash but ran on (the crash handler
    or the frame thread), so the ActressMP blocker stands either way.
+   **Slice 4 (partial, 2026-11-10):** BuildMatrixTree (from the disassembly), asBehaviorStopAnimation,
+   asSceneAutoStartAnimation, asStartAnimationFromTop, asShadowDrawing_Fin, asDrawShadowVolumeLoop,
+   asGetForceMatrixOperationFlag, asMirrorPlaneCalc (vPVbk / vPPbk defined here),
+   asGAobjectControlPolygonDisplayRotateFlagReverse; absi written early in QuatSlerp.c (BuildMatrixTree
+   indexes by it); BMT_20, the shadow volume functions, asMakeWatchMeMatrixToPosition and
+   OmniRangeChange stubbed. **game/LinkMatrixTree.c is queued first** (2026-11-10): a part's record
+   +0x8c parent word is 0 in the file and LinkMatrixTree fills it (matUnit for a root, else the parent
+   record's +0x180 / +0x200 matrix, same bank); until it is written PartsParentMatrix reads 0 as matUnit
+   (a marked temporary PORT line: remove it with LinkMatrixTree). Next in this TU: BMT_20 (0x848),
+   asMakeStraw, ExecuteAnimation, Execute_ExecuteAnimationHistory. Open: (cj) **decided (Claude's
+   call)**: the parent word stays an EE address (bank data, decision h) -- LinkMatrixTree must store
+   MATUNIT_EE (0x01939e40) for matUnit and BankEeAddr(bank, matrix) for a part; (ck) BEHAVIOR /
+   BEHAVIOR_TRACK (ahRelocateSunPs2ObjectArry.h) are named from four small functions; asBehaviorStop /
+   asSceneAutoStartAnimation find the behaviour's bank by the nearest BankImage[] below it (PORT
+   BankOfHostPtr, also used for the polygon flag lists) -- a bank image size table would make it exact;
+   (cl) BANK_INFO +0x58 is the bank's _SunAlloc'd shadow block: the host keeps it in ShadowBlock[bank]
+   (PORT, like SeekBarX), so the allocator (asShadowPolygonPositions or asDrawShadowVolumeInit) must use
+   it; (cm) the record fields BuildMatrixTree names (REC_DEPTH, REC_LPOS, REC_LINK_*, REC_WATCH_*,
+   REC_PARENT, REC_LOCAL, REC_OFFSET, REC_BASE, REC_LIGHT, REC_BLEND, REC_PREV_SCALE_X, PARTS_KIND_OMNI /
+   DIRECTIONAL / WATCH / NO_POS / LINK, WATCH_*) come from this one function; REC_FLAG_HOLD is the same
+   bit as PARTS_FLAG_FOG -- one of the two names is wrong; asShadowDrawing_CheckTransMode's modes
+   (SHADOW_TRANS_*) are named from asDrawShadowVolumeLoop's calls only.
    (bw) Extract is untested against a known image: the first scene_init that runs on relocated data is
    its test (a wrong decode shows as garbage tables); a harness decoding one CT3X file from CT3PACK.DAT
    beside the ROM's (eerun.py) would prove it sooner.

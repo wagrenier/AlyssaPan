@@ -13,6 +13,7 @@
 #include "game/fileio.h"
 #include "game/main.h"
 #include "game/main2.h"
+#include "game/ssGrpPortalCheck.h"
 #include "game/unassigned_data.h"
 
 // ---- the file relocator (CT3 0x0183e280..0x01842290) ----
@@ -744,6 +745,7 @@ char iShadowTransMode;                  /* sbss 0x0193fa7c */
 char iShadowTransModeFin;               /* sbss 0x0193fa78 */
 int iPleaseShadowDraw;                  /* sbss 0x0193fa74 */
 char iShadowTransOrderBW;               /* sbss 0x0193fa70 */
+void *ShadowBlock[BANK_MAX];           /* PORT: BankInfo +0x58, the bank's gHeapJunc shadow block */
 // The symtab's local; its other readers are this TU's shadow code (assumed: move it if not).
 alignas(16) static float matrix_global_view_for_shadow[4][4]; /* bss 0x0193c840 */
 
@@ -781,6 +783,7 @@ void asShadowDrawing_Init(int scene)
     bi->shadowVec[3] = 1.0f;
     asShadowDrawing_Disable(scene);
     bi->shadow58 = 0;
+    ShadowBlock[scene] = NULL;          /* PORT: the word +0x58 holds */
     bi->shadow70 = 0;
     bi->shadowLength = 1000.0f;         /* the ROM's three stores, the last one stays */
     bi->shadowLength = 250.0f;
@@ -991,8 +994,8 @@ void asSeatArrange_Init(int scene)
 
 // The part record fields BMT_01 reads and writes (record offsets: PARTS_REC).
 #define REC_KIND 0x2                    /* u_char: 1 = BMT_01 leaves the part alone */
-#define REC_BITS 0x3                    /* u_char: BMT_01 clears REC_BIT_2 */
-#define REC_BIT_2 0x2
+#define REC_BITS 0x3                    /* u_char: BMT_01 clears REC_BIT_REBUILT */
+#define REC_BIT_REBUILT 0x2              /* BuildMatrixTree: rebuilt this frame (its view pass clears it) */
 #define REC_POS 0xf0                    /* float[4]: MODEL_PARTS.pos */
 #define REC_MATRIX 0x180                /* float[4][4]: MODEL_PARTS.matrix */
 #define REC_SCALE 0x2c0                 /* float[3]: the diagonal of the scale BMT_01 applies */
@@ -1014,7 +1017,7 @@ void BMT_01(u_char *partsHeader, int bank)
     for (rec = partsHeader + PARTS_RECORDS; !PARTS_END(rec); rec += sizeof(MODEL_PARTS)) {
         if (rec[REC_KIND] == PARTS_KIND_STATIC)
             continue;
-        rec[REC_BITS] &= ~REC_BIT_2;
+        rec[REC_BITS] &= ~REC_BIT_REBUILT;
         memcpy(rec + REC_POS_PREV, rec + REC_POS, 0x10);
         if (*(float *)(rec + REC_VIEW_HOLD) == 0.0f) {
             scale[0][0] = ((float *)(rec + REC_SCALE))[0];
@@ -1033,6 +1036,439 @@ void ExecuteAnimationHistory_Free(void)
     if (lpEAS != NULL)
         _SunFree(&gHeapJunc, &lpEAS);
 }
+
+// ---- behaviours, shadows' end, mirrors, the force flag (slice 4, 2026-11-10) ----
+
+// PORT: the bank whose host image holds `host` (the image starting nearest below it). The ROM passes
+// a behaviour's address alone; its track words are EE addresses of that bank (decision h).
+static int BankOfHostPtr(const void *host)
+{
+    const u_char *p = (const u_char *)host;
+    int bank, best = -1;
+    for (bank = 0; bank < BANK_MAX; bank++) {
+        if (BankImage[bank] != NULL && BankImage[bank] <= p && (best < 0 || BankImage[bank] > BankImage[best]))
+            best = bank;
+    }
+    return best;
+}
+
+// The track `t` of group `g` of a behaviour of bank `bank`.
+static BEHAVIOR_TRACK *BehaviorTracks(int bank, const BEHAVIOR *bhv, int g)
+{
+    return BANK_PTR(BEHAVIOR_TRACK *, bank, bhv->groups[g].tracks);
+}
+
+// CT3 0x018497b0
+// A track plays again from its first key; `resetTime` also clears its +0x1c.
+void asStartAnimationFromTop(BEHAVIOR_TRACK *track, int resetTime)
+{
+    track->step = 1;
+    track->playing = 1;
+    track->time = 0;
+    if (resetTime)
+        track->time1c = 0;
+}
+
+// CT3 0x01847dc0
+// Every track of the behaviour stops (NULL: none).
+void asBehaviorStopAnimation(void *behavior)
+{
+    BEHAVIOR *bhv = (BEHAVIOR *)behavior;
+    int bank, g, t;
+    if (bhv == NULL)
+        return;
+    bank = BankOfHostPtr(bhv);
+    for (g = 0; g < bhv->groupCount; g++) {
+        BEHAVIOR_TRACK *tr = BehaviorTracks(bank, bhv, g);
+        for (t = bhv->groups[g].trackCount; t > 0; t--, tr++)
+            tr->playing = 0;
+    }
+}
+
+// CT3 0x01847fd0
+// scene_init's start: the tracks marked TRACK_FLAG_AUTO_START play from the top (and are marked
+// TRACK_FLAG_STARTED); every track's +0xe becomes 100. The ROM tests no NULL here.
+void asSceneAutoStartAnimation(void *behavior)
+{
+    BEHAVIOR *bhv = (BEHAVIOR *)behavior;
+    int bank = BankOfHostPtr(bhv);
+    int g, t;
+    for (g = 0; g < bhv->groupCount; g++) {
+        BEHAVIOR_TRACK *tr = BehaviorTracks(bank, bhv, g);
+        for (t = bhv->groups[g].trackCount; t > 0; t--, tr++) {
+            if (tr->flags & TRACK_FLAG_AUTO_START) {
+                if (!(tr->flags & TRACK_FLAG_STARTED))
+                    tr->flags |= TRACK_FLAG_STARTED;
+                asStartAnimationFromTop(tr, 1);
+            }
+            tr->value0e = TRACK_VALUE0E_START;
+        }
+    }
+}
+
+// CT3 0x01847bd0
+// scene_end: the bank's shadow block goes back to gHeapJunc; the shadow is off.
+void asShadowDrawing_Fin(int scene)
+{
+    BANK_INFO *bi = &BankInfo[scene];
+    if (ShadowBlock[scene] != NULL)     /* ROM: the word BankInfo +0x58 */
+        _SunFree(&gHeapJunc, &ShadowBlock[scene]);
+    bi->shadow70 = 0;
+}
+
+// CT3 0x01851370
+// 1 while matrices are forced (EV_FORCE_MATRIX_OPERATION, or time stopped): asDrawShadowVolumeLoop
+// then draws no shadow volume.
+int asGetForceMatrixOperationFlag(void)
+{
+    if (ssTrigCheckEvent(EV_FORCE_MATRIX_OPERATION, 1, 0) != 0 || time_stop_fream != 0)
+        return 1;
+    return 0;
+}
+
+// CT3 0x018443c0
+// The shadow volumes of every bank asShadowDrawing_CheckTransMode hands out, once a frame
+// (iPleaseShadowDraw) and only while no one else holds the effect buffer.
+void asDrawShadowVolumeLoop(void)
+{
+    if (EffectBuffer_Use == 0 && iPleaseShadowDraw != 0) {
+        int bank, last = -1;
+        EffectBuffer_Use = 1;
+        if (asShadowDrawing_CheckTransMode(SHADOW_TRANS_SORT) == 0) {
+            asDrawShadowVolumeInit(2);
+            asShadowStart();
+        }
+        bank = asShadowDrawing_CheckTransMode(SHADOW_TRANS_NEXT);
+        while (bank != SHADOW_TRANS_END) {
+            last = asGetForceMatrixOperationFlag();
+            if (last == 0)
+                asDrawShadowVolume(bank);
+            last = bank;
+            bank = asShadowDrawing_CheckTransMode(SHADOW_TRANS_NEXT);
+        }
+        if (asShadowDrawing_CheckTransMode(SHADOW_TRANS_FIN) == 0 && last != SHADOW_TRANS_END)
+            asShadowEnd(last);
+        EffectBuffer_Use = 0;
+    }
+    iPleaseShadowDraw = 0;
+}
+
+float vPVbk[4];                         /* sdata 0x01937740: the mirror's plane normal (asEnumMirror) */
+float vPPbk[4];                         /* sdata 0x01937750: a point of the plane (asEnumMirror) */
+
+// CT3 0x0184fb20
+// The mirror plane asEnumMirror found last.
+void asMirrorPlaneCalc(float *planeVec, float *planePoint)
+{
+    memcpy(planeVec, vPVbk, sizeof(vPVbk));
+    memcpy(planePoint, vPPbk, sizeof(vPPbk));
+}
+
+// CT3 0x0184f330
+// Flip every draw object's POLY_DISPLAY_ROTATE bit (its first byte, bit 0: the winding a mirror
+// reverses) in ALL_TABLE +0x18's list and the 0-ended list that follows it.
+// PORT: the lists and entries are EE words of the table's bank (decision h).
+void asGAobjectControlPolygonDisplayRotateFlagReverse(ALL_TABLE *tbl)
+{
+    int bank = BankOfHostPtr(tbl);
+    u_int *list = BANK_PTR(u_int *, bank, tbl->objOpaque);
+    int pass;
+    for (pass = 0; pass < 2; pass++) {
+        for (; *list != 0; list++) {
+            u_int *entry = BANK_PTR(u_int *, bank, *list);
+            u_char *obj = BANK_PTR(u_char *, bank, entry[0]);
+            *obj ^= POLY_DISPLAY_ROTATE;
+        }
+        list++;                         /* past the first list's 0 */
+    }
+}
+
+// ---- the matrix tree (0x0184fd30, slice 4, 2026-11-10) ----
+//
+// A bank's parts are a tree in depth-first order (REC_DEPTH; LinkMatrixTree points each record's
+// REC_PARENT at its parent's matrix, or at matUnit for a root). BuildMatrixTree walks it once a frame:
+// every part's local matrix is parent * base; a part marked REC_BIT_DIRTY (or every part, mode 1)
+// rebuilds its world matrix and position with the subtree under it; look-at parts turn to their target,
+// linked parts take another bank's part as their base, lights keep their position / direction.
+// Read from the disassembly (the decompiler drops gaMulMatrix arguments, hazards.md).
+
+#define REC_DEPTH 0x0                   /* short: the part's depth in the tree, < 0 ends the records */
+#define REC_FLAGS 0x10                  /* u_int: MODEL_PARTS.flags; bit 0 (REC_FLAG_HOLD) holds look-at,
+                                           link and light parts as they are */
+#define REC_FLAG_HOLD 0x1               /* the same bit as PARTS_FLAG_FOG; a link part sets it once */
+#define REC_LIGHT_RANGE 0x1c            /* float: a light's w (BuildMatrixTree copies it to REC_LIGHT) */
+#define REC_LPOS 0x20                   /* float[4]: the part's position in its parent's space */
+#define REC_LINK_BANK 0x30              /* short: PARTS_KIND_LINK: the bank whose part it follows */
+#define REC_LINK_PART 0x32              /* u_short: its part (0: look it up by REC_HASH once) */
+#define REC_LINK_KEEP 0x34              /* u_short: PARTS_KIND_LINK: 0 = follow once (REC_FLAG_HOLD) */
+#define REC_WATCH_AXIS 0x34             /* u_char: PARTS_KIND_WATCH: asMakeWatchMeMatrixToPosition's mode */
+#define REC_WATCH_MODE 0x35             /* char: WATCH_* -- what the part looks at */
+#define REC_WATCH_TARGET 0x36           /* short: WATCH_PART: a part of this bank; WATCH_CHARA_*: a
+                                           character (WATCH_TARGET_CAMERA: the camera, -1: none) */
+#define REC_HASH 0x38                   /* u_long: the part's name hash (MODEL_PARTS.hash) */
+#define REC_PREV_SCALE_X 0x4c           /* float x3 (+0x10 apart): REC_SCALE as the last negative-bank
+                                           pass left it; a link part's children draw with it */
+#define REC_BLEND 0x7c                  /* float: 1 = world = local * REC_OFFSET, else world = local */
+#define REC_PARENT 0x8c                 /* u_int: EE address of the parent's matrix (REC_PARENT_EE) */
+#define REC_MATRIX_PREV 0x1c0           /* float[4][4]: REC_MATRIX as the last negative-bank pass left it */
+#define REC_LOCAL 0x200                 /* float[4][4]: parent * REC_BASE */
+#define REC_OFFSET 0x240                /* float[4][4]: applied after REC_LOCAL when REC_BLEND is 1 */
+#define REC_BASE 0x280                  /* float[4][4]: the part's own transform (a link part: its target's) */
+#define REC_LIGHT 0x2e0                 /* float[4]: a light's position (w its range) or direction (w 1) */
+#define REC_BIT_DIRTY 0x1               /* REC_BITS: rebuild this part and its subtree */
+
+#define PARTS_KIND_OMNI 4               /* a point light: REC_LIGHT = its position, OmniRangeChange */
+#define PARTS_KIND_DIRECTIONAL 5        /* a directional light: REC_LIGHT = -(matrix row 1) */
+#define PARTS_KIND_WATCH 0x14           /* turns to look at REC_WATCH_MODE's target */
+#define PARTS_KIND_NO_POS 0x17          /* keeps REC_POS when rebuilt */
+#define PARTS_KIND_LINK 0x1e            /* takes another bank's part as its base (REC_LINK_*) */
+
+#define WATCH_PART 0                    /* REC_WATCH_TARGET: a part of this bank (its MODEL_PARTS.pos) */
+#define WATCH_CHARA_PART_1 1            /* a character's part of the same hash (WATCH_TARGET_CAMERA: the camera) */
+#define WATCH_CHARA_SELF 2              /* the character whose bank this is: its light bank's part of the
+                                           same hash, if that part's w is not 0 */
+#define WATCH_CHARA_PART_3 3            /* as WATCH_CHARA_PART_1 */
+#define WATCH_TARGET_CAMERA 1000
+#define WATCH_TARGET_NONE (-1)
+
+#define BMT_NO_LINK 99999999            /* the ROM's "no link part above" depth */
+
+// PORT: a part's REC_PARENT word as a host matrix: matUnit for a root (LinkMatrixTree's), else a
+// matrix of the same bank (decision h).
+#define MATUNIT_EE 0x01939e40u
+static float (*PartsParentMatrix(int bank, u_int ee))[4]
+{
+    if (ee == MATUNIT_EE)
+        return matUnit;
+    // PORT (temporary, 2026-11-10): the file leaves the word 0 and LinkMatrixTree fills it; while
+    // game/LinkMatrixTree.c is a stub, 0 reads as the root. Remove when LinkMatrixTree is written.
+    if (ee == 0)
+        return matUnit;
+    return BANK_PTR(float (*)[4], bank, ee);
+}
+
+#define RF(rec, off) ((float *)((rec) + (off)))
+#define RM(rec, off) ((float (*)[4])((rec) + (off)))
+
+// v' = m applied to v (vmulax / vmadday / vmaddaz / vmaddw), all four lanes.
+static void BmtApply(float out[4], float (*m)[4], const float v[4])
+{
+    float r[4];
+    int i;
+    for (i = 0; i < 4; i++)
+        r[i] = m[0][i] * v[0] + m[1][i] * v[1] + m[2][i] * v[2] + m[3][i] * v[3];
+    memcpy(out, r, sizeof(r));
+}
+
+// The look-at target of a PARTS_KIND_WATCH part; 0 when there is none (the part keeps its matrix).
+static int BmtWatchTarget(u_char *header, u_char *rec, int bank, float target[4])
+{
+    short t = *(short *)(rec + REC_WATCH_TARGET);
+    u_long hash = *(u_long *)(rec + REC_HASH);
+    u_char *part;
+    int i, c;
+    target[0] = target[1] = target[2] = 0.0f; /* 0x01937730 */
+    target[3] = 1.0f;
+    switch ((signed char)rec[REC_WATCH_MODE]) {
+    case WATCH_CHARA_SELF:
+        for (c = -1, i = 0; i < CHARACTER_MAX; i++) {
+            if ((short)bank == Character[i].bank) {
+                c = i;
+                break;
+            }
+        }
+        if (c == -1 || All_table_TBL[Character[c].lightBank] == NULL)
+            return 0;
+        part = asFindModelParts(BANK_PTR(u_char *, Character[c].lightBank,
+                                         All_table_TBL[Character[c].lightBank]->partsHeader), hash);
+        if (part == NULL)
+            return 0;
+        memcpy(target, part + REC_POS, 0x10);
+        return target[3] != 0.0f;
+    case WATCH_CHARA_PART_3:
+    case WATCH_CHARA_PART_1:
+        if (t == WATCH_TARGET_CAMERA) {
+            asViewMatrix2PosRUF(&Cam[asCheckBankID(bank)].view[0][0], target, NULL, NULL, NULL);
+            return 1;
+        }
+        if (t == WATCH_TARGET_NONE)
+            return 1;
+        if (t < 0 || Character[t].bank < 1 || All_table_TBL[Character[t].bank] == NULL)
+            return 0;
+        part = asFindModelParts(BANK_PTR(u_char *, Character[t].bank, All_table_TBL[Character[t].bank]->partsHeader),
+                                hash);
+        if (part == NULL)
+            return 0;
+        memcpy(target, part + REC_POS, 0x10);
+        return 1;
+    case WATCH_PART:
+        memcpy(target, ((MODEL_PARTS *)header)[t].pos, 0x10);
+        return 1;
+    default:
+        return 1;
+    }
+}
+
+// CT3 0x0184fd30
+// (scene, mode, pass): (0, 1) is BMT_01, (2, 0) BMT_20; otherwise mode 1 rebuilds every part and
+// pass != 0 also refreshes the view / draw matrices of what moved. A negative scene keeps this
+// frame's matrices and scale as the "previous" ones (REC_MATRIX_PREV, REC_PREV_SCALE_X).
+void BuildMatrixTree(int scene, int mode, int pass)
+{
+    u_char *header = pModelPartsHeader[absi(scene)];
+    alignas(16) float scale[4][4] = { { 1, 0, 0, 0 }, { 0, 1, 0, 0 }, { 0, 0, 1, 0 }, { 0, 0, 0, 1 } };     /* 0x019376b0 */
+    alignas(16) float prevScale[4][4] = { { 1, 0, 0, 0 }, { 0, 1, 0, 0 }, { 0, 0, 1, 0 }, { 0, 0, 0, 1 } }; /* 0x019376f0 */
+    alignas(16) float savedPos[4] = { 0, 0, 0, 0 };
+    short dirtyDepth = -1, movedDepth = -1;
+    int linkDepth = BMT_NO_LINK;
+    u_char *linkRec = NULL;
+    int keep, rebuild, view, bank;
+    u_char *rec;
+
+    // callcheck: BMT_01, BMT_20, asFindModelParts, asViewMatrix2PosRUF (BmtWatchTarget makes the last two; the first two are the calls just below, which the parser does not pick up)
+    if ((char)mode == 0 && (char)pass == 1) {
+        BMT_01(header, scene);
+        return;
+    }
+    if ((char)mode == 2 && (char)pass == 0) {
+        BMT_20(header, scene);
+        return;
+    }
+    keep = scene < 0;
+    bank = keep ? -scene : scene;
+    rebuild = (char)mode == 1;
+    view = (char)pass == 1;
+    for (rec = header + PARTS_RECORDS; !PARTS_END(rec); rec += sizeof(MODEL_PARTS)) {
+        short depth = *(short *)(rec + REC_DEPTH);
+        float (*local)[4] = RM(rec, REC_LOCAL);
+        float (*world)[4] = RM(rec, REC_MATRIX);
+        if ((char)pass != 0)
+            memcpy(savedPos, rec + REC_POS, 0x10);
+        if ((signed char)rec[REC_KIND] == PARTS_KIND_STATIC) {
+            // A point on its parent: only its position, and only on a full rebuild.
+            if ((rebuild || view) && (char)mode != 0)
+                BmtApply(RF(rec, REC_POS), PartsParentMatrix(bank, *(u_int *)(rec + REC_PARENT)), RF(rec, REC_LPOS));
+            continue;
+        }
+        scale[0][0] = RF(rec, REC_SCALE)[0];
+        scale[1][1] = RF(rec, REC_SCALE)[1];
+        scale[2][2] = RF(rec, REC_SCALE)[2];
+        gaMulMatrix(local, PartsParentMatrix(bank, *(u_int *)(rec + REC_PARENT)), RM(rec, REC_BASE));
+        if (rebuild && depth <= dirtyDepth)
+            rebuild = 0;                /* past the dirty subtree */
+        if (rec[REC_BITS] & REC_BIT_DIRTY) {
+            rec[REC_BITS] &= ~REC_BIT_DIRTY;
+            if (!rebuild) {
+                dirtyDepth = depth;
+                rebuild = 1;
+            }
+        }
+
+        if ((signed char)rec[REC_KIND] == PARTS_KIND_WATCH && !(*(u_int *)(rec + REC_FLAGS) & REC_FLAG_HOLD)) {
+            alignas(16) float target[4];
+            alignas(16) float m[4][4];
+            if (!rebuild) {
+                dirtyDepth = depth;
+                rebuild = 1;
+            }
+            if (BmtWatchTarget(header, rec, bank, target)) {
+                asMakeWatchMeMatrixToPosition(m, local, target, rec[REC_WATCH_AXIS]);
+                memcpy(local, m, sizeof(m));
+            }
+        }
+
+        if ((signed char)rec[REC_KIND] == PARTS_KIND_LINK && !(*(u_int *)(rec + REC_FLAGS) & REC_FLAG_HOLD)) {
+            short lb = *(short *)(rec + REC_LINK_BANK);
+            if (!rebuild) {
+                dirtyDepth = depth;
+                rebuild = 1;
+            }
+            if (linkDepth == BMT_NO_LINK)
+                linkDepth = depth;
+            if (lb >= 0 && BankInfo[lb].state == BANK_STATE_LOADED) {
+                u_char *lrec;
+                if (*(u_short *)(rec + REC_LINK_PART) == 0)
+                    *(u_short *)(rec + REC_LINK_PART) =
+                        (u_short)asFindModelPartsID(pModelPartsHeader[lb], *(u_long *)(rec + REC_HASH));
+                if (*(u_short *)(rec + REC_LINK_KEEP) == 0)
+                    *(u_int *)(rec + REC_FLAGS) |= REC_FLAG_HOLD;
+                lrec = pModelPartsHeader[lb] + *(u_short *)(rec + REC_LINK_PART) * sizeof(MODEL_PARTS) + PARTS_RECORDS;
+                linkRec = lrec;
+                memcpy(rec + REC_BASE, lrec + REC_MATRIX_PREV, 0x40);
+                BmtApply(RM(rec, REC_BASE)[3], RM(lrec, REC_MATRIX_PREV), RF(lrec, REC_LPOS));
+                gaMulMatrix(local, PartsParentMatrix(bank, *(u_int *)(rec + REC_PARENT)), RM(rec, REC_BASE));
+            }
+        } else if (linkDepth < depth && linkRec != NULL) {
+            // Under a link part: world and view now, drawn with the previous scale.
+            if (*RF(rec, REC_BLEND) == 1.0f)
+                gaMulMatrix(world, local, RM(rec, REC_OFFSET));
+            else
+                memcpy(world, local, 0x40);
+            prevScale[0][0] = *RF(rec, REC_PREV_SCALE_X);
+            prevScale[1][1] = *RF(rec, REC_PREV_SCALE_X + 0x10);
+            prevScale[2][2] = *RF(rec, REC_PREV_SCALE_X + 0x20);
+            gaMulMatrix(RM(rec, REC_VIEW_MATRIX), Cam[asCheckBankID(bank)].view, world);
+            gaMulMatrix(RM(rec, REC_DRAW_MATRIX), RM(rec, REC_VIEW_MATRIX), prevScale);
+            if ((signed char)rec[REC_KIND] == PARTS_KIND_DIRECTIONAL) {
+                int i;
+                for (i = 0; i < 4; i++)
+                    RF(rec, REC_LIGHT)[i] = world[1][i] * -1.0f;
+                RF(rec, REC_LIGHT)[3] = 1.0f;
+            } else if ((signed char)rec[REC_KIND] == PARTS_KIND_OMNI) {
+                BmtApply(RF(rec, REC_LIGHT), world, RF(linkRec, REC_LPOS));
+                RF(rec, REC_LIGHT)[3] = *RF(rec, REC_LIGHT_RANGE);
+            }
+        } else {
+            linkDepth = BMT_NO_LINK;
+        }
+
+        if (rebuild) {
+            rec[REC_BITS] |= REC_BIT_REBUILT;
+            if (*RF(rec, REC_BLEND) == 1.0f)
+                gaMulMatrix(world, local, RM(rec, REC_OFFSET));
+            else
+                memcpy(world, local, 0x40);
+            if ((signed char)rec[REC_KIND] != PARTS_KIND_NO_POS)
+                BmtApply(RF(rec, REC_POS), world, RF(rec, REC_LPOS));
+            if ((signed char)rec[REC_KIND] == PARTS_KIND_DIRECTIONAL) {
+                int i;
+                for (i = 0; i < 4; i++)
+                    RF(rec, REC_LIGHT)[i] = world[1][i] * -1.0f;
+                RF(rec, REC_LIGHT)[3] = 1.0f;
+            } else if ((signed char)rec[REC_KIND] == PARTS_KIND_OMNI) {
+                memcpy(rec + REC_LIGHT, rec + REC_POS, 0x10);
+                RF(rec, REC_LIGHT)[3] = *RF(rec, REC_LIGHT_RANGE);
+            }
+        }
+        if (keep) {
+            memcpy(rec + REC_MATRIX_PREV, world, 0x40);
+            *RF(rec, REC_PREV_SCALE_X) = RF(rec, REC_SCALE)[0];
+            *RF(rec, REC_PREV_SCALE_X + 0x10) = RF(rec, REC_SCALE)[1];
+            *RF(rec, REC_PREV_SCALE_X + 0x20) = RF(rec, REC_SCALE)[2];
+        }
+        if ((signed char)rec[REC_KIND] == PARTS_KIND_OMNI && !(*(u_int *)(rec + REC_FLAGS) & REC_FLAG_HOLD))
+            OmniRangeChange(rec);
+
+        if (view && depth <= movedDepth)
+            view = 0;
+        if ((rec[REC_BITS] & REC_BIT_REBUILT) && (char)pass != 0) {
+            rec[REC_BITS] &= ~REC_BIT_REBUILT;
+            if (!view) {
+                movedDepth = depth;
+                view = 1;
+            }
+        }
+        if (view) {
+            memcpy(rec + REC_POS_PREV, savedPos, 0x10);
+            if (*RF(rec, REC_VIEW_HOLD) == 0.0f) {
+                gaMulMatrix(RM(rec, REC_VIEW_MATRIX), Cam[asCheckBankID(bank)].view, world);
+                gaMulMatrix(RM(rec, REC_DRAW_MATRIX), RM(rec, REC_VIEW_MATRIX), scale);
+            }
+        }
+    }
+}
+#undef RF
+#undef RM
 
 // ---- stubs (tools/reverse/stubgen.py) ----
 
@@ -1086,12 +1522,6 @@ void asCopyDoubleBuffer(void)
     ALYSSAPAN_STUB("asCopyDoubleBuffer", 0x01851150);
 }
 
-// stub of CT3 0x01847bd0
-void asShadowDrawing_Fin(int scene)
-{
-    ALYSSAPAN_STUB("asShadowDrawing_Fin", 0x01847bd0);
-}
-
 // stub of CT3 0x01844df0
 void asShadowPolygonPositions(int bank)
 {
@@ -1102,12 +1532,6 @@ void asShadowPolygonPositions(int bank)
 void asUpdateAnimation_Matrix(void)
 {
     ALYSSAPAN_STUB("asUpdateAnimation_Matrix", 0x018427f0);
-}
-
-// stub of CT3 0x0184fd30
-void BuildMatrixTree(int scene, int a1, int a2)
-{
-    ALYSSAPAN_STUB("BuildMatrixTree", 0x0184fd30);
 }
 
 // stub of CT3 0x0184f220
@@ -1122,23 +1546,11 @@ void asBuildMirrorMatrixTreeBack(void *tree)
     ALYSSAPAN_STUB("asBuildMirrorMatrixTreeBack", 0x0184f120);
 }
 
-// stub of CT3 0x018443c0
-void asDrawShadowVolumeLoop(void)
-{
-    ALYSSAPAN_STUB("asDrawShadowVolumeLoop", 0x018443c0);
-}
-
 // stub of CT3 0x0184fb40
 int asEnumMirror(ALL_TABLE *tbl)
 {
     ALYSSAPAN_STUB("asEnumMirror", 0x0184fb40);
     return {};
-}
-
-// stub of CT3 0x0184f330
-void asGAobjectControlPolygonDisplayRotateFlagReverse(ALL_TABLE *tbl)
-{
-    ALYSSAPAN_STUB("asGAobjectControlPolygonDisplayRotateFlagReverse", 0x0184f330);
 }
 
 // stub of CT3 0x0184f910
@@ -1154,27 +1566,46 @@ void asMirrorCulling(int on)
     ALYSSAPAN_STUB("asMirrorCulling", 0x0184f390);
 }
 
-// stub of CT3 0x0184fb20
-void asMirrorPlaneCalc(float *planeVec, float *planePoint)
-{
-    ALYSSAPAN_STUB("asMirrorPlaneCalc", 0x0184fb20);
-}
-
 // stub of CT3 0x0184f020
 void asBuildDOFMatrixTree(u_char *partsHeader)
 {
     ALYSSAPAN_STUB("asBuildDOFMatrixTree", 0x0184f020);
 }
 
-// stub of CT3 0x01847dc0
-void asBehaviorStopAnimation(void *behavior)
+
+// stub of CT3 0x018444b0
+void asDrawShadowVolume(int bank)
 {
-    ALYSSAPAN_STUB("asBehaviorStopAnimation", 0x01847dc0);
+    ALYSSAPAN_STUB("asDrawShadowVolume", 0x018444b0);
 }
 
-// stub of CT3 0x01847fd0
-void asSceneAutoStartAnimation(void *behavior)
+// stub of CT3 0x018461f0
+void asDrawShadowVolumeInit(int a0)
 {
-    ALYSSAPAN_STUB("asSceneAutoStartAnimation", 0x01847fd0);
+    ALYSSAPAN_STUB("asDrawShadowVolumeInit", 0x018461f0);
 }
 
+// stub of CT3 0x01847660
+int asShadowDrawing_CheckTransMode(int mode)
+{
+    ALYSSAPAN_STUB("asShadowDrawing_CheckTransMode", 0x01847660);
+    return {};
+}
+
+// stub of CT3 0x01846360
+void asShadowEnd(int bank)
+{
+    ALYSSAPAN_STUB("asShadowEnd", 0x01846360);
+}
+
+// stub of CT3 0x018471c0
+void asShadowStart(void)
+{
+    ALYSSAPAN_STUB("asShadowStart", 0x018471c0);
+}
+
+// stub of CT3 0x01850770
+void BMT_20(u_char *partsHeader, int bank)
+{
+    ALYSSAPAN_STUB("BMT_20", 0x01850770);
+}

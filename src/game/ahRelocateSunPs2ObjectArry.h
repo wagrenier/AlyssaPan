@@ -41,12 +41,14 @@ void asUpdateAnimation_Matrix(void);                                            
 void asSeekBarFreeForX(int scene);                                                       // CT3 0x01842fe0
 void asShadowPolygonPositions(int bank);                                                 // CT3 0x01844df0
 void asGetShadowMatrixGlobalView(void);                                                  // CT3 0x01847330
-void asShadowDrawing_Fin(int scene);                                                     // CT3 0x01847bd0
 void Shadow_OnceInit(void);                                                              // CT3 0x01847c30
 void ExecuteAnimationHistory_init(void);                                                 // CT3 0x0184ef00
 void asCopyDoubleBuffer(void);                                                           // CT3 0x01851150
 void ExecuteAnimationHistory_Free(void);                                                 // CT3 0x0184eed0
-void BuildMatrixTree(int scene, int a1, int a2);                                         // CT3 0x0184fd30
+// (scene, mode, pass): (0, 1) BMT_01, (2, 0) BMT_20; mode 1 rebuilds every part, pass != 0 the view
+// matrices of what moved; a negative scene also keeps this frame's matrices as the previous ones.
+void BuildMatrixTree(int scene, int mode, int pass);                                     // CT3 0x0184fd30
+void BMT_20(u_char *partsHeader, int bank);                                              // CT3 0x01850770
 // A CT3X file's header (a bank image; FSMltLoadProc reads it, ahRelocateFileObject relocates it).
 #define CT3X_MAGIC 0x04                 /* u_int: the file kind */
 #define CT3X_BASE 0x08                  /* u_int: the EE address the file's pointers are linked for */
@@ -146,3 +148,66 @@ void asShadowDrawing_Init(int scene);                                           
 void asBehaviorStopAnimation(void *behavior);                                            // CT3 0x01847dc0
 void asSceneAutoStartAnimation(void *behavior);                                          // CT3 0x01847fd0
 void asForceOperateAnimation_Character(int chara, int mode);                              // CT3 0x018423c0 (main2.c)
+
+// ---- slice 4 (2026-11-10) ----
+// A behaviour (ALL_TABLE.behavior, BHVR entries; ahRelocateBehavior walks it). layout: ee -- bank data,
+// the tracks word an EE address (BankEePtr). Names from asBehaviorStopAnimation /
+// asSceneAutoStartAnimation / asStartAnimationFromTop; the rest are ahRelocateBehavior's.
+typedef struct BEHAVIOR_TRACK {         /* 0x20 bytes */
+    u_int keys;                         /* 0x00: the keys (BEHAVIOR_KEY_SIZE each) */
+    u_int length;                       /* 0x04: the keys' total length ('=': low 25 bits) */
+    u_char playing;                     /* 0x08: 1 from the top, 0 stopped */
+    char kind;                          /* 0x09: BEHAVIOR_TRACK_* ('H', '>', '=') */
+    short step;                         /* 0x0a: 1 from the top */
+    u_short runs;                       /* 0x0c */
+    u_char value0e;                     /* 0x0e: TRACK_VALUE0E_START at scene start */
+    u_char flags;                       /* 0x0f: TRACK_FLAG_* */
+    u_int pad10[2];
+    int time;                           /* 0x18: 0 from the top */
+    int time1c;                         /* 0x1c: 0 from the top when asked */
+} BEHAVIOR_TRACK;
+static_assert(sizeof(BEHAVIOR_TRACK) == 0x20, "BEHAVIOR_TRACK");
+static_assert(offsetof(BEHAVIOR_TRACK, playing) == 0x08, "BEHAVIOR_TRACK.playing");
+static_assert(offsetof(BEHAVIOR_TRACK, step) == 0x0a, "BEHAVIOR_TRACK.step");
+static_assert(offsetof(BEHAVIOR_TRACK, value0e) == 0x0e, "BEHAVIOR_TRACK.value0e");
+static_assert(offsetof(BEHAVIOR_TRACK, time) == 0x18, "BEHAVIOR_TRACK.time");
+typedef struct BEHAVIOR_GROUP {         /* 8 bytes, from BEHAVIOR +0x10 */
+    short pad0;
+    short trackCount;                   /* 0x2 */
+    u_int tracks;                       /* 0x4: BEHAVIOR_TRACK[trackCount] */
+} BEHAVIOR_GROUP;
+static_assert(sizeof(BEHAVIOR_GROUP) == 8, "BEHAVIOR_GROUP");
+static_assert(offsetof(BEHAVIOR_GROUP, tracks) == 4, "BEHAVIOR_GROUP.tracks");
+typedef struct BEHAVIOR {
+    u_char pad00[8];
+    short groupCount;                   /* 0x08 */
+    u_char pad0a[6];
+    BEHAVIOR_GROUP groups[1];           /* 0x10: groupCount of them */
+} BEHAVIOR;
+static_assert(offsetof(BEHAVIOR, groupCount) == 0x08, "BEHAVIOR.groupCount");
+static_assert(offsetof(BEHAVIOR, groups) == 0x10, "BEHAVIOR.groups");
+#define TRACK_FLAG_STARTED 0x2          /* asSceneAutoStartAnimation sets it on an auto-start track */
+#define TRACK_FLAG_AUTO_START 0x4       /* the track plays from the top at scene start */
+#define TRACK_VALUE0E_START 100         /* asSceneAutoStartAnimation's value for every track's +0xe */
+
+void asStartAnimationFromTop(BEHAVIOR_TRACK *track, int resetTime);                      // CT3 0x018497b0
+int asGetForceMatrixOperationFlag(void);                                                 // CT3 0x01851370
+#define EV_FORCE_MATRIX_OPERATION 0x68  /* ssTrigCheckEvent: matrices forced, no shadow volumes */
+
+// asShadowDrawing_CheckTransMode's modes, as asDrawShadowVolumeLoop calls it (named from that use).
+#define SHADOW_TRANS_SORT 0             /* sort the shadowed banks; 0: start a pass */
+#define SHADOW_TRANS_FIN 1              /* 0: the pass ends here (asShadowEnd) */
+#define SHADOW_TRANS_NEXT 2             /* the next bank, SHADOW_TRANS_END after the last */
+#define SHADOW_TRANS_END (-1)
+int asShadowDrawing_CheckTransMode(int mode);                                            // CT3 0x01847660
+void asDrawShadowVolumeInit(int a0);                                                     // CT3 0x018461f0
+void asShadowStart(void);                                                                // CT3 0x018471c0
+void asDrawShadowVolume(int bank);                                                       // CT3 0x018444b0
+void asShadowEnd(int bank);                                                              // CT3 0x01846360
+// scene_end: the shadow block back to gHeapJunc, shadow70 cleared.
+void asShadowDrawing_Fin(int scene);                                                     // CT3 0x01847bd0
+// PORT: BankInfo +0x58 is the bank's _SunAlloc'd shadow block; a host pointer does not fit the word.
+extern void *ShadowBlock[BANK_MAX];
+#define POLY_DISPLAY_ROTATE 0x1         /* a ga draw object's first byte: the winding a mirror flips */
+extern float vPVbk[4];                  /* 0x01937740 */
+extern float vPPbk[4];                  /* 0x01937750 */

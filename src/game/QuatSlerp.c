@@ -256,3 +256,22 @@ void asGetCrossPointInPlaneWithLine(float out[4], float a[4], float b[4], float 
 {
     ALYSSAPAN_STUB("asGetCrossPointInPlaneWithLine", 0x01859f00);
 }
+
+// stub of CT3 0x018520b0
+void OmniRangeChange(u_char *rec)
+{
+    ALYSSAPAN_STUB("OmniRangeChange", 0x018520b0);
+}
+
+// CT3 0x0185e040
+// Written early (2026-11-10, ahRelocateSunPs2ObjectArry.c slice 4): BuildMatrixTree indexes by it.
+int absi(int v)
+{
+    return v < 0 ? -v : v;
+}
+
+// stub of CT3 0x0185d4d0
+void asMakeWatchMeMatrixToPosition(float (*out)[4], float (*m)[4], float *target, int axis)
+{
+    ALYSSAPAN_STUB("asMakeWatchMeMatrixToPosition", 0x0185d4d0);
+}

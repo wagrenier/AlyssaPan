@@ -7,6 +7,12 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-10, ahRelocateSunPs2ObjectArry.c slice 4) **callcheck misses calls made before a function's
+  `alignas(16) float m[4][4] = { {...} }` locals end**: BuildMatrixTree's BMT_01 / BMT_20 calls were
+  reported missing (and `alignas`, `float` as extra calls); a `// callcheck:` line covers them. Also: a
+  section heading must not carry `CT3 0x` (the slice-3 hazard bit again).
+- (2026-11-10, slice 4) **A stub that answers 0 can turn into a wrong index**: absi's stub made
+  BuildMatrixTree read bank 0's parts header (NULL) and crash. Write trivial callees (abs, min) early.
 - (2026-11-10, ahRelocateSunPs2ObjectArry.c slice 3) **A model part record starts at header + 0x40, not
   at the header**: MODEL_PARTS is declared from the header, so its offsets are record + 0x40 and a record
   pointer from asFindModelParts must step back PARTS_RECORDS before it is a MODEL_PARTS. Fields past
