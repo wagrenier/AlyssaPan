@@ -105,7 +105,10 @@ typedef struct CHARA_JUNC {
 typedef struct CAMERA {
     float view[4][4];                   /* 0x000: the view matrix (asGetShadowMatrixGlobalView copies
                                            Cam[6]'s, the shared one, for the shadows) */
-    u_char pad040[0xb0];
+    float view2[4][4];                  /* 0x040: asBuildMirrorMatrixTree multiplies Cam[6]'s onto the
+                                           reflected part matrix where the DOF tree has matrix_global_view
+                                           (name from that one use) */
+    u_char pad080[0x70];
     float focus[4];                    /* 0x0f0: the point looked at (ssHQDOF_DrawAllObject's focusPos) */
     u_char pad100[0x78];
     short cut;                          /* 0x178: the camera's cut, CamChange_S's second argument (a save
@@ -115,6 +118,7 @@ typedef struct CAMERA {
 static_assert(offsetof(CAMERA, cut) == 0x178, "CAMERA.cut");
 static_assert(sizeof(CAMERA) == 0x1c0, "CAMERA");
 static_assert(offsetof(CAMERA, focus) == 0x0f0, "CAMERA.focus");
+static_assert(offsetof(CAMERA, view2) == 0x040, "CAMERA.view2");
 
 #define CAMERA_MAX 7                    /* Cam[]: 3136 bytes in the symtab */
 
@@ -136,7 +140,9 @@ typedef struct BANK_INFO {
     // asShadowDrawing_Init / _Disable / _CheckTransMode, 2026-11-10)
     float shadowVec[4];                 /* 0x30: (0, 0, 0, 1) at init; w (0x3c) is cleared by
                                            asShadowDrawing_Disable: the shadow's on word */
-    u_char pad40[0x14];
+    u_char pad40[0x10];
+    int shadowFrame;                    /* 0x50: the FrameCounter the volume was stocked on: drawn only then
+                                           (asDrawShadowVolume) */
     u_int shadowLightPos;               /* 0x54: the attached light position (0: detached) */
     int shadow58;                       /* 0x58: the bank's _SunAlloc'd shadow block (asShadowDrawing_Fin frees it);
                                            0 at init. PORT: the host keeps it in ShadowBlock[bank] */
@@ -164,6 +170,7 @@ static_assert(offsetof(BANK_INFO, handle) == 0x24, "BANK_INFO.handle");
 static_assert(offsetof(BANK_INFO, flags) == 0x28, "BANK_INFO.flags");
 static_assert(offsetof(BANK_INFO, shadowVec) == 0x30, "BANK_INFO.shadowVec");
 static_assert(offsetof(BANK_INFO, shadowLightPos) == 0x54, "BANK_INFO.shadowLightPos");
+static_assert(offsetof(BANK_INFO, shadowFrame) == 0x50, "BANK_INFO.shadowFrame");
 static_assert(offsetof(BANK_INFO, shadowLength) == 0x5c, "BANK_INFO.shadowLength");
 static_assert(offsetof(BANK_INFO, shadowColor) == 0x60, "BANK_INFO.shadowColor");
 static_assert(offsetof(BANK_INFO, shadowOrder) == 0x6c, "BANK_INFO.shadowOrder");
@@ -265,7 +272,10 @@ typedef struct ALL_TABLE {
     u_int particles;                    /* 0x58: list of PARTICLE_ENTRY: main_rtn_Particle's */
     u_int pad5c;
     u_int objAfter;                     /* 0x60: list: after the particles; non-empty -> ExportDrawToTex */
-    u_int pad64[3];
+    u_int pad64[2];
+    u_int shadow;                       /* 0x6c: the shadow table (relocated: 7 words, then 8 key tables);
+                                           its word 0 is the shadow volume's ga draw objects, 0x80 apart,
+                                           ended by a 0 kind byte (asDrawShadowVolume) */
     u_int partsLight;                   /* 0x70: float[parts]: TEX_KIND_LIGHT parts' DRAW_OBJ_LIGHT */
     u_int pad74;
     u_int particles2;                   /* 0x78: list of PARTICLE2_ENTRY: main_rtn_Particle2 mode 0 */

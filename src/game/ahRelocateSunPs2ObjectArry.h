@@ -113,8 +113,8 @@ void ahRelocateBehavior(u_int behavior, u_int image, u_int base);               
 // address its words are relocated to is BankImageEE[] of the bank holding it.
 void ahRelocateFileObject(u_char *image, int persona);                                   // CT3 0x0183e710
 void asDrawShadowVolumeLoop(void);                                                       // CT3 0x018443c0
-void asBuildMirrorMatrixTreeBack(void *tree);                                            // CT3 0x0184f120
-void asBuildMirrorMatrixTree(void *tree);                                                // CT3 0x0184f220
+void asBuildMirrorMatrixTreeBack(u_char *partsHeader);                                   // CT3 0x0184f120
+void asBuildMirrorMatrixTree(u_char *partsHeader);                                       // CT3 0x0184f220
 void asGAobjectControlPolygonDisplayRotateFlagReverse(ALL_TABLE *tbl);                   // CT3 0x0184f330
 void asMirrorCulling(int on);                                                            // CT3 0x0184f390
 int asMakeMirrorMatrixByPlane(float *planeVec, float *planePoint);                       // CT3 0x0184f910
@@ -402,8 +402,9 @@ typedef struct MIRROR_LIST {            /* 8 bytes */
 typedef struct MIRROR {                 /* 0x50 bytes */
     int part;                           /* 0x00: the part (MODEL_PARTS index) whose matrix places it */
     u_char pad04[0xc];
-    float p[3][4];                      /* 0x10: three points of the plane, in the part's space (w 1) */
-    u_char pad40[0x10];
+    float p[4][4];                      /* 0x10: the mirror's four corners in the part's space (w 1);
+                                           asEnumMirror's plane takes the first three, asMirrorCulling
+                                           projects all four */
 } MIRROR;
 static_assert(sizeof(MIRROR_LIST) == 8, "MIRROR_LIST");
 static_assert(sizeof(MIRROR) == 0x50, "MIRROR");
@@ -412,6 +413,8 @@ static_assert(offsetof(MIRROR, p) == 0x10, "MIRROR.p");
 // part record (PARTS_REC); asMirrorCulling and the mirror tree read them.
 extern MIRROR *mrr_pActvMirrorMO;       /* sbss 0x0193cae0 */
 extern u_char *mrr_pActvMirrorMP;       /* sbss 0x0193cb00 */
+extern float mrr_MirrorCullingRect[4];  /* sbss 0x0193cad0: asMirrorCulling's saved clip rectangle */
+extern int mrr_MirrorClip_bk;           /* sbss 0x0193cac0: asMirrorCulling's saved Clipping_System */
 
 void asStartAnimationFromTop(BEHAVIOR_TRACK *track, int resetTime);                      // CT3 0x018497b0
 int asGetForceMatrixOperationFlag(void);                                                 // CT3 0x01851370
@@ -423,7 +426,7 @@ int asGetForceMatrixOperationFlag(void);                                        
 #define SHADOW_TRANS_NEXT 2             /* the next bank, SHADOW_TRANS_END after the last */
 #define SHADOW_TRANS_END (-1)
 int asShadowDrawing_CheckTransMode(int mode);                                            // CT3 0x01847660
-void asDrawShadowVolumeInit(int a0);                                                     // CT3 0x018461f0
+void asDrawShadowVolumeInit(void);                                                       // CT3 0x018461f0
 void asShadowStart(void);                                                                // CT3 0x018471c0
 void asDrawShadowVolume(int bank);                                                       // CT3 0x018444b0
 void asShadowEnd(int bank);                                                              // CT3 0x01846360

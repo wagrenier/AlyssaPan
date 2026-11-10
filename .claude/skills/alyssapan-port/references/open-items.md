@@ -415,6 +415,23 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    asShadowPolygonPositions and asStockShadowVolume (one piece: ga draw objects with the
    ShadowVolume1_* VIF data, through the host draw module), asDrawShadowVolume / _Init, asShadowEnd,
    asShadowStart and the rest of the brief's list.
+   Open from slice 11 (2026-11-10, the mirror trees, asMirrorCulling, the shadow volume pass): (dq)
+   CAMERA +0x40 is named `view2` from one use (asBuildMirrorMatrixTree multiplies Cam[6]'s in where
+   the DOF tree has matrix_global_view): the camera TU names it; (dr) MIRROR holds four corners at
+   +0x10 (not three and a pad): asMirrorCulling projects all four; (ds) gaMulMatrix must allow
+   out == b (asBuildMirrorMatrixTree: m2 = view2 * m2; the VU code works in registers) -- the
+   gaInit3dlib.c TU must keep that; (dt) asShadowStart passes sunSetupTBufferData a TEX_INFO whose tim
+   is the ELF data address 0x01937c80 (tex_attr_A$2750, 512 x 448 log2 9 x 9, the shadow buffer read
+   as a texture), not a bank address: the QuatSlerp.c TU that writes sunSetupTBufferData resolves it
+   (bytes in this slice's comment); (du) ALL_TABLE +0x6c is `shadow` (the relocator's 7-word table with
+   8 key tables; word 0 the volume's ga draw objects) and BANK_INFO +0x50 `shadowFrame` (the
+   FrameCounter of the stock), both named from asDrawShadowVolume: asStockShadowVolume confirms them;
+   (dv) the volume object's kind byte (+1): 1 / 5 subtract (SDW_drawctrl_S), 2 / 6 add
+   (SDW_drawctrl_A), 6 ends the list; what tells 5 from 1 and 6 from 2 is asStockShadowVolume's;
+   (dw) asDrawShadowVolumeInit's four stores into SDW_drawctrl_A +0x10..+0x1c (ShadowVolume1/2 tex_st
+   and vertex colour addresses) are overwritten by gaSetupDrawCtrlData's packet head at once: dropped,
+   unless the ga TU finds the head keeps them. Left in this TU: EA_010, the general body of
+   ExecuteAnimation, asShadowPolygonPositions + asStockShadowVolume, asShadowEnd, and the brief's rest.
    (bw) Extract is untested against a known image: the first scene_init that runs on relocated data is
    its test (a wrong decode shows as garbage tables); a harness decoding one CT3X file from CT3PACK.DAT
    beside the ROM's (eerun.py) would prove it sooner.

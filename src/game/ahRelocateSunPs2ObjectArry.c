@@ -2,12 +2,15 @@
 // Functions below are stubs until reconstructed; see tools/reverse/stage.py.
 
 #include "common/alyssapan_stub.h"
+#include "sdk/eekernel.h"
 #include "game/ahRelocateSunPs2ObjectArry.h"
 
 #include <math.h>
 #include <string.h>
 
+#include "ga/gaBGT_DrawObject.h"
 #include "ga/gaInit3dlib.h"
+#include "ga/gaInitDrawObject.h"
 #include "ga/gaSearchNearLight4.h"
 #include "game/Convert.h"
 #include "game/LinkMatrixTree.h"
@@ -1450,7 +1453,7 @@ void asDrawShadowVolumeLoop(void)
         int bank, last = -1;
         EffectBuffer_Use = 1;
         if (asShadowDrawing_CheckTransMode(SHADOW_TRANS_SORT) == 0) {
-            asDrawShadowVolumeInit(2);
+            asDrawShadowVolumeInit();
             asShadowStart();
         }
         bank = asShadowDrawing_CheckTransMode(SHADOW_TRANS_NEXT);
@@ -2758,16 +2761,53 @@ void asShadowPolygonPositions(int bank)
 }
 
 
-// stub of CT3 0x0184f220
-void asBuildMirrorMatrixTree(void *tree)
+// CT3 0x0184f220
+// The mirror pass's matrices (main, a character in a mirrored scene): asBuildDOFMatrixTree's loop with
+// the reflection put in: REC_GA_MATRIX2 = Cam[CAMERA_SHARED].view2 * (mrr_ReverseMatrix * the part's
+// REC_DOF_MATRIX, w of rows 0..2 zeroed), REC_GA_MATRIX = that * the diagonal scale (the identity from
+// sdata 0x01937760 with REC_DOF_SCALE_*). From the disassembly (the decompiler dropped the first
+// gaMulMatrix's third argument).
+void asBuildMirrorMatrixTree(u_char *partsHeader)
 {
-    ALYSSAPAN_STUB("asBuildMirrorMatrixTree", 0x0184f220);
+    alignas(16) float scale[4][4] = { { 1, 0, 0, 0 }, { 0, 1, 0, 0 }, { 0, 0, 1, 0 }, { 0, 0, 0, 1 } }; /* 0x01937760 */
+    u_char *rec;
+    for (rec = partsHeader + PARTS_RECORDS; !PARTS_END(rec); rec += sizeof(MODEL_PARTS)) {
+        signed char kind = (signed char)rec[REC_KIND];
+        float (*m2)[4] = (float (*)[4])(rec + REC_GA_MATRIX2);
+        alignas(16) float m[4][4];
+        if (kind == PARTS_KIND_STATIC || kind == PARTS_KIND_NO_POS || kind == PARTS_KIND_3)
+            continue;
+        memcpy(m, rec + REC_DOF_MATRIX, sizeof(m));
+        scale[0][0] = *(float *)(rec + REC_DOF_SCALE_X);
+        scale[1][1] = *(float *)(rec + REC_DOF_SCALE_Y);
+        scale[2][2] = *(float *)(rec + REC_DOF_SCALE_Z);
+        m[0][3] = m[1][3] = m[2][3] = 0.0f;
+        gaMulMatrix(m2, mrr_ReverseMatrix, m);
+        gaMulMatrix(m2, Cam[CAMERA_SHARED].view2, m2);
+        gaMulMatrix((float (*)[4])(rec + REC_GA_MATRIX), m2, scale);
+    }
 }
 
-// stub of CT3 0x0184f120
-void asBuildMirrorMatrixTreeBack(void *tree)
+// CT3 0x0184f120
+// After the mirror pass: the parts' matrices back to the unreflected ones, the same body as
+// asBuildDOFMatrixTree (matrix_global_view * REC_DOF_MATRIX, then the scale from sdata 0x019377a0).
+void asBuildMirrorMatrixTreeBack(u_char *partsHeader)
 {
-    ALYSSAPAN_STUB("asBuildMirrorMatrixTreeBack", 0x0184f120);
+    alignas(16) float scale[4][4] = { { 1, 0, 0, 0 }, { 0, 1, 0, 0 }, { 0, 0, 1, 0 }, { 0, 0, 0, 1 } }; /* 0x019377a0 */
+    u_char *rec;
+    for (rec = partsHeader + PARTS_RECORDS; !PARTS_END(rec); rec += sizeof(MODEL_PARTS)) {
+        signed char kind = (signed char)rec[REC_KIND];
+        alignas(16) float m[4][4];
+        if (kind == PARTS_KIND_STATIC || kind == PARTS_KIND_NO_POS || kind == PARTS_KIND_3)
+            continue;
+        memcpy(m, rec + REC_DOF_MATRIX, sizeof(m));
+        scale[0][0] = *(float *)(rec + REC_DOF_SCALE_X);
+        scale[1][1] = *(float *)(rec + REC_DOF_SCALE_Y);
+        scale[2][2] = *(float *)(rec + REC_DOF_SCALE_Z);
+        m[0][3] = m[1][3] = m[2][3] = 0.0f;
+        gaMulMatrix((float (*)[4])(rec + REC_GA_MATRIX2), matrix_global_view, m);
+        gaMulMatrix((float (*)[4])(rec + REC_GA_MATRIX), (float (*)[4])(rec + REC_GA_MATRIX2), scale);
+    }
 }
 
 
@@ -2778,24 +2818,303 @@ int asMakeMirrorMatrixByPlane(float *planeVec, float *planePoint)
     return {};
 }
 
-// stub of CT3 0x0184f390
+// asMirrorCulling's modes (main: 0 before the mirror pass, 1 after it).
+#define MIRROR_CULL_BEGIN 0
+#define MIRROR_CULL_END 1
+// screen_0's floats asMirrorCulling reads (gaSet3dlibStruct's screen; main.c has SCREEN_PROJ too).
+#define SCREEN_X 0                      /* the screen's left edge */
+#define SCREEN_Y 1                      /* its top edge */
+#define SCREEN_W 2                      /* its width (512) */
+#define SCREEN_H 3                      /* its height (448) */
+#define SCREEN_CX 4                     /* the projection centre */
+#define SCREEN_CY 5
+#define SCREEN_PROJ_D 8                 /* the projection distance (512) */
+#define CLIPPING_PORTAL 1               /* Clipping_System: main_rtn clips by Clipping_Portal */
+
+float mrr_MirrorCullingRect[4];         /* sbss 0x0193cad0: the clip rectangle the mirror pass replaced
+                                           (X1, X2, Y1, Y2) */
+int mrr_MirrorClip_bk;                  /* sbss 0x0193cac0: Clipping_System before the mirror pass */
+
+// CT3 0x0184f390
+// The mirror pass draws only inside the mirror: MIRROR_CULL_BEGIN saves the clip rectangle and
+// Clipping_System, turns the portal clip on and sets the rectangle to the screen bounds of the active
+// mirror's four corners (each through its part's REC_GA_MATRIX, then projected: centre + d * x / z;
+// y flipped about the screen's bottom edge), clamped to the screen. Every corner behind the eye
+// (z < 0): an empty rectangle; some behind: the whole screen. MIRROR_CULL_END puts the saved ones back.
+// From the disassembly. The rectangle is in screen_0's 512 x 448 space; the host's wide aspect comes
+// from the renderer, not from here.
 void asMirrorCulling(int on)
 {
-    ALYSSAPAN_STUB("asMirrorCulling", 0x0184f390);
+    signed char mode = (signed char)on;
+    alignas(16) float v[4][4];
+    float x0, y0, x1, y1, fx[4], fy[4], lo, hi, t;
+    int i, j;
+    if (mode == MIRROR_CULL_END) {
+        Clipping_X1_pos = mrr_MirrorCullingRect[0];
+        Clipping_X2_pos = mrr_MirrorCullingRect[1];
+        Clipping_Y1_pos = mrr_MirrorCullingRect[2];
+        Clipping_Y2_pos = mrr_MirrorCullingRect[3];
+        Clipping_System = mrr_MirrorClip_bk;
+        return;
+    }
+    if (mode != MIRROR_CULL_BEGIN)
+        return;
+    mrr_MirrorClip_bk = Clipping_System;
+    Clipping_System = CLIPPING_PORTAL;
+    mrr_MirrorCullingRect[0] = Clipping_X1_pos;
+    mrr_MirrorCullingRect[1] = Clipping_X2_pos;
+    mrr_MirrorCullingRect[2] = Clipping_Y1_pos;
+    mrr_MirrorCullingRect[3] = Clipping_Y2_pos;
+    {
+        const float (*m)[4] = (const float (*)[4])(mrr_pActvMirrorMP + REC_GA_MATRIX);
+        for (i = 0; i < 4; i++) {
+            const float *p = mrr_pActvMirrorMO->p[i];
+            for (j = 0; j < 4; j++)
+                v[i][j] = m[0][j] * p[0] + m[1][j] * p[1] + m[2][j] * p[2] + m[3][j] * p[3];
+        }
+    }
+    x0 = screen_0[SCREEN_X];
+    y0 = screen_0[SCREEN_Y];
+    x1 = screen_0[SCREEN_X] + screen_0[SCREEN_W];
+    y1 = screen_0[SCREEN_Y] + screen_0[SCREEN_H];
+    if (v[0][2] < 0.0f && v[1][2] < 0.0f && v[2][2] < 0.0f && v[3][2] < 0.0f) {
+        Clipping_Y2_pos = Clipping_Y1_pos = Clipping_X2_pos = Clipping_X1_pos = 0.0f;
+        return;
+    }
+    if (v[0][2] < 0.0f || v[1][2] < 0.0f || v[2][2] < 0.0f || v[3][2] < 0.0f) {
+        Clipping_X1_pos = x0;
+        Clipping_Y1_pos = y0;
+        Clipping_Y2_pos = y1;
+        Clipping_X2_pos = x1;
+        return;
+    }
+    for (i = 0; i < 4; i++) {
+        fx[i] = screen_0[SCREEN_CX] + (screen_0[SCREEN_PROJ_D] * v[i][0]) / v[i][2];
+        fy[i] = screen_0[SCREEN_CY] + (screen_0[SCREEN_PROJ_D] * v[i][1]) / v[i][2];
+    }
+    /* x: min / max, clamped to the screen, ordered */
+    lo = hi = fx[0];
+    for (i = 1; i < 4; i++) {
+        if (fx[i] < lo)
+            lo = fx[i];
+        else if (hi < fx[i])
+            hi = fx[i];
+    }
+    if (lo < x0) lo = x0; else if (x1 < lo) lo = x1;
+    if (hi < x0) hi = x0; else if (x1 < hi) hi = x1;
+    if (hi < lo) { t = lo; lo = hi; hi = t; }
+    Clipping_X1_pos = lo;
+    Clipping_X2_pos = hi;
+    /* y: min / max, flipped about the bottom edge, clamped, ordered */
+    lo = hi = fy[0];
+    for (i = 1; i < 4; i++) {
+        if (fy[i] < lo)
+            lo = fy[i];
+        else if (hi < fy[i])
+            hi = fy[i];
+    }
+    lo = y1 - lo;
+    hi = y1 - hi;
+    if (lo < y0) lo = y0; else if (y1 < lo) lo = y1;
+    if (hi < y0) hi = y0; else if (y1 < hi) hi = y1;
+    if (hi < lo) { t = lo; lo = hi; hi = t; }
+    Clipping_Y1_pos = lo;
+    Clipping_Y2_pos = hi;
 }
 
 
 
-// stub of CT3 0x018444b0
+// ---- the shadow volume pass (slice 11, 2026-11-10) ----
+//
+// A shadowed bank's volume is a list of ga draw objects in its bank data (ALL_TABLE.shadow's word 0),
+// stocked once a frame by asStockShadowVolume. asShadowStart points drawing at the shadow buffer
+// (SHADOW_FBUF_ADDRESS) and clears it with a full-screen sprite; the volume's faces then go in with
+// SDW_drawctrl_A (adds) or SDW_drawctrl_S (subtracts), switched per object by its kind byte;
+// asShadowEnd lays the result over the frame.
+
+#define SHADOW_FBUF_ADDRESS 0xc0000     /* the shadow buffer: ga_draw_fbuf_address during the pass */
+#define SHADOW_FBUF_WIDTH 0x200
+#define SHADOW_SCISSOR_X1 0x1ff         /* 512 x 448 (screen_0's space) */
+#define SHADOW_SCISSOR_Y1 0x1bf
+
+// A shadow volume object's kind byte (+1; asStockShadowVolume writes it, asDrawShadowVolume clears it).
+#define SV_OBJ_KIND 1
+#define SV_KIND_END 0                   /* the list ends */
+#define SV_KIND_SUB 1                   /* drawn subtracting (SDW_drawctrl_S) */
+#define SV_KIND_ADD 2                   /* drawn adding (SDW_drawctrl_A) */
+#define SV_KIND_SUB_5 5                 /* as SV_KIND_SUB (what tells 5 from 1 is not read yet) */
+#define SV_KIND_ADD_LAST 6              /* as SV_KIND_ADD, and the list's last object */
+#define SV_OBJ_SIZE 0x80
+#define SV_CTRL_NONE 0                  /* asDrawShadowVolume: no draw control sent yet */
+#define SV_CTRL_SUB 1
+#define SV_CTRL_ADD (-1)
+
+// The draw controls (gaSetupDrawCtrlData's 29 argument slots, from the disassembly): flat, UV, alpha
+// blended, untextured; alpha test always passing, depth tested GEQUAL (the shadow buffer's ZBUF is
+// masked: d_buffer_A's zMsk 1, so depth is read, never written). A: Cs * As + Cd; S: Cd - Cs * As.
+static const GA_DRAWCTRL_ARGS SDW_DRAWCTRL_A_ARGS = {
+    0, 0, 0, 1, 0, 1, 0, 0, /* PRMODE: ABE, FST */
+    0, 1, 0, 1, 0, 0, 1, 2, /* TEST_1: ATST 1, AFAIL 1, ZTE, ZTST 2 */
+    0, 2, 0, 1, 0,          /* ALPHA_1: A 0 (Cs), B 2 (0), C 0 (As), D 1 (Cd) */
+    0,                      /* FBA_1 */
+    0, 0, 1, 1, 0, 0,       /* TEX1_1: MMAG 1, MMIN 1 */
+    0};                     /* TEXA */
+static const GA_DRAWCTRL_ARGS SDW_DRAWCTRL_S_ARGS = {
+    0, 0, 0, 1, 0, 1, 0, 0, /* PRMODE: ABE, FST */
+    0, 1, 0, 1, 0, 0, 1, 2, /* TEST_1: as A */
+    2, 0, 0, 1, 0,          /* ALPHA_1: A 2 (0), B 0 (Cs), C 0 (As), D 1 (Cd) */
+    0,                      /* FBA_1 */
+    0, 0, 1, 1, 0, 0,       /* TEX1_1 */
+    0};                     /* TEXA */
+// The shadow buffer's clear: flat, UV, no blend, alpha test always, no depth test (ZTST 1 ALWAYS).
+static const GA_DRAWCTRL_ARGS EBCLEAR_B_ARGS = {
+    0, 0, 0, 0, 0, 1, 0, 0, /* PRMODE: FST */
+    0, 1, 0, 0, 0, 0, 0, 1, /* TEST_1: ATST 1, ZTST 1 */
+    0, 1, 0, 1, 0,          /* ALPHA_1: A 0, B 1, C 0, D 1 */
+    0,                      /* FBA_1 */
+    0, 0, 1, 1, 0, 0,       /* TEX1_1: MMAG 1, MMIN 1 */
+    0};                     /* TEXA */
+
+alignas(16) static GA_DRAWCTRL_DATA SDW_drawctrl_S;     /* bss 0x0193c8c0 */
+alignas(16) static GA_DRAWCTRL_DATA SDW_drawctrl_A;     /* bss 0x0193c980 */
+static int asSD_BackBufferAdd;                          /* sbss 0x0193c880: ga_draw_fbuf_address before
+                                                           the pass (asShadowEnd puts it back) */
+alignas(16) static u_char tex_A_2748[0x100];            /* bss 0x0193c480: sunSetupTBufferData's buffer */
+alignas(16) static GA_DBUFFER_DATA d_buffer_A_2747;     /* bss 0x0193c580 */
+alignas(16) static GA_DRAWCTRL_DATA gaDC_EBclear_B_2753; /* bss 0x0193c3c0 */
+static char iCngFlag_2749;                              /* sbss 0x0193bd70: tex_A / d_buffer_A set up */
+static char iCngFlag_2754;                              /* sbss 0x0193bd74: gaDC_EBclear_B set up */
+static char iCngFlag_2863;                              /* sbss 0x0193bd8c: the SDW_drawctrl_* set up */
+
+/* sdata 0x01937d00: dc_EBclear_C$2757, the shadow buffer's clear: one sprite, RGBA 0x80808080, Q 1,
+   (0x8000, 0x8000) .. (0xa000, 0x9c00) -- 512 x 448 at the GS offset. */
+static const u_char dc_EBclear_C_init[0x50] = {
+    0x04, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x50,
+    0x01, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x44, 0x10, 0x44, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x80, 0x80, 0x80, 0x00, 0x00, 0x80, 0x3f,
+    0x00, 0x80, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0xa0, 0x00, 0x9c, 0x00, 0x00, 0x00, 0x00,
+};
+static GA_DRAWCOMMAND_DATA dc_EBclear_C_make()
+{
+    GA_DRAWCOMMAND_DATA d;
+    memcpy(&d, dc_EBclear_C_init, sizeof d);
+    return d;
+}
+alignas(16) static GA_DRAWCOMMAND_DATA dc_EBclear_C_2757 = dc_EBclear_C_make();
+
+/* data 0x01937830: ShadowVolume_light_work_data (0x190 bytes): a VIF UNPACK V4-32 of 16 qwords to
+   0x180, zeros, and an identity matrix at +0x150; gaSetLight fills the rest. */
+static u_char *ShadowVolumeLightWorkMake()
+{
+    alignas(16) static u_char work[0x190];
+    static const u_int unpack = 0x6c100180u;
+    static const float ident[4][4] = { { 1, 0, 0, 0 }, { 0, 1, 0, 0 }, { 0, 0, 1, 0 }, { 0, 0, 0, 1 } };
+    memcpy(work + 0xc, &unpack, 4);
+    memcpy(work + 0x150, ident, sizeof(ident));
+    return work;
+}
+static u_char *ShadowVolume_light_work_data = ShadowVolumeLightWorkMake();
+
+// CT3 0x018461f0
+// The volume's light under the shadow view; the two draw controls once. The ROM first stores the
+// addresses of ShadowVolume1/2_tex_st_data and _vertex_color_data into SDW_drawctrl_A +0x10..+0x1c,
+// which gaSetupDrawCtrlData's packet head overwrites at once: not kept.
+void asDrawShadowVolumeInit(void)
+{
+    gaSetLight(ShadowVolume_light_work_data, matrix_global_view_for_shadow);
+    if (iCngFlag_2863 == 0) {
+        gaSetupDrawCtrlData(&SDW_drawctrl_A, SDW_DRAWCTRL_A_ARGS);
+        gaSetupDrawCtrlData(&SDW_drawctrl_S, SDW_DRAWCTRL_S_ARGS);
+        iCngFlag_2863 = 1;
+    }
+}
+
+// CT3 0x018471c0
+// Drawing goes to the shadow buffer (the old address kept for asShadowEnd), its frame / texture
+// buffers set up once and sent, then the clear sprite under gaDC_EBclear_B.
+// PORT: sunSetupTBufferData's TEX_INFO.tim is the EE address of tex_attr_A$2750 (data 0x01937c80:
+// 512 x 448, log2 9 x 9, +0x18 0x000e0000 -- the shadow buffer read as a texture); the QuatSlerp.c TU
+// that writes sunSetupTBufferData resolves it (open-items.md).
+void asShadowStart(void)
+{
+    asSD_BackBufferAdd = ga_draw_fbuf_address;
+    ga_draw_fbuf_address = SHADOW_FBUF_ADDRESS;
+    if (iCngFlag_2749 == 0) {
+        TEX_INFO tex;
+        memset(&tex, 0, sizeof(tex));
+        tex.tim = 0x01937c80u;                  /* tex_attr_A$2750 */
+        tex.tbuf[0] = SHADOW_FBUF_ADDRESS;
+        tex.tbuf[3] = 1;
+        tex.tbuf[4] = 1;
+        sunSetupTBufferData(tex_A_2748, tex);
+        gaSetupDBufferData(&d_buffer_A_2747, ga_draw_fbuf_address, SHADOW_FBUF_WIDTH, 0, 0, 0, 0, 1, 0, 0,
+                           SHADOW_SCISSOR_X1, SHADOW_SCISSOR_Y1, 0, 0, 0);
+        iCngFlag_2749 = 1;
+    }
+    FlushCache(0);
+    gaBGT_ExecDBufferData_VIF1(&d_buffer_A_2747);
+    sunBGT_ExecTBufferData_VIF1(tex_A_2748);
+    if (iCngFlag_2754 == 0) {
+        gaSetupDrawCtrlData(&gaDC_EBclear_B_2753, EBCLEAR_B_ARGS);
+        iCngFlag_2754 = 1;
+    }
+    gaBGT_ExecDrawCtrlData_VIF1(&gaDC_EBclear_B_2753);
+    gaBGT_ExecDrawCommandData_VIF1(&dc_EBclear_C_2757);
+}
+
+// CT3 0x018444b0
+// One bank's shadow volume: only when its shadow is on (shadowVec w > 0), it has a shadow table, its
+// shadowDraw bit 0 is set (cleared here) and the volume was stocked this frame. In the plain order
+// (asShadowDrawing_CheckTransMode(SHADOW_TRANS_FIN) != 0) the bank starts and ends its own pass.
+// Each object is drawn under the control its kind names, sent only when it changes; the kind is
+// cleared (the stock is one frame's); SV_KIND_ADD_LAST ends the list after its draw.
 void asDrawShadowVolume(int bank)
 {
-    ALYSSAPAN_STUB("asDrawShadowVolume", 0x018444b0);
-}
-
-// stub of CT3 0x018461f0
-void asDrawShadowVolumeInit(int a0)
-{
-    ALYSSAPAN_STUB("asDrawShadowVolumeInit", 0x018461f0);
+    int more = 1, ctrl = SV_CTRL_NONE;
+    u_char *obj;
+    u_int *table;
+    BANK_INFO *bi;
+    if (bank < 0)
+        return;
+    bi = &BankInfo[bank];
+    table = All_table_TBL[bank]->shadow ? BANK_PTR(u_int *, bank, All_table_TBL[bank]->shadow) : NULL;
+    if (bi->shadowVec[3] <= 0.0f || table == NULL)
+        return;
+    if ((bi->shadowDraw & 1) == 0)
+        return;
+    bi->shadowDraw &= 0xfe;
+    if (bi->shadowFrame != FrameCounter)
+        return;
+    if (asShadowDrawing_CheckTransMode(SHADOW_TRANS_FIN) != 0) {
+        asDrawShadowVolumeInit();
+        asShadowStart();
+    }
+    for (obj = BANK_PTR(u_char *, bank, table[0]); obj[SV_OBJ_KIND] != SV_KIND_END && more; obj += SV_OBJ_SIZE) {
+        switch (obj[SV_OBJ_KIND]) {
+        case SV_KIND_ADD_LAST:
+            more = 0;
+            /* fall through */
+        case SV_KIND_ADD:
+            obj[SV_OBJ_KIND] = 0;
+            if (ctrl != SV_CTRL_ADD) {
+                gaBGT_ExecDrawCtrlData_VIF1(&SDW_drawctrl_A);
+                ctrl = SV_CTRL_ADD;
+            }
+            break;
+        case SV_KIND_SUB:
+        case SV_KIND_SUB_5:
+            obj[SV_OBJ_KIND] = 0;
+            if (ctrl != SV_CTRL_SUB) {
+                gaBGT_ExecDrawCtrlData_VIF1(&SDW_drawctrl_S);
+                ctrl = SV_CTRL_SUB;
+            }
+            break;
+        }
+        gaBGT_DrawObject(obj, 0);
+    }
+    if (asShadowDrawing_CheckTransMode(SHADOW_TRANS_FIN) != 0)
+        asShadowEnd(bank);
 }
 
 // stub of CT3 0x01846360
@@ -2804,11 +3123,6 @@ void asShadowEnd(int bank)
     ALYSSAPAN_STUB("asShadowEnd", 0x01846360);
 }
 
-// stub of CT3 0x018471c0
-void asShadowStart(void)
-{
-    ALYSSAPAN_STUB("asShadowStart", 0x018471c0);
-}
 
 // ---- the double buffer (asCopyDoubleBuffer and its L2V, slice 5, 2026-11-10) ----
 //
