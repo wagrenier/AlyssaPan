@@ -12,9 +12,14 @@ typedef struct CHARACTER {
     s_char id;                          /* 0x000: -1 = slot free */
     u_char pad001;
     short bank;                         /* 0x002: its bank (BankInfo index), < 0 = none */
-    u_char pad004[0x84];
+    short slot004[10];                  /* 0x004: Character_All_Init: -1 */
+    u_char slot018[10];                 /* 0x018: Character_All_Init: 0 */
+    u_char slot022[10][10];             /* 0x022: Character_All_Init: 0 */
+    u_char pad086[2];
     u_int flags;                        /* 0x088: CHARACTER_FLAG_* */
-    u_char pad08c[0x14];
+    u_char pad08c[4];
+    u_long w090;                        /* 0x090: Character_All_Init: 0 (a doubleword store) */
+    u_long w098;                        /* 0x098: Character_All_Init: 0 (a doubleword store) */
     short lightBank;                    /* 0x0a0: the bank whose light main_rtn applies, -1 = none */
     u_char pad0a2[0xe];
     qword posBefore;                   /* 0x0b0: last frame's position (main copies pos here first) */
@@ -22,11 +27,29 @@ typedef struct CHARACTER {
     u_char pad0d0[0x18];
     int rotBefore;                      /* 0x0e8: last frame's value of 0x0ec */
     int rot;                            /* 0x0ec */
-    u_char pad0f0[0x43c];
+    u_char pad0f0[0xc];
+    int w0fc;                           /* 0x0fc: Character_All_Init: 0 */
+    short h100;                         /* 0x100: Character_All_Init: -1 */
+    s_char b102;                        /* 0x102: Character_All_Init: -1 */
+    u_char pad103[0x2f1 - 0x103];
+    u_char b2f1;                        /* 0x2f1: Character_All_Init: 1 */
+    u_char b2f2;                        /* 0x2f2: Character_All_Init: 0 */
+    u_char pad2f3[0xd];
+    int w300[4];                        /* 0x300: Character_All_Init: 0 */
+    u_char behavior[0x524 - 0x310];     /* 0x310: asInitPlayerBehaviorControler's (0x310..0x488 at least) */
+    int hp;                             /* 0x524: Character_All_Init: Char_Init_MAX_HP[i] */
+    int hpMax;                          /* 0x528: Character_All_Init: Char_Init_MAX_HP[i] (which of the
+                                           two is the maximum is a guess from the table's name) */
     u_char translucent;                 /* 0x52c: CHARA_TRANS_*; non-zero: AllDrawObject's last pass draws it */
     u_char pad52d[3];
     float translucentAlpha;             /* 0x530: tiChara_Translucence_End's first argument */
-    u_char pad534[0x4c];
+    u_char b534;                        /* 0x534: Character_All_Init: 0 */
+    u_char pad535;
+    short h536[6];                      /* 0x536: Character_All_Init: 0 */
+    u_char pad542[0x570 - 0x542];
+    struct CHARA_JUNC *junc;            /* 0x570: a block of gHeapJunc, freed with its buffer by
+                                           Character_All_Init. layout: host (an EE word there) */
+    u_char pad578[0x580 - 0x570 - sizeof(void *)];
 } CHARACTER;
 static_assert(sizeof(CHARACTER) == 0x580, "CHARACTER");
 static_assert(offsetof(CHARACTER, bank) == 0x002, "CHARACTER.bank");
@@ -37,6 +60,21 @@ static_assert(offsetof(CHARACTER, pos) == 0x0c0, "CHARACTER.pos");
 static_assert(offsetof(CHARACTER, rotBefore) == 0x0e8, "CHARACTER.rotBefore");
 static_assert(offsetof(CHARACTER, translucent) == 0x52c, "CHARACTER.translucent");
 static_assert(offsetof(CHARACTER, translucentAlpha) == 0x530, "CHARACTER.translucentAlpha");
+static_assert(offsetof(CHARACTER, slot022) == 0x022, "CHARACTER.slot022");
+static_assert(offsetof(CHARACTER, w090) == 0x090, "CHARACTER.w090");
+static_assert(offsetof(CHARACTER, w0fc) == 0x0fc, "CHARACTER.w0fc");
+static_assert(offsetof(CHARACTER, b2f1) == 0x2f1, "CHARACTER.b2f1");
+static_assert(offsetof(CHARACTER, w300) == 0x300, "CHARACTER.w300");
+static_assert(offsetof(CHARACTER, hp) == 0x524, "CHARACTER.hp");
+static_assert(offsetof(CHARACTER, h536) == 0x536, "CHARACTER.h536");
+static_assert(offsetof(CHARACTER, junc) == 0x570, "CHARACTER.junc");
+
+// The gHeapJunc block at CHARACTER.junc: only its buffer pointer (EE +0xc) is read so far (Character_All_Init
+// frees it, then the block). layout: host -- the EE's 0xc bytes before it are kept, the pointer is a host one.
+typedef struct CHARA_JUNC {
+    u_char pad00[0xc];
+    void *buf;                          /* EE 0x0c: a gHeapJunc block */
+} CHARA_JUNC;
 
 // CHARACTER.translucent (AllDrawObject): any bit keeps the character out of the opaque and mirror passes.
 #define CHARA_TRANS_TRANSLUCENT 0x1     /* drawn last between tiChara_Translucence_Start / _End */

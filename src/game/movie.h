@@ -5,3 +5,4 @@
 #include "sdk/scetypes.h"
 
 void AA_MovieProc(void);                                                                 // CT3 0x018bf6c0
+void AA_MovieIOPInit(void);                                                              // CT3 0x018bf980

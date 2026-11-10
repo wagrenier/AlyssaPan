@@ -11,3 +11,9 @@ void AA_MovieProc(void)
 {
     ALYSSAPAN_STUB("AA_MovieProc", 0x018bf6c0);
 }
+
+// stub of CT3 0x018bf980
+void AA_MovieIOPInit(void)
+{
+    ALYSSAPAN_STUB("AA_MovieIOPInit", 0x018bf980);
+}

@@ -309,12 +309,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 91..91, 8 functions keyed by their statics, 3 unkeyed; file name from the names"
   },
   "game/Character_Init.c": {
+   "notes": "Left: MemorycardUpdate (0x17e8, reached every frame), mc_check2/3, mc_save_system_init, mc_save_set / mc_save_new / mc_save_normal, format paths, SceneLightSet, CharLightSet. CHARACTER gained the fields the reset writes (named by offset; hp/hpMax order a guess) and a host pointer junc at +0x570 (CHARA_JUNC, buffer at EE +0xc). IopLoadModules declared taking argv[0]. mc_alloc answers 1 on success (ROM: the block address); SdAlloc/SdFree are stubs so the card buffer does not exist yet. mc_load_new keeps the ROM bumping mc_save_normal_num. Shot black as before; last.png was 0 bytes this run (shot_25980.png black). open-items.md (ag)-(al).",
    "ranges": [
     [
      "018b3a60",
      "018bb610"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-09 23:56",
+     "status": "partial",
+     "summary": "slice 1: Character_All_Init, IOPInit, McInit, the memory card work buffer (mc_alloc, mc_free, mc_save_data_init), card checks (mc_check, mc_check_always, MemorycardAutoLoadInsertedCheck3), mc_make_checksum, mc_load_new"
+    }
+   ],
+   "status": "partial",
    "why": "tumap.py (bootstrap 5): symtab local chunks 105..105, 36 functions keyed by their statics, 13 unkeyed; file name from the names"
   },
   "game/Clipping_Portal.c": {

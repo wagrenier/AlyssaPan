@@ -187,3 +187,22 @@ int SdReqPlaySESp1(int jls, int a1, int a2, int a3, int a4, int a5, int a6, void
     ALYSSAPAN_STUB("SdReqPlaySESp1", 0x018cc350);
     return {};
 }
+
+// stub of CT3 0x018d17d0
+void * SdAlloc(int size, int align, const char *name)
+{
+    ALYSSAPAN_STUB("SdAlloc", 0x018d17d0);
+    return {};
+}
+
+// stub of CT3 0x018d17a0
+void SdFree(void **mem)
+{
+    ALYSSAPAN_STUB("SdFree", 0x018d17a0);
+}
+
+// stub of CT3 0x018ce640
+void SdLoadSQEndWaitAll(void)
+{
+    ALYSSAPAN_STUB("SdLoadSQEndWaitAll", 0x018ce640);
+}

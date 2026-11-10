@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-09 23:29 at commit `4a5af04` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-09 23:56 at commit `3b224f4` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **168**; stubs: **229**
+- reconstructed CT3 functions: **180**; stubs: **238**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -42,15 +42,16 @@ Least-named game-code regions (64 KB blocks):
 | `src/ga/gaInitInterrupt.c` | 3 | 0 |
 | `src/ga/gaInitMeter.c` | 6 | 0 |
 | `src/ga/gaObjectClippingCheck.c` | 0 | 1 |
+| `src/ga/gaPadInit.c` | 0 | 1 |
 | `src/ga/gaVifInit.c` | 6 | 0 |
 | `src/ga/pad_button_read.c` | 0 | 1 |
 | `src/game/AlignedNum.c` | 4 | 0 |
-| `src/game/ArtoolDebugOpen.c` | 0 | 1 |
-| `src/game/Character_Init.c` | 0 | 5 |
+| `src/game/ArtoolDebugOpen.c` | 0 | 3 |
+| `src/game/Character_Init.c` | 12 | 5 |
 | `src/game/Clipping_Portal.c` | 0 | 31 |
 | `src/game/LinkMatrixTree.c` | 0 | 4 |
 | `src/game/QuatSlerp.c` | 0 | 33 |
-| `src/game/SdMasterVolumeSetSE.c` | 0 | 29 |
+| `src/game/SdMasterVolumeSetSE.c` | 0 | 32 |
 | `src/game/ahRelocateSunPs2ObjectArry.c` | 0 | 28 |
 | `src/game/ahalloc.c` | 7 | 0 |
 | `src/game/asEyeForcusUP2CamMat.c` | 0 | 7 |
@@ -58,24 +59,25 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/asMothRouteSearch.c` | 0 | 2 |
 | `src/game/asUseArrow.c` | 0 | 2 |
 | `src/game/asXcmd.c` | 0 | 1 |
-| `src/game/fileio.c` | 0 | 8 |
+| `src/game/fileio.c` | 0 | 9 |
 | `src/game/hhXcmd_DressUp.c` | 0 | 1 |
 | `src/game/main.c` | 29 | 0 |
 | `src/game/main2.c` | 0 | 5 |
-| `src/game/movie.c` | 0 | 1 |
+| `src/game/movie.c` | 0 | 2 |
 | `src/game/sound.c` | 73 | 0 |
 | `src/game/ssGrpPortalCheck.c` | 0 | 11 |
 | `src/game/ssHitCheckAttackToScn.c` | 0 | 3 |
 | `src/game/ssSetTexUVforCubeMap.c` | 0 | 30 |
 | `src/game/tiAvoidObject.c` | 0 | 3 |
 | `src/game/tkXDTrg_GetSceneHash.c` | 0 | 1 |
-| `src/game/wideXcmd_DebugPrint.c` | 0 | 12 |
+| `src/game/wideXcmd_DebugPrint.c` | 0 | 13 |
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 56, verify 9, done 2
+- 65 TUs: todo 55, partial 1, verify 9, done 2
 - next: **game/Character_Init.c** (pinned in the queue)
 - pinned queue: game/Character_Init.c, game/ArtoolDebugOpen.c, game/main2.c, game/fileio.c
+- partial: `game/Character_Init.c` 12/49 -- Left: MemorycardUpdate (0x17e8, reached every frame), mc_check2/3, mc_save_system_init, mc_save_set / mc_save_new / mc_save_normal, format paths, SceneLightSet,
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaInitDrawObject.c` 24/24 -- No ROM caller for the texture three (the game uses its sun* copies in QuatSlerp.c): complete, nothing on screen can show them. Shot black as before: packets go 
 - verify: `ga/gaInitInterrupt.c` 3/3 -- GCC object; wait_vsync_state (data 0x0192e790), ga_main_timer, ga_down_timer defined here. gaWaitVSync takes no argument and returns the CSR FIELD bit; main.c c
@@ -88,6 +90,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-09 23:56 `game/Character_Init.c` partial: slice 1: Character_All_Init, IOPInit, McInit, the memory card work buffer (mc_alloc, mc_free, mc_save_data_init), card checks (mc_check, mc_check_always, Memory
 - 2026-11-09 23:29 `game/sound.c` verify: slice 3: SSLoadSEfromLoadPoint - the bank's SE load list (SOUND_OBJ_TABLE.loadSE, SE_LOAD_POINT rows); sound.c's 69 functions are written
 - 2026-11-09 23:18 `game/sound.c` partial: slice 2: 30 functions - SSProc, SSBGMProc and Branch1..5BGMProc (scene codes, chase BGM, T_BREAK), sound objects and trigger actions, positional SEs, volume sav
 - 2026-11-09 22:53 `game/sound.c` partial: slice 1: 38 of 69 functions - boot and end, SE and SQ entry points, the stage SQ rules (Branch1..5 SSPlaySQ/SSStopSQ), movie and demo mute, angle helpers; gFile
@@ -95,21 +98,20 @@ Recent sessions:
 - 2026-11-09 22:22 `game/ahalloc.c` verify: SunAlloc block heaps: all 7 functions (init, alloc with alignment pads and splits, free with neighbour merges, border check, debug map)
 - 2026-11-09 22:10 `ga/gaInitMeter.c` verify: ga/gaInitMeter.c: all 6 functions (gaInitMeter, gaStartMeter, gaEndCpuMeter, gaEndGSMeter, gaGetCpuTimer, gaGetEEcoreTimer) and its 3 data words; TU renamed fro
 - 2026-11-09 21:53 `ga/gaInitDrawObject.c` verify: slice 2: the texture three -- gaSetupTBufferData (TEX0, CLAMP, MIPTBP1/2, TEXFLUSH and the upload record, GA_TEX_DESC / GA_TBUFFER_DATA), gaBGT_SetLoadGSEnv (BI
-- 2026-11-09 21:42 `ga/gaInitDrawObject.c` partial: slice 1: 21 of 24 functions -- the ga packet builders (gsinit, dbuffer with its 14 values, drawctrl with GA_DRAWCTRL_ARGS fields named, fogctrl), the scratchpad
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `game/QuatSlerp.c` | todo | 0/33/177 | 50.3 | 155 | 14 |
+| `game/QuatSlerp.c` | todo | 0/33/177 | 50.3 | 159 | 14 |
 | `game/ssGrpPortalCheck.c` | todo | 0/11/59 | 26.4 | 147 | 7 |
-| `game/SdMasterVolumeSetSE.c` | todo | 0/29/61 | 22.9 | 117 | 7 |
+| `game/SdMasterVolumeSetSE.c` | todo | 0/32/61 | 22.9 | 121 | 7 |
 | `game/Clipping_Portal.c` | todo | 0/31/73 | 44.8 | 113 | 12 |
-| `game/ahRelocateSunPs2ObjectArry.c` | todo | 0/28/93 | 76.0 | 82 | 9 |
-| `game/wideXcmd_DebugPrint.c` | todo | 0/12/109 | 40.6 | 80 | 12 |
-| `game/ssSetTexUVforCubeMap.c` | todo | 0/30/96 | 35.3 | 64 | 5 |
+| `game/ahRelocateSunPs2ObjectArry.c` | todo | 0/28/93 | 76.0 | 89 | 10 |
+| `game/wideXcmd_DebugPrint.c` | todo | 0/13/109 | 40.6 | 82 | 12 |
+| `game/ssSetTexUVforCubeMap.c` | todo | 0/30/96 | 35.3 | 65 | 5 |
+| `game/fileio.c` | todo | 0/9/40 | 23.3 | 42 | 4 |
 | `game/asEyeForcusUP2CamMat.c` | todo | 0/7/30 | 23.6 | 39 | 4 |
-| `game/fileio.c` | todo | 0/8/40 | 23.3 | 35 | 3 |
 | `ga/gaDmaSync_VIF1.c` | todo | 0/3/5 | 0.5 | 35 | 3 |
-| `game/Character_Init.c` | todo | 0/5/49 | 30.6 | 25 | 3 |
+| `ga/gaInit3dlib.c` | todo | 0/3/25 | 3.6 | 21 | 2 |
 | `game/main2.c` | todo | 0/5/18 | 6.2 | 21 | 3 |
 
 ## Frontier (called by reconstructed code, not written yet)

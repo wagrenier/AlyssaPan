@@ -11,3 +11,16 @@ void ArtoolDebugOpen(void)
 {
     ALYSSAPAN_STUB("ArtoolDebugOpen", 0x0189e180);
 }
+
+// stub of CT3 0x0189f160
+int FlInit(void)
+{
+    ALYSSAPAN_STUB("FlInit", 0x0189f160);
+    return {};
+}
+
+// stub of CT3 0x0189f2f0
+void IopLoadModules(const char *elfPath)
+{
+    ALYSSAPAN_STUB("IopLoadModules", 0x0189f2f0);
+}

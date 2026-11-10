@@ -17,3 +17,4 @@ void asMonsterDistanceStack_inPanic(int a0, int a1, int a2);                    
 void asAlyssaLockedByAnything(int mode);                                                 // CT3 0x018fbb50
 void asSetCharacterKeyEnable(int enable);                                                // CT3 0x018fe370
 void ChrMoveControllerMode_init(void);                                                   // CT3 0x018fe4b0
+void asInitPlayerBehaviorControler(CHARACTER *chr);                                      // CT3 0x018fe380

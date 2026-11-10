@@ -54,3 +54,9 @@ char * fs_error(const char *file, int line, const char *title, const char *fmt, 
     ALYSSAPAN_STUB("fs_error", 0x018c7ec0);
     return {};
 }
+
+// stub of CT3 0x018c7eb0
+void FSInit(void)
+{
+    ALYSSAPAN_STUB("FSInit", 0x018c7eb0);
+}

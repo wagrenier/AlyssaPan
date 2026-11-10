@@ -135,3 +135,6 @@ void SdSoundEnable(void);                                                       
 void SdSoundDisable(void);                                                               // CT3 0x018d14d0
 void SdSetEffect(int a0, int a1, int a2);                                                // CT3 0x018d1600
 void SdChangeStereoMono(void);                                                           // CT3 0x018d1810
+void *SdAlloc(int size, int align, const char *name);                                    // CT3 0x018d17d0
+void SdFree(void **mem);                                                                 // CT3 0x018d17a0
+void SdLoadSQEndWaitAll(void);                                                           // CT3 0x018ce640

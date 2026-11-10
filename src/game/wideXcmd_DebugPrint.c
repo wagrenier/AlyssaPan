@@ -77,3 +77,9 @@ void asSetCharacterKeyEnable(int enable)
 {
     ALYSSAPAN_STUB("asSetCharacterKeyEnable", 0x018fe370);
 }
+
+// stub of CT3 0x018fe380
+void asInitPlayerBehaviorControler(CHARACTER *chr)
+{
+    ALYSSAPAN_STUB("asInitPlayerBehaviorControler", 0x018fe380);
+}

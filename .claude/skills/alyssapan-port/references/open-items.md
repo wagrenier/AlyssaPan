@@ -122,7 +122,20 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    +0x1c, still `pad1c` in BANK_INFO) with no bank index; the host finds the bank by matching
    `BankImage[]` (PORT `SoundBankOfImage`) -- fileio.c's TU must fill BankImage before it calls this, or
    may change the call to pass the bank),
-   game/Character_Init.c, game/ArtoolDebugOpen.c, game/main2.c,
+   game/Character_Init.c (partial 2026-11-09, slice 1: Character_All_Init, IOPInit, McInit, mc_alloc / mc_free /
+   mc_save_data_init, mc_check, mc_check_always, MemorycardAutoLoadInsertedCheck3, mc_make_checksum,
+   mc_load_new; left: MemorycardUpdate (0x17e8, reached every frame), mc_check2/3, mc_save_system_init, the save / load / format
+   paths, SceneLightSet / CharLightSet. Open: (ag) CHARACTER's new fields (ct3_types.h: slot004 / slot018 /
+   slot022, w090, w098, w0fc, h100, b102, b2f1, b2f2, w300, b534, h536) are named by offset from the reset
+   only; hp / hpMax (+0x524 / +0x528, both Char_Init_MAX_HP) may be the other way round; (ah) CHARACTER.junc
+   (+0x570) is a host pointer to CHARA_JUNC whose buffer sits at EE +0xc: whoever allocates it confirms
+   the record; (ai) IopLoadModules is declared taking argv[0] (IOPInit passes it; the ROM body reads no
+   argument -- SetDeviceName may): ArtoolDebugOpen.c's TU confirms; FSInit is empty (4 bytes);
+   (aj) mc_alloc answers 1 on success where the ROM answers the block address; SdAlloc / SdFree are still
+   stubs, so the card buffer never exists yet; (ak) CHARACTER still lives in ct3_types.h, not this TU's
+   header: move it when the rest of its users are written); (al) mc_load_new bumps mc_save_normal_num,
+   not its own step (disassembly 0x018b8d10 / 0x018b8df0): kept as the ROM's slip -- mc_save_normal's
+   session checks whether it matters), game/ArtoolDebugOpen.c, game/main2.c,
    game/fileio.c.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a

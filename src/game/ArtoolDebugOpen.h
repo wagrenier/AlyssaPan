@@ -5,3 +5,5 @@
 #include "sdk/scetypes.h"
 
 void ArtoolDebugOpen(void);                                                              // CT3 0x0189e180
+void IopLoadModules(const char *elfPath);                                                // CT3 0x0189f2f0
+int FlInit(void);                                                                        // CT3 0x0189f160

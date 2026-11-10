@@ -12,3 +12,4 @@ void FS_work_init(void);                                                        
 void objSortWithBlurIdx(int scene, int count, void *table);                              // CT3 0x018c23b0
 void objSort(int scene, int count, void *table);                                         // CT3 0x018c2880
 char *fs_error(const char *file, int line, const char *title, const char *fmt, ...);     // CT3 0x018c7ec0
+void FSInit(void);                                                                       // CT3 0x018c7eb0
