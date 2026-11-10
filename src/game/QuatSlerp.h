@@ -42,3 +42,8 @@ void EventSoundEnd(void);                                                       
 int GetAreaNumber(int a0);                                                               // CT3 0x01852240
 int BankID_TO_CharID(short bank);                                                        // CT3 0x0185a400
 u_long GetRoomName_file(const char *name);                                               // CT3 0x0185c2e0: ahGetHash of the first 4 chars
+// From game/main2.c's calls (2026-11-10). asJointParts / _byMatrix answer 1 or 2 when no joint portal
+// part is found; _byMatrix also reads DrawOnPosSetHashTemp.
+u_char *asFindModelParts(u_char *header, u_long hash);                                   // CT3 0x0185e100
+int asJointParts(int srcBank, int bank, u_long hash);                                    // CT3 0x01854b20
+int asJointParts_byMatrix(float (*mat)[4], int *pos, int bank);                          // CT3 0x01854750

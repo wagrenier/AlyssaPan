@@ -10,3 +10,5 @@ void ssAI_SceneInit(int scene);                                                 
 // The AI's part of a save image (Character_Init.c's data_save_set / data_load_set pass the image).
 void ssAI_MemSaveData(u_char *data);                                                     // CT3 0x018662a0
 void ssAI_MemLoadInit(u_char *data);                                                     // CT3 0x018662d0
+struct CHARACTER;
+void ssAI_BrainEnd(struct CHARACTER *chara, int brain);                                  // CT3 0x01865e20 (main2.c)

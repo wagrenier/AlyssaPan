@@ -1548,7 +1548,6 @@ void scene_draw_init(int scene)
     asForceOperateAnimation_Scene(scene, 0);
 }
 
-static u_long FogClearColor(const u_char *fog);
 
 // ──────────────────────────────────────────────────────────────────────
 // A bank's set-up once its file is loaded (FSMltLoadProc): the triggers, the bank's tables out of its
@@ -1776,7 +1775,7 @@ void system_init(void)
 // The frame's clear colour: the scene's fog colour (R +4, G +8, B +0xc) under Q 1.0 / A 0x80.
 // Host: before a scene loads its fog table the pointer is null, which the EE reads harmlessly (kernel RAM
 // at 0x4..0xc); the host clears to black instead.
-static u_long FogClearColor(const u_char *fog)
+u_long FogClearColor(const u_char *fog)
 {
     if (fog == 0)
         return FRAMECLEAR_RGBAQ;

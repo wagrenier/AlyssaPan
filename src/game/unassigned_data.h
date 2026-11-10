@@ -173,6 +173,10 @@ extern PANIC_INFO PanicInfoData;                /* sbss 0x01940e50 */
 extern int GlobalVariable[GLOBAL_VARIABLE_COUNT]; /* sbss 0x01941190 */
 extern u_char GlobalEventFlag[GLOBAL_EVENT_FLAG_BYTES]; /* sbss 0x01941590 */
 extern qword DrawOnPosSetVectorTemp;            /* sbss 0x01942540: TrgSceneDraw(.., -2, ..) places the bank here */
+extern float DrawOnPosSetMatrixTemp[4][4];      /* sbss 0x01942500: asJointParts_byMatrix's matrix (main2.c) */
+extern u_long DrawOnPosSetHashTemp;             /* sbss 0x019424e0: != 0 -> TrgSceneDraw(.., -2, ..) joints by matrix */
+extern int CharacterDisable;                    /* sbss 0x01942384: main2 clears it */
+extern float matUnit[4][4];                     /* sdata 0x01939e40: the unit matrix */
 extern u_char LetterData[100][0xc];             /* data 0x0192fad0: the letter table */
 
 // ---- sound (game/sound.c's slice 1 uses them; the Sd driver TU or the scene TU owns them) -----------

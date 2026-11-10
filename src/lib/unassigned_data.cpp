@@ -292,6 +292,11 @@ PANIC_INFO PanicInfoData;                       /* sbss 0x01940e50 */
 int GlobalVariable[GLOBAL_VARIABLE_COUNT];      /* sbss 0x01941190 */
 u_char GlobalEventFlag[GLOBAL_EVENT_FLAG_BYTES]; /* sbss 0x01941590 */
 qword DrawOnPosSetVectorTemp;                   /* sbss 0x01942540 */
+alignas(16) float DrawOnPosSetMatrixTemp[4][4];  /* sbss 0x01942500 */
+u_long DrawOnPosSetHashTemp;                    /* sbss 0x019424e0 */
+int CharacterDisable;                           /* sbss 0x01942384 */
+alignas(16) float matUnit[4][4] = {             /* sdata 0x01939e40 */
+    {1.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 1.0f}};
 u_char LetterData[100][0xc] = {                 /* data 0x0192fad0 */
     {0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
     {0x00, 0x01, 0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0xf2, 0x03, 0x00, 0x00},

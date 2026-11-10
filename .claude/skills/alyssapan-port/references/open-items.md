@@ -202,6 +202,29 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    sceSifClientData[3] (120 bytes on the EE: 3 x 0x28), FlProc waits on [1]; (bi) FL_STATE_CANCEL (0x15)
    has no writer in this TU: whoever sets it names it; (bj) gValIOPGetFileLen (0x0193e350) is placed in
    this TU by address order, before IOPGetFileSize.c's static sFileNameToIOP: move it if that TU owns it.
+   **game/main2.c (verify, 2026-11-10): all 18 functions** -- main2, InitLoadSceneChar (INFO / E_GL /
+   0MH0 into global banks 5 / 3 / 1, then ATLD at power-on or TITL into bank 0), the scene / global /
+   shape / behaviour triggers, CharacterAllFree, the self-discard queue (SELF_DISCARD_LOAD, main2.h).
+   A smoke run now leaves main2 and runs the frame loop (no crash, ~26,000 frames in 15 s: nothing paces
+   it yet); the shot stays black because FSMltLoad is a stub, so no bank ever loads. **game/fileio.c is
+   the next blocker** (FSMltLoad / _End / _Status / _EndWaitFile / FSMltSetDrawBank, BankImage[] /
+   BankImageEE[] for decision h). Open: (bk) PORT BankReady (main2.c) skips TrgGLBLSceneDraw /
+   TrgSceneDraw's set-up while All_table_TBL[bank] or pModelPartsHeader[bank] is null -- drop it once the
+   loader fills them (the ROM's FSMltLoadEndWaitFile returns only when the bank is in); (bl) CHARACTER's
+   fields renamed from this TU: behaviorBank[10] (+4, was slot004: (bd) settled), shapeName (+0x18),
+   behaviorName[10][10] (+0x22), brain (+0xfc, was w0fc), legParts[8] (+0x54c, the eight leg parts'
+   EE addresses + 0x40 via the new BankEeAddr; their readers resolve them with BankEePtr(chr->bank, ..));
+   MODEL_PARTS.hash (+0x48, u_long) and .matrix (+0x1c0) named; (am) CHARACTER.brain is an EE word:
+   TrgCharacterShapeFree reads its +0x24e id through it, which is only safe while nothing sets it (the AI
+   TU, tiAvoidObject.c / ssAI_*, decides the host form); (bm) ROM slips kept: CharacterAllFree passes a
+   behaviour slot index where TrgCharacterBehaviorFree takes a bank; TrgCharacterBehaviorSet writes slot
+   10 when all ten are taken; TrgSceneLoad / TrgSceneDraw answer the caller's s0 for a global bank (the
+   port answers the handle / bank); (bn) EV_TITLE_23 / _25 (0x23 / 0x25: Character_Init.h calls them
+   TRIG_EVENT_GLBL_LOADED / _UNLOADED -- one name should win), EV_SELF_DISCARD_LOADING (0x4a), EV_NO_E00
+   (0xb6), FS_LOAD_* (FSMltLoad's kind 0..3), the enemy scene banks (E_02 0x27, E_03 / E_04 0x1e, E_05
+   0x22, E_00 0x2e) and GLBL_BANK_* are named from this TU's use only; (bo) Character_Init(chara, a1, a2)
+   (0x018b3a60) is now declared and stubbed in Character_Init.c: TrgCharacterShapeSet passes its own
+   fifth then fourth argument; (bp) FogClearColor (main.c) is now shared through main.h.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
    class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~

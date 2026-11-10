@@ -15,3 +15,10 @@ void objSort(int scene, int count, void *table);                                
 char *fs_error(const char *file, int line, const char *title, const char *fmt, ...);     // CT3 0x018c7ec0
 void FSInit(void);                                                                       // CT3 0x018c7eb0
 void Round2ChangeChar(int round);                                                        // CT3 0x018c2df0
+// From game/main2.c's calls (2026-11-10): FSMltLoad answers a handle FSMltLoadEnd polls (< 0: not yet);
+// FSMltLoadStatus is non-zero while the bank's file is still loading; FSMltLoadEndWaitFile waits for it
+// and answers the bank. kind: main2.h FS_LOAD_*.
+int FSMltLoad(char *name, int kind, int bank, int arg);                                  // CT3 0x018c5cd0
+int FSMltLoadEnd(int handle);                                                            // CT3 0x018c3f30
+int FSMltLoadStatus(int bank, char *name);                                               // CT3 0x018c3fd0
+int FSMltLoadEndWaitFile(int bank, char *name);                                          // CT3 0x018c3cf0

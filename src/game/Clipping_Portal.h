@@ -38,3 +38,4 @@ void tiWindInit(int scene);                                                     
 void tiLensFlaresInit(int scene);                                                        // CT3 0x0188e4a0
 void tiParticleInit(int scene);                                                          // CT3 0x01890350
 void tiHurikoInit(int scene);                                                            // CT3 0x018933f0
+void tiPipeJointInit(int bank);                                                          // CT3 0x0188bf30 (main2.c: chara 3's shape)

@@ -7,6 +7,12 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-10, game/main2.c) **symtab values are decimal in `symtab.entries()`**: matUnit is 26451520 =
+  0x01939e40, not 0x01939c40 (a slip in mental hex conversion put it on a code-pointer table). Print
+  `hex(e['value'])`, and read the bytes in Ghidra before writing an initial value.
+- (2026-11-10, game/main2.c) **Once a stubbed loader sits under real code, the tables it should fill are
+  null**: scene_draw_init crashed on All_table_TBL[bank] because FSMltLoad is a stub. Guard at the
+  caller with a named PORT check (BankReady) and log it as an open item, rather than in the callee's TU.
 - (2026-11-10, game/Character_Init.c slice 5) **A void callee whose v0 the caller reads.** Ghidra types
   MemorycardAutoLoadInsertedCheck / 2 / 3 and FreeCheck as void, yet MemorycardAutoLoad branches on their
   result: each one calls its check, stores to SlotErr with a0 / a1 / v1 only, and returns with v0 still

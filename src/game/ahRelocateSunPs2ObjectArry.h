@@ -33,3 +33,4 @@ void asSeatArrange_Init(int scene);                                             
 void asShadowDrawing_Init(int scene);                                                    // CT3 0x01847b10
 void asBehaviorStopAnimation(void *behavior);                                            // CT3 0x01847dc0
 void asSceneAutoStartAnimation(void *behavior);                                          // CT3 0x01847fd0
+void asForceOperateAnimation_Character(int chara, int mode);                              // CT3 0x018423c0 (main2.c)

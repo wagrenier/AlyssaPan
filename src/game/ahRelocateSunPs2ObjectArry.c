@@ -175,3 +175,9 @@ void asShadowDrawing_Init(int scene)
 {
     ALYSSAPAN_STUB("asShadowDrawing_Init", 0x01847b10);
 }
+
+// stub of CT3 0x018423c0
+void asForceOperateAnimation_Character(int chara, int mode)
+{
+    ALYSSAPAN_STUB("asForceOperateAnimation_Character", 0x018423c0);
+}

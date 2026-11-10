@@ -229,3 +229,24 @@ u_long GetRoomName_file(const char *name)
     ALYSSAPAN_STUB("GetRoomName_file", 0x0185c2e0);
     return {};
 }
+
+// stub of CT3 0x0185e100
+u_char * asFindModelParts(u_char *header, u_long hash)
+{
+    ALYSSAPAN_STUB("asFindModelParts", 0x0185e100);
+    return {};
+}
+
+// stub of CT3 0x01854b20
+int asJointParts(int srcBank, int bank, u_long hash)
+{
+    ALYSSAPAN_STUB("asJointParts", 0x01854b20);
+    return {};
+}
+
+// stub of CT3 0x01854750
+int asJointParts_byMatrix(float (*mat)[4], int *pos, int bank)
+{
+    ALYSSAPAN_STUB("asJointParts_byMatrix", 0x01854750);
+    return {};
+}

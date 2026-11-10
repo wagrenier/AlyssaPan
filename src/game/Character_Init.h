@@ -388,3 +388,5 @@ int mc_Getinfo_BranchNo(int file);                                              
 int mc_Getinfo_msg_num(int file);                                                        // CT3 0x018b5f60
 int mc_Getinfo_time(int file);                                                           // CT3 0x018b5fc0
 void Set_AA_New_McAlloc_Mode(void);                                                      // CT3 0x018bb600
+// From TrgCharacterShapeSet's call (main2.c, 2026-11-10): its own fourth and fifth arguments, swapped.
+void Character_Init(int chara, int a1, int a2);                                          // CT3 0x018b3a60

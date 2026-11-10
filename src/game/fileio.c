@@ -72,3 +72,31 @@ void Round2ChangeChar(int round)
 {
     ALYSSAPAN_STUB("Round2ChangeChar", 0x018c2df0);
 }
+
+// stub of CT3 0x018c5cd0
+int FSMltLoad(char *name, int kind, int bank, int arg)
+{
+    ALYSSAPAN_STUB("FSMltLoad", 0x018c5cd0);
+    return {};
+}
+
+// stub of CT3 0x018c3f30
+int FSMltLoadEnd(int handle)
+{
+    ALYSSAPAN_STUB("FSMltLoadEnd", 0x018c3f30);
+    return {};
+}
+
+// stub of CT3 0x018c3cf0
+int FSMltLoadEndWaitFile(int bank, char *name)
+{
+    ALYSSAPAN_STUB("FSMltLoadEndWaitFile", 0x018c3cf0);
+    return {};
+}
+
+// stub of CT3 0x018c3fd0
+int FSMltLoadStatus(int bank, char *name)
+{
+    ALYSSAPAN_STUB("FSMltLoadStatus", 0x018c3fd0);
+    return {};
+}

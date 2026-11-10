@@ -1,6 +1,5 @@
 {
  "queue": [
-  "game/main2.c",
   "game/fileio.c"
  ],
  "settings": {
@@ -600,12 +599,21 @@
    "why": "main's object, from the symtab: after newlib's __swsetup (ends 0x01834434), up to libgcc's __muldi3; main_rtn_GHOST_DOF .. main 0x01839d10 (0x11c8 bytes, the last function). File name a guess: CT3 has no string for it."
   },
   "game/main2.c": {
+   "notes": "Smoke run leaves main2 and runs the frame loop with no crash; the shot stays black because FSMltLoad (fileio.c) is a stub so no bank loads. PORT BankReady skips the draw set-up of unloaded banks. CHARACTER fields behaviorBank, shapeName, behaviorName, brain, legParts and MODEL_PARTS hash, matrix named. Next blocker: game/fileio.c. open-items.md 1 (bk)..(bp), (am).",
    "ranges": [
     [
      "018b20f0",
      "018b3a60"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-10 01:57",
+     "status": "verify",
+     "summary": "all 18 functions: main2, InitLoadSceneChar, the scene, global, shape and behaviour triggers, CharacterAllFree, the self-discard queue"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 104..104, 14 functions keyed by their statics, 4 unkeyed; file name from the names"
   },
   "game/movie.c": {

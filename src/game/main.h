@@ -94,6 +94,8 @@ void main_rtn(int bank, int mode, int chara, u_int flags, int charaIndex, void *
 void main_rtn_GHOST_DOF(int bank, int mode, int chara, int pass, int charaIndex, void **lastTex); // CT3 0x01834440
 void main_rtn_GHOST(int bank, int mode, int chara, u_int flags, int charaIndex, void **lastTex); // CT3 0x01834c40
 void scene_end(int scene);                                                              // CT3 0x01838f20
+// PORT helper (main.c, shared with main2.c's InitLoadSceneChar): the frame's clear RGBAQ from a fog record.
+u_long FogClearColor(const u_char *fog);
 void scene_draw_init(int scene);                                                        // CT3 0x01838fa0
 void scene_init(int scene);                                                             // CT3 0x01839270
 void system_end(void);                                                                  // CT3 0x01839670

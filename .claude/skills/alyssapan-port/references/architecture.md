@@ -326,6 +326,20 @@ per step). `FlGetLen(dir, name, mode)`: mode != 0 tries the pack by name, else o
 to its end. The host serves the folder as the disc (`io::Disc`): files in DATA\ and IOP\ have sectors
 and `sceCdSearchFile` finds them by name; `sceCdRead` finishes inside the call.
 
+## Banks and triggers, game/main2.c (2026-11-10)
+
+Banks 0..5 are global (`GLBL_BANK_MAX`): `TrgScene*` hands them to `TrgGLBL*`. A new game loads INFO
+(bank 5), E_GL (3), 0MH0 (1), then the title into bank 0: **ATLD** at the first power-on, **TITL** after
+(`PowerOn`); every file is `<4 chars>.BIN` (scenes, shapes) or `.ANM` (behaviours) through
+`FSMltLoad(file, kind, bank, arg)`, kind 0 global / 1 scene / 2 shape / 3 behaviour. Drawing a bank
+waits for it (`FSMltLoadEndWaitFile`, which answers the bank), switches it on (`FSMltSetDrawBank`),
+places it (part 0's `drawOnPos`: origin, a part of another bank, or a joint portal part, kind 0x1b,
+matched by the part's hash) and runs `scene_draw_init`; global banks also get `camera_init0` and cut 0.
+Enemies 2..6 bring a scene bank of their own (E_02 -> 0x27, E_03 / E_04 -> 0x1e, E_05 -> 0x22) and Alyssa
+brings E_00 (0x2e). The self-discard queue (5 x 0xc0 at 0x01942580) swaps a scene bank while the game runs:
+queued, the old bank undrawn and ended, the new one loaded, then drawn at the saved place with
+`SkipMain = 4`.
+
 ## The IOP side (2026-11-09)
 
 The EE loads `cdrom0:\IOP\IOPRP255.IMG;1` (an IOP reboot), then `SIO2MAN`, `PADMAN`, `MCMAN`, `MCSERV`,

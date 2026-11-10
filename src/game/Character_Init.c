@@ -110,13 +110,13 @@ void Character_All_Init(void)
         chr->id = -1;
         chr->bank = -1;
         for (j = 0; j < 10; j++) {
-            chr->slot004[j] = -1;
+            chr->behaviorBank[j] = -1;
             for (k = 0; k < 10; k++) {
-                chr->slot022[j][k] = 0;
+                chr->behaviorName[j][k] = 0;
             }
         }
         for (j = 0; j < 10; j++) {
-            chr->slot018[j] = 0;
+            chr->shapeName[j] = 0;
         }
         chr->flags = 0;
         chr->w090 = 0;
@@ -137,7 +137,7 @@ void Character_All_Init(void)
         CharacterSortBuff[i] = -1;
         chr->hp = Char_Init_MAX_HP[i];
         chr->hpMax = Char_Init_MAX_HP[i];
-        chr->w0fc = 0;
+        chr->brain = 0;
         chr->h100 = -1;
         chr->b102 = -1;
         chr->translucent = 0;
@@ -2947,7 +2947,7 @@ void data_load_set(u_char *data)
             TrgCharacterBehaviorLoad(chara, name, bank, -1);
             if (rec->loaded == 1) {
                 for (j = 0; j < 10; j++) {
-                    if (bank == Character[chara].slot004[j]) {
+                    if (bank == Character[chara].behaviorBank[j]) {
                         TrgCharacterBehaviorSet(chara, name, -1);
                         break;
                     }
@@ -3099,4 +3099,10 @@ void data_save_set(u_char *data)
     memcpy(&save->panic, &PanicInfoData, sizeof(save->panic));
     ssAI_MemSaveData(data);
     tkXcmd_DoorFlagClear(save->globalEventFlag);
+}
+
+// stub of CT3 0x018b3a60
+void Character_Init(int chara, int a1, int a2)
+{
+    ALYSSAPAN_STUB("Character_Init", 0x018b3a60);
 }

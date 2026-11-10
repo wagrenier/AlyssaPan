@@ -12,9 +12,10 @@ typedef struct CHARACTER {
     s_char id;                          /* 0x000: -1 = slot free */
     u_char pad001;
     short bank;                         /* 0x002: its bank (BankInfo index), < 0 = none */
-    short slot004[10];                  /* 0x004: Character_All_Init: -1 */
-    u_char slot018[10];                 /* 0x018: Character_All_Init: 0 */
-    u_char slot022[10][10];             /* 0x022: Character_All_Init: 0 */
+    short behaviorBank[10];             /* 0x004: the banks of its behaviours ("%s.ANM"), -1 = none
+                                           (TrgCharacterBehaviorSet / _Free; Character_All_Init: -1) */
+    char shapeName[10];                 /* 0x018: its shape's file ("%s.BIN", TrgCharacterShapeSet) */
+    char behaviorName[10][10];          /* 0x022: behaviorBank[i]'s file */
     u_char pad086[2];
     u_int flags;                        /* 0x088: CHARACTER_FLAG_* */
     u_char pad08c[4];
@@ -28,7 +29,9 @@ typedef struct CHARACTER {
     int rotBefore;                      /* 0x0e8: last frame's value of 0x0ec */
     int rot;                            /* 0x0ec */
     u_char pad0f0[0xc];
-    int w0fc;                           /* 0x0fc: Character_All_Init: 0 */
+    u_int brain;                        /* 0x0fc: its AI brain (EE address; +0x24e: the brain's id that
+                                           ssAI_BrainEnd takes). Character_All_Init: 0. The AI TU decides
+                                           the host form (open-items.md 1 am) */
     short h100;                         /* 0x100: Character_All_Init: -1 */
     s_char b102;                        /* 0x102: Character_All_Init: -1 */
     u_char pad103[0x2f1 - 0x103];
@@ -46,7 +49,10 @@ typedef struct CHARACTER {
     u_char b534;                        /* 0x534: Character_All_Init: 0 */
     u_char pad535;
     short h536[6];                      /* 0x536: Character_All_Init: 0 */
-    u_char pad542[0x570 - 0x542];
+    u_char pad542[0x54c - 0x542];
+    u_int legParts[8];                  /* 0x54c: CHARA_LEG_*: EE addresses (BankEeAddr) of the shape bank's
+                                           leg parts + CHARA_LEG_PART_OFFSET (TrgCharacterShapeSet) */
+    u_char pad56c[4];
     struct CHARA_JUNC *junc;            /* 0x570: a block of gHeapJunc, freed with its buffer by
                                            Character_All_Init. layout: host (an EE word there) */
     u_char pad578[0x580 - 0x570 - sizeof(void *)];
@@ -60,9 +66,11 @@ static_assert(offsetof(CHARACTER, pos) == 0x0c0, "CHARACTER.pos");
 static_assert(offsetof(CHARACTER, rotBefore) == 0x0e8, "CHARACTER.rotBefore");
 static_assert(offsetof(CHARACTER, translucent) == 0x52c, "CHARACTER.translucent");
 static_assert(offsetof(CHARACTER, translucentAlpha) == 0x530, "CHARACTER.translucentAlpha");
-static_assert(offsetof(CHARACTER, slot022) == 0x022, "CHARACTER.slot022");
+static_assert(offsetof(CHARACTER, behaviorName) == 0x022, "CHARACTER.behaviorName");
 static_assert(offsetof(CHARACTER, w090) == 0x090, "CHARACTER.w090");
-static_assert(offsetof(CHARACTER, w0fc) == 0x0fc, "CHARACTER.w0fc");
+static_assert(offsetof(CHARACTER, brain) == 0x0fc, "CHARACTER.brain");
+static_assert(offsetof(CHARACTER, shapeName) == 0x018, "CHARACTER.shapeName");
+static_assert(offsetof(CHARACTER, legParts) == 0x54c, "CHARACTER.legParts");
 static_assert(offsetof(CHARACTER, b2f1) == 0x2f1, "CHARACTER.b2f1");
 static_assert(offsetof(CHARACTER, w300) == 0x300, "CHARACTER.w300");
 static_assert(offsetof(CHARACTER, hp) == 0x524, "CHARACTER.hp");
@@ -244,11 +252,14 @@ typedef struct MODEL_PARTS {
     u_char pad043;
     int attr;                           /* 0x44: copied into the part's draw object (+0x3c) every draw:
                                            the EE address of its GA_LIGHT_WORK (BankEePtr) */
-    u_char pad048[8];
+    u_long hash;                        /* 0x48: the part's name hash (ahGetHash); TrgSceneDraw joints a
+                                           bank to a PARTS_KIND_JOINT_PORTAL part by it */
     u_int flags;                        /* 0x50: PARTS_FLAG_* */
     u_char pad054[0xdc];
     float pos[4];                       /* 0x130: the part's position (SSGetPositional: a sound source) */
-    u_char pad140[0x1b0];
+    u_char pad140[0x80];
+    float matrix[4][4];                 /* 0x1c0: the part's world matrix (SelfDiscardSceneLoad; ActressMP's) */
+    u_char pad200[0xf0];
     float drawOnPos[4];                 /* 0x2f0: part 0's: where the bank was placed (a save keeps it;
                                            TrgSceneDraw(.., -2, ..) places it at DrawOnPosSetVectorTemp) */
     u_char pad300[0x10];
@@ -260,6 +271,8 @@ static_assert(offsetof(MODEL_PARTS, lightColor) == 0x310, "MODEL_PARTS.lightColo
 static_assert(offsetof(MODEL_PARTS, lightPos) == 0x320, "MODEL_PARTS.lightPos");
 static_assert(sizeof(MODEL_PARTS) == 0x380, "MODEL_PARTS");
 static_assert(offsetof(MODEL_PARTS, drawOnPos) == 0x2f0, "MODEL_PARTS.drawOnPos");
+static_assert(offsetof(MODEL_PARTS, hash) == 0x48, "MODEL_PARTS.hash");
+static_assert(offsetof(MODEL_PARTS, matrix) == 0x1c0, "MODEL_PARTS.matrix");
 
 // PanicInfoData (0x01940e50, 48 bytes): the player's panic state a save keeps whole. Fields by offset
 // (data_save_set / data_load_set copy them one by one; the load then sets b01 = 0xff, h02 = 0).
@@ -397,6 +410,11 @@ extern u_int BankImageEE[BANK_MAX];             /* PORT: the EE address its word
 static inline void *BankEePtr(int bank, u_int ee)
 {
     return ee ? BankImage[bank] + (int)(ee - BankImageEE[bank]) : NULL;
+}
+// The other way: the EE address a host pointer into bank `bank` had (TrgCharacterShapeSet's leg parts).
+static inline u_int BankEeAddr(int bank, const void *host)
+{
+    return host ? BankImageEE[bank] + (u_int)((const u_char *)host - BankImage[bank]) : 0;
 }
 
 #define PARTICLE_OBJ_SIZE 0x80          /* ParticleObject[bank][i]: one ga draw object per ring slot */

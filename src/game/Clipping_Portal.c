@@ -197,3 +197,9 @@ void tiFade_Start(float time, int type)
 {
     ALYSSAPAN_STUB("tiFade_Start", 0x0188d3c0);
 }
+
+// stub of CT3 0x0188bf30
+void tiPipeJointInit(int bank)
+{
+    ALYSSAPAN_STUB("tiPipeJointInit", 0x0188bf30);
+}
