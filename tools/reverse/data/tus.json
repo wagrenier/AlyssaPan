@@ -540,7 +540,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 127..127, 1 functions keyed by their statics, 1 unkeyed; file name from the names"
   },
   "game/SdMasterVolumeSetSE.c": {
-   "notes": "Left: SdLoadSQProc (0x018ce6c0, 0x138c bytes, the SQ twin of SdLoadSEProc: reuse its step pattern and decide SD_SQ_LD layout host for its buffer word), SdPlaySEProc, SdPlaySESpProc, SdPlayADSProc (static stubs SdProc calls), SdReqLoadSE (decompile read: fields in SD_SE_LD), SdPlaySE, SdPlaySEUpdate, SdSupplyCHSE, NextPlaySE, SdReqPlaySE, SdSetParamSE, the SQ and stream play side, IopLoadCapcomSound. callcheck MISSING on SdLoadSEProc is only the calls moved into its helpers SdLoadSEOpen, SdLoadSERead, SdIopHeapAlloc, SdSendToIop (the ROM repeats them inline). New stubs in CpDivideEECom.c: CpSifDmaTransEEToIOP, CpCall_IOPSndDriver_2, CpCheckEE_IOPComEnd (return 0 = done, so a load would run through). No load reaches SdLoadSEProc yet (SdReqLoadSE is a stub); the screen stays black, as before.",
+   "notes": "Left: SdLoadSQProc (0x018ce6c0, 0x138c bytes, the SQ twin of SdLoadSEProc), SdReqPlaySESp1, SdStopSEAll, SdStopSESDT, SdStopSEAllSp1, SdStopSESp1, SdStopSESp1ByHandle, SdPlaySQ / SdStopSQ / SdStopSQAll / SdStopSQAllNow / SdVolumeSQ / SdLoadSQEndWaitAll, SdPlayStream and SdPlayADSProc, SdSoundEnable / Disable, SdChangeStereoMono, IopLoadCapcomSound. The SE loads now start at boot and step to the CpDivideEECom.c stubs (CpSifDmaTransEEToIOP, CpCall_IOPSndDriver_2, CpCheckEE_IOPComEnd). callcheck MISSING on SdLoadSEProc is its helper split (slice 2). SdPurgeSE keeps the ROM slip of sending gSELd[gLdi].reg. Screen stays black (nothing on the draw path); last.png came out 0 bytes this run, shot_27600.png is black.",
    "ranges": [
     [
      "018cbf90",
@@ -557,6 +557,11 @@
      "date": "2026-11-10 14:36",
      "status": "partial",
      "summary": "slice 2: SdProc, the SE bank loader (SdLoadSEProc and its steps, NextLoadSE), SdVolumeSetSQ, SdMasterVolumeSetSQ; FL_PACK_INFO.partSize; host IOP heap and sceSdTransToIOP"
+    },
+    {
+     "date": "2026-11-10 14:54",
+     "status": "partial",
+     "summary": "slice 3: SdReqLoadSE, FindSEFile, FindSEFile_JLS_SPU2, SdReqLoadSECancel, SdPurgeSE and the SE play side (SdReqPlaySE, SdSetParamSE, NextPlaySE, SdPlaySE, SdSupplyCHSE, SdPlaySEUpdate, SdPlaySEProc, SdPlaySESpProc); SD_SE and PLAY_SE_SP1 layout host with SD_SE_UPDATE callbacks"
     }
    ],
    "status": "partial",

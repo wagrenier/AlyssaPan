@@ -97,7 +97,7 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    game/sound.c (partial 2026-11-09, slice 1: 38 of 69 functions -- boot / end, SE and SQ entry points,
    the stages' SQ rules, movie / demo mute, angle helpers; Sound_system_init now asks SdReqLoadSE for
    C_0000, T_0000, E_HAMMER, Z_REI; open: (w) the Sd driver TU (game/SdMasterVolumeSetSE.c, 0x018cbf90..)
-   is the next sound blocker (slice 1 written 2026-11-10: the FSS command ring and thread, volumes, reverb, SE stop / lookup, load-end wait, SdAlloc / SdFree, SdRnd; left: SdProc and its five procs, SE play / load / supply, SdSetParamSE, SQ and the stream's play; the IOP side, CpCall_IOPSndDriver, is a stub, and FSS_Thread_Init runs only once IopLoadCapcomSound is written), so nothing sounds; its prototypes in
+   is the next sound blocker (slice 1 written 2026-11-10: the FSS command ring and thread, volumes, reverb, SE stop / lookup, load-end wait, SdAlloc / SdFree, SdRnd; left: SdProc and its five procs, SE play / load / supply, SdSetParamSE, SQ and the stream's play; the IOP side, CpCall_IOPSndDriver, is a stub, and FSS_Thread_Init runs only once IopLoadCapcomSound is written; slice 3 written 2026-11-10: SdReqLoadSE / FindSEFile x2 / SdReqLoadSECancel / SdPurgeSE and the SE play side -- SdReqPlaySE, SdSetParamSE, NextPlaySE, SdPlaySE, SdSupplyCHSE, SdPlaySEUpdate, SdPlaySEProc, SdPlaySESpProc; the SE loads now start at boot and step to the CpSifDmaTransEEToIOP / CpCall_IOPSndDriver_2 stubs. Left: SdLoadSQProc, SdReqPlaySESp1, the SE stops (SdStopSEAll, SdStopSESDT, Sp1), SQ play / stop / volume, the ADS stream, SdSoundEnable / Disable, SdChangeStereoMono, IopLoadCapcomSound. Open: (am) SD_SE.unk30 (the play word's third byte, 999 by default) and reqArg2 (>= 1000 resident, 0x3e0 shares one channel) are named from the EE side only; (an) SdPurgeSE sends gSELd[gLdi].reg, not its own row's, kept as the ROM's slip; (ao) PLAY_SE_SP1 +0x20 was named state: it is posVol (MidiControl_DemoStart's 2 = two tenths), renamed in sound.c), so nothing sounds; its prototypes in
    SdMasterVolumeSetSE.h come from sound.c's call sites; (x) gFileSQ's words +4 / +8 / +0xc are
    SdPlaySQ arguments named sdArg2 / sdArg5 / sdArg6 until that TU reads them; (y) TRIG_VAR_STAGE (0x1d),
    TRIG_EVENT_SE_MUTE (0xb7), the stage-1 SQ events 0x3b1 / 0x3ba / 0x3bd / 0x3bf and STAGE_BGM_* are
@@ -106,7 +106,7 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    SSBGMProc / Branch1..5BGMProc, the sound objects and trigger actions, positional SEs, volume save and
    restore, SSPlayADS, SSPlaySESp1, SceneSELoad / BranchSELoad; left: SSLoadSEfromLoadPoint, which reads
    fileio.c's load-point record +0xd4 (a pointer to up to 5 rows of 0xc bytes, name pointer first): write
-   it with fileio.c's TU. Open: (aa) `SD_SE.callback` (+0x50) is an EE code word in a 0x54-byte record,
+   it with fileio.c's TU. Open: ~~(aa)~~ settled 2026-11-10 (Sd driver slice 3, Claude's call): SD_SE and PLAY_SE_SP1 are `layout: host` with an `SD_SE_UPDATE` host function pointer, called with the SE's handle. Was: `SD_SE.callback` (+0x50) is an EE code word in a 0x54-byte record,
    but SdSetParamSE / SdReqPlaySESp1 now receive host function pointers (SetPositionalParam_*): the Sd
    driver TU decides the host form (a table index, or a host-layout record); (ab) the trigger events and
    variables SSBGMProc / BranchNBGMProc use (0x9a boss battle, 0x49 Alyssa falls, 0x51, 0x96, 0xc9 / 0xd4

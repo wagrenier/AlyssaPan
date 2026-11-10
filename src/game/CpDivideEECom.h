@@ -31,6 +31,9 @@ static_assert(offsetof(EE_IOP_STAT, iopBusy) == 0x50, "EE_IOP_STAT.iopBusy");
 #define SND_CMD_TRANS_SPU2 0x120000u      /* CpCall_IOPSndDriver_2: IOP block arg[0] -> SPU2 arg[1], arg[2] bytes */
 #define SND_CMD_MASTER_VOL_SQ 0x1b0000u   /* gTransJSLCOM: unk00 0, arg[0] the SQ master volume */
 #define SND_CMD_VOLUME_SQ 0x1c0000u       /* SD_SQ_LD.volCom: one player's volume */
+#define SND_CMD_SE_KEY_ON_CH 0x60000u     /* no record: the reply word is the channels sounding (gSdSEKeyOnCH) */
+#define SND_CMD_SE_PURGE 0xb0000u         /* | jls: drop the slot's bank (SdPurgeSE) */
+#define SND_CMD_PLAY_SE 0x260000u         /* SD_SE_LD.spuCom: unk00 jls, arg[0] the play word, arg[1] its values */
 
 // A JSL command record (gTransJSLCOM, and the Sd TU's seStopJSLCOM / effectJSLCOM): 8 words, the
 // arguments from +8. layout: ee.

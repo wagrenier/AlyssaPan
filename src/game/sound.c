@@ -1111,7 +1111,7 @@ void MidiControl_DemoStart(void)
     memcpy(gSavePlaySESp1, gPlaySESp1, sizeof gSavePlaySESp1);
     for (i = 0; i < PLAY_SE_SP1_COUNT; i++) {
         if (gPlaySESp1[i].active != 0) {
-            gPlaySESp1[i].state = PLAY_SE_SP1_STATE_DEMO;
+            gPlaySESp1[i].posVol = PLAY_SE_SP1_POS_VOL_DEMO;
         }
     }
     if (ssTrigGetVariable(TRIG_VAR_STAGE, 1, 0) > 1 && gSQLd[0].name[0] != '\0') {

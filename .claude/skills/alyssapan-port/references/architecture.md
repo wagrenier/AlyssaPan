@@ -841,6 +841,29 @@ The auto-load at boot (MemorycardAutoLoad, xcmd_tn.c) has its own states (mcMain
 - SQ volumes: 0x1b0000 the master (`gTransJSLCOM`, unk00 0, arg[0]), 0x1c0000 one player
   (`gSQLd[i]` +0xc0 record: unk00 = i, arg[0] 0xff, arg[1] volume).
 
+
+### Slice 3 (2026-11-10): SE requests and play
+
+- `SdReqLoadSE(dir, name, jls, spuAddr, stopPlaying)` answers the handle of a row already holding the
+  bank (by upper-case name), else cancels the row on the same SPU2 address or slot (`SdReqLoadSECancel`:
+  close, free, `SdPurgeSE` when it had loaded) and fills a free row at step 1; ten rows, then
+  "### ERR: SdLoadSE, load max ###". `SdPurgeSE` sends 0xb0000 | jls.
+- **An SE's life** (`gSdSE`, 34 rows, `SD_SE.state`): `SdReqPlaySE(jls, seNo, reqArg2)` takes a free row
+  (handle from `gSdSEHandleCounter`; vol / pan / +0x30 = 999); with none, every channel stops. Each frame
+  `SdPlaySEProc` asks the driver (0x60000, no record) for the sounding channels into `gSdSEKeyOnCH`: keyed
+  -> playing once its channel sounds, playing -> free once it stops, the row's callback(handle) every frame
+  meanwhile. Then **one** key-on a frame: `NextPlaySE` picks the oldest request after `gSEi`; else one
+  playing SE with VOLUME / PAN / +0x30 / CALLBACK bits (0xe0010000) gets an update (`sIdxUpdate$366`).
+- **Channels** (`SdSupplyCHSE`): 22 SPU2 voices as bits; a ring (`sBitRingCH$971`, from 1) skips those
+  sounding and the last given (`sBitLastSupplyCH$972`); reqArg2 0x3e0 takes over the channel of another
+  0x3e0 SE instead (stopping it, stop word 1).
+- **The play command** 0x260000 goes in the bank row's `SD_SE_LD.spuCom`: unk00 the slot, arg[0]
+  seNo | 0xa1000000 (key on) or | 0x21000000 (update), | 0x100000 volume, | 0x400000 +0x30's byte,
+  | 0x10000 pan; arg[1] channel << 24 | +0x30 << 16 | (volume ? volume - 0x7f : 0x80) << 8 | pan. The volume
+  is scaled by `posVol` in tenths (0 full, 1 silent); with no parameter bits, a posVol alone sends
+  0x7f scaled. paramFlags 0x8000 makes a request wait until the slot holds the bank named in `SD_SE.name`.
+- **Special SEs** (`gPlaySESp1`, `SdPlaySESpProc`): every `interval` ga_main_timer ticks a row starts SE
+  seNoBase + SdRnd() % range with its positional parameters and update (unless `stopped`).
 ## The shadow overlay, frame-pass checks and the replay pass, game/ahRelocateSunPs2ObjectArry.c (2026-11-10, slice 14)
 
 - **asShadowEnd** ends a bank's shadow pass. The shadow buffer (0xc0000, cleared to 0x80) holds the

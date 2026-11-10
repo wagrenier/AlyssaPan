@@ -16,6 +16,7 @@
 #include "game/ArtoolDebugOpen.h"
 #include "game/CpDivideEECom.h"
 #include "game/ahalloc.h"
+#include "ga/gaInitInterrupt.h"
 #include "game/unassigned_data.h"
 #include "sdk/eekernel.h"
 #include "sdk/libgraph.h"
@@ -23,6 +24,7 @@
 #include "sdk/sdremote.h"
 #include "sdk/sifdev.h"
 
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -43,6 +45,13 @@ int gLdi;                                       /* sbss 0x019437dc: the gSELd ro
 int gSELdHandleCounter;                         /* sbss 0x019437e0 */
 u_int gSEHeapBD;                                /* sbss 0x019437e4: the IOP block a .BD piece goes through */
 int gExecDriver_2;                              /* sbss 0x019437e8: frames before the next SPU2 transfer */
+int gSdSEHandleCounter;                         /* sbss 0x019437d4 */
+u_int gSdSEKeyOnCH;                             /* sbss 0x019437d8 */
+int gSEi = -1;                                  /* sdata 0x0193a4ec */
+static int sIdxUpdate;                          /* sbss 0x01942f70 (sIdxUpdate$366): SdPlaySEProc's update scan */
+static u_int sBitRingCH = 1;                    /* sdata 0x0193a4f4 (sBitRingCH$971): SdSupplyCHSE's ring */
+static u_int sBitLastSupplyCH;                  /* sbss 0x01942f20 (sBitLastSupplyCH$972) */
+static const char s_loadMax[] = "### ERR: SdLoadSE, load max ###\n"; /* @1926 */
 
 static int sTransedSize;                        /* sbss 0x01942fbc (sTransedSize$226): .BD bytes sent */
 static int sTransSize;                          /* sbss 0x01942fb8 (sTransSize$227): this piece's bytes */
@@ -105,6 +114,11 @@ static void SdPlaySEProc(void);
 static void SdPlaySESpProc(void);
 static void SdPlayADSProc(void);
 static int NextLoadSE(int from);
+static int NextPlaySE(int from);
+static void SdPlaySE(SD_SE *se);
+static void SdPlaySEUpdate(SD_SE *se);
+static int FindSEFile(const char *name);
+static int FindSEFile_JLS_SPU2(int jls, u_int spuAddr);
 
 // CT3 0x018cbf90
 void SdMasterVolumeSetSE(int vol)
@@ -689,26 +703,6 @@ int SdPlaySQ(const char *dir, const char *name, u_int a2, int vol, int a4, int a
     return {};
 }
 
-// stub of CT3 0x018cd930
-void SdPurgeSE(const char *name)
-{
-    ALYSSAPAN_STUB("SdPurgeSE", 0x018cd930);
-}
-
-// stub of CT3 0x018cdba0
-int SdReqLoadSE(const char *dir, const char *name, int jls, u_int spuAddr, int a4)
-{
-    ALYSSAPAN_STUB("SdReqLoadSE", 0x018cdba0);
-    return {};
-}
-
-// stub of CT3 0x018cd3c0
-int SdReqPlaySE(int jls, int a1, int a2)
-{
-    ALYSSAPAN_STUB("SdReqPlaySE", 0x018cd3c0);
-    return {};
-}
-
 // stub of CT3 0x018d14d0
 void SdSoundDisable(void)
 {
@@ -763,13 +757,6 @@ void SdPlayStream(const char *name, int vol, int a2, int loop)
     ALYSSAPAN_STUB("SdPlayStream", 0x018cde40);
 }
 
-// stub of CT3 0x018cd190
-int SdSetParamSE(int handle, u_int mask, ...)
-{
-    ALYSSAPAN_STUB("SdSetParamSE", 0x018cd190);
-    return {};
-}
-
 // stub of CT3 0x018cc2a0
 int SdStopSESp1(int jls, int a1, int a2)
 {
@@ -815,20 +802,477 @@ static void SdLoadSQProc(void)
     ALYSSAPAN_STUB("SdLoadSQProc", 0x018ce6c0);
 }
 
-// stub of CT3 0x018cfb70 (static)
-static void SdPlaySEProc(void)
-{
-    ALYSSAPAN_STUB("SdPlaySEProc", 0x018cfb70);
-}
-
-// stub of CT3 0x018cfa50 (static)
-static void SdPlaySESpProc(void)
-{
-    ALYSSAPAN_STUB("SdPlaySESpProc", 0x018cfa50);
-}
-
 // stub of CT3 0x018d10e0 (static)
 static void SdPlayADSProc(void)
 {
     ALYSSAPAN_STUB("SdPlayADSProc", 0x018d10e0);
+}
+
+// ---- slice 3 (2026-11-10): SE bank requests, SE play ------------------------------------------------------
+
+// The play word (SND_CMD_PLAY_SE's arg[0]) and its values (arg[1]).
+#define SD_PLAY_KEY_ON 0xa1000000u              /* SdPlaySE: start seNo */
+#define SD_PLAY_UPDATE 0x21000000u              /* SdPlaySEUpdate: change a sounding SE */
+#define SD_PLAY_HAS_VOL 0x100000u               /* arg[1] bits 8..15: volume - 0x7f (0x80: silent) */
+#define SD_PLAY_HAS_30 0x400000u                /* arg[1] bits 16..23: SD_SE.unk30 */
+#define SD_PLAY_HAS_PAN 0x10000u                /* arg[1] bits 0..7: the pan */
+#define SD_PLAY_CH_SHIFT 24                     /* arg[1] bits 24..31: the channel */
+#define SD_POS_VOL_FULL 0                       /* SD_SE.posVol: no scale */
+#define SD_POS_VOL_MUTE 1                       /* SD_SE.posVol: silent */
+#define SD_POS_VOL_TENTHS 10
+
+// CT3 0x018cd8b0 -- the gSELd row holding the bank `name` (upper case), or -1.
+static int FindSEFile(const char *name)
+{
+    for (int i = 0; i < SD_SE_LD_COUNT; i++) {
+        if (gSELd[i].handle != 0 && strcmp(name, gSELd[i].name) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+// CT3 0x018cd7b0 -- the gSELd row on the SPU2 address `spuAddr` or the slot `jls`, or -1.
+static int FindSEFile_JLS_SPU2(int jls, u_int spuAddr)
+{
+    for (int i = 0; i < SD_SE_LD_COUNT; i++) {
+        if (gSELd[i].handle != 0) {
+            if (spuAddr == gSELd[i].spuAddr) {
+                return i;
+            }
+            if (jls == gSELd[i].jls) {
+                return i;
+            }
+        }
+    }
+    return -1;
+}
+
+// CT3 0x018cdba0 -- asks for the SE bank dir\name on the slot `jls`, its .BD at `spuAddr`: answers the
+// load's handle (that of the row already holding the bank, if one does), 0 when all rows are taken. A bank
+// on the same slot or SPU2 address is cancelled first. SdLoadSEProc does the load, one step a frame.
+int SdReqLoadSE(const char *dir, const char *name, int jls, u_int spuAddr, int stopPlaying)
+{
+    char upper[0x40];
+    int i;
+
+    strcpy(upper, name);
+    strupr(upper);
+    i = FindSEFile(upper);
+    if (i >= 0) {
+        return gSELd[i].handle;
+    }
+    i = FindSEFile_JLS_SPU2(jls, spuAddr);
+    if (i >= 0) {
+        SdReqLoadSECancel(i);   // the ROM passes the name too; the body reads only the row
+    }
+    for (i = 0; i < SD_SE_LD_COUNT; i++) {
+        if (gSELd[i].handle == 0) {
+            break;
+        }
+    }
+    if (i >= SD_SE_LD_COUNT) {
+        printf(s_loadMax);
+        return 0;
+    }
+    SD_SE_LD *ld = &gSELd[i];
+    ld->handle = ++gSELdHandleCounter;
+    strcpy(ld->dir, dir);
+    strupr(ld->dir);
+    strcpy(ld->name, upper);
+    ld->spuAddr = spuAddr;
+    ld->jls = jls;
+    ld->sdtSize = 0;
+    ld->bdSize = 0;
+    ld->hdSize = 0;
+    ld->iopSdt = 0;
+    ld->iopBd = 0;
+    ld->iopHd = 0;
+    ld->flags = 0;
+    ld->fd = 0;
+    ld->step = SD_SE_LD_OPEN_SDT;
+    ld->buf = NULL;
+    ld->stopPlaying = stopPlaying;
+    return ld->handle;
+}
+
+// CT3 0x018cfd30 -- drops the gSELd row `ldi`: closes its file, frees its IOP blocks and buffer, and
+// purges the bank from the driver when it had loaded (step 0 with a handle, or a done / error step).
+void SdReqLoadSECancel(int ldi)
+{
+    SD_SE_LD *ld = &gSELd[ldi];
+
+    if (ld->fd != 0) {
+        FlReqClose(ld->fd);
+    }
+    if (ld->iopHd != 0) {
+        sceSifFreeIopHeap((void *)(uintptr_t)ld->iopHd);
+        ld->iopHd = 0;
+    }
+    if (ld->iopSdt != 0) {
+        sceSifFreeIopHeap((void *)(uintptr_t)ld->iopSdt);
+        ld->iopSdt = 0;
+    }
+    SdFree(&ld->buf);
+    if ((ld->handle != 0 && ld->step == SD_SE_LD_IDLE) || ld->step >= SD_SE_LD_DONE) {
+        SdPurgeSE(ld->name);
+    }
+    ld->step = SD_SE_LD_IDLE;
+    ld->handle = 0;
+}
+
+// CT3 0x018cd930 -- drops the bank `name` from the driver and frees its row.
+void SdPurgeSE(const char *name)
+{
+    char upper[0x40];
+    int i;
+
+    strcpy(upper, name);
+    strupr(upper);
+    i = FindSEFile(upper);
+    if (i < 0) {
+        return;
+    }
+    SD_SE_LD *ld = &gSELd[i];
+    WaitSema(fss_sid);
+    // The ROM's record is gSELd[gLdi].reg (the row SdLoadSEProc steps), not this row's (disassembly
+    // 0x018cd984): kept as it is; the slot travels in the command word.
+    CpCall_IOPSndDriver_FIFO((u_int)ld->jls | SND_CMD_SE_PURGE, &gSELd[gLdi].reg, NULL);
+    SignalSema(fss_sid);
+    if (ld->iopHd != 0) {
+        sceSifFreeIopHeap((void *)(uintptr_t)ld->iopHd);
+        ld->iopHd = 0;
+    }
+    if (ld->iopSdt != 0) {
+        sceSifFreeIopHeap((void *)(uintptr_t)ld->iopSdt);
+        ld->iopSdt = 0;
+    }
+    ld->handle = 0;
+}
+
+// CT3 0x018cd3c0 -- queues SE `seNo` of the slot `jls`: answers its handle; with no free row, stops every
+// channel and answers 0. SdPlaySEProc keys it on. (posMode stays as the row had it, as in the ROM.)
+int SdReqPlaySE(int jls, int seNo, int reqArg2)
+{
+    for (int i = 0; i < SD_SE_COUNT; i++) {
+        SD_SE *se = &gSdSE[i];
+        if (se->handle != 0) {
+            continue;
+        }
+        se->handle = ++gSdSEHandleCounter;
+        se->jls = jls;
+        se->seNo = seNo;
+        se->reqArg2 = reqArg2;
+        se->paramFlags = 0;
+        se->posVol = SD_POS_VOL_FULL;
+        se->savedVol = 0;
+        se->bank = 0;
+        se->objId = 0;
+        se->ch = 0;
+        se->chBits = 0;
+        se->state = SD_SE_STATE_REQUEST;
+        se->pan = 999;
+        se->unk30 = 999;
+        se->vol = 999;
+        se->name[0] = '\0';
+        se->callback = NULL;
+        return se->handle;
+    }
+    SdStopSECH(SD_SE_CH_ALL, 0);
+    gSdSEKeyOnCH = 0;
+    return 0;
+}
+
+// CT3 0x018cd190 -- sets the SE's parameters: each bit of `mask` takes the next argument, in the order of
+// SD_SE_PARAM_*. What is left of the mask is or-ed into paramFlags and answered: VOLUME / PAN / 30 stay
+// (the next play or update sends them), the others are taken out.
+u_int SdSetParamSE(int handle, u_int mask, ...)
+{
+    u_int left = mask;
+    SD_SE *se;
+    va_list ap;
+
+    if (handle == 0 || (se = SdFindPlaySE(handle)) == NULL) {
+        return left;
+    }
+    va_start(ap, mask);
+    if (mask & SD_SE_PARAM_VOLUME) {
+        se->vol = va_arg(ap, int);
+    }
+    if (mask & SD_SE_PARAM_PAN) {
+        se->pan = va_arg(ap, int);
+    }
+    if (mask & SD_SE_PARAM_30) {
+        se->unk30 = va_arg(ap, int);
+    }
+    if (mask & SD_SE_PARAM_POS_VOL) {
+        se->posVol = va_arg(ap, int);
+        left &= ~SD_SE_PARAM_POS_VOL;
+    }
+    if (left & SD_SE_PARAM_POS_MODE) {
+        se->posMode = va_arg(ap, int);
+        left &= ~SD_SE_PARAM_POS_MODE;
+    }
+    if (left & SD_SE_PARAM_OBJ_ID) {
+        se->objId = va_arg(ap, int);
+        left &= ~SD_SE_PARAM_OBJ_ID;
+    }
+    if (left & SD_SE_PARAM_BANK) {
+        se->bank = va_arg(ap, int);
+        left &= ~SD_SE_PARAM_BANK;
+    }
+    if (left & SD_SE_PARAM_NAME) {
+        strncpy(se->name, va_arg(ap, const char *), sizeof se->name - 1);
+        left &= ~SD_SE_PARAM_NAME;
+    }
+    if (left & SD_SE_PARAM_CALLBACK) {
+        se->callback = va_arg(ap, SD_SE_UPDATE);
+        left &= ~SD_SE_PARAM_CALLBACK;
+    }
+    va_end(ap);
+    se->paramFlags |= left;
+    return left;
+}
+
+// CT3 0x018cc510 -- after row `from`, the requested row with the lowest handle (the oldest request), or -1.
+static int NextPlaySE(int from)
+{
+    int last;
+    int best = -1;
+    int bestHandle = 0x7fffffff;
+
+    if (from < 0) {
+        from = 0;
+        last = 0;
+    } else {
+        last = gSdSE[from].handle;
+    }
+    for (int n = 0; n < SD_SE_COUNT; n++) {
+        if (++from >= SD_SE_COUNT) {
+            from = 0;
+        }
+        int h = gSdSE[from].handle;
+        if (h != 0 && gSdSE[from].state == SD_SE_STATE_REQUEST && h != last && h < bestHandle) {
+            bestHandle = h;
+            best = from;
+        }
+    }
+    return best;
+}
+
+// A volume byte for the play word: 0 is silent (0x80), else the volume less 0x7f.
+static u_int SdPlayVolByte(int vol)
+{
+    return (vol == 0 ? 0xffffff80u : (u_int)(vol - SD_SE_VOL_MAX)) & 0xff;
+}
+
+// `vol` scaled by the SE's posVol in tenths, clamped (inline in SdPlaySE / SdPlaySEUpdate).
+static int SdPosVolume(int vol, int posVol)
+{
+    if (posVol == SD_POS_VOL_FULL) {
+        return vol;
+    }
+    if (posVol == SD_POS_VOL_MUTE) {
+        return 0;
+    }
+    vol = vol * posVol / SD_POS_VOL_TENTHS;
+    return vol > SD_SE_VOL_MAX ? SD_SE_VOL_MAX : vol;
+}
+
+// Fills the slot's play command (SdPlaySE and SdPlaySEUpdate repeat this inline in the ROM): the word
+// kind | seNo, the channel, and the parameters set since the last one (paramFlags VOLUME / PAN / 30,
+// cleared as they go); with none of them set, a posVol other than full sends 0x7f scaled by it.
+static void SdFillPlayCom(SD_SE *se, SND_JSL_COM *com, u_int kind)
+{
+    u_int word = (u_int)se->seNo | kind;
+    u_int vals = (u_int)se->ch << SD_PLAY_CH_SHIFT;
+
+    com->unk00 = se->jls;
+    if ((se->paramFlags & SD_SE_PARAM_SEND) == 0) {
+        if (se->posVol != SD_POS_VOL_FULL) {
+            word |= SD_PLAY_HAS_VOL;
+            vals |= SdPlayVolByte(SdPosVolume(SD_SE_VOL_MAX, se->posVol)) << 8;
+        }
+    } else {
+        if (se->paramFlags & SD_SE_PARAM_30) {
+            word |= SD_PLAY_HAS_30;
+            vals |= ((u_int)se->unk30 & 0xff) << 16;
+            se->paramFlags &= ~SD_SE_PARAM_30;
+        }
+        if (se->paramFlags & SD_SE_PARAM_VOLUME) {
+            word |= SD_PLAY_HAS_VOL;
+            vals |= SdPlayVolByte(SdPosVolume(se->vol, se->posVol)) << 8;
+            se->paramFlags &= ~SD_SE_PARAM_VOLUME;
+        }
+        if (se->paramFlags & SD_SE_PARAM_PAN) {
+            word |= SD_PLAY_HAS_PAN;
+            vals |= (u_int)se->pan;
+            se->paramFlags &= ~SD_SE_PARAM_PAN;
+        }
+    }
+    com->arg[0] = (int)word;
+    com->arg[1] = (int)vals;
+}
+
+// The loaded gSELd row on the SE's slot, or -1 (the search SdPlaySE / SdPlaySEUpdate open with).
+static int SdFindLoadedSlot(const SD_SE *se)
+{
+    for (int i = 0; i < SD_SE_LD_COUNT; i++) {
+        if (gSELd[i].handle != 0 && gSELd[i].step == SD_SE_LD_IDLE && se->jls == gSELd[i].jls) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+// CT3 0x018cc8d0 -- keys the requested SE on: finds its slot's loaded bank (with SD_SE_FLAG_WAIT_BANK it
+// must be the bank named in se->name, else the request waits), takes a channel (SdSupplyCHSE) and sends
+// the play word. With no bank on the slot the request is dropped (unless it waits); with no channel, too.
+static void SdPlaySE(SD_SE *se)
+{
+    int i = SdFindLoadedSlot(se);
+
+    if (i < 0) {
+        if ((se->paramFlags & SD_SE_FLAG_WAIT_BANK) == 0) {
+            se->handle = 0;
+        }
+        return;
+    }
+    if ((se->paramFlags & SD_SE_FLAG_WAIT_BANK) != 0 && strcmp(gSELd[i].name, se->name) != 0) {
+        return;
+    }
+    if (SdSupplyCHSE(se) == -1) {
+        se->handle = 0;
+        return;
+    }
+    WaitSema(fss_sid);
+    SdFillPlayCom(se, &gSELd[i].spuCom, SD_PLAY_KEY_ON);
+    CpCall_IOPSndDriver_FIFO(SND_CMD_PLAY_SE, &gSELd[i].spuCom, NULL);
+    SignalSema(fss_sid);
+    se->state = SD_SE_STATE_KEYED;
+}
+
+// CT3 0x018ccc40 -- gives the SE a channel: an SD_SE_REQ_SUPPLY_CH SE takes over the channel of another
+// one playing (stopping it); else the next channel round the ring that neither sounds nor went out last.
+// Answers the channel (se->ch, se->chBits), -1 when all 22 are busy.
+int SdSupplyCHSE(SD_SE *se)
+{
+    if (se->reqArg2 == SD_SE_REQ_SUPPLY_CH) {
+        for (int i = 0; i < SD_SE_COUNT; i++) {
+            SD_SE *other = &gSdSE[i];
+            if (other->handle != 0 && other->reqArg2 == SD_SE_REQ_SUPPLY_CH && other != se) {
+                SdStopSECH(other->chBits, 1);
+                sBitLastSupplyCH = (u_int)other->chBits;
+                se->chBits = other->chBits;
+                se->ch = other->ch;
+                other->handle = 0;
+                return se->ch;
+            }
+        }
+    }
+    for (int n = 0;; n++) {
+        sBitRingCH <<= 1;
+        if (sBitRingCH & (1u << SD_SE_CH_COUNT)) {
+            sBitRingCH = 1;
+        }
+        if (((gSdSEKeyOnCH | sBitLastSupplyCH) & sBitRingCH) == 0) {
+            break;
+        }
+        if (n + 1 >= SD_SE_CH_COUNT) {
+            sBitLastSupplyCH = 0;
+            se->chBits = 0;
+            se->ch = -1;
+            return -1;
+        }
+    }
+    sBitLastSupplyCH = sBitRingCH;
+    se->chBits = (int)sBitRingCH;
+    for (int ch = 0; ch < SD_SE_CH_COUNT; ch++) {
+        if ((1u << ch) & sBitRingCH) {
+            se->ch = ch;
+            break;
+        }
+    }
+    return se->ch;
+}
+
+// CT3 0x018cc5e0 -- sends a sounding SE's changed parameters; drops the SE when its bank is gone.
+static void SdPlaySEUpdate(SD_SE *se)
+{
+    int i = SdFindLoadedSlot(se);
+
+    if (i < 0) {
+        se->handle = 0;
+        return;
+    }
+    WaitSema(fss_sid);
+    SdFillPlayCom(se, &gSELd[i].spuCom, SD_PLAY_UPDATE);
+    CpCall_IOPSndDriver_FIFO(SND_CMD_PLAY_SE, &gSELd[i].spuCom, NULL);
+    SignalSema(fss_sid);
+}
+
+// CT3 0x018cfb70 -- SdProc's SE step: asks the driver which channels sound, moves each SE on (keyed ->
+// playing once its channel sounds; playing -> free once it stops, its callback every frame meanwhile),
+// then keys on the oldest request, or, with none, sends one sounding SE's changed parameters.
+static void SdPlaySEProc(void)
+{
+    WaitSema(fss_sid);
+    CpCall_IOPSndDriver_FIFO(SND_CMD_SE_KEY_ON_CH, NULL, (int *)&gSdSEKeyOnCH);
+    SignalSema(fss_sid);
+    for (int i = 0; i < SD_SE_COUNT; i++) {
+        SD_SE *se = &gSdSE[i];
+        if (se->handle == 0) {
+            continue;
+        }
+        if (se->state == SD_SE_STATE_KEYED) {
+            if (gSdSEKeyOnCH & (u_int)se->chBits) {
+                se->state = SD_SE_STATE_PLAYING;
+            }
+        } else if (se->state == SD_SE_STATE_PLAYING) {
+            if ((gSdSEKeyOnCH & (u_int)se->chBits) == 0) {
+                se->handle = 0;
+            } else if (se->callback != NULL) {
+                se->callback(se->handle);
+            }
+        }
+    }
+    gSEi = NextPlaySE(gSEi);
+    if (gSEi >= 0) {
+        SdPlaySE(&gSdSE[gSEi]);
+        return;
+    }
+    for (int n = 0; n < SD_SE_COUNT; n++) {
+        if (++sIdxUpdate >= SD_SE_COUNT) {
+            sIdxUpdate = 0;
+        }
+        SD_SE *se = &gSdSE[sIdxUpdate];
+        if (se->handle != 0 && se->state == SD_SE_STATE_PLAYING && (se->paramFlags & SD_SE_PARAM_UPDATE) != 0) {
+            SdPlaySEUpdate(se);
+            return;
+        }
+    }
+}
+
+// CT3 0x018cfa50 -- SdProc's special-SE step: each row whose interval has passed starts a random SE of its
+// range (unless stopped), positional through its update, and notes the time.
+static void SdPlaySESpProc(void)
+{
+    for (int i = 0; i < PLAY_SE_SP1_COUNT; i++) {
+        PLAY_SE_SP1 *sp = &gPlaySESp1[i];
+        if (sp->active == 0 || ga_main_timer - sp->lastTime < sp->interval) {
+            continue;
+        }
+        if (sp->stopped == 0) {
+            int r = (int)SdRnd();
+            sp->handle = SdReqPlaySE(sp->active, sp->seNoBase + r % sp->seNoRange, sp->seNo);
+            SdSetParamSE(sp->handle,
+                         SD_SE_PARAM_POS_VOL | SD_SE_PARAM_POS_MODE | SD_SE_PARAM_OBJ_ID | SD_SE_PARAM_BANK |
+                             SD_SE_PARAM_CALLBACK,
+                         sp->posVol, sp->posMode, sp->objId, sp->bank, sp->update);
+            if (sp->update != NULL) {
+                sp->update(sp->handle);
+            }
+        }
+        sp->lastTime = ga_main_timer;
+    }
 }
