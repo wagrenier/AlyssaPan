@@ -96,6 +96,18 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
   WaitLoop (game-symbol) + `WaitLoop_body` (game-inferred), both annotated above the one C function.
   The `j` after IopLoadModule (0x0189f718) is the next object's stray stub again (the entry above).
 
+- **A 4- or 8-byte tail-jump wrapper decompiles as the target's body** (2026-11-09, game/sound.c).
+  SSPurgeSE, SSLoadSEEndWait, SSVolumeADS and SSStopADS are `j SdPurgeSE` / `j SdLoadSEEndWait` /
+  `j SdVolumeStream` (`move a0,a1` in the slot) / `j SdStopStream`, but the staged decompilation shows the
+  driver's whole body (semaphores, CpCall_IOPSndDriver_FIFO, gSELd): check the symtab size first and read
+  `mipsdis.py` for anything under 0x10 bytes. Sound_data_load_set is likewise `j SSInitClearValiable`.
+- **The ROM leaves a register unset on a path** (2026-11-09, game/sound.c). SSStopSQ assigns s0 only for
+  stage 1..5 (TRIG_VAR_STAGE), then tests s0: other stages stop or not by the caller's s0. The port takes 0
+  (no stop) there; the comment above SSStopSQ says so.
+- **Ghidra prints `_name` for a symbol sharing its address with a smaller one** ("Globals starting with
+  '_' overlap smaller symbols"): `_gPlayingChaseBGM` is the symtab's `gPlayingChaseBGM`. Strip the `_`
+  and look the name up in `work/symtab_ct3.json` (sizes there are hex).
+
 ## From the siblings (2026-11-09 digest of MioPan, ReiPan, RosePan, MikuPan)
 
 - **Ghidra misses functions even with symbols**: code reached only through data (dispatch tables,

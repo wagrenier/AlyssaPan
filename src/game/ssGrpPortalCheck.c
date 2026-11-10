@@ -66,3 +66,10 @@ void Trigger_init(void)
 {
     ALYSSAPAN_STUB("Trigger_init", 0x018d4c80);
 }
+
+// stub of CT3 0x018d9430
+int ssTrigGetVariable(int var, int a1, int a2)
+{
+    ALYSSAPAN_STUB("ssTrigGetVariable", 0x018d9430);
+    return {};
+}

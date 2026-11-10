@@ -35,3 +35,4 @@ void TexFileSetInit(int scene);                                                 
 void AmbientAlphaInit(int scene);                                                        // CT3 0x01856e70
 void asViewMatrix2PosRUF(float *view, float *pos, float *right, float *up, float *front); // CT3 0x0185a8a0
 void asViewMatrix2CamRUF(float (*view)[4], float *pos, float *right, float *up, float *forward); // CT3 0x0185a6f0
+void EventSoundEnd(void);                                                                // CT3 0x018532a0

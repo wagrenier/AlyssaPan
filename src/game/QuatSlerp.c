@@ -190,3 +190,9 @@ void TexFileSetInit(int scene)
 {
     ALYSSAPAN_STUB("TexFileSetInit", 0x01856070);
 }
+
+// stub of CT3 0x018532a0
+void EventSoundEnd(void)
+{
+    ALYSSAPAN_STUB("EventSoundEnd", 0x018532a0);
+}

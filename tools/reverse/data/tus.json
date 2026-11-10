@@ -583,12 +583,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 109..109, 15 functions keyed by their statics, 6 unkeyed; source string movie.c"
   },
   "game/sound.c": {
+   "notes": "Sound_system_init runs at boot and asks SdReqLoadSE for C_0000, T_0000, E_HAMMER, Z_REI; every Sd call is a stub (game/SdMasterVolumeSetSE.c is the next sound blocker). Still stubs here: Branch1..5BGMProc, SSGetPositional and SetPositionalParam_* (Sd play records), SSAct*, SSFindSoundObj, SSAutoStartSoundRoomIn, SSLoadSEfromLoadPoint, SSSave/ReturnVolumeMidi (gSQLd), and 12 functions past the slice. SSStopSQ takes no stop when the stage is not 1..5 (the ROM reads an unset s0). Screenshot black as before: nothing draws yet, sound is not on the drawing path.",
    "ranges": [
     [
      "018c7fb0",
      "018cbf90"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-09 22:53",
+     "status": "partial",
+     "summary": "slice 1: 38 of 69 functions - boot and end, SE and SQ entry points, the stage SQ rules (Branch1..5 SSPlaySQ/SSStopSQ), movie and demo mute, angle helpers; gFileSE and gFileSQ tables; sdk/newlib strupr"
+    }
+   ],
+   "status": "partial",
    "why": "tumap.py (bootstrap 5): symtab local chunks 119..119, 24 functions keyed by their statics, 43 unkeyed; source string sound.c"
   },
   "game/ssBrain_ChgHideAtk1.c": {

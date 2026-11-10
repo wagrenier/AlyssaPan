@@ -94,7 +94,16 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    IopLoadModule; IopLoadModules in ArtoolDebugOpen.c is its one caller, still a stub), hazards.md;
    open: (u) the heap's +0x14..0x34 is unread here -- whoever reads it names it; (v) the host block header
    is 0x20 bytes, so EE-sized areas hold slightly less: watch for _SunAlloc errors once loading runs),
-   game/sound.c, game/Character_Init.c, game/ArtoolDebugOpen.c, game/main2.c,
+   game/sound.c (partial 2026-11-09, slice 1: 38 of 69 functions -- boot / end, SE and SQ entry points,
+   the stages' SQ rules, movie / demo mute, angle helpers; Sound_system_init now asks SdReqLoadSE for
+   C_0000, T_0000, E_HAMMER, Z_REI; open: (w) the Sd driver TU (game/SdMasterVolumeSetSE.c, 0x018cbf90..)
+   is the next sound blocker: every Sd* is a stub, so nothing sounds; its prototypes in
+   SdMasterVolumeSetSE.h come from sound.c's call sites; (x) gFileSQ's words +4 / +8 / +0xc are
+   SdPlaySQ arguments named sdArg2 / sdArg5 / sdArg6 until that TU reads them; (y) TRIG_VAR_STAGE (0x1d),
+   TRIG_EVENT_SE_MUTE (0xb7), the stage-1 SQ events 0x3b1 / 0x3ba / 0x3bd / 0x3bf and STAGE_BGM_* are
+   named from sound.c's use only; (z) gBfoScene / gNowScene / gStereo / gMasterVol* / gPlaySESp1 sit in
+   lib/unassigned_data.cpp until their owner, with the ROM's initial values),
+   game/Character_Init.c, game/ArtoolDebugOpen.c, game/main2.c,
    game/fileio.c.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a

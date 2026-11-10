@@ -331,3 +331,19 @@ crash report, EE kernel and interrupts (one EE thread at a time by priority), IO
 servers, the SPU2 model and voices, the audio device, libmpeg on FFmpeg. Left in YamiPan (FS2's own): the
 rena model renderer, smooth motion, the frame passes, the teleport panel. The build's only game code is
 the stub `gameMain` (`main`, CT3 0x01839d10) in `src/lib/unassigned_stubs.cpp`.
+
+## Sound (game/sound.c, 2026-11-09)
+
+- The game's sound layer (`SS*`, `Sound_*`, `Branch*`) sits on the Sd driver's EE side
+  (game/SdMasterVolumeSetSE.c, `Sd*`, from 0x018cbf90), which talks to the IOP driver through
+  `CpCall_IOPSndDriver_FIFO` under the semaphore `fss_sid`.
+- SE banks: `gFileSE` (0x01939ea0, 6 rows + end) picks a bank by its file name's first two letters --
+  C_ (slot 4, SPU2 0x0e8000), E_ (6, 0x182630), Z_ (7, 0x1b96f0), R_ and B_ (5, 0x1562b0), T_ (8, 0x1d40c0);
+  files are `DATA\SOUND\<name>`. Boot loads C_0000, T_0000, E_HAMMER and Z_REI, waiting for each.
+- SQ music: `gFileSQ` (0x01939f00, 13 rows + end) by full name under `DATA\SOUND\SQ\`: PIANO, TUISEKI(2),
+  CHITEI, FUAN, HAKABA, HINMIN, KOJO, KYOHU, OMOIDE, TSUNORU, MISSHORT, MISLONG.
+- Stages (trigger variable 0x1d) own their BGMs: stage 2 HINMIN / KYOHU, 3 CHITEI / HAKABA, 4 TSUNORU /
+  KOJO / FUAN / OMOIDE, 5 OMOIDE. `gPlayingStageBGM` records the one playing (2..9) so SSSoundEnable can
+  restart it after a movie; a chase BGM (`gPlayingChaseBGM`) blocks them.
+- The option menu's 0..20 volume buffers become the driver's 0..255 in SSSetSoundMode.
+

@@ -155,3 +155,12 @@ extern int KeyItemList[24];                     /* sbss 0x0193f940 */
 extern int LetterList[5][10];                   /* sbss 0x0193f870 */
 extern int ArrowData[3];                        /* sbss 0x0193f858 */
 extern int ArrowList[50];                       /* sbss 0x0193f790 */
+
+// ---- sound (game/sound.c's slice 1 uses them; the Sd driver TU or the scene TU owns them) -----------
+extern u_int gBfoScene;                         /* sdata 0x0193a28c: a 4-char scene code, "Bxxx" at boot */
+extern u_int gNowScene;                         /* sdata 0x0193a290: a 4-char scene code, "Nxxx" at boot */
+extern int gStereo;                             /* sdata 0x0193a4dc: 1 = stereo (the menu's buffer 0) */
+extern int gMasterVolSE;                        /* sdata 0x0193a4e0: 0..255 */
+extern int gMasterVolSQ;                        /* sdata 0x0193a4e4: 0..255 */
+extern int gMasterVolADS;                       /* sdata 0x0193a4e8: 0..255 */
+extern u_char gPlaySESp1[0x104];                /* bss  0x019436d0: the Sd driver's special-SE state */

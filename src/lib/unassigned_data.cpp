@@ -274,3 +274,12 @@ int KeyItemList[24];                            /* sbss 0x0193f940 */
 int LetterList[5][10];                          /* sbss 0x0193f870 */
 int ArrowData[3];                               /* sbss 0x0193f858 */
 int ArrowList[50];                              /* sbss 0x0193f790 */
+
+// ---- sound (game/sound.c's slice 1) ----
+u_int gBfoScene = 0x78787842;                          /* sdata 0x0193a28c */
+u_int gNowScene = 0x7878784e;                          /* sdata 0x0193a290 */
+int gStereo = 1;                                /* sdata 0x0193a4dc */
+int gMasterVolSE = 0xff;                          /* sdata 0x0193a4e0 */
+int gMasterVolSQ = 0xff;                          /* sdata 0x0193a4e4 */
+int gMasterVolADS = 0xff;                         /* sdata 0x0193a4e8 */
+u_char gPlaySESp1[0x104];                       /* bss  0x019436d0 */
