@@ -9,12 +9,14 @@
 
 #include "ga/gaInit3dlib.h"
 #include "ga/gaSearchNearLight4.h"
+#include "game/Convert.h"
 #include "game/LinkMatrixTree.h"
 #include "game/QuatSlerp.h"
 #include "game/ahalloc.h"
 #include "game/fileio.h"
 #include "game/main.h"
 #include "game/main2.h"
+#include "game/ssCalcInversMatrix2.h"
 #include "game/ssGrpPortalCheck.h"
 #include "game/unassigned_data.h"
 
@@ -1898,6 +1900,253 @@ void BMT_20(u_char *partsHeader, int bank)
 #undef RF
 #undef RM
 
+// ---- the straws (CT3 0x018497d0, slice 6, 2026-11-10) ----
+//
+// A straw is a bendable joint between two parts (A, B) of a bank: asMakeStraw skins the ga objects
+// hung on it every frame (asUpDateGAobjectsAnimation). Each vertex carries a weight byte w (0..255):
+// w 0 follows A, w 255 follows B, the rest a frame between them -- the rotation slerped from A's to
+// B's, the origin on a cubic Bezier from A's joint point to B's whose handles run along A's +Y and B's
+// -Y (STRAW.bend / 4 long). A squeezed straw (STRAW_SQUEEZE) first takes the twist out of B
+// (asDelSqueezeInformation answers it), then gives it back per vertex: a second weight byte scales
+// it, turned about the blended frame's Y axis (asMakeRotMatrixByQuartanion).
+// Read from the disassembly (the decompiler drops the VU0 broadcast fields). Every matrix product is
+// the VU's: each row v of the left matrix becomes m[0] v.x + m[1] v.y + m[2] v.z + m[3] v.w.
+
+#define REC_LPOS 0x20                   /* float[4]: the joint point (the part's position in its parent) */
+#define REC_MATRIX_PREV 0x1c0           /* float[4][4]: the part's world matrix (BuildMatrixTree's keep) */
+#define STRAW_SQUEEZE 0x8000            /* STRAW.partA: take B's twist out and spread it by weight */
+#define STRAW_PART 0x7fff
+#define STRAW_WEIGHTS 0x100             /* weight bytes: one cached matrix each (SkinWork, 0x40 apart) */
+#define STRAW_W_A 0                     /* the weight that follows part A (identity, or A's matrix) */
+#define STRAW_W_B 0xff                  /* the weight that follows part B */
+
+// The bank's straw table (ALL_TABLE.straw): count records of 0x10 bytes. Bank data, EE layout.
+typedef struct STRAW_TABLE {
+    u_int straws;                       /* 0x0: EE address of the STRAW records */
+    u_short count;                      /* 0x4 */
+} STRAW_TABLE;
+static_assert(offsetof(STRAW_TABLE, count) == 0x4, "STRAW_TABLE.count");
+typedef struct STRAW {
+    u_short partA;                      /* 0x0: part index | STRAW_SQUEEZE */
+    u_short partB;                      /* 0x2 */
+    float bend;                         /* 0x4: the Bezier handles are bend / 4 long */
+    float stretch;                      /* 0x8: B's joint frame sits stretch along A's +Y */
+    u_int skins;                        /* 0xc: EE address of STRAW_SKIN entries, ended by obj == 0 */
+} STRAW;
+static_assert(sizeof(STRAW) == 0x10, "STRAW");
+// One ga object skinned by the straw: its source vertices and normals, one 4-byte weight per vertex
+// (byte 1: the blend weight, byte 2: the squeeze share; both signed, + 0x80).
+typedef struct STRAW_SKIN {
+    u_int obj;                          /* 0x0: the ga draw object (count +0x48, out +0x60 / +0x64) */
+    u_int srcPos;                       /* 0x4: float[4] per vertex */
+    u_int srcNrm;                       /* 0x8: float[4] per vertex */
+    u_int weights;                      /* 0xc: 4 bytes per vertex */
+} STRAW_SKIN;
+static_assert(sizeof(STRAW_SKIN) == 0x10, "STRAW_SKIN");
+#define GAOBJ_VERTEX_COUNT 0x48         /* short */
+#define GAOBJ_VERTICES 0x60             /* u_int EE: float[4] per vertex, written by asMakeStraw */
+#define GAOBJ_NORMALS 0x64              /* u_int EE: a 0x10 header, then float[4] per vertex */
+
+static void StrawApply(float out[4], const float m[4][4], const float v[4])
+{
+    float r[4];
+    int i;
+    for (i = 0; i < 4; i++)
+        r[i] = m[0][i] * v[0] + m[1][i] * v[1] + m[2][i] * v[2] + m[3][i] * v[3];
+    memcpy(out, r, sizeof(r));
+}
+
+// out = rows * m (each row through StrawApply); out may be rows.
+static void StrawMulRows(float out[4][4], const float rows[4][4], const float m[4][4])
+{
+    int r;
+    for (r = 0; r < 4; r++)
+        StrawApply(out[r], m, rows[r]);
+}
+
+// The frame a weight between 0 and 255 exclusive follows: the rotation slerped from A's (qA) to B's
+// (qB) at w / 255, the origin on the Bezier ctrl, then A's rows with the stretch row scaled by the weight.
+static void StrawBlendFrame(float out[4][4], int w, const float (*matA)[4], const float qA[4],
+                            const float qB[4], const float ctrl[4][4], const float stretch[4],
+                            const float invRot[4][4], float scaledStretch[4])
+{
+    float ts[2], q[4], frame[4][4], bez[4], rows[4][4];
+    int i;
+    ts[1] = (float)w / 255.0f;
+    ts[0] = 1.0f - ts[1];
+    for (i = 0; i < 3; i++)
+        scaledStretch[i] = stretch[i] * ts[1];
+    scaledStretch[3] = stretch[3];
+    QuatSlerp(q, (float *)qA, (float *)qB, ts);
+    ConvertQuat2Matrix(frame, q);
+    asGetBeziePosition(ts[0], ts[1], bez, ctrl);
+    for (i = 0; i < 3; i++)
+        frame[3][i] += bez[i];
+    memcpy(rows, matA, 0x30);
+    for (i = 0; i < 3; i++)
+        rows[3][i] = 0.0f - scaledStretch[i];
+    rows[3][3] = scaledStretch[3];
+    StrawMulRows(out, rows, invRot);
+    StrawMulRows(out, out, frame);
+}
+
+// CT3 0x018497d0
+// PORT: bank in front (straw and partsHeader are its EE words, decision h).
+void asMakeStraw(int bank, u_int straw, u_int partsHeader)
+{
+    STRAW_TABLE *tbl = BANK_PTR(STRAW_TABLE *, bank, straw);
+    u_char *hdr = BANK_PTR(u_char *, bank, partsHeader);
+    float (*cache)[4][4] = (float (*)[4][4])SkinWork;
+    short s;
+    // callcheck: ConvertQuat2Matrix, QuatSlerp, asGetBeziePosition (the ROM inlines the blend twice,
+    // once per loop: StrawBlendFrame makes these calls)
+    if (tbl == NULL)
+        return;
+    for (s = 0; s < (int)tbl->count; s++) {
+        STRAW *st = BANK_PTR(STRAW *, bank, tbl->straws) + s;
+        u_char *recA = PARTS_REC(hdr, st->partA & STRAW_PART);
+        u_char *recB = PARTS_REC(hdr, st->partB);
+        float (*matA)[4] = (float (*)[4])(recA + REC_MATRIX_PREV);
+        float (*matB)[4] = (float (*)[4])(recB + REC_MATRIX_PREV);
+        float ctrl[4][4], qA[4], qB[4], matB2[4][4], inv[4][4], invRot[4][4];
+        float stretch[4], scaled[4], handle;
+        u_char done[STRAW_WEIGHTS];
+        int squeeze = (st->partA & STRAW_SQUEEZE) ? 1 : 0;
+        STRAW_SKIN *skin;
+        int i;
+
+        StrawApply(ctrl[0], matA, (float *)(recA + REC_LPOS));
+        StrawApply(ctrl[3], matB, (float *)(recB + REC_LPOS));
+        ConvertMatrix2Quat(qA, matA);
+        if (squeeze == 1)
+            squeeze = -asDelSqueezeInformation(matB2, matA, matB);
+        else
+            memcpy(matB2, matB, sizeof(matB2));
+        ConvertMatrix2Quat(qB, matB2);
+        handle = st->bend * 0.25f;
+        for (i = 0; i < 3; i++)
+            stretch[i] = matA[1][i] * st->stretch;
+        stretch[3] = 1.0f;
+        memcpy(ctrl[1], ctrl[0], 0x10);
+        memcpy(ctrl[2], ctrl[3], 0x10);
+        for (i = 0; i < 3; i++) {
+            ctrl[1][i] = matA[1][i] * handle + ctrl[0][i];
+            ctrl[2][i] = (0.0f - matB2[1][i]) * handle + ctrl[3][i];
+        }
+        ssCalcInversMatrix2(inv, matA);
+        memcpy(invRot, inv, sizeof(invRot));
+        invRot[3][0] = invRot[3][1] = invRot[3][2] = 0.0f;
+        invRot[3][3] = 1.0f;
+        memset(done, 0, sizeof(done));
+
+        for (skin = BANK_PTR(STRAW_SKIN *, bank, st->skins); skin->obj != 0; skin++) {
+            STRAW_SKIN *sk = skin;
+            u_char *obj = BANK_PTR(u_char *, bank, sk->obj);
+            short n = *(short *)(obj + GAOBJ_VERTEX_COUNT);
+            float (*dstPos)[4] = BANK_PTR(float (*)[4], bank, *(u_int *)(obj + GAOBJ_VERTICES));
+            float (*dstNrm)[4] = (float (*)[4])(BANK_PTR(u_char *, bank, *(u_int *)(obj + GAOBJ_NORMALS)) + 0x10);
+            float (*srcPos)[4] = BANK_PTR(float (*)[4], bank, sk->srcPos);
+            float (*srcNrm)[4] = BANK_PTR(float (*)[4], bank, sk->srcNrm);
+            signed char *wt = BANK_PTR(signed char *, bank, sk->weights);
+            short v;
+            for (v = 0; v < n; v++, wt += 4) {
+                short w = (short)(wt[1] + 0x80);
+                float (*m)[4] = cache[w];
+                int twist = squeeze != 0 ? (squeeze * (wt[2] + 0x80)) / 0xff : 0;
+                if (!done[w]) {
+                    done[w] = 1;
+                    if (w == STRAW_W_A) {
+                        if (squeeze == 0) {
+                            memcpy(m, matUnit, 0x40);
+                        } else {
+                            memcpy(m, matA, 0x40);
+                        }
+                    } else {
+                        float rows[4][4];
+                        if (w == STRAW_W_B) {
+                            memcpy(rows, matA, 0x30);
+                            for (i = 0; i < 3; i++)
+                                rows[3][i] = 0.0f - stretch[i];
+                            rows[3][3] = stretch[3];
+                            StrawMulRows(m, rows, invRot);
+                            StrawMulRows(m, m, matB2);
+                        } else {
+                            StrawBlendFrame(m, w, matA, qA, qB, ctrl, stretch, invRot, scaled);
+                        }
+                        if (squeeze == 0)
+                            StrawMulRows(m, m, inv);
+                    }
+                }
+                if (squeeze == 0) {
+                    StrawApply(dstPos[v], m, srcPos[v]);
+                    StrawApply(dstNrm[v], m, srcNrm[v]);
+                } else if (twist == 0) {
+                    float t[4];
+                    if (w == STRAW_W_A) {
+                        memcpy(dstPos[v], srcPos[v], 0x10);
+                        memcpy(dstNrm[v], srcNrm[v], 0x10);
+                    } else {
+                        StrawApply(t, m, srcPos[v]);
+                        StrawApply(dstPos[v], inv, t);
+                        StrawApply(t, m, srcNrm[v]);
+                        StrawApply(dstNrm[v], inv, t);
+                    }
+                } else {
+                    float rot[4][4], t[4];
+                    asMakeRotMatrixByQuartanion(rot, m[1], twist);
+                    memcpy(t, srcPos[v], 0x10);
+                    t[3] = 0.0f;                /* vsub.w: a direction through the matrix */
+                    StrawApply(t, m, t);
+                    StrawApply(t, rot, t);
+                    for (i = 0; i < 4; i++)
+                        t[i] += m[3][i];
+                    StrawApply(dstPos[v], inv, t);
+                    StrawApply(t, m, srcNrm[v]);
+                    StrawApply(t, rot, t);
+                    StrawApply(dstNrm[v], inv, t);
+                }
+            }
+        }
+    }
+}
+
+// CT3 0x0184a520
+// The behaviour's playable length: its first group's first track's (the ROM reads +0x14, +0x10).
+// PORT: (bank, anim): both words are the bank's EE addresses (decision h).
+int asGetBehaviorPlayableTicks(int bank, u_int anim)
+{
+    return BehaviorTracks(bank, BANK_PTR(BEHAVIOR *, bank, anim), 0)->playable;
+}
+
+// CT3 0x0184ed90
+// Records an animation for Execute_ExecuteAnimationHistory to play next frame: the history grows by
+// 0x10 records at a time (from gHeapJunc), sign = a * b.
+// PORT: the bank in front, host records (EAS_RECORD); memcpy for gaMemCopy128's qword copy.
+void SetExecuteAnimationHistory(int bank, u_int anim, ALL_TABLE *tbl, int a, int b, u_int step)
+{
+    EAS_RECORD *rec;
+    if (lpEAS == NULL) {
+        iEASidx = 0;
+        iEASnum = EAS_GROW;
+        lpEAS = _SunAlloc(&gHeapJunc, iEASnum * (int)sizeof(EAS_RECORD), 0x10);
+    }
+    if (iEASidx >= iEASnum) {
+        void *grown;
+        iEASnum += EAS_GROW;
+        grown = _SunAlloc(&gHeapJunc, iEASnum * (int)sizeof(EAS_RECORD), 0x10);
+        memcpy(grown, lpEAS, iEASidx * sizeof(EAS_RECORD)); // callcheck: gaMemCopy128 (a qword copy)
+        _SunFree(&gHeapJunc, &lpEAS);
+        lpEAS = grown;
+    }
+    rec = (EAS_RECORD *)lpEAS + iEASidx;
+    rec->anim = anim;
+    rec->tbl = tbl;
+    rec->sign = a * b;
+    rec->step = step;
+    rec->bank = bank;
+    iEASidx++;
+}
+
 // ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x018483d0
@@ -1906,12 +2155,6 @@ u_long asSceneAnimationStart(float speed, int a0, ALL_TABLE *tbl, int a2, int fr
 {
     ALYSSAPAN_STUB("asSceneAnimationStart", 0x018483d0);
     return {};
-}
-
-// stub of CT3 0x018497d0
-void asMakeStraw(int bank, u_int straw, u_int partsHeader)
-{
-    ALYSSAPAN_STUB("asMakeStraw", 0x018497d0);
 }
 
 // stub of CT3 0x0184a570

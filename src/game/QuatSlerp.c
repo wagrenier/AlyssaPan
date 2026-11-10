@@ -311,3 +311,16 @@ void asMakeRotMatrixByQuartanion(float (*m)[4], float *axis, int angle)
 {
     ALYSSAPAN_STUB("asMakeRotMatrixByQuartanion", 0x0185ddf0);
 }
+
+// stub of CT3 0x01851bf0
+void QuatSlerp(float *q, float *q0, float *q1, float *ts)
+{
+    ALYSSAPAN_STUB("QuatSlerp", 0x01851bf0);
+}
+
+// stub of CT3 0x0185d380
+int asDelSqueezeInformation(float (*out)[4], float (*a)[4], float (*b)[4])
+{
+    ALYSSAPAN_STUB("asDelSqueezeInformation", 0x0185d380);
+    return {};
+}

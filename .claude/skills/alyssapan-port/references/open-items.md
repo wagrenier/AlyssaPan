@@ -345,6 +345,17 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    / asSeatArrange_* read All_table_TBL and the eye parts unchecked in the ROM: the host skips a NULL
    (PORT lines); (cv) CHARACTER_FLAG_SHADOW is used as "in use" by asSearchObject and the double buffer,
    with (ax): rename it when the character TU reads the bit.
+   Slice 6 (2026-11-10, asMakeStraw, SetExecuteAnimationHistory, asGetBehaviorPlayableTicks): (cw)
+   asMakeStraw reads parts A / B at record +0x1c0 (REC_MATRIX_PREV, BuildMatrixTree's kept world
+   matrix) and +0x20 (REC_LPOS) from the disassembly -- if straws lag a frame on screen, that is the
+   ROM's; (cx) STRAW / STRAW_TABLE / STRAW_SKIN and the ga object's +0x48 / +0x60 / +0x64 (GAOBJ_*,
+   normals after a 0x10 header) are named from this one use, and the ga object and its arrays are
+   read as bank data (BANK_PTR, decision h): if gaInitDrawObject builds them on the host instead, the
+   skin list needs the host form; (cy) QuatSlerp(q, q0, q1, ts) takes ts = {1 - t, t},
+   asDelSqueezeInformation(out, a, b) answers the twist, ConvertMatrix2Quat / ConvertQuat2Matrix /
+   ssCalcInversMatrix2 take (out, in): confirm in QuatSlerp.c / Convert.c / ssCalcInversMatrix2.c (new
+   stub TUs); (cz) SetExecuteAnimationHistory is the history adder (cr): callers EA_100 and
+   ExecuteAnimation pass the bank in front (PORT); BEHAVIOR_TRACK +0x10 is now `playable`.
    (bw) Extract is untested against a known image: the first scene_init that runs on relocated data is
    its test (a wrong decode shows as garbage tables); a harness decoding one CT3X file from CT3PACK.DAT
    beside the ROM's (eerun.py) would prove it sooner.

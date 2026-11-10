@@ -44,6 +44,11 @@ typedef struct EAS_RECORD {             /* layout: host */
 #define PARTS_HDR_ANIM_ABS 0x20         /* int: |sign| */
 #define PARTS_HDR_ANIM_SIGN 0x24        /* int: -1, 0, 1 */
 #define PARTS_HDR_ANIM_STEP 0x28        /* u_int: the record's step, 0 after */
+#define EAS_GROW 0x10                   /* SetExecuteAnimationHistory: records added at a time */
+// PORT: the bank in front (anim is its EE word), as ExecuteAnimation.
+int asGetBehaviorPlayableTicks(int bank, u_int anim);                                     // CT3 0x0184a520
+// PORT: the bank in front; the ROM's (anim, tbl, a, b, step) store sign = a * b.
+void SetExecuteAnimationHistory(int bank, u_int anim, ALL_TABLE *tbl, int a, int b, u_int step); // CT3 0x0184ed90
 #define EAS_REC_PARENT 0x8c             /* a part record's parent word (REC_PARENT) */
 // ALL_TABLE.ctrl's first list: the attached parts (0x20-byte entries; names from this use only).
 #define OBJ_CTRL_ATTACH_LIST 0x0        /* u_int: the entries */
@@ -231,8 +236,9 @@ typedef struct BEHAVIOR_TRACK {         /* 0x20 bytes */
     u_short runs;                       /* 0x0c */
     u_char value0e;                     /* 0x0e: TRACK_VALUE0E_START at scene start */
     u_char flags;                       /* 0x0f: TRACK_FLAG_* */
-    u_int pad10[2];
-    int time;                           /* 0x18: 0 from the top */
+    int playable;                       /* 0x10: group 0 track 0's: asGetBehaviorPlayableTicks */
+    u_int pad14;
+    int time;                          /* 0x18: 0 from the top */
     int time1c;                         /* 0x1c: 0 from the top when asked */
 } BEHAVIOR_TRACK;
 static_assert(sizeof(BEHAVIOR_TRACK) == 0x20, "BEHAVIOR_TRACK");

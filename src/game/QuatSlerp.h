@@ -63,3 +63,9 @@ void asMakeRotMatrixByQuartanion(float (*m)[4], float *axis, int angle);        
 void asMakeWatchMeMatrixToPosition(float (*out)[4], float (*m)[4], float *target, int axis); // CT3 0x0185d4d0
 // a point light part's range (its record, MODEL_PARTS + 0x40).
 void OmniRangeChange(u_char *rec);                                                       // CT3 0x018520b0
+// q = the slerp from q0 to q1; ts = {1 - t, t} (asMakeStraw passes the pair it also gives
+// asGetBeziePosition).
+void QuatSlerp(float *q, float *q0, float *q1, float *ts);                               // CT3 0x01851bf0
+// out = b with its twist about a's Y axis taken out; answers the twist (asMakeStraw negates it and
+// spreads it over the vertices through asMakeRotMatrixByQuartanion).
+int asDelSqueezeInformation(float (*out)[4], float (*a)[4], float (*b)[4]);              // CT3 0x0185d380
