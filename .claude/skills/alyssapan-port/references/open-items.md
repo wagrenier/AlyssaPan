@@ -644,10 +644,21 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    VISTA_* / TRIG_EVENT_VISTA_* are named from these functions alone; FogAnimeUpdate's gate reuses
    TRIG_VAR_PANIC_OFF (0xb), whose name is narrower than its use (it also stops the fog easing); (fo)
    BANK_TYPE_SHADOW (1) is also the room type the warp's ambient step tests: rename when fileio.c's TU
-   names the types. Next in this TU: TexFileSetInit (reached: the scene's texture-file sets, FSLoad
+   names the types. Slice 8 (2026-11-10): PanicSet, PanicStopMovie (PanicOffMovieFile from the ROM),
+   Kekkai_Check, ssPointCheckWithinScreen, PauseUpdate, UpperCase, GetBankID, PlayMovie,
+   PlayMovieReturnLoad, SystemReReset, asGetObjectPositionAtWorld, asGetAlyssaPosition,
+   asGetAnalogStickInformation, asSetObjectTrans, asGetObjectTransInitialValue (MODEL_PARTS.transInit
+   at 0xf0 named). Open: (fp) ssPointCheckWithinScreen tests against screen_0's 512 x 448 PS2 frame:
+   at a wide aspect it calls points beside the 4:3 column off screen; decide with the camera / renderer
+   TU whether it reads DisplayGeometry (it gates game logic, so changing it changes behaviour); (fq)
+   KekkaiOn (sbss 0x0193f9a4, no symbol) and ITEM_KEKKAI (2) / TRIG_EVENT_KEKKAI_USED (0x98) are named
+   from Kekkai_Check alone; (fr) asGetObjectTransInitialValue answers asVectorLength of what it copied
+   (the ROM tail-calls it): RotateCamera.c's callers say whether they read it; (fs) PARTS_FLAG43_TRANS
+   (0x2) is named from asSetObjectTrans alone; (ft) AA_StartMovie (movie.c) is now a stub PlayMovie
+   calls. Next in this TU: TexFileSetInit (reached: the scene's texture-file sets, FSLoad
    of DATA/IMG/ pages into double / ring buffers, then patching TEX_INFO words -- decide the host
-   texture path first: decode at the source, no GS), tnTrigTexFileSetNext with TexFileSetNext, then the
-   rest of the 41 left.
+   texture path first: decode at the source, no GS), tnTrigTexFileSetNext with TexFileSetNext,
+   tnTrigTexFileSetPage with TexFileSetPage, GetAreaFloor, then the rest of the 24 left.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
    class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~

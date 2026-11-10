@@ -31,6 +31,8 @@
 #include "game/SdMasterVolumeSetSE.h"
 #include "game/Clipping_Portal.h"
 #include "game/ssHitCheckAttackToScn.h"
+#include "game/movie.h"
+#include "ga/gaInitMeter.h"
 
 #include <float.h>
 #include <math.h>
@@ -3528,3 +3530,311 @@ float asVectorDistance(const float *a, const float *b)
     return gaInnerProductXYZ(d, d);
 }
 
+
+// ---- slice 8 (2026-11-10): panic setters, the movie break, bank lookup, part and stick helpers ------
+
+// CT3 0x01854110: add rise to this frame's panic source; sources 4 and 5 always count, the others only
+// while PanicCheck answers 0. Nothing rises in full panic.
+void PanicSet(float rise, int source)
+{
+    if ((source == PANIC_SET_ALWAYS_LO || source == PANIC_SET_ALWAYS_HI || PanicCheck() == 0)
+        && (PanicInfoData.mode & PANIC_MODE_FULL) == 0)
+        PanicInfoData.rise[source] += rise;
+}
+
+// CT3 0x019381a0 (PanicOffMovieFile, sdata, NULL-ended): the movies that end a panic.
+static const char *const PanicOffMovieFile[] = {
+    "S16_1.MOV", "S29_1.MOV", "S33.MOV", "K12.MOV", "K06.MOV", NULL,
+};
+
+// CT3 0x01854190: a movie in PanicOffMovieFile ends full panic and empties the gauge.
+void PanicStopMovie(const char *file)
+{
+    char name[128];
+    int found = 0;
+    int i;
+
+    strcpy(name, file);
+    UpperCase(name);
+    for (i = 0; PanicOffMovieFile[i] != NULL; i++) {
+        if (strcmp(name, PanicOffMovieFile[i]) == 0) {
+            found = 1;
+            break;
+        }
+    }
+    if (!found)
+        return;
+    if (PanicInfoData.mode & PANIC_MODE_FULL) {
+        PanicInfoData.filterAlpha = -1;
+        PanicInfoData.mode &= ~PANIC_MODE_FULL;
+        ssTrigRemoveEvent(TRIG_EVENT_PANIC_FULL, 1, 0);
+        ssTrigRemoveEvent(TRIG_EVENT_PANIC_BEAT, 1, 0);
+    }
+    PanicInfoData.gauge = 0.0f;
+}
+
+// CT3 0x01854500: spend a barrier charm: 0 when one was held (TRIG_EVENT_KEKKAI_USED registered; the
+// last one clears KekkaiOn), 1 when none is.
+int Kekkai_Check(void)
+{
+    if (ItemData[ITEM_KEKKAI][1] == 0)
+        return 1;
+    ItemData[ITEM_KEKKAI][1]--;
+    ssTrigRegisterEvent(TRIG_EVENT_KEKKAI_USED, 1, 0);
+    if (ItemData[ITEM_KEKKAI][1] == 0)
+        KekkaiOn = 0;
+    return 0;
+}
+
+// CT3 0x01854b90: 1 when pos (xyz, w = 1) seen through m lies between the near and far clip and inside
+// the screen widened by margin on each side. screen_0: [2] width, [3] height, [4] / [5] the centre,
+// [6] / [7] the aspect, [8] the projection distance, [9] / [10] near and far.
+// PORT: the screen is the PS2's 512 x 448 frame: a wide display shows more than this answers for
+// (open-items.md (fp)).
+int ssPointCheckWithinScreen(float margin, const float *pos, float (*m)[4])
+{
+    float v[3];
+    float half;
+    float s;
+    int i;
+
+    for (i = 0; i < 3; i++)
+        v[i] = m[0][i] * pos[0] + m[1][i] * pos[1] + m[2][i] * pos[2] + m[3][i];
+    if (v[2] < screen_0[9] || v[2] > screen_0[10])
+        return 0;
+    s = screen_0[4] + screen_0[8] * v[0] / v[2];
+    half = screen_0[2] / screen_0[6] * 0.5f;
+    if (s < screen_0[4] - half - margin || s > screen_0[4] + half + margin)
+        return 0;
+    half = screen_0[3] / screen_0[7] * 0.5f;
+    s = screen_0[5] + screen_0[8] * v[1] / v[2];
+    if (s < screen_0[5] - half - margin || s > screen_0[5] + half + margin)
+        return 0;
+    return 1;
+}
+
+// CT3 0x01855110: resume == 0 reserves a pause (and reviews the player's place), else lifts it.
+int PauseUpdate(int resume)
+{
+    if (resume == 0) {
+        pause_reservation |= PAUSE_RESERVE;
+        asCharacterPositionReviewInPausing(&Character[0]);
+    } else {
+        pause_reservation &= ~PAUSE_RESERVE;
+    }
+    return 1;
+}
+
+// CT3 0x0185c290: a..z to A..Z in place.
+void UpperCase(char *s)
+{
+    int i;
+    for (i = 0; s[i] != '\0'; i++)
+        if (s[i] > '`' && s[i] < '{')
+            s[i] -= 0x20;
+}
+
+// CT3 0x01859a50: the loaded bank whose file name's first four characters are name's (case blind), a
+// group counted once at its head; -1 when none is.
+int GetBankID(const char *name)
+{
+    char key[5];
+    int i;
+
+    memcpy(key, name, 4);
+    key[4] = 0;
+    UpperCase(key);
+    for (i = 0; i < BANK_MAX; i++) {
+        if (BankInfo[i].state != BANK_STATE_FREE) {
+            if (memcmp(BankInfo[i].name, key, 4) == 0)
+                return i;
+            i += BankInfo[i].groupCount - 1;
+        }
+    }
+    return -1;
+}
+
+static int save_ga_main_timer;                  /* sbss 0x0193ce54 */
+static int save_ga_down_timer;                  /* sbss 0x0193ce50 */
+
+// CT3 0x01859b00: play the movie the trigger set up: the timers kept across it, the invisible and
+// advantage timers restarted, full panic ended, the GS and the BGT reset afterwards, the next frames
+// skipped.
+int PlayMovie(void)
+{
+    save_ga_main_timer = ga_main_timer;
+    save_ga_down_timer = ga_down_timer;
+    ExecuteAnimationHistory_Free();
+    if (ssTrigCheckEvent(TRIG_EVENT_INVISIBLE, 1, 0) != 0) {
+        ssTrigRemoveEvent(TRIG_EVENT_INVISIBLE, 1, 0);
+        TransparentBodyTime = PANIC_TRANSPARENT_TIME;
+    }
+    if (ssTrigCheckEvent(TRIG_EVENT_MC_LOADED, 1, 0) != 0) {
+        ssTrigRemoveEvent(TRIG_EVENT_MC_LOADED, 1, 0);
+        AdvantageousTimeTime = PANIC_ADVANTAGEOUS_TIME;
+    }
+    if (PanicInfoData.mode & PANIC_MODE_FULL) {
+        PanicInfoData.mode &= ~PANIC_MODE_FULL;
+        PanicInfoData.filterAlpha = -1;
+        ssTrigRemoveEvent(TRIG_EVENT_PANIC_FULL, 1, 0);
+        ssTrigRemoveEvent(TRIG_EVENT_PANIC_BEAT, 1, 0);
+    }
+    printf(" ** Movie Play Start!! ** \n");         /* @5147 0x01933870 */
+    AA_StartMovie();
+    printf(" ** Movie Play End!! ** \n");           /* @5148 0x01933890 */
+    asCharacterOperate(&Character[0], 1, 1, 1);
+    asCharacterPositioning(&Character[0], 1, 1);
+    SystemReReset();
+    ga_main_timer = save_ga_main_timer;
+    ga_down_timer = save_ga_down_timer;
+    SkipMain = PLAYMOVIE_SKIP_FRAMES;
+    if (DemoSkip != 0) {
+        DEMO_SKIP_FLAG = PLAYMOVIE_DEMO_SKIP_FLAG;
+        ssTrigRemoveEvent(TRIG_EVENT_DEMO_SKIP_9E, 1, 0);
+    }
+    ssTrigRemoveEvent(TRIG_EVENT_MOVIE_END_62, 1, 0);
+    if (MoviePlayCheck != 0)
+        MovieEndCheck = 1;
+    return 0;
+}
+
+// CT3 0x01859c90: reload the scene and character banks a movie parked (state > 1000), by their type.
+void PlayMovieReturnLoad(void)
+{
+    char name[0x100];
+    int i;
+
+    for (i = GLBL_BANK_MAX; i < BANK_MAX; i++) {
+        if (BankInfo[i].state <= 0)
+            continue;
+        if (BankInfo[i].state >= BANK_STATE_MOVIE_PARKED) {
+            BankInfo[i].state = BANK_STATE_FREE;
+            if (BankInfo[i].type == FS_LOAD_BEHAVIOR) {
+                strcpy(name, BankInfo[i].name);
+                name[4] = 0;
+                TrgCharacterBehaviorLoad(BankID_TO_CharID((short)i), name, i, BankInfo[i].groupCount);
+            } else if (BankInfo[i].type == FS_LOAD_SHAPE) {
+                strcpy(name, BankInfo[i].name);
+                name[4] = 0;
+                TrgCharacterShapeLoad(BankID_TO_CharID((short)i), name, i, BankInfo[i].groupCount);
+            } else if (BankInfo[i].type == FS_LOAD_SCENE) {
+                strcpy(name, BankInfo[i].name);
+                name[4] = 0;
+                TrgSceneLoad(name, i, BankInfo[i].groupCount);
+            }
+        }
+        i += BankInfo[i].groupCount - 1;
+    }
+}
+
+// CT3 0x01859dd0: the GS, DMA, VIF and interrupts set up again after a movie, then one BGT frame that
+// clears the screen (main's boot sequence, without its buffer addresses).
+void SystemReReset(void)
+{
+    sceGsResetPath();
+    sceDmaReset(1);
+    sceGsSyncV(0);
+    sceGsResetGraph(1, SCE_GS_INTERLACE, SCE_GS_NTSC, SCE_GS_FRAME);
+    sceGsPutDispEnv(&ga_disp);
+    gaDmaInit();
+    gaVifInit();
+    gaSetupGSInitData(&gsinit);
+    FlushCache(WRITEBACK_DCACHE);
+    gaInitInterrupt();
+    gaInitMeter();
+    gaBGT_Start(bgt_ringbuffer, 0x8000);           /* main.c BGT_RINGBUFFER_SIZE */
+    gaBGT_ExecGSInitData_VIF1(&gsinit);
+    gaBGT_ExecDBufferData_VIF1(&drawbuffer_frameclear);
+    gaBGT_ExecDrawCtrlData_VIF1(&drawctrl_frameclear);
+    gaBGT_ExecDrawCommandData_VIF1(&drawcom_frameclear);
+    gaBGT_ExecDBufferData_VIF1(&drawbuffer_0);
+    gaBGT_End();
+}
+
+// PORT: the parts of the bank whose table it is (ALL_TABLE.partsHeader is an EE word, decision (h)).
+static MODEL_PARTS *TableParts(ALL_TABLE *table)
+{
+    int i;
+    for (i = 0; i < BANK_MAX; i++)
+        if (All_table_TBL[i] == table)
+            return BANK_PTR(MODEL_PARTS *, i, table->partsHeader);
+    return NULL;
+}
+
+// CT3 0x01859e90: a part's world position.
+void asGetObjectPositionAtWorld(float *dst, ALL_TABLE *table, int part)
+{
+    MODEL_PARTS *parts = TableParts(table);
+    if (parts != NULL)
+        memcpy(dst, parts[part].pos, sizeof(parts[part].pos));
+}
+
+// CT3 0x01859eb0: Alyssa's (the player character's) position.
+void asGetAlyssaPosition(float *dst)
+{
+    // The ROM indexes Character[] with asFindCharacterStruct(0)'s answer, which is its argument: 0.
+    memcpy(dst, &Character[(intptr_t)asFindCharacterStruct(NULL)].pos, 4 * sizeof(float));
+}
+
+// CT3 0x01859fc0: an analog stick's direction in degrees (asRadianByO about Y of (x, 0, y)) and its
+// tilt (0..~1.4). stick: pad STICK_PAD(stick), STICK_FIRST picks the pair. deadZone: the bytes within
+// 0x80 -/+ deadZone read as centred; x reads positive to the left, y positive down.
+void asGetAnalogStickInformation(int stick, int deadZone, float *degrees, float *magnitude)
+{
+    u_int hi = (u_int)((signed char)deadZone + 0x80) & 0xff;
+    u_int lo = (u_int)(0x80 - (signed char)deadZone) & 0xff;
+    PAD_DATA *p = &pad[(stick & 0xff) >> 1];
+    u_int x, y;
+    alignas(16) float v[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    float len2, rs;
+
+    if (stick & STICK_FIRST) {
+        x = p->stick[0];
+        y = p->stick[1];
+    } else {
+        x = p->stick[2];
+        y = p->stick[3];
+    }
+    if (x < lo)
+        v[0] = -(float)(int)(x - lo) / (float)lo;
+    else if (x > hi)
+        v[0] = -(float)(int)(x - hi) / (float)(int)(0xff - hi);
+    if (y < lo)
+        v[2] = (float)(int)(y - lo) / (float)lo;
+    else if (y > hi)
+        v[2] = (float)(int)(y - hi) / (float)(int)(0xff - hi);
+    // VU0: vrsqrt of the squared length, xyz scaled by it, then 1 / that: the length. On the VU a zero
+    // vector stays zero with a zero length; the host keeps it so.
+    len2 = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
+    if (len2 > 0.0f) {
+        rs = 1.0f / sqrtf(len2);
+        v[0] *= rs;
+        v[1] *= rs;
+        v[2] *= rs;
+        *magnitude = 1.0f / rs;
+    } else {
+        *magnitude = 0.0f;
+    }
+    *degrees = asRadianByO(v, RADIAN_AXIS_Y) * 360.0f / 6.2831855f;
+}
+
+// CT3 0x0185a230: place a part at pos (w 1) and mark it placed.
+void asSetObjectTrans(ALL_TABLE *table, int part, const float *pos)
+{
+    MODEL_PARTS *parts = TableParts(table);
+    if (parts == NULL)
+        return;
+    memcpy(parts[part].drawOnPos, pos, sizeof(parts[part].drawOnPos));
+    parts[part].drawOnPos[3] = 1.0f;
+    parts[part].flags43 = PARTS_FLAG43_WARPED | PARTS_FLAG43_TRANS;
+}
+
+// CT3 0x0185a260: a part's initial translation; the ROM tail-calls asVectorLength on it (its answer
+// left in $f0 for whoever wants it: the callers in RotateCamera.c say).
+float asGetObjectTransInitialValue(float *dst, ALL_TABLE *table, int part)
+{
+    MODEL_PARTS *parts = TableParts(table);
+    if (parts != NULL)
+        memcpy(dst, parts[part].transInit, sizeof(parts[part].transInit));
+    return asVectorLength(dst);
+}

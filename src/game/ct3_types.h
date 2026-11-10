@@ -374,7 +374,9 @@ typedef struct MODEL_PARTS {
     u_int flags;                        /* 0x50: PARTS_FLAG_* */
     short warpH54;                      /* 0x54: a warp onto this part (a marker) copies it to
                                            CHARACTER.h100 (ExecuteWarpObject) */
-    u_char pad056[0xca];
+    u_char pad056[0x9a];
+    float transInit[4];                 /* 0xf0: the part's initial translation (asGetObjectTransInitialValue) */
+    u_char pad100[0x20];
     float alpha;                        /* 0x120: the part's alpha: ALL_TABLE.partsPos w at AmbientAlphaInit */
     float losAlpha;                     /* 0x124: LosHitFadeUpdate's fade */
     float distAlpha;                    /* 0x128: DistanceAttenuationAlphaSet's: minus the fade, -max..0 */
@@ -391,6 +393,7 @@ typedef struct MODEL_PARTS {
     u_char pad330[0x50];
 } MODEL_PARTS;
 static_assert(offsetof(MODEL_PARTS, alpha) == 0x120, "MODEL_PARTS.alpha");
+static_assert(offsetof(MODEL_PARTS, transInit) == 0x0f0, "MODEL_PARTS.transInit");
 static_assert(offsetof(MODEL_PARTS, warpH54) == 0x54, "MODEL_PARTS.warpH54");
 static_assert(offsetof(MODEL_PARTS, losAlpha) == 0x124, "MODEL_PARTS.losAlpha");
 static_assert(offsetof(MODEL_PARTS, distAlpha) == 0x128, "MODEL_PARTS.distAlpha");
@@ -403,6 +406,7 @@ static_assert(offsetof(MODEL_PARTS, drawOnPos) == 0x2f0, "MODEL_PARTS.drawOnPos"
 static_assert(offsetof(MODEL_PARTS, hash) == 0x48, "MODEL_PARTS.hash");
 static_assert(offsetof(MODEL_PARTS, flags43) == 0x43, "MODEL_PARTS.flags43");
 #define PARTS_FLAG43_WARPED 0x1         /* asWarpSceneObject placed the part (drawOnPos); its reader unread */
+#define PARTS_FLAG43_TRANS 0x2          /* asSetObjectTrans sets it with WARPED (3): its reader unread */
 static_assert(offsetof(MODEL_PARTS, matrix) == 0x1c0, "MODEL_PARTS.matrix");
 
 // PanicInfoData (0x01940e50, 48 bytes): the player's panic state a save keeps whole. Fields by offset

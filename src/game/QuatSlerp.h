@@ -575,3 +575,31 @@ void AngleAttenuationTarget(int bank, int a1, MODEL_PARTS *part, ANGLE_ATTEN *at
                             const float *dir);                                           // CT3 0x01857320
 void AngleAttenuationAlphaSet(const float *eye, const float *dir, const float *subj, ANGLE_ATTEN *at,
                               MODEL_PARTS *part);                                        // CT3 0x018574b0
+
+// ---- slice 8 (2026-11-10): panic setters, the movie break, bank lookup, part and stick helpers ------
+void PanicSet(float rise, int source);                                                  // CT3 0x01854110
+void PanicStopMovie(const char *file);                                                  // CT3 0x01854190
+#define PANIC_SET_ALWAYS_LO PANIC_RISE_CONST /* sources 4 and 5 rise even when PanicCheck is not 0 */
+#define PANIC_SET_ALWAYS_HI (PANIC_RISE_CONST + 1)
+#define TRIG_EVENT_KEKKAI_USED 0x98     /* registered each time a barrier charm is spent (named from this use) */
+#define ITEM_KEKKAI 2                   /* ItemData's row of the barrier charm (byte 1: held) */
+int Kekkai_Check(void);                                                                 // CT3 0x01854500
+int ssPointCheckWithinScreen(float margin, const float *pos, float (*m)[4]);            // CT3 0x01854b90
+int PauseUpdate(int resume);                                                            // CT3 0x01855110
+#define PAUSE_RESERVE 0x1               /* pause_reservation: PauseUpdate's bit */
+void UpperCase(char *s);                                                                // CT3 0x0185c290
+int GetBankID(const char *name);                                                        // CT3 0x01859a50
+int PlayMovie(void);                                                                    // CT3 0x01859b00
+void PlayMovieReturnLoad(void);                                                         // CT3 0x01859c90
+void SystemReReset(void);                                                               // CT3 0x01859dd0
+#define TRIG_EVENT_MOVIE_END_62 0x62    /* removed after a movie (named from PlayMovie's use) */
+#define TRIG_EVENT_DEMO_SKIP_9E 0x9e    /* removed when a skip ran through a movie */
+#define PLAYMOVIE_SKIP_FRAMES 4         /* SkipMain after a movie */
+#define PLAYMOVIE_DEMO_SKIP_FLAG 10     /* DEMO_SKIP_FLAG when a skip ran through it */
+void asGetObjectPositionAtWorld(float *dst, ALL_TABLE *table, int part);                // CT3 0x01859e90
+void asGetAlyssaPosition(float *dst);                                                   // CT3 0x01859eb0
+void asGetAnalogStickInformation(int stick, int deadZone, float *degrees, float *magnitude); // CT3 0x01859fc0
+#define STICK_PAD(stick) ((stick) >> 1) /* asGetAnalogStickInformation: pad[stick >> 1] */
+#define STICK_FIRST 0x1                 /* odd: PAD_DATA.stick[0..1], even: stick[2..3] */
+void asSetObjectTrans(ALL_TABLE *table, int part, const float *pos);                    // CT3 0x0185a230
+float asGetObjectTransInitialValue(float *dst, ALL_TABLE *table, int part);             // CT3 0x0185a260

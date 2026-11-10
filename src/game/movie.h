@@ -6,3 +6,4 @@
 
 void AA_MovieProc(void);                                                                 // CT3 0x018bf6c0
 void AA_MovieIOPInit(void);                                                              // CT3 0x018bf980
+void AA_StartMovie(void);                                                                // CT3 0x018bf080: PlayMovie's call
