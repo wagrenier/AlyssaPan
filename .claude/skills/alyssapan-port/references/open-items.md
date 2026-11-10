@@ -80,7 +80,24 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    flags at +0x194 and a vector at +0x90: `CharaTarget` answers none until the TU that writes it decides the host
    form; (w) asCharacterOperate clears the first slot's `keyTicks` (chr, not ch) when the keys are off: kept as the
    ROM does, harmless since only Alyssa (slot 0) counts; (x) the TU is probably two objects (wideXcmd_* then the
-   as* player code from 0x018f3fa0): not split yet, no local-symbol evidence read. **Next:**
+   as* player code from 0x018f3fa0): not split yet, no local-symbol evidence read. Open from
+   wideXcmd_DebugPrint.c slice 2 (2026-11-10): (aa) **asInitPlayerBehaviorControler now sets
+   CHARA_MOTION_TABLE** (the bank's ALL_TABLE +0xb8 word: `fog` for scene banks, the motion table for
+   character banks -- the field wants a union or a second name when the bank loader TU reads it);
+   wideXcmd_DebugPrint.c reads it through `MotionRecord` (BankEePtr of the character's bank). The
+   `CharaMotionTable` helpers in ahRelocateSunPs2ObjectArry.c and QuatSlerp.c still answer none: their
+   TUs can switch to the same BankEePtr read; (ab) motion record fields named from one use each
+   (MOTION_REC_NEXT / _NEXT_MODE +0x10 / +0x14, _KIND +0x1c with stair kinds 1 and 3, _FACING +0x1d with
+   backward kinds 0x0f..0x12, _RUN +0x1f); (ac) CHARA_TARGET2 (w300[1]) joins CHARA_TARGET: both EE words,
+   CharaTarget / CharaTarget2 answer none, so asCheckAlyssaOnStairway answers 0 on the host; (ad)
+   asMonsterDistanceStack_inPanic's growth copies the old entries only (the ROM copies the new count, 16
+   entries past the old block: a read past it, no effect on the kept data); (ae) asResetCharacterRotation
+   walks part records (PARTS_REC, as asResetCharacterPosition passes header + 0x40): type short at +0
+   (MODEL_PARTS +0x40, 1 = turned), PARTS_FLAG43_WARPED also marks a placement change (as1CharacterPositioning,
+   asCharacterPositioningOnlyDeltaPos): it may be a generic dirty bit (PARTS_ANIM_DIRTY is the same bit);
+   (af) asRequestExecute (the queue's consumer) waits on the behaviour API's host form: asFindBehaviorByCharacter
+   answers an EE behaviour of a bank, and the as*Behavior* calls take it (ExecuteAnimation's PORT form is
+   (bank, anim)): the slice that writes it picks the same (bank, anim) pair. **Next:**
    ~~`ga/gaInitInterrupt.c`~~ (verify, 2026-11-09: main's frame loops now), then in the order a smoke
    run reaches the stubs: `main2` (game/main2.c: title and scene set-up), `IOPInit` / `Character_All_Init`
    (Character_Init.c), `FS_work_init` / `FileSoundServer` (fileio.c), `SunAllocInit` (ahalloc.c), the ga
