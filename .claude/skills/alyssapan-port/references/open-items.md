@@ -380,6 +380,28 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    written early from their disassembly; QuatSlerp / ConvertMatrix2Quat / ConvertQuat2Matrix /
    asZipQuat2Quat / asZipTrans2Trans_XYZ1 / gaMulMatrix are still stubs, so EA_100's poses are zeros
    until those TUs land.
+   Open from slice 9 (2026-11-10, InterpolateAnimationKey / IAK_0, the play range, behaviour lookup,
+   shadow setters, asCopyDoubleBufferL2W): (dh) (dd)'s reading confirmed for both functions (1 = the
+   time reached `playable`: forwards at or past it, backwards at or below it); EA_001's done byte on 0
+   is still unchecked; (di) BEHAVIOR_TRACK +0x14 is `rangeStart` (asChangePlayRange; a looping track goes
+   on from it) and `playable` is the range end; flags & 3 = TRACK_PLAY_ONCE / _ONCE_REVERSE / _LOOP /
+   _LOOP_REVERSE, bit 0 also the direction; TRACK_SLOW_STEP (value0e == anim_play_slow snaps the time
+   to 500); the kinds '"' '!' ')' '*' '3' '4' '=' '>' 'H' and ANIM_SUBKEY (0x18-byte sub-records of the
+   vertex kinds, +8 an EE data word, +0xc a count, +0x14 'H''s short) are named from this one function;
+   (dj) written early in QuatSlerp.c from the disassembly: asMemCopy128c / 16c, asQuat2ZipQuat,
+   asZipQuat2Quat, asQuatSlerpZipVECTOR, asTrans2ZipTrans_XYZ, asZipTrans2Trans_XYZ1,
+   asInterpolateZipTrans_XYZ, asZipVECTOR2VECTOR_XYZ0, asVECTOR2ZipVECTOR_XYZ, asInterpolateZipVECTOR_XYZ,
+   asZipUV2UV, asInterpolateNumber (the old stubs of asZipQuat2Quat / asZipTrans2Trans_XYZ1 carried the
+   wrong addresses 0x0185c6d0 / 0x0185cdb0: fixed). Still stubs there: asInterpolateZipUV,
+   asInterpolateZipFloat0_7_9X / 1_1_14X, asContInterpolateZipNormal_XYZ / ZipTrans_XYZ / Vector (the
+   vertex kinds); QuatSlerp itself (Convert.c) is still a stub, so rotation keys blend to zeros;
+   (dk) asShadowDrawing_SetShadowAngleLockParameter takes its floats in f12 / f13 and the bank in a0:
+   the C order (bank, a, b) is a guess for ssGrpPortalCheck.c's call site; BankInfo +0x64 / +0x68 are
+   its two floats, +0x6d the angle lock, +0x6c (shadowOrder) is what SetShadowValue sets;
+   (dl) asFindBehavior / _ByCharacter answer host BEHAVIOR pointers (the list words resolved by
+   BankOfHostPtr's bank); BEHAVIOR +0 is its 64-bit `hash`. Left in this TU: EA_010, the general body of
+   ExecuteAnimation, asShadowDrawing_CheckTransMode, asSceneAnimationStart, asMirrorCulling,
+   asUpdateAnimation_Matrix, asDrawShadowVolume / _Init and the rest of the brief's list.
    (bw) Extract is untested against a known image: the first scene_init that runs on relocated data is
    its test (a wrong decode shows as garbage tables); a harness decoding one CT3X file from CT3PACK.DAT
    beside the ROM's (eerun.py) would prove it sooner.

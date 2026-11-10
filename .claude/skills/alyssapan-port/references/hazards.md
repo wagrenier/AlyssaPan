@@ -185,6 +185,17 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 - **The ROM leaves a register unset on a path** (2026-11-09, game/sound.c). SSStopSQ assigns s0 only for
   stage 1..5 (TRIG_VAR_STAGE), then tests s0: other stages stop or not by the caller's s0. The port takes 0
   (no stop) there; the comment above SSStopSQ says so.
+- **The UV key's copy path stores floats over a packed key** (2026-11-10, InterpolateAnimationKey /
+  IAK_0). On a key's exact frame, kind '3' copies the packed UV (two shorts) into a 4-byte stack slot,
+  calls asZipUV2UV (which reads four shorts: two of stack garbage) and stores the first 8 bytes of its
+  float answer -- u and v as floats -- over key 0's +8..+0xf; the blended path writes packed shorts
+  there. Kept as the ROM does it; whoever reads key 0 of a UV track sees which form it expects.
+- **callcheck reads an all-caps name as a macro** (2026-11-10): `IAK_0(...)` is not counted as a call,
+  so a function calling it needs `// callcheck: IAK_0 (...)`. Same for any symtab name like `EA_100`,
+  `BMT_01`.
+- **A stub's address can be wrong** (2026-11-10): QuatSlerp.c's stubs of asZipQuat2Quat and
+  asZipTrans2Trans_XYZ1 carried 0x0185c6d0 / 0x0185cdb0 (other functions' addresses) from a call-site
+  guess. Look a name up in `alyssapan_functions.txt` before writing it early.
 - **Ghidra prints `_name` for a symbol sharing its address with a smaller one** ("Globals starting with
   '_' overlap smaller symbols"): `_gPlayingChaseBGM` is the symtab's `gPlayingChaseBGM`. Strip the `_`
   and look the name up in `work/symtab_ct3.json` (sizes there are hex).

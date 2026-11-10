@@ -301,6 +301,128 @@ void asZipVECTOR2VECTOR_XYZ1(float *out, const short *in)
     out[3] = 1.0f;
 }
 
+// ---- written early: the packed keys InterpolateAnimationKey reads (ahRelocateSunPs2ObjectArry.c
+// slice 9, 2026-11-10; from the disassembly) ----
+
+// vftoi0: truncate toward zero, saturating at the int range (the VU's clamp).
+static int VuFtoi0(float f)
+{
+    if (f >= 2147483647.0f)
+        return 0x7fffffff;
+    if (f <= -2147483648.0f)
+        return (int)0x80000000;
+    return (int)f;
+}
+
+// CT3 0x0185c4d0
+// n qwords (lq / sq), counted down from n.
+void asMemCopy128c(void *dst, const void *src, u_int n)
+{
+    memmove(dst, src, (size_t)n * 16);
+}
+
+// CT3 0x0185c500
+// n halfwords (lhu / sh).
+void asMemCopy16c(void *dst, const void *src, u_int n)
+{
+    memmove(dst, src, (size_t)n * 2);
+}
+
+// CT3 0x0185c770
+// q * ZIP_QUAT_SCALE (vmulx), vftoi0, each word's low half.
+void asQuat2ZipQuat(short *out, const float *q)
+{
+    int i;
+    for (i = 0; i < 4; i++)
+        out[i] = (short)VuFtoi0(q[i] * ZIP_QUAT_SCALE);
+}
+
+// CT3 0x0185c700
+// The packed quaternions unpacked, slerped by w ({1 - t, t}) and packed into out.
+void asQuatSlerpZipVECTOR(short *out, const short *a, const short *b, float *w)
+{
+    alignas(16) float q[4], qa[4], qb[4];
+    asZipQuat2Quat(qa, a);
+    asZipQuat2Quat(qb, b);
+    QuatSlerp(q, qa, qb, w);
+    asQuat2ZipQuat(out, q);
+}
+
+// CT3 0x0185ce40
+// v * (1 << shift) (vmulx), vftoi0, the low halves of xyz.
+void asTrans2ZipTrans_XYZ(short *out, const float *v, u_int shift)
+{
+    float scale = (float)(1 << shift);
+    int i;
+    for (i = 0; i < 3; i++)
+        out[i] = (short)VuFtoi0(v[i] * scale);
+}
+
+// CT3 0x0185cdb0
+// The packed positions unpacked (XYZ1), blended by w (asInterpolateVector) and packed into out.
+void asInterpolateZipTrans_XYZ(short *out, const short *a, const short *b, const float *w, u_int shift)
+{
+    alignas(16) float v[4], va[4], vb[4];
+    asZipTrans2Trans_XYZ1(va, a, shift);
+    asZipTrans2Trans_XYZ1(vb, b, shift);
+    asInterpolateVector(v, va, vb, w);
+    asTrans2ZipTrans_XYZ(out, v, shift);
+}
+
+// CT3 0x0185d100
+// asZipVECTOR2VECTOR_XYZ1 with w 0 (sq zero, nothing stored over it).
+void asZipVECTOR2VECTOR_XYZ0(float *out, const short *in)
+{
+    int i;
+    for (i = 0; i < 3; i++) {
+        u_int bits = (u_int)(u_short)in[i] << 16;
+        memcpy(&out[i], &bits, sizeof(bits));
+    }
+    out[3] = 0.0f;
+}
+
+// CT3 0x0185d190
+// The high halves of xyz (bfloat16).
+void asVECTOR2ZipVECTOR_XYZ(short *out, const float *v)
+{
+    int i;
+    for (i = 0; i < 3; i++) {
+        u_int bits;
+        memcpy(&bits, &v[i], sizeof(bits));
+        out[i] = (short)(bits >> 16);
+    }
+}
+
+// CT3 0x0185d120
+// The packed vectors unpacked (XYZ0), blended by w and packed into out.
+void asInterpolateZipVECTOR_XYZ(short *out, const short *a, const short *b, const float *w)
+{
+    alignas(16) float v[4], va[4], vb[4];
+    asZipVECTOR2VECTOR_XYZ0(va, a);
+    asZipVECTOR2VECTOR_XYZ0(vb, b);
+    asInterpolateVector(v, va, vb, w);
+    asVECTOR2ZipVECTOR_XYZ(out, v);
+}
+
+// CT3 0x0185d060
+// u, v: the first two shorts / ZIP_UV_SCALE (div.s); the next two shorts as they are.
+void asZipUV2UV(float *out, const short *in)
+{
+    out[0] = (float)in[0] / ZIP_UV_SCALE;
+    out[1] = (float)in[1] / ZIP_UV_SCALE;
+    out[2] = (float)in[2];
+    out[3] = (float)in[3];
+}
+
+// CT3 0x0185d1b0
+// a w[0] + b w[1]; a when a == b (c.eq.s).
+float asInterpolateNumber(float a, float b, const float *w)
+{
+    if (a == b)
+        return a;
+    return a * w[0] + b * w[1];
+}
+
 // CT3 0x0185d330
 // Written early (2026-11-10, ahRelocateSunPs2ObjectArry.c slice 8): EA_100 calls it. vsub into vf0 for
 // the MAC zero flags: all four set leaves a; else vmulax / vmaddy.
@@ -356,14 +478,61 @@ int asDelSqueezeInformation(float (*out)[4], float (*a)[4], float (*b)[4])
     return {};
 }
 
-// stub of CT3 0x0185c6d0
+// CT3 0x0185c7d0
+// Written early (2026-11-10, ahRelocateSunPs2ObjectArry.c slice 9; the stub carried 0x0185c6d0). The
+// four shorts as floats, then vmulx by 1 / ZIP_QUAT_SCALE (0x38800000).
 void asZipQuat2Quat(float *out, const short *in)
 {
-    ALYSSAPAN_STUB("asZipQuat2Quat", 0x0185c6d0);
+    int i;
+    for (i = 0; i < 4; i++)
+        out[i] = (float)in[i] * (1.0f / ZIP_QUAT_SCALE);
 }
 
-// stub of CT3 0x0185cdb0
+// CT3 0x0185ceb0
+// Written early (slice 9; the stub carried 0x0185cdb0): xyz = the shorts * 1 / (1 << shift) (div.s,
+// then vmulx), w = 1.
 void asZipTrans2Trans_XYZ1(float *out, const short *in, u_int shift)
 {
-    ALYSSAPAN_STUB("asZipTrans2Trans_XYZ1", 0x0185cdb0);
+    float scale = 1.0f / (float)(1 << shift);
+    int i;
+    for (i = 0; i < 3; i++)
+        out[i] = (float)in[i] * scale;
+    out[3] = 1.0f;
+}
+
+// stub of CT3 0x0185d2a0
+void asContInterpolateVector(float *out, const float *a, const float *b, const float *w, int n)
+{
+    ALYSSAPAN_STUB("asContInterpolateVector", 0x0185d2a0);
+}
+
+// stub of CT3 0x0185c840
+void asContInterpolateZipNormal_XYZ(short *out, const short *a, const short *b, const float *w, int n)
+{
+    ALYSSAPAN_STUB("asContInterpolateZipNormal_XYZ", 0x0185c840);
+}
+
+// stub of CT3 0x0185ca50
+void asContInterpolateZipTrans_XYZ(short *out, const short *a, const short *b, const float *w, int n,
+                                   u_int shift)
+{
+    ALYSSAPAN_STUB("asContInterpolateZipTrans_XYZ", 0x0185ca50);
+}
+
+// stub of CT3 0x0185c530
+void asInterpolateZipFloat0_7_9X(short *out, const short *a, const short *b, const float *w)
+{
+    ALYSSAPAN_STUB("asInterpolateZipFloat0_7_9X", 0x0185c530);
+}
+
+// stub of CT3 0x0185c630
+void asInterpolateZipFloat1_1_14X(short *out, const short *a, const short *b, const float *w)
+{
+    ALYSSAPAN_STUB("asInterpolateZipFloat1_1_14X", 0x0185c630);
+}
+
+// stub of CT3 0x0185cfb0
+void asInterpolateZipUV(short *out, const short *a, const short *b, const float *w)
+{
+    ALYSSAPAN_STUB("asInterpolateZipUV", 0x0185cfb0);
 }

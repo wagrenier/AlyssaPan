@@ -2740,9 +2740,394 @@ void asCopyDoubleBuffer(void)
     }
 }
 
-// stub of CT3 0x0184dbc0
+// ---- the keys (slice 9, 2026-11-10) ----
+
+// A key's frame: its first int.
+static int KeyFrame(const u_char *key)
+{
+    return *(const int *)key;
+}
+
+// The key at time t into key 0 (out): prev's copied when t is on it or there is no next key, else prev
+// and next blended by w = {1 - f, f}, f how far t is between their frames. The ROM has this body twice,
+// inline, in IAK_0 and InterpolateAnimationKey. PORT: the bank resolves the vertex kinds' EE words.
+static void IAK_WriteKey(int bank, const BEHAVIOR_TRACK *tr, u_char *out, const u_char *prev,
+                         const u_char *next, int t)
+{
+    u_int stride = tr->length & TRACK_KEY_STRIDE;
+    int raw = (tr->length & TRACK_KEY_RAW) != 0;
+    ANIM_SUBKEY *o = (ANIM_SUBKEY *)out;
+    const ANIM_SUBKEY *p = (const ANIM_SUBKEY *)prev;
+    const ANIM_SUBKEY *q = (const ANIM_SUBKEY *)next;
+    int n;
+    if (t == KeyFrame(prev) * TRACK_TIME_SCALE || next == NULL) {
+        switch (tr->kind) {
+        case TRACK_KIND_UV: {
+            // The ROM gives asZipUV2UV a 4-byte stack copy of the packed UV (it reads 4 shorts: the
+            // last two are stack garbage, unused) and stores the first 8 bytes of its float answer --
+            // u and v as floats -- over key 0's packed UV (+8..+0xf). Kept: hazards.md (2026-11-10).
+            short zip[4] = { *(const short *)(prev + 8), *(const short *)(prev + 10), 0, 0 };
+            float uv[4];
+            asZipUV2UV(uv, zip);
+            memcpy(out + 8, uv, 8);
+            break;
+        }
+        case TRACK_KIND_NORMAL:
+            for (n = (int)stride; n > 0; n -= o->size, o++, p++)
+                asMemCopy16c(BANK_PTR(void *, bank, o->data), BANK_PTR(const void *, bank, p->data), o->count * 3);
+            break;
+        case TRACK_KIND_VERTEX:
+            for (n = (int)stride; n > 0; n -= o->size, o++, p++) {
+                if (raw)
+                    asMemCopy128c(BANK_PTR(void *, bank, o->data), BANK_PTR(const void *, bank, p->data), o->count);
+                else
+                    asMemCopy16c(BANK_PTR(void *, bank, o->data), BANK_PTR(const void *, bank, p->data), o->count * 3);
+            }
+            break;
+        default:
+            memmove(out, prev, (size_t)((int)stride >> 2) * 4); // callcheck: gaMemCopy32 (words)
+            break;
+        }
+        return;
+    }
+    {
+        float w[2];
+        w[1] = ((float)t / 100.0f - (float)KeyFrame(prev)) / (float)(KeyFrame(next) - KeyFrame(prev));
+        w[0] = 1.0f - w[1];
+        switch (tr->kind) {
+        case TRACK_KIND_BASE_ROT:
+        case TRACK_KIND_ROT:
+            asQuatSlerpZipVECTOR((short *)(out + 8), (const short *)(prev + 8), (const short *)(next + 8), w);
+            break;
+        case TRACK_KIND_BASE_POS:
+        case TRACK_KIND_POS:
+            if (!raw)
+                asInterpolateZipTrans_XYZ((short *)(out + 8), (const short *)(prev + 8), (const short *)(next + 8), w,
+                                          TRACK_KEY_SHIFT(tr->length));
+            else
+                asInterpolateVector((float *)(out + 0x10), (const float *)(prev + 0x10), (const float *)(next + 0x10), w);
+            break;
+        case TRACK_KIND_FLOAT0_7_9:
+            asInterpolateZipFloat0_7_9X((short *)(out + 8), (const short *)(prev + 8), (const short *)(next + 8), w);
+            break;
+        case TRACK_KIND_UV:
+            asInterpolateZipUV((short *)(out + 8), (const short *)(prev + 8), (const short *)(next + 8), w);
+            *(short *)(out + 0xc) = *(const short *)(prev + 0xc);
+            break;
+        case TRACK_KIND_NORMAL:
+            for (n = (int)stride; n > 0; n -= o->size, o++, p++, q++)
+                asContInterpolateZipNormal_XYZ(BANK_PTR(short *, bank, o->data), BANK_PTR(const short *, bank, p->data),
+                                               BANK_PTR(const short *, bank, q->data), w, o->count);
+            break;
+        case TRACK_KIND_VERTEX:
+            for (n = (int)stride; n > 0; n -= o->size, o++, p++, q++) {
+                if (!raw)
+                    asContInterpolateZipTrans_XYZ(BANK_PTR(short *, bank, o->data), BANK_PTR(const short *, bank, p->data),
+                                                  BANK_PTR(const short *, bank, q->data), w, o->count,
+                                                  TRACK_KEY_SHIFT(tr->length));
+                else
+                    asContInterpolateVector(BANK_PTR(float *, bank, o->data), BANK_PTR(const float *, bank, p->data),
+                                            BANK_PTR(const float *, bank, q->data), w, o->count);
+            }
+            break;
+        case TRACK_KIND_VECTOR_XYZ:
+        case TRACK_KIND_VECTOR:
+            asInterpolateZipVECTOR_XYZ((short *)(out + 8), (const short *)(prev + 8), (const short *)(next + 8), w);
+            break;
+        case TRACK_KIND_COPY:
+            memmove(out, prev, (size_t)((int)stride >> 2) * 4); // callcheck: gaMemCopy32 (words)
+            break;
+        case TRACK_KIND_NUMBER:
+            *(short *)(out + 8) = (short)(int)asInterpolateNumber((float)*(const short *)(prev + 8),
+                                                                  (float)*(const short *)(next + 8), w);
+            break;
+        case TRACK_KIND_FLOAT1_1_14:
+            asInterpolateZipFloat1_1_14X((short *)(out + 8), (const short *)(prev + 8), (const short *)(next + 8), w);
+            break;
+        case TRACK_KIND_SUB_NUMBER:
+            // The ROM counts the whole length word down here, flag bits and all.
+            for (n = (int)tr->length; n > 0; n -= o->size, o++, p++, q++) {
+                o->number = (short)(int)asInterpolateNumber((float)p->number, (float)q->number, w);
+                o->data = p->data;
+            }
+            break;
+        default:
+            break;
+        }
+    }
+}
+
+// CT3 0x0184dbc0
+// Moves the track's time on by dir ticks (backwards with TRACK_FLAG_REVERSE; at anim_play_slow's speed
+// snapped to TRACK_SLOW_STEP; value0e 0 jumps to the end), applies the play mode at the ends (1 when
+// a once track reached playable), finds the keys either side and writes key 0 (IAK_WriteKey). dir 0
+// is IAK_0's.
+// callcheck: IAK_0 (all-caps: callcheck reads it as a macro)
+// callcheck: asContInterpolateVector, asContInterpolateZipNormal_XYZ, asContInterpolateZipTrans_XYZ, asInterpolateNumber, asInterpolateVector, asInterpolateZipFloat0_7_9X, asInterpolateZipFloat1_1_14X, asInterpolateZipTrans_XYZ, asInterpolateZipUV, asInterpolateZipVECTOR_XYZ, asMemCopy128c, asMemCopy16c, asQuatSlerpZipVECTOR, asZipUV2UV, gaMemCopy32 (in IAK_WriteKey; gaMemCopy32 is memmove)
 int InterpolateAnimationKey(BEHAVIOR_TRACK *track, int dir)
 {
-    ALYSSAPAN_STUB("InterpolateAnimationKey", 0x0184dbc0);
-    return {};
+    int bank, end, lastFrame, last, before, t, ret = 0;
+    u_int stride, k;
+    u_char flags, *keys;
+    const u_char *prev, *next;
+    if (dir == 0)
+        return IAK_0(track);
+    bank = BankOfHostPtr(track);
+    keys = BANK_PTR(u_char *, bank, track->keys);
+    flags = track->flags;
+    stride = track->length & TRACK_KEY_STRIDE;
+    before = track->time;
+    end = track->playable * TRACK_TIME_SCALE;
+    lastFrame = KeyFrame(keys + track->runs * stride);
+    last = lastFrame * TRACK_TIME_SCALE;
+    t = dir * ((flags & TRACK_FLAG_REVERSE) ? -1 : 1);
+    if (track->value0e == 0) {
+        track->time = end;
+        t = end;
+    } else if ((u_int)track->value0e == (u_int)(anim_play_slow * 100) / 100) {
+        if (!(flags & TRACK_FLAG_REVERSE))
+            t = ((t + before - 1) / TRACK_SLOW_STEP + 1) * TRACK_SLOW_STEP;
+        else
+            t = ((t + before) / TRACK_SLOW_STEP) * TRACK_SLOW_STEP;
+    } else {
+        t += before;
+    }
+    switch (flags & TRACK_FLAG_PLAY_MASK) {
+    case TRACK_PLAY_LOOP_REVERSE:
+        if (t < end) {
+            while (t < end)
+                t += track->rangeStart * TRACK_TIME_SCALE - track->playable * TRACK_TIME_SCALE;
+            track->step = (short)track->runs;
+        }
+        break;
+    case TRACK_PLAY_LOOP:
+        if (end < t) {
+            while (end < t)
+                t -= end - track->rangeStart * TRACK_TIME_SCALE;
+            track->step = 1;
+        }
+        break;
+    case TRACK_PLAY_ONCE_REVERSE:
+        if (end < before && t <= end) {
+            ret = 1;
+            t = end;
+        } else if (before >= 0 && t < 1) {
+            t += last;
+            track->step = (short)track->runs;
+        }
+        break;
+    default: /* TRACK_PLAY_ONCE */
+        if (before < end && end <= t) {
+            ret = 1;
+            t = end;
+        } else if (before <= last && last <= t && end <= t) {
+            track->step = 1;
+            t -= lastFrame * TRACK_TIME_SCALE;
+        }
+        break;
+    }
+    if (!(flags & TRACK_FLAG_REVERSE)) {
+        if (t < last) {
+            k = 1;
+            while (KeyFrame(keys + (k + 1) * stride) * TRACK_TIME_SCALE <= t)
+                k = (k + 1) & 0xffff;
+            next = keys + (k + 1) * stride;
+            prev = keys + k * stride;
+        } else {
+            k = track->runs;
+            next = NULL;
+            prev = keys + k * stride;
+        }
+    } else if (t < 1) {
+        k = 1;
+        next = keys + 2 * stride;
+        prev = keys + stride;
+    } else {
+        k = (u_short)track->step;
+        while (t <= KeyFrame(keys + k * stride) * TRACK_TIME_SCALE)
+            k = (k - 1) & 0xffff;
+        prev = keys + k * stride;
+        next = keys + (k + 1) * stride;
+    }
+    track->step = (short)k;
+    track->time = t;
+    IAK_WriteKey(bank, track, keys, prev, next, t);
+    return ret;
+}
+
+// CT3 0x0184e520
+// The key at the track's time as it stands (value0e 0: the end), clamped to playable -- 1 when it is
+// there (at or past it forwards, at or before it backwards).
+// callcheck: asContInterpolateVector, asContInterpolateZipNormal_XYZ, asContInterpolateZipTrans_XYZ, asInterpolateNumber, asInterpolateVector, asInterpolateZipFloat0_7_9X, asInterpolateZipFloat1_1_14X, asInterpolateZipTrans_XYZ, asInterpolateZipUV, asInterpolateZipVECTOR_XYZ, asMemCopy128c, asMemCopy16c, asQuatSlerpZipVECTOR, asZipUV2UV, gaMemCopy32 (in IAK_WriteKey; gaMemCopy32 is memmove)
+int IAK_0(BEHAVIOR_TRACK *track)
+{
+    int bank = BankOfHostPtr(track);
+    u_char *keys = BANK_PTR(u_char *, bank, track->keys);
+    u_int stride = track->length & TRACK_KEY_STRIDE;
+    int last = KeyFrame(keys + track->runs * stride) * TRACK_TIME_SCALE;
+    int end = track->playable * TRACK_TIME_SCALE;
+    int t, ret;
+    u_int k;
+    const u_char *prev, *next;
+    if (track->value0e == 0) {
+        track->time = end;
+        t = end;
+    } else {
+        t = track->time;
+    }
+    if (!(track->flags & TRACK_FLAG_REVERSE)) {
+        ret = end <= t;
+        if (ret)
+            t = end;
+        if (t < last) {
+            k = 1;
+            while (KeyFrame(keys + (k + 1) * stride) * TRACK_TIME_SCALE <= t)
+                k = (k + 1) & 0xffff;
+            next = keys + (k + 1) * stride;
+            prev = keys + k * stride;
+        } else {
+            k = track->runs;
+            next = NULL;
+            prev = keys + k * stride;
+        }
+    } else {
+        ret = t <= end;
+        if (ret)
+            t = end;
+        k = (u_short)track->step;
+        while (t <= KeyFrame(keys + k * stride) * TRACK_TIME_SCALE)
+            k = (k - 1) & 0xffff;
+        prev = keys + k * stride;
+        next = keys + (k + 1) * stride;
+    }
+    track->step = (short)k;
+    track->time = t;
+    IAK_WriteKey(bank, track, keys, prev, next, t);
+    return ret;
+}
+
+// ---- play range, behaviour lookup, shadow setters (slice 9, 2026-11-10) ----
+
+// CT3 0x01849700
+void asChangePlayRange(BEHAVIOR_TRACK *track, int from, int to)
+{
+    if (from >= 0) {
+        track->rangeStart = from;
+        track->time = from * TRACK_TIME_SCALE;
+    }
+    if (to < 0)
+        track->playable = TRACK_RANGE_OPEN;
+    else
+        track->playable = to;
+}
+
+// CT3 0x018496c0
+void asResetPassCheckarameter(BEHAVIOR_TRACK *track, int frame)
+{
+    if (frame < 0)
+        track->time1c = (int)((u_int)(u_short)track->time1c * 0x10001);
+    else
+        track->time1c = frame * 0x10001;
+}
+
+// CT3 0x0184ef10
+// PORT: the list's words are EE addresses of the image's bank; the answer is a host pointer.
+BEHAVIOR *asFindBehavior(u_char *image, u_long hash)
+{
+    int bank = BankOfHostPtr(image);
+    const u_int *list = (const u_int *)(image + CT3X_BHVR_LIST);
+    for (; *list != 0; list++) {
+        BEHAVIOR *bhv = BANK_PTR(BEHAVIOR *, bank, *list);
+        if (bhv->hash == hash)
+            return bhv;
+    }
+    return NULL;
+}
+
+// CT3 0x0184ef50
+BEHAVIOR *asFindBehaviorByCharacter(int chara, u_long hash)
+{
+    BEHAVIOR *bhv = NULL;
+    int i;
+    for (i = 0; i < 10; i++) {
+        short b = Character[chara].behaviorBank[i];
+        if (b < 0 || BankInfo[b].state != BANK_STATE_LOADED)
+            continue;
+        bhv = asFindBehavior(BankImage[b], hash); /* PORT: BankInfo[b].image's host side */
+        if (bhv != NULL)
+            break;
+    }
+    return bhv;
+}
+
+// CT3 0x01847c50
+void asChangeBehaviorAnimationCurrent(BEHAVIOR *bhv, int frame)
+{
+    int bank, g, t;
+    if (bhv == NULL)
+        return;
+    bank = BankOfHostPtr(bhv);
+    for (g = 0; g < bhv->groupCount; g++) {
+        BEHAVIOR_TRACK *tr = BehaviorTracks(bank, bhv, g);
+        for (t = bhv->groups[g].trackCount; t > 0; t--, tr++) {
+            if (frame < tr->playable)
+                tr->time = frame * TRACK_TIME_SCALE;
+            else
+                tr->time = tr->playable * TRACK_TIME_SCALE - 1;
+        }
+    }
+}
+
+// CT3 0x01847490
+void asShadowDrawing_AttachLightPosition(int bank, ALL_TABLE *tbl, int part)
+{
+    if (bank < 0)
+        return;
+    BankInfo[bank].shadowLightPos = tbl->partsHeader + PARTS_RECORDS + (u_int)(part & 0xffff) * 0x380 + SHADOW_LIGHT_POS;
+    asShadowDrawing_Enable(bank);
+}
+
+// CT3 0x01847550
+void asShadowDrawing_SetShadowAngleLockParameter(int bank, float lock64, float lock68)
+{
+    if (bank >= 0) {
+        BankInfo[bank].shadow64 = lock64;
+        BankInfo[bank].shadow68 = lock68;
+    }
+}
+
+// CT3 0x01847580
+void asShadowDrawing_SetShadowAngleLock(int bank, u_char on)
+{
+    if (bank >= 0)
+        BankInfo[bank].shadow6d = on;
+}
+
+// CT3 0x018475b0
+void asShadowDrawing_SetShadowValue(int bank, s_char value)
+{
+    if (bank >= 0)
+        BankInfo[bank].shadowOrder = value;
+}
+
+// The record fields asCopyDoubleBufferL2W keeps (LinkMatrixTree.c names them the same).
+#define REC_MATRIX_PREV 0x1c0           /* float[4][4]: last frame's REC_MATRIX */
+#define REC_PREV_SCALE_X 0x4c           /* float: last frame's REC_SCALE, one per row w of the offset */
+#define REC_PREV_SCALE_Y 0x5c
+#define REC_PREV_SCALE_Z 0x6c
+
+// CT3 0x018510d0
+// Every part but a static one keeps this frame's world matrix (REC_MATRIX, four lqc2 / sqc2) and
+// scale (REC_SCALE's xyz) as last frame's.
+void asCopyDoubleBufferL2W(u_char *partsHeader)
+{
+    u_char *rec;
+    for (rec = PARTS_REC(partsHeader, 0); !PARTS_END(rec); rec += sizeof(MODEL_PARTS)) {
+        if ((signed char)rec[REC_KIND] == PARTS_KIND_STATIC)
+            continue;
+        memcpy(rec + REC_MATRIX_PREV, rec + REC_MATRIX, 0x40);
+        memcpy(rec + REC_PREV_SCALE_X, rec + REC_SCALE + 0, 4);
+        memcpy(rec + REC_PREV_SCALE_Y, rec + REC_SCALE + 4, 4);
+        memcpy(rec + REC_PREV_SCALE_Z, rec + REC_SCALE + 8, 4);
+    }
 }

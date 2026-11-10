@@ -136,11 +136,11 @@ typedef struct BANK_INFO {
                                            0 at init. PORT: the host keeps it in ShadowBlock[bank] */
     float shadowLength;                 /* 0x5c: 500 at init (the ROM stores 1000, 250, then 500) */
     u_char shadowColor[4];              /* 0x60: RGBA, 0xff each; _Disable sets alpha 0xff */
-    float shadow64;                     /* 0x64: 200 at init */
-    float shadow68;                     /* 0x68: 100 at init */
+    float shadow64;                     /* 0x64: 200 at init; asShadowDrawing_SetShadowAngleLockParameter */
+    float shadow68;                     /* 0x68: 100 at init; the same setter */
     signed char shadowOrder;            /* 0x6c: 100 at init; _CheckTransMode sorts banks > 0 to the
                                            front of its order, <= 0 to the back */
-    u_char shadow6d;                    /* 0x6d: 0 at init */
+    u_char shadow6d;                    /* 0x6d: 0 at init; asShadowDrawing_SetShadowAngleLock (the lock on) */
     u_char shadowDraw;                  /* 0x6e: non-0: _CheckTransMode takes the bank's shadow */
     u_char pad6f;
     u_char shadow70;                    /* 0x70: 0 at init */

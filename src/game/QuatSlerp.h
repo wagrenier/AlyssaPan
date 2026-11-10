@@ -23,12 +23,38 @@ void WarpObjectUpdate(void);                                                    
 void WarpObjectUpdateInit(void);                                                         // CT3 0x0185bf80
 void asWarpSceneObject(void *table, int maxId, float *pos);                              // CT3 0x0185c100
 // The packed keys: three shorts scaled by 1 / (1 << shift), w = 1; four shorts scaled by 1 / 16384.
-void asZipTrans2Trans_XYZ1(float *out, const short *in, u_int shift);                     // CT3 0x0185cdb0
-void asZipQuat2Quat(float *out, const short *in);                                        // CT3 0x0185c6d0
+void asZipTrans2Trans_XYZ1(float *out, const short *in, u_int shift);                     // CT3 0x0185ceb0
+void asZipQuat2Quat(float *out, const short *in);                                        // CT3 0x0185c7d0
 // out = the three shorts as the high halves of floats (bfloat16), w 1.
 void asZipVECTOR2VECTOR_XYZ1(float *out, const short *in);                               // CT3 0x0185d0d0
 // out = a w[0] + b w[1] (all four lanes); a when a == b (the VU's zero flags).
 void asInterpolateVector(float *out, const float *a, const float *b, const float *w);    // CT3 0x0185d330
+// ---- the packed keys' other forms (written early from the disassembly, ahRelocateSunPs2ObjectArry.c
+// slice 9, 2026-11-10). w is the pair {1 - t, t}. ----
+#define ZIP_QUAT_SCALE 16384.0f         /* a packed quaternion's unit (0x46800000; 2^-14 back) */
+#define ZIP_UV_SCALE 1024.0f            /* a packed UV's unit (0x44800000) */
+void asMemCopy128c(void *dst, const void *src, u_int n);                                 // CT3 0x0185c4d0 (n qwords)
+void asMemCopy16c(void *dst, const void *src, u_int n);                                  // CT3 0x0185c500 (n halfwords)
+void asQuat2ZipQuat(short *out, const float *q);                                         // CT3 0x0185c770
+void asQuatSlerpZipVECTOR(short *out, const short *a, const short *b, float *w);         // CT3 0x0185c700
+void asTrans2ZipTrans_XYZ(short *out, const float *v, u_int shift);                      // CT3 0x0185ce40
+void asInterpolateZipTrans_XYZ(short *out, const short *a, const short *b, const float *w, u_int shift); // CT3 0x0185cdb0
+void asZipVECTOR2VECTOR_XYZ0(float *out, const short *in);                               // CT3 0x0185d100
+void asVECTOR2ZipVECTOR_XYZ(short *out, const float *v);                                 // CT3 0x0185d190
+void asInterpolateZipVECTOR_XYZ(short *out, const short *a, const short *b, const float *w); // CT3 0x0185d120
+float asInterpolateNumber(float a, float b, const float *w);                             // CT3 0x0185d1b0
+// out = u, v (the first two shorts / ZIP_UV_SCALE), then the next two shorts as floats.
+void asZipUV2UV(float *out, const short *in);                                            // CT3 0x0185d060
+// Still stubs (prototypes from InterpolateAnimationKey's calls): the UV and the two float formats
+// blend one packed key; the Cont* forms blend `n` packed vertices (a sub-record's +0xc count) at the
+// host pointers the sub-records' EE words resolve to.
+void asInterpolateZipUV(short *out, const short *a, const short *b, const float *w);     // CT3 0x0185cfb0
+void asInterpolateZipFloat0_7_9X(short *out, const short *a, const short *b, const float *w); // CT3 0x0185c530
+void asInterpolateZipFloat1_1_14X(short *out, const short *a, const short *b, const float *w); // CT3 0x0185c630
+void asContInterpolateZipNormal_XYZ(short *out, const short *a, const short *b, const float *w, int n); // CT3 0x0185c840
+void asContInterpolateZipTrans_XYZ(short *out, const short *a, const short *b, const float *w, int n,
+                                   u_int shift);                                         // CT3 0x0185ca50
+void asContInterpolateVector(float *out, const float *a, const float *b, const float *w, int n); // CT3 0x0185d2a0
 int asFindModelPartsID(u_char *header, u_long hash);                                    // CT3 0x0185e150
 int asCheckBankID(int bank);                                                             // CT3 0x0185e360
 int asCheckBankType(int bank);                                                           // CT3 0x0185e380

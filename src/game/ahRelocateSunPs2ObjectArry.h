@@ -87,6 +87,7 @@ void Shadow_OnceInit(void);                                                     
 void ExecuteAnimationHistory_init(void);                                                 // CT3 0x0184ef00
 void asCopyDoubleBuffer(void);                                                           // CT3 0x01851150
 void asCopyDoubleBufferL2V(u_char *partsHeader, int mode);                              // CT3 0x018513b0
+void asCopyDoubleBufferL2W(u_char *partsHeader);                                        // CT3 0x018510d0 (slice 9)
 void ExecuteAnimationHistory_Free(void);                                                 // CT3 0x0184eed0
 // (scene, mode, pass): (0, 1) BMT_01, (2, 0) BMT_20; mode 1 rebuilds every part, pass != 0 the view
 // matrices of what moved; a negative scene also keeps this frame's matrices as the previous ones.
@@ -247,8 +248,10 @@ typedef struct BEHAVIOR_TRACK {         /* 0x20 bytes */
     u_short runs;                       /* 0x0c */
     u_char value0e;                     /* 0x0e: TRACK_VALUE0E_START at scene start */
     u_char flags;                       /* 0x0f: TRACK_FLAG_* */
-    int playable;                       /* 0x10: group 0 track 0's: asGetBehaviorPlayableTicks */
-    u_int pad14;
+    int playable;                       /* 0x10: group 0 track 0's: asGetBehaviorPlayableTicks; the
+                                           end the time stops at (* TRACK_TIME_SCALE) */
+    int rangeStart;                     /* 0x14: the play range's start (asChangePlayRange; frames): where a
+                                           looping track goes on from */
     int time;                          /* 0x18: 0 from the top */
     int time1c;                         /* 0x1c: 0 from the top when asked */
 } BEHAVIOR_TRACK;
@@ -265,7 +268,7 @@ typedef struct BEHAVIOR_GROUP {         /* 8 bytes, from BEHAVIOR +0x10 */
 static_assert(sizeof(BEHAVIOR_GROUP) == 8, "BEHAVIOR_GROUP");
 static_assert(offsetof(BEHAVIOR_GROUP, tracks) == 4, "BEHAVIOR_GROUP.tracks");
 typedef struct BEHAVIOR {
-    u_char pad00[8];
+    u_long hash;                        /* 0x00: its name's hash (asFindBehavior's key; an ld) */
     short groupCount;                   /* 0x08 */
     u_char pad0a[6];
     BEHAVIOR_GROUP groups[1];           /* 0x10: groupCount of them */
@@ -293,6 +296,59 @@ void asForceOperateMirroring_Character(int chara, int on);                      
 // and 1 of flags & 3), else 0 -- as EA_100 reads it (the decompilation of 0x0184dbc0, 2026-11-10).
 // EA_001 sets its done byte when this is 0: open-items.md (dd).
 int InterpolateAnimationKey(BEHAVIOR_TRACK *track, int dir);                             // CT3 0x0184dbc0
+// slice 9 (2026-11-10): the keys. A track's keys are `length & TRACK_KEY_STRIDE` bytes each, key 0 the
+// output and keys 1..runs the frames; a key's first int is its frame (time / TRACK_TIME_SCALE).
+// flags & TRACK_FLAG_PLAY_MASK picks the play mode; bit 0 also plays backwards.
+#define TRACK_KEY_STRIDE 0x1ffffff      /* BEHAVIOR_TRACK.length: a key's size */
+#define TRACK_FLAG_REVERSE 0x1          /* = TRACK_FLAG_STEP_FROM_RUNS: the time runs down */
+#define TRACK_FLAG_PLAY_MASK 0x3
+#define TRACK_PLAY_ONCE 0               /* forward, stops at playable (1 answered) */
+#define TRACK_PLAY_ONCE_REVERSE 1       /* backward, stops at playable */
+#define TRACK_PLAY_LOOP 2               /* forward, past playable goes on from rangeStart */
+#define TRACK_PLAY_LOOP_REVERSE 3       /* backward, below playable goes on from rangeStart */
+#define TRACK_SLOW_STEP 500             /* value0e == anim_play_slow: the time snaps to 5-frame steps */
+// The other kinds InterpolateAnimationKey writes (BEHAVIOR_TRACK.kind, the ROM's character constants;
+// named from what it calls on them).
+#define TRACK_KIND_NUMBER '"'           /* 0x22: one short at key + 8 */
+#define TRACK_KIND_FLOAT1_1_14 '!'      /* 0x21 */
+#define TRACK_KIND_VECTOR_XYZ ')'       /* 0x29: as TRACK_KIND_VECTOR */
+#define TRACK_KIND_FLOAT0_7_9 '*'       /* 0x2a */
+#define TRACK_KIND_UV '3'               /* 0x33 */
+#define TRACK_KIND_COPY '4'             /* 0x34: the previous key copied whole, never blended */
+#define TRACK_KIND_VERTEX '='           /* 0x3d: sub-records of packed positions (TRACK_KEY_RAW: float[4]) */
+#define TRACK_KIND_NORMAL '>'           /* 0x3e: sub-records of packed normals */
+#define TRACK_KIND_SUB_NUMBER 'H'       /* 0x48: sub-records with a short at +0x14 */
+// The vertex kinds' key: sub-records of 0x18 bytes until the key's size is used up.
+typedef struct ANIM_SUBKEY {
+    int time;                           /* 0x00: the key's frame in the first one */
+    int size;                           /* 0x04: the bytes of the key it takes up */
+    u_int data;                         /* 0x08: EE address of the packed data (BankEePtr) */
+    int count;                          /* 0x0c: the vertices (asContInterpolate*'s n) */
+    int pad10;
+    short number;                       /* 0x14: TRACK_KIND_SUB_NUMBER's value */
+    short pad16;
+} ANIM_SUBKEY;
+static_assert(sizeof(ANIM_SUBKEY) == 0x18, "ANIM_SUBKEY");
+// The key at the track's time: dir 0 of InterpolateAnimationKey (no time step); 1 at the end.
+int IAK_0(BEHAVIOR_TRACK *track);                                                        // CT3 0x0184e520
+// The play range: from >= 0 starts it (and the time) there; to < 0 opens the end (TRACK_RANGE_OPEN).
+#define TRACK_RANGE_OPEN 0x7fffffff
+void asChangePlayRange(BEHAVIOR_TRACK *track, int from, int to);                         // CT3 0x01849700
+// time1c's two halves (last frame's and this frame's, EA_100) both set to frame (< 0: the newer one).
+void asResetPassCheckarameter(BEHAVIOR_TRACK *track, int frame);                         // CT3 0x018496c0
+// PORT: host pointers. The behaviour of a BHVR image (its CT3X_BHVR_LIST) with this hash, or NULL.
+BEHAVIOR *asFindBehavior(u_char *image, u_long hash);                                    // CT3 0x0184ef10
+// The first of a character's behaviour banks (CHARACTER.behaviorBank, loaded) that has it.
+BEHAVIOR *asFindBehaviorByCharacter(int chara, u_long hash);                             // CT3 0x0184ef50
+// Every track of the behaviour to frame (playable * 100 - 1 when frame is not below playable).
+void asChangeBehaviorAnimationCurrent(BEHAVIOR *bhv, int frame);                         // CT3 0x01847c50
+// The bank's shadow follows the part's light position (an EE address: PARTS_REC + SHADOW_LIGHT_POS).
+#define SHADOW_LIGHT_POS 0xf0
+void asShadowDrawing_AttachLightPosition(int bank, ALL_TABLE *tbl, int part);            // CT3 0x01847490
+// The ROM takes the two floats in f12 / f13 and the bank in a0: the order of the C arguments is a guess.
+void asShadowDrawing_SetShadowAngleLockParameter(int bank, float lock64, float lock68);  // CT3 0x01847550
+void asShadowDrawing_SetShadowAngleLock(int bank, u_char on);                            // CT3 0x01847580
+void asShadowDrawing_SetShadowValue(int bank, s_char value);                             // CT3 0x018475b0
 // Track kinds EA_001 reads (BEHAVIOR_TRACK.kind; named from that one use): a local rotation /
 // position, and the base's the local one is multiplied into.
 #define TRACK_KIND_ROT 0x0b             /* a packed quaternion: rows 0..2 of the local matrix */
