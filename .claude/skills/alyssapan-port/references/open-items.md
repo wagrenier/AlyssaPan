@@ -847,6 +847,13 @@ apply here):
   ROM caller: `GA_TEX_DESC` / `GA_TBUFFER_DATA` are named from their loads alone, address words kept as EE
   u_int. QuatSlerp.c's `sunSetupTBufferData` (TEX_INFO by value) is the live copy: compare it when that TU
   is written, and decide there how the host turns these uploads into GPU textures (decoded at the source).
+- (2026-11-10, ga/gaPadInit.c) The TU map's cut between pad_button_read.c and gaPadInit.c looks wrong:
+  gaPadInit's only statics, `pad_dma_buf0` (0x0193e580) / `pad_dma_buf1` (0x0193e480), sit in the same
+  unbroken symtab local run as pad_button_read's statics (indices 1607..1618: id, rdata$185, term_id,
+  pad_button_read, exid, shock_data, rterm_id, the buffers, act_align, phase, act_direct), with no section
+  symbol until the GCC gaDma object's .text at 0x018a1188. So one CodeWarrior object most likely spans
+  0x018a0880..0x018a1188. The ga/pad_button_read.c session should take gaPadInit and its buffers into its
+  file (define 018a0880-018a1188) and retire ga/gaPadInit.c; left apart for now (one TU per run).
 
 ## Done
 

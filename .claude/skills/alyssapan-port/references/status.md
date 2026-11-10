@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-10 15:53 at commit `a0fc2c2` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-10 16:09 at commit `0ace225` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **685**; stubs: **148**
+- reconstructed CT3 functions: **686**; stubs: **147**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -42,7 +42,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/ga/gaInitInterrupt.c` | 3 | 0 |
 | `src/ga/gaInitMeter.c` | 6 | 0 |
 | `src/ga/gaObjectClippingCheck.c` | 0 | 1 |
-| `src/ga/gaPadInit.c` | 0 | 1 |
+| `src/ga/gaPadInit.c` | 1 | 0 |
 | `src/ga/gaSearchNearLight4.c` | 0 | 1 |
 | `src/ga/gaSinCos.c` | 14 | 0 |
 | `src/ga/gaVifInit.c` | 6 | 0 |
@@ -81,15 +81,16 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 44, verify 21, done 3
-- next: **ga/gaPadInit.c** (pinned in the queue)
-- pinned queue: ga/gaPadInit.c, game/movie.c, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/asEyeForcusUP2CamMat.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c, game/ssGrpPortalCheck.c
+- 65 TUs: todo 43, verify 22, done 3
+- next: **game/movie.c** (pinned in the queue)
+- pinned queue: game/movie.c, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/asEyeForcusUP2CamMat.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c, game/ssGrpPortalCheck.c
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaDmaSync_VIF1.c` 5/5 -- Host: kicks leave CHCR.STR clear (the transfer is over), so the syncs return at once; the BGT send keeps the copy and the flip, the packet goes nowhere (draw mo
 - verify: `ga/gaInit3dlib.c` 25/25 -- 15 s smoke run: no fault, shot black (no host draw module). gaMulMatrix is dst = b * a (hazards.md). gaSetZRollMatrix now reaches gaSinCos: ga/gaSinCos.c is que
 - verify: `ga/gaInitDrawObject.c` 24/24 -- No ROM caller for the texture three (the game uses its sun* copies in QuatSlerp.c): complete, nothing on screen can show them. Shot black as before: packets go 
 - verify: `ga/gaInitInterrupt.c` 3/3 -- GCC object; wait_vsync_state (data 0x0192e790), ga_main_timer, ga_down_timer defined here. gaWaitVSync takes no argument and returns the CSR FIELD bit; main.c c
 - verify: `ga/gaInitMeter.c` 6/6 -- Complete code, nothing on screen shows it (shot black as before; the meter stubs no longer appear in the run log). Host: T1/T0 mode writes now reach the host ti
+- verify: `ga/gaPadInit.c` 1/1 -- Complete; nothing on screen can show pad start-up (shot black as before). The symtab puts pad_dma_buf0/1 in pad_button_read.c's local run (indices 1607..1618): 
 - verify: `ga/gaSinCos.c` 13/13 -- 15 s smoke run: no fault, about 26700 frames, shot black (no host draw module yet). ga_sincos_table.inc generated from the ELF (the ROM floats differ from sinf)
 - verify: `ga/gaVifInit.c` 6/6 -- GCC object. VIF0/VIF1 STAT are host variables that read idle (sdk/eeregs.h), so the polls return at once and main frame loop passes the FLUSH wait. gaDmaSendN_V
 - verify: `game/AlignedNum.c` 4/4 -- WaitLoop is split in Ghidra: WaitLoop 0x0189f650 plus WaitLoop_body 0x0189f680 (game-inferred), one C function. The j at 0x0189f718 belongs to the next object (
@@ -108,6 +109,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-10 16:09 `ga/gaPadInit.c` verify: reconstruct gaPadInit (scePadInit, both ports on pad_dma_buf0/1)
 - 2026-11-10 15:53 `game/SdMasterVolumeSetSE.c` verify: slice 6: SdLoadSQProc, the SQ loader and player (SD_SQ_LD_STEP, SD_SQ_REGISTER, SND_CMD_SQ_*); SD_SQ_LD fields named (effectType/effectDepth/spuAddr/iopSq/iopHd
 - 2026-11-10 15:35 `game/SdMasterVolumeSetSE.c` partial: slice 5: SdPlayADSProc (the stream player, SD_ADS_PHASE), IopLoadCapcomSound (the driver boot: FSS_Thread runs from boot now), SdSetParamSESDT, SdFindLoadSEInfo
 - 2026-11-10 15:14 `game/SdMasterVolumeSetSE.c` partial: slice 4: the SE stops (SdStopSEAll, SdStopSESDT, SdStopSEAllSp1, SdStopSESp1, SdStopSESp1ByHandle), SdReqPlaySESp1, IsPlaySEReady, SdLoadSEEndWaitAll, SdLoadSQE
@@ -115,7 +117,6 @@ Recent sessions:
 - 2026-11-10 14:36 `game/SdMasterVolumeSetSE.c` partial: slice 2: SdProc, the SE bank loader (SdLoadSEProc and its steps, NextLoadSE), SdVolumeSetSQ, SdMasterVolumeSetSQ; FL_PACK_INFO.partSize; host IOP heap and sceSd
 - 2026-11-10 14:15 `game/SdMasterVolumeSetSE.c` partial: slice 1: the FSS command ring and thread (FIFO, FSS_Thread, _Init, _Sync), SE master and stream volumes, reverb, SE stop and lookup, load-end wait, SdAlloc, SdF
 - 2026-11-10 13:49 `game/IOPGetFileSize.c` verify: IOPGetFileSize, IOPBindRPC, bind_rpc, IOPComSync: the EE side of FSYS_IOP's file server; gSCD moved here
-- 2026-11-10 13:34 `ga/gaDmaSync_VIF1.c` verify: all 5 functions from the disassembly: the VIF1 / GIF syncs with their timeout reports, the VIF1 normal and chain kicks, and the BGT ring send (memory packets co
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|

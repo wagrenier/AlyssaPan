@@ -1,6 +1,5 @@
 {
  "queue": [
-  "ga/gaPadInit.c",
   "game/movie.c",
   "game/wideXcmd_DebugPrint.c",
   "game/tkXDTrg_GetSceneHash.c",
@@ -181,12 +180,21 @@
    "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 1 unkeyed; file name from the names"
   },
   "ga/gaPadInit.c": {
+   "notes": "Complete; nothing on screen can show pad start-up (shot black as before). The symtab puts pad_dma_buf0/1 in pad_button_read.c's local run (indices 1607..1618): the pad_button_read.c session should merge gaPadInit into its file and define 018a0880-018a1188 (open-items.md, 2026-11-10).",
    "ranges": [
     [
      "018a1130",
      "018a1188"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-10 16:09",
+     "status": "verify",
+     "summary": "reconstruct gaPadInit (scePadInit, both ports on pad_dma_buf0/1)"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 100..100, 1 functions keyed by their statics, 0 unkeyed; file name from the names"
   },
   "ga/gaSearchNearLight4.c": {
