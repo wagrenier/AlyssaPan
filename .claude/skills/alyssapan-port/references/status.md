@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-10 13:34 at commit `ef4204a` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-10 13:50 at commit `7f1020f` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **620**; stubs: **176**
+- reconstructed CT3 functions: **624**; stubs: **173**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -54,7 +54,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/Clipping_Portal.c` | 0 | 34 |
 | `src/game/Convert.c` | 0 | 2 |
 | `src/game/CpDivideEECom.c` | 0 | 1 |
-| `src/game/IOPGetFileSize.c` | 0 | 3 |
+| `src/game/IOPGetFileSize.c` | 4 | 0 |
 | `src/game/LinkMatrixTree.c` | 4 | 0 |
 | `src/game/QuatSlerp.c` | 189 | 0 |
 | `src/game/SdMasterVolumeSetSE.c` | 0 | 34 |
@@ -81,9 +81,9 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 46, verify 19, done 3
-- next: **game/IOPGetFileSize.c** (pinned in the queue)
-- pinned queue: game/IOPGetFileSize.c, game/SdMasterVolumeSetSE.c, ga/gaPadInit.c, game/movie.c, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/asEyeForcusUP2CamMat.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c, game/ssGrpPortalCheck.c
+- 65 TUs: todo 45, verify 20, done 3
+- next: **game/SdMasterVolumeSetSE.c** (pinned in the queue)
+- pinned queue: game/SdMasterVolumeSetSE.c, ga/gaPadInit.c, game/movie.c, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/asEyeForcusUP2CamMat.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c, game/ssGrpPortalCheck.c
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaDmaSync_VIF1.c` 5/5 -- Host: kicks leave CHCR.STR clear (the transfer is over), so the syncs return at once; the BGT send keeps the copy and the flip, the packet goes nowhere (draw mo
 - verify: `ga/gaInit3dlib.c` 25/25 -- 15 s smoke run: no fault, shot black (no host draw module). gaMulMatrix is dst = b * a (hazards.md). gaSetZRollMatrix now reaches gaSinCos: ga/gaSinCos.c is que
@@ -95,6 +95,7 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/AlignedNum.c` 4/4 -- WaitLoop is split in Ghidra: WaitLoop 0x0189f650 plus WaitLoop_body 0x0189f680 (game-inferred), one C function. The j at 0x0189f718 belongs to the next object (
 - verify: `game/ArtoolDebugOpen.c` 15/15 -- Smoke run: FlInit prints no error, so the pack directory loads and sceCdSearchFile finds the pack; no run reads a file yet (main2 and fileio.c are stubs), the s
 - verify: `game/Character_Init.c` 48/49 -- All 49 functions written; nothing on screen reaches the card yet (main2 is a stub), shot black as before. The save image layout is in architecture.md (The save 
+- verify: `game/IOPGetFileSize.c` 4/4 -- All 4 functions written. No host server answers FSYS_IOP SUNA yet (sif.cpp answers zeros), so a loose file's size reads 0: a host FSYS_IOP server on io::Disc is
 - verify: `game/LinkMatrixTree.c` 4/4 -- Code complete, nothing on screen shows it yet: the smoke run still crashes at main.c 2106 (ActressMP NULL, the known blocker) and the shot stays black. LinkMatr
 - verify: `game/QuatSlerp.c` 177/177 -- 15 s smoke run: no fault, shot black (no host draw module yet). callcheck: GetAreaFloor's memcmp and ssTrigRemoveEvent come through ROOM_IS and AreaFloorClear (
 - verify: `game/ahRelocateSunPs2ObjectArry.c` 93/93 -- All 93 functions written; nothing reaches the general body yet (the two written callers pass one flag each; asCharacterAnimationExecute and asResetCharacterPosi
@@ -106,6 +107,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-10 13:49 `game/IOPGetFileSize.c` verify: IOPGetFileSize, IOPBindRPC, bind_rpc, IOPComSync: the EE side of FSYS_IOP's file server; gSCD moved here
 - 2026-11-10 13:34 `ga/gaDmaSync_VIF1.c` verify: all 5 functions from the disassembly: the VIF1 / GIF syncs with their timeout reports, the VIF1 normal and chain kicks, and the BGT ring send (memory packets co
 - 2026-11-10 13:14 `ga/gaSinCos.c` verify: all 13 functions from the disassembly: gaSinCos and the X/Y/Z rotation matrices over the embedded ga_sincos_table, gaInt/gaFloat, the word/dword/qword copies an
 - 2026-11-10 12:58 `ga/gaInit3dlib.c` verify: all 25 functions from the disassembly: VU0 vector and matrix helpers, gaContMulMatrix (VU0 micro routines 0 and 0x10), gaSet3dlibStruct (GA_3DLIB_WORK), gaSetLi
@@ -113,7 +115,6 @@ Recent sessions:
 - 2026-11-10 12:14 `game/QuatSlerp.c` partial: slice 10: the paged textures (TexFileSetInit, TexFileSetNext, TexFileSetPage, tnTrigTexFileSetNext and Page; ALL_TABLE.texFileSet and the TEX_FILE_SET tables na
 - 2026-11-10 11:54 `game/QuatSlerp.c` partial: slice 9: the letterbox requests (VistaVisionStart, VistaVisionEnd), PlayerDamage, asObjectRotate (MODEL_PARTS.placeRot named), asPosRUF2ViewMatrix and asCamRUF2
 - 2026-11-10 11:34 `game/QuatSlerp.c` partial: slice 8: the panic setters (PanicSet, PanicStopMovie with PanicOffMovieFile from the ROM), Kekkai_Check, ssPointCheckWithinScreen, PauseUpdate, UpperCase, GetBa
-- 2026-11-10 11:25 `game/QuatSlerp.c` partial: slice 7: the letterbox (VistaVisionMain with its two ROM sprite packets and draw control), the fog easing (FogAnimeUpdate, FOG_ANIME named), the depth pre-pass 
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|

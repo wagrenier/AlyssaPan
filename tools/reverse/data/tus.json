@@ -1,6 +1,5 @@
 {
  "queue": [
-  "game/IOPGetFileSize.c",
   "game/SdMasterVolumeSetSE.c",
   "ga/gaPadInit.c",
   "game/movie.c",
@@ -419,12 +418,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 122..122, 9 functions keyed by their statics, 8 unkeyed; file name from the names"
   },
   "game/IOPGetFileSize.c": {
+   "notes": "All 4 functions written. No host server answers FSYS_IOP SUNA yet (sif.cpp answers zeros), so a loose file's size reads 0: a host FSYS_IOP server on io::Disc is the follow-up (open-items bf). Shot black as before: nothing draws until fileio.c loads a bank.",
    "ranges": [
     [
      "0189f460",
      "0189f620"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-10 13:49",
+     "status": "verify",
+     "summary": "IOPGetFileSize, IOPBindRPC, bind_rpc, IOPComSync: the EE side of FSYS_IOP's file server; gSCD moved here"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 95..95, 3 functions keyed by their statics, 1 unkeyed; file name from the names"
   },
   "game/LinkMatrixTree.c": {

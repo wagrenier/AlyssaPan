@@ -194,14 +194,17 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    the pack), the request queue and FlProc, FlLoad, FlGetLen, FlFindPacked. Host: io::Disc lays out the
    subfolders' files and answers sceCdSearchFile by name (item 3), sceCdBreak, SyncDCache. Open:
    (be) no smoke run reads a file yet (main2 / fileio.c are stubs): the first FlLoad / FlProc read is the
-   real test; (bf) loose files (not in the pack) need IOPGetFileSize (game/IOPGetFileSize.c, stubbed:
-   IOPComSync answers 0, so a loose file's size stays 0 and FlProc reads nothing): write that TU before
-   any loose file is opened -- FSYS_IOP's answer is [0] size, [1] first sector (FlProc's use);
+   real test; (bf) loose files (not in the pack) need IOPGetFileSize -- **game/IOPGetFileSize.c written
+   (verify, 2026-11-10: all 4 functions; gSCD moved there from lib/unassigned_data.cpp)**, but no host
+   server answers FSYS_IOP's 'SUNA' (0x53554e41, fno the same number, send the 0x40-byte name, answer 0x10
+   bytes: [0] size, [1] first sector), so sdk/sif.cpp answers zeros and a loose file's size stays 0: a host
+   task (an FSYS_IOP server on io::Disc, registered like YamiPan's rxsnddrv) before any loose file is
+   opened; 'SUN@' (IOPComTest) and 'SUNB' (IOPSetSDT) are bound but no ROM code calls them;
    (bg) CpGetEEIOPStatus's stub answers a zeroed record (the ROM: &gEEStat); EE_IOP_STAT's +0x50 is named
    iopBusy from FlProc's one use; (bh) gADSOpenSync and gSCD sit in lib/unassigned_data.cpp; gSCD is
    sceSifClientData[3] (120 bytes on the EE: 3 x 0x28), FlProc waits on [1]; (bi) FL_STATE_CANCEL (0x15)
    has no writer in this TU: whoever sets it names it; (bj) gValIOPGetFileLen (0x0193e350) is placed in
-   this TU by address order, before IOPGetFileSize.c's static sFileNameToIOP: move it if that TU owns it.
+   this TU by address order, before IOPGetFileSize.c's static sFileNameToIOP; the symtab lists it as a global outside that object's local run, so it stays in ArtoolDebugOpen.c (2026-11-10).
    **game/main2.c (verify, 2026-11-10): all 18 functions** -- main2, InitLoadSceneChar (INFO / E_GL /
    0MH0 into global banks 5 / 3 / 1, then ATLD at power-on or TITL into bank 0), the scene / global /
    shape / behaviour triggers, CharacterAllFree, the self-discard queue (SELF_DISCARD_LOAD, main2.h).
