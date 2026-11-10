@@ -547,7 +547,8 @@ int TrgSceneDraw(int on, int srcBank, int part, char *name, int bank)
             if (DrawOnPosSetHashTemp == 0) {
                 memcpy(dst->drawOnPos, DrawOnPosSetVectorTemp, 3 * sizeof(float));
             } else {
-                int r = asJointParts_byMatrix(DrawOnPosSetMatrixTemp, DrawOnPosSetVectorTemp, bank);
+                int r = asJointParts_byMatrix(DrawOnPosSetMatrixTemp, (float *)&DrawOnPosSetVectorTemp, bank,
+                                              DrawOnPosSetHashTemp);
                 if (r == JOINT_NOT_FOUND_2 || r == JOINT_NOT_FOUND_1)
                     printf("Not Find JointPortal Object\n");
             }

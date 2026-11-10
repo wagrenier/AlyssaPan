@@ -2993,8 +2993,8 @@ void data_load_set(u_char *data)
     }
     TransparentBodyTime = MC_LOAD_TRANSPARENT_TIME;
     ssTrigRemoveEvent(TRIG_EVENT_LOAD_CLEAR_1A, 1, 0);
-    PanicInfoData.b01 = 0xff;
-    PanicInfoData.h02 = 0;
+    PanicInfoData.recoveryItem = -1;
+    PanicInfoData.recoveryTime = 0;
     ssAI_MemLoadInit(data);
     MC_NOW_LOADING = 0;
 }

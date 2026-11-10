@@ -12,6 +12,14 @@ void PanicFilter(void);                                                         
 void PanicUpdate(void);                                                                  // CT3 0x018537b0
 void PanicModeInit(void);                                                                // CT3 0x01854410
 void ssMenuUpdate(int mode);                                                             // CT3 0x01854d30
+void PlayerControlUpdate2(int mode);                                                     // CT3 0x01854d00
+// GAME_OVER_END's steps (xcmd_tn.c's script command picks one).
+#define GAME_OVER_STING 0               /* the music stops, the game-over SE plays, the Sp1 SEs stop */
+#define GAME_OVER_FREEZE 2              /* player, menu and monsters frozen, characters freed, banks 6.. undrawn */
+#define GAME_OVER_STOP_SE 3             /* SdStopSEAll */
+#define GAME_OVER_SE_JLS 4              /* SdReqPlaySE's slot */
+#define GAME_OVER_SE 0x3b               /* the sting's SE number */
+void GAME_OVER_END(int step);                                                            // CT3 0x01851f10
 void MonsterAIUpdate(int mode);                                                          // CT3 0x01854d60
 void PlayerControlUpdate(int mode);                                                      // CT3 0x018550b0
 void FogAnimeUpdate(void);                                                               // CT3 0x01856660
@@ -49,7 +57,7 @@ void ExecuteWarpObject(int mode, int chara, int part, int bank);                
 void ExecuteWarpObject2(int mode, int bank, int chara, int bank2);                       // CT3 0x0185ae90
 void WarpObjectUpdate(void);                                                             // CT3 0x0185bd50
 void WarpObjectUpdateInit(void);                                                         // CT3 0x0185bf80
-void asWarpSceneObject(void *table, int maxId, float *pos);                              // CT3 0x0185c100
+void asWarpSceneObject(ALL_TABLE *table, int part, float *pos);                         // CT3 0x0185c100
 // The packed keys: three shorts scaled by 1 / (1 << shift), w = 1; four shorts scaled by 1 / 16384.
 void asZipTrans2Trans_XYZ1(float *out, const short *in, u_int shift);                     // CT3 0x0185ceb0
 void asZipQuat2Quat(float *out, const short *in);                                        // CT3 0x0185c7d0
@@ -194,7 +202,7 @@ u_char *asFindModelParts(u_char *header, u_long hash);                          
 // plane given by a part's position qword (its use there; the function is unread).
 void asGetCrossPointInPlaneWithLine(float out[4], float a[4], float b[4], float dir[4], float plane[4]); // CT3 0x01859f00
 int asJointParts(int srcBank, int bank, u_long hash);                                    // CT3 0x01854b20
-int asJointParts_byMatrix(float (*mat)[4], int *pos, int bank);                          // CT3 0x01854750
+int asJointParts_byMatrix(float (*mat)[4], float *pos, int bank, u_long hash);           // CT3 0x01854750
 // From BuildMatrixTree's calls (ahRelocateSunPs2ObjectArry.c slice 4, 2026-11-10); confirm when written.
 int absi(int v);                                                                         // CT3 0x0185e040
 // *abs = |v|, *sign = -1, 0 or 1.
@@ -224,8 +232,10 @@ void QuatSlerp(float *q, float *q0, float *q1, float *ts);                      
 // out = b with its twist about a's Y axis taken out; answers the twist (asMakeStraw negates it and
 // spreads it over the vertices through asMakeRotMatrixByQuartanion).
 int asDelSqueezeInformation(float (*out)[4], float (*a)[4], float (*b)[4]);              // CT3 0x0185d380
-// The vector's angle (radians) for the rotation about one axis (asMakeMirrorMatrixByPlane: 1 for Y,
-// then 0 for X); the TU that writes it confirms the axis meaning.
+// The vector's angle (0..2pi) in the plane about one axis (written 2026-11-10, slice 6).
+#define RADIAN_AXIS_X 0                 /* the angle of (y, z) */
+#define RADIAN_AXIS_Y 1                 /* the angle of (z, x) */
+#define RADIAN_AXIS_Z 2                 /* the angle of (x, y) */
 float asRadianByO(float *v, int axis);                                                   // CT3 0x0185dc30
 // GS register words for the shadow pass's own packets (written early, ahRelocateSunPs2ObjectArry.c slice 14):
 // RGBAQ (q as a float), UV (u low, v high, 1/16 texel), XYZ2 / XYZ3 (screen pixels + 0x800, * 16).
@@ -312,12 +322,12 @@ int ControllerClatteringSet(const CLATTERING_SET *set);                         
 int DemoSkipCheckEvent(int event);                                                       // CT3 0x01852010
 void DemoSkipRegisterEvent(int event);                                                   // CT3 0x01852030
 
-// Panicdef (0x01940e80, 0x1c bytes): the panic tuning PanicModeInit sets. f00..f0c by offset until
-// PanicUpdate reads them.
+// Panicdef (0x01940e80, 0x1c bytes): the panic tuning PanicModeInit sets (PanicUpdate named the falls).
 typedef struct PANIC_DEF {
-    float f00;                          /* 3.5 */
-    float f04;                          /* 8.0 */
-    float beatFrom;                     /* 0x08: 5000.0: the gauge where PanicSound's heartbeat starts */
+    float calmFall;                     /* 0x00: 3.5: the gauge's fall per frame with nothing rising */
+    float fullFall;                     /* 0x04: 8.0: its fall per frame in full panic */
+    float beatFrom;                     /* 0x08: 5000.0: the gauge where PanicSound's heartbeat starts;
+                                           full panic ends when the gauge falls to it */
     float f0c;                          /* 2.0 */
     int filterMax;                      /* 0x10: 30: PanicFilter's vignette alpha at its top */
     int filterUp;                       /* 0x14: 4: added each frame while PANIC_MODE_FULL */
@@ -363,6 +373,37 @@ extern int AdvantageousTimeTime;                                                
 #define TRIG_VAR_PANIC_OFF 0x0b
 #define PANIC_CHECK_ON 1
 #define PANIC_CHECK_OFF (-1)
+// PanicUpdate (slice 6, 2026-11-10): the events and variables it reads, named from this use.
+#define TRIG_EVENT_PANIC_HOLD 0x00      /* set: the gauge does not move this frame */
+#define TRIG_EVENT_PANIC_BEAT 0x02      /* registered while full panic is above beatFrom */
+#define TRIG_EVENT_PANIC_FULL 0x03      /* registered for a full panic (TRIG_EVENT_PANIC_3) */
+#define TRIG_EVENT_PANIC_HIDING 0x04    /* the player hides: threat rises scale by HidePointUpValue */
+#define TRIG_EVENT_PANIC_KEEP_MONSTERS 0x36 /* set: full panic leaves the stalkers running */
+#define TRIG_EVENT_PANIC_KEEP_PLAYER 0x37 /* set: ... the player's keys */
+#define TRIG_EVENT_PANIC_KEEP_MENU 0x38 /* set: ... the menu */
+#define TRIG_EVENT_PANIC_ATTACKED 0x3a  /* registered when an attack rise counts */
+#define TRIG_EVENT_PANIC_VIBRATE 0x54   /* tiVibrationOn's first motor argument at full panic */
+#define TRIG_EVENT_PANIC_NO_RELOAD 0xcc /* unset: full panic registers TRIG_EVENT_MC_RELOADED (sic: 0xca) */
+#define TRIG_EVENT_PANIC_STARTED 0xd3   /* registered when full panic starts */
+#define TRIG_VAR_PANIC_SUSPEND 0x55     /* > 0: no panic (the invisible / advantage timers reset) */
+#define TRIG_VAR_HIDE_POINT 0x28        /* the hiding place's level: HidePointUpValue[level + 1] */
+#define TRIG_VAR_PANIC_VIBRATE 0x49     /* tiVibrationOn's second motor argument */
+#define PANIC_SE_FULL 9                 /* SdReqPlaySE (slot PANIC_SE_JLS) when full panic starts */
+#define PANIC_VIBRATE_TIME 30
+#define PANIC_GAUGE_CAP_MARGIN 100.0f   /* a rise outside full panic stops this far below gaugeMax */
+#define PANIC_GAUGE_UNIT 100.0f         /* TRIG_VAR_PANIC = gauge / 100 */
+#define PANIC_RECOVERY_COUNT 5
+#define PANIC_SAFE_BANK "MCLS.BIN"      /* @3854: with it in bank 0 the gauge does not move */
+// PanicRecoveryTbl (data 0x019390b0): the calming items; the user sets PANIC_INFO.recoveryItem / Time.
+typedef struct PANIC_RECOVERY {
+    float calmFall;                     /* 0x00: the gauge's extra fall per frame outside full panic */
+    float fullFall;                     /* 0x04: ... in full panic (instead of Panicdef.fullFall) */
+    int frames;                         /* 0x08: how long it works (read by the item's TU) */
+} PANIC_RECOVERY;
+static_assert(sizeof(PANIC_RECOVERY) == 0xc, "PANIC_RECOVERY");
+extern PANIC_RECOVERY PanicRecoveryTbl[PANIC_RECOVERY_COUNT];                            // CT3 0x019390b0
+#define HIDE_POINT_LEVELS 5
+extern float HidePointUpValue[HIDE_POINT_LEVELS];                                        // CT3 0x019390f0
 void EventSoundUpdate(int on);                                                           // CT3 0x01853310
 void PanicSound(void);                                                                   // CT3 0x018533b0
 void LavenderSound(void);                                                                // CT3 0x01853560

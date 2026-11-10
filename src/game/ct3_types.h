@@ -353,7 +353,7 @@ static_assert(offsetof(SOUND_OBJ, positional) == 0x24, "SOUND_OBJ.positional");
 typedef struct MODEL_PARTS {
     u_char pad000[0x42];
     u_char kind;                        /* 0x42: PARTS_KIND_NO_DOF: main_rtn_DOF skips the part */
-    u_char pad043;
+    u_char flags43;                     /* 0x43: PARTS_FLAG43_* */
     int attr;                           /* 0x44: copied into the part's draw object (+0x3c) every draw:
                                            the EE address of its GA_LIGHT_WORK (BankEePtr) */
     u_long hash;                        /* 0x48: the part's name hash (ahGetHash); TrgSceneDraw joints a
@@ -385,15 +385,24 @@ static_assert(offsetof(MODEL_PARTS, lightPos) == 0x320, "MODEL_PARTS.lightPos");
 static_assert(sizeof(MODEL_PARTS) == 0x380, "MODEL_PARTS");
 static_assert(offsetof(MODEL_PARTS, drawOnPos) == 0x2f0, "MODEL_PARTS.drawOnPos");
 static_assert(offsetof(MODEL_PARTS, hash) == 0x48, "MODEL_PARTS.hash");
+static_assert(offsetof(MODEL_PARTS, flags43) == 0x43, "MODEL_PARTS.flags43");
+#define PARTS_FLAG43_WARPED 0x1         /* asWarpSceneObject placed the part (drawOnPos); its reader unread */
 static_assert(offsetof(MODEL_PARTS, matrix) == 0x1c0, "MODEL_PARTS.matrix");
 
 // PanicInfoData (0x01940e50, 48 bytes): the player's panic state a save keeps whole. Fields by offset
-// (data_save_set / data_load_set copy them one by one; the load then sets b01 = 0xff, h02 = 0).
+// (data_save_set / data_load_set copy them one by one; the load then ends any recovery: item -1, time 0).
+// PanicUpdate (2026-11-10) named the rest.
+#define PANIC_RISE_COUNT 8
+#define PANIC_RISE_THREAT 0             /* 0..2: the first non-zero one counts (times the hiding factor) */
+#define PANIC_RISE_THREAT_COUNT 3
+#define PANIC_RISE_CONST 4              /* 4..5: summed, the rise when no threat or attack is */
+#define PANIC_RISE_ATTACK 6             /* 6..7: summed onto the threat; registers TRIG_EVENT_PANIC_ATTACKED */
 typedef struct PANIC_INFO {
     u_char mode;                        /* 0x00: PANIC_MODE_* bits */
-    u_char b01;                         /* 0x01: data_load_set: 0xff */
-    short h02;                          /* 0x02: data_load_set: 0 */
-    int w04[8];                         /* 0x04 */
+    s_char recoveryItem;                /* 0x01: PanicRecoveryTbl row of the calming item in use, -1 none */
+    short recoveryTime;                 /* 0x02: its frames left (counted down by PanicUpdate) */
+    float rise[PANIC_RISE_COUNT];       /* 0x04: this frame's gauge rises by source (PANIC_RISE_*),
+                                           written by their TUs, cleared by PanicUpdate */
     float gauge;                        /* 0x24: the panic gauge (PanicSound: heartbeat from Panicdef.beatFrom) */
     float gaugeMax;                     /* 0x28: its top (PanicModeInit: 10000.0) */
     int filterAlpha;                    /* 0x2c: PanicFilter's vignette alpha (PanicModeInit: -1, off) */

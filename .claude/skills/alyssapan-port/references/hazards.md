@@ -7,6 +7,9 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-10, QuatSlerp.c slice 6) **Check a header's address against the symtab before trusting
+  it**: act_small / act_large were declared at 0x0193f840 / 844; the symtab and PanicUpdate's gp loads say
+  0x0193f740 / 744 (fixed). The ELF's .symtab (symtab.py reads it) has every global's address and size.
 - (2026-11-10, QuatSlerp.c slice 5) **The decompiler drops the fifth and sixth arguments (t0 / t1)**:
   the fade Targets take the eye's position in t0 and the facing in t1 (stack copies), which Ghidra showed
   as missing or stale; read `addiu t0,sp,..` / `addiu t1,sp,..` before each jal. It also dropped the

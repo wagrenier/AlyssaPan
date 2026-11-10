@@ -618,11 +618,26 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    asViewMatrix2PosRUF's): name the CAMERA field with the camera TU; (ff) the ROM's eye-character branch
    with no list reads a part hash from low EE memory (hazards.md): the port skips those characters --
    check whether any bank data has flag 2 with list 0; (fg) LOS_MULTI.hits are host pointers to records
-   whose short at 0x198 is an id: ssHitCheckAttackToScn.c's TU names the record; (fh) asJointParts is
-   left: the ROM passes asJointParts_byMatrix a fourth argument (the hash, a3), which its 3-argument
-   prototype lacks -- write the pair together. Next in this TU: PanicUpdate, MonsterAIUpdate,
-   FogAnimeUpdate, TexFileSetInit, OneMaxObjectDrawZOnly, asJointParts with asJointParts_byMatrix,
-   tnTrigTexFileSetNext with TexFileSetNext, ExecuteWarpObject / 2.
+   whose short at 0x198 is an id: ssHitCheckAttackToScn.c's TU names the record; ~~(fh) asJointParts_byMatrix's
+   fourth argument~~ settled 2026-11-10 (slice 6): (mat, pos, bank, hash); main2.c passes
+   DrawOnPosSetHashTemp (the ROM's a3).
+   **Slice 6 (2026-11-10):** PanicUpdate, MonsterAIUpdate, GAME_OVER_END, PlayerControlUpdate2,
+   asJointParts, asWarpSceneObject, asGetCrossPointInPlaneWithLine, asRadianByO,
+   asContInterpolateZipNormal_XYZ / _Trans_XYZ; PANIC_INFO named (recoveryItem, recoveryTime, rise[8]),
+   Panicdef's calmFall / fullFall, PanicRecoveryTbl and HidePointUpValue (ROM data), ssAtkCharaList2
+   (unassigned_data). 15 s smoke run: no fault, shot black. Open: (fi) PanicUpdate registers 0xca
+   (TRIG_EVENT_MC_RELOADED, Character_Init.h's name from mc_load_set) when a full panic starts unless 0xcc
+   is set: the name is probably narrower than the event -- rename it when ssGrpPortalCheck.c's TU names
+   events; (fj) PANIC_RISE_* (threat 0..2, const 4..5, attack 6..7; slot 3 unread) are named from
+   PanicUpdate alone: the TUs that write PanicInfoData.rise confirm them; likewise TRIG_EVENT_PANIC_* and
+   TRIG_VAR_HIDE_POINT / _PANIC_SUSPEND / _PANIC_VIBRATE; (fk) asWarpSceneObject's VU0 MULA/MADD
+   broadcasts are read as x, y, z, w (the decompiler hides the field) and its byte 0x43 bit
+   (PARTS_FLAG43_WARPED) has no reader yet; PORT: it finds the bank whose ALL_TABLE it was given to
+   resolve partsHeader (BANK_PTR); (fl) FUN_0185c26c (lower-cases a string in place, no callers) is left
+   unnamed: it sits right after ssGetBankID, probably its inlined tail or a static. Next in this TU:
+   FogAnimeUpdate, TexFileSetInit, VistaVisionMain, OneMaxObjectDrawZOnly, asJointParts_byMatrix,
+   asMakeWatchMeMatrixToPosition, asDelSqueezeInformation, tnTrigTexFileSetNext with TexFileSetNext,
+   ExecuteWarpObject / 2.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
    class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~

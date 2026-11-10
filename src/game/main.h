@@ -57,6 +57,7 @@ enum TIME_STOP_FLAG {                           /* time_stop_flag: what runs dur
 
 enum TRG_CHAR_STOP {                            /* TrgCharStopFlag */
     TRG_CHAR_STOP_KEYS = 0x1,
+    TRG_CHAR_STOP_PLAYER = 0x2,                 /* PlayerControlUpdate2 */
     TRG_CHAR_STOP_MENU = 0x4,                   /* ssMenuUpdate */
     TRG_CHAR_STOP_CHAR = 0x8,
 };

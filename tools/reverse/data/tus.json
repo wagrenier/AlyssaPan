@@ -416,7 +416,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 129..129, 4 functions keyed by their statics, 5 unkeyed; file name from the names"
   },
   "game/QuatSlerp.c": {
-   "notes": "15 s smoke run: no fault, shot black (no host draw module yet). MODEL_PARTS +0x124/+0x128/+0x12c are losAlpha/distAlpha/angleAlpha; ALL_TABLE +0x74/+0x80/+0x84 the fade lists. Open-items 1 (fd)..(fh). Next in this TU: PanicUpdate, MonsterAIUpdate, FogAnimeUpdate, TexFileSetInit, OneMaxObjectDrawZOnly, asJointParts with asJointParts_byMatrix (4 arguments), tnTrigTexFileSetNext with TexFileSetNext, ExecuteWarpObject and 2.",
+   "notes": "15 s smoke run: no fault, shot black (no host draw module yet). callcheck: MonsterAIUpdate's ssGetBankID and asForceOperateAnimation_Scene calls sit in the static MonsterSceneAnim. act_small and act_large addresses fixed to 0x0193f740 and 744. Open-items 1 (fi)..(fl). Next in this TU: FogAnimeUpdate, TexFileSetInit, VistaVisionMain, OneMaxObjectDrawZOnly, asJointParts_byMatrix, asMakeWatchMeMatrixToPosition, asDelSqueezeInformation, tnTrigTexFileSetNext with TexFileSetNext, ExecuteWarpObject and 2.",
    "ranges": [
     [
      "01851bf0",
@@ -448,6 +448,11 @@
      "date": "2026-11-10 10:39",
      "status": "partial",
      "summary": "slice 5: the part fades AmbientAlphaUpdate runs (DistanceAttenuationUpdate, Target, AlphaSet; AngleAttenuationUpdate, Target, AlphaSet; LosHitFadeUpdate and Target with CheckLOS and CheckLOS_Multi declared), DemoSkipRegisterEvent, asVectorLength; DIST_ATTEN, ANGLE_ATTEN, LOS_FADE, ATTEN_CHARA, LOS_SEG, LOS_MULTI named"
+    },
+    {
+     "date": "2026-11-10 10:57",
+     "status": "partial",
+     "summary": "slice 6: PanicUpdate (the panic gauge: rises, calming items, full panic, PANIC_INFO and Panicdef named, PanicRecoveryTbl and HidePointUpValue from the ROM), MonsterAIUpdate (ssAtkCharaList2), GAME_OVER_END, PlayerControlUpdate2, asJointParts with the 4-argument asJointParts_byMatrix prototype, asWarpSceneObject, asGetCrossPointInPlaneWithLine, asRadianByO, asContInterpolateZipNormal_XYZ and Trans_XYZ"
     }
    ],
    "status": "partial",

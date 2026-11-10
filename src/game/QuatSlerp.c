@@ -15,6 +15,9 @@
 #include "game/ahalloc.h"
 #include "game/Convert.h"
 #include "game/sound.h"
+#include "game/ahRelocateSunPs2ObjectArry.h"
+#include "game/Character_Init.h"
+#include "game/asMothPause.h"
 #include "ga/gaDma.h"
 #include "ga/gaDmaSync_VIF1.h"
 #include "ga/gaVifInit.h"
@@ -798,10 +801,49 @@ void FogAnimeUpdate(void)
     ALYSSAPAN_STUB("FogAnimeUpdate", 0x01856660);
 }
 
-// stub of CT3 0x01854d60
+// The stalkers' own scene banks MonsterAIUpdate pauses with them (the strings at 0x01933838..58).
+#define MONSTER_BANK_CHARA2 "E_02"
+#define MONSTER_BANK_CHARA3 "E_03"
+#define MONSTER_BANK_CHARA4 "E_04"
+#define MONSTER_BANK_CHARA4B "E_14"
+#define MONSTER_BANK_CHARA5_6 "E_05"
+
+static void MonsterSceneAnim(const char *name, int mode)
+{
+    int bank = ssGetBankID(name);
+    if (bank != -1)
+        asForceOperateAnimation_Scene(bank, mode);
+}
+
+// CT3 0x01854d60
+// Freeze (mode != 0) or release the stalkers (ssAtkCharaList2): TRG_CHAR_STOP_CHAR, then for each
+// one loaded (its bank != -1) its animation, the enemy SEs, and its own scene
+// banks' animations. The ROM has the loop twice, one per mode.
 void MonsterAIUpdate(int mode)
 {
-    ALYSSAPAN_STUB("MonsterAIUpdate", 0x01854d60);
+    int i;
+    mode = mode != 0;
+    if (mode == 0)
+        TrgCharStopFlag &= ~TRG_CHAR_STOP_CHAR;
+    else
+        TrgCharStopFlag |= TRG_CHAR_STOP_CHAR;
+    for (i = 0; i < ATK_CHARA_LIST2_COUNT; i++) {
+        int chara = ssAtkCharaList2[i];
+        if (Character[chara].bank == -1)
+            continue;
+        asForceOperateAnimation_Character(chara, mode);
+        SSEnemyPauseOnOff(mode);
+        if (chara == 6 || chara == 5) {
+            MonsterSceneAnim(MONSTER_BANK_CHARA5_6, mode);
+        } else if (chara == 4) {
+            MonsterSceneAnim(MONSTER_BANK_CHARA4, mode);
+            MonsterSceneAnim(MONSTER_BANK_CHARA4B, mode);
+        } else if (chara == 3) {
+            MonsterSceneAnim(MONSTER_BANK_CHARA3, mode);
+        } else if (chara == 2) {
+            MonsterSceneAnim(MONSTER_BANK_CHARA2, mode);
+        }
+    }
 }
 
 // ---- the screen filters (slice 4, 2026-11-10) ----------------------------------------------------
@@ -938,15 +980,15 @@ void PanicModeInit(void)
     TransparentBodyTime = PANIC_TRANSPARENT_TIME;
     AdvantageousTimeTime = PANIC_ADVANTAGEOUS_TIME;
     PanicInfoData.mode = 0;
-    PanicInfoData.b01 = 0xff;
-    PanicInfoData.h02 = 0;
-    for (i = 0; i < 8; i++)
-        PanicInfoData.w04[i] = 0;
+    PanicInfoData.recoveryItem = -1;
+    PanicInfoData.recoveryTime = 0;
+    for (i = 0; i < PANIC_RISE_COUNT; i++)
+        PanicInfoData.rise[i] = 0.0f;
     PanicInfoData.gauge = 0.0f;
     PanicInfoData.gaugeMax = 10000.0f;
     PanicInfoData.filterAlpha = -1;
-    Panicdef.f00 = 3.5f;
-    Panicdef.f04 = 8.0f;
+    Panicdef.calmFall = 3.5f;
+    Panicdef.fullFall = 8.0f;
     Panicdef.beatFrom = 5000.0f;
     Panicdef.f0c = 2.0f;
     Panicdef.filterMax = 30;
@@ -1099,10 +1141,257 @@ int PanicCheck(void)
     return result;
 }
 
-// stub of CT3 0x018537b0
+// CT3 0x019390b0 (PanicRecoveryTbl) and 0x019390f0 (HidePointUpValue): the ROM's data.
+PANIC_RECOVERY PanicRecoveryTbl[PANIC_RECOVERY_COUNT] = {
+    {66.5f, 50.0f, 180}, {1.0f, 1.0f, 100}, {1.0f, 1.0f, 100}, {1.0f, 1.0f, 100}, {1.0f, 1.0f, 100},
+};
+float HidePointUpValue[HIDE_POINT_LEVELS] = {1.0f, 1.0f, 1.2f, 1.5f, 2.0f};
+
+static void PanicRiseClear(void)
+{
+    int i;
+    for (i = 0; i < PANIC_RISE_COUNT; i++)
+        PanicInfoData.rise[i] = 0.0f;
+}
+
+// PANIC_RISE_CONST..: the summed constant rises (the ROM skips zeros: same sum).
+static float PanicRiseConst(void)
+{
+    float sum = 0.0f;
+    int i;
+    for (i = PANIC_RISE_CONST; i < PANIC_RISE_ATTACK; i++)
+        if (PanicInfoData.rise[i] != 0.0f)
+            sum += PanicInfoData.rise[i];
+    return sum;
+}
+
+// A full panic ends: the mode bit, the filter off, the two events.
+static void PanicFullEnd(void)
+{
+    PanicInfoData.mode &= ~PANIC_MODE_FULL;
+    PanicInfoData.filterAlpha = -1;
+    ssTrigRemoveEvent(TRIG_EVENT_PANIC_FULL, 1, 0);
+    ssTrigRemoveEvent(TRIG_EVENT_PANIC_BEAT, 1, 0);
+}
+
+// The calming item's frame: its fall (calm or full column) until its time runs out; the gauge stays >= 0.
+static void PanicRecoveryStep(int full)
+{
+    if (PanicInfoData.recoveryTime == 0) {
+        PanicInfoData.recoveryItem = -1;
+        ssTrigRemoveEvent(TRIG_EVENT_LAVENDER, 1, 0);
+    } else {
+        PANIC_RECOVERY *r = &PanicRecoveryTbl[PanicInfoData.recoveryItem];
+        PanicInfoData.recoveryTime--;
+        PanicInfoData.gauge -= full ? r->fullFall : r->calmFall;
+    }
+    if (PanicInfoData.gauge < 0.0f)
+        PanicInfoData.gauge = 0.0f;
+}
+
+// CT3 0x018537b0
+// The panic gauge's frame. A dead player ends any panic; TRIG_VAR_PANIC_SUSPEND > 0 resets the
+// invisible / advantage timers, ends the calming item and the panic, and empties the gauge. Paused,
+// skipping, held (TRIG_EVENT_PANIC_HOLD) or with PANIC_SAFE_BANK in bank 0 nothing moves. With panic
+// forbidden (PanicCheck < 0) the constant rises still add (capped below gaugeMax). Otherwise: the
+// invisible and advantage timers count down; outside full panic the calming item falls, then (unless
+// PanicCheck forces panic on) the gauge rises -- by the first threat (times the hiding factor) plus
+// the attacks, or else by the constant rises -- or falls by calmFall when nothing rose and panic is
+// not forced; reaching gaugeMax starts a full panic (the world frozen unless a KEEP event says no,
+// the sting, the vibration). In full panic the gauge falls (fullFall, or the calming item's) and
+// the panic ends at beatFrom. TRIG_VAR_PANIC gets gauge / 100 and the rises are cleared.
 void PanicUpdate(void)
 {
-    ALYSSAPAN_STUB("PanicUpdate", 0x018537b0);
+    int check;
+    float mul, constRise, threat;
+    int attacked, i;
+
+    EventSoundUpdate(0);
+    if (Character[Player_BankID].hp < 1) {
+        PanicInfoData.filterAlpha = -1;
+        PanicInfoData.mode &= ~PANIC_MODE_FULL;
+        ssTrigRemoveEvent(TRIG_EVENT_PANIC_FULL, 1, 0);
+        ssTrigRemoveEvent(TRIG_EVENT_PANIC_BEAT, 1, 0);
+        ssTrigSetVariable(TRIG_VAR_PANIC, 0, 1, 0);
+        return;
+    }
+    if (ssTrigGetVariable(TRIG_VAR_PANIC_SUSPEND, 1, 0) > 0) {
+        if (ssTrigCheckEvent(TRIG_EVENT_INVISIBLE, 1, 0) != 0) {
+            ssTrigRemoveEvent(TRIG_EVENT_INVISIBLE, 1, 0);
+            TransparentBodyTime = PANIC_TRANSPARENT_TIME;
+        }
+        if (ssTrigCheckEvent(TRIG_EVENT_MC_LOADED, 1, 0) != 0) {
+            ssTrigRemoveEvent(TRIG_EVENT_MC_LOADED, 1, 0);
+            AdvantageousTimeTime = PANIC_ADVANTAGEOUS_TIME;
+        }
+        if (PanicInfoData.recoveryTime != 0) {
+            PanicInfoData.recoveryItem = -1;
+            PanicInfoData.recoveryTime = 0;
+            ssTrigRemoveEvent(TRIG_EVENT_LAVENDER, 1, 0);
+        }
+        if (PanicInfoData.mode & PANIC_MODE_FULL)
+            PanicFullEnd();
+        PanicInfoData.gauge = 0.0f;
+        return;
+    }
+    if (pause != 0 || pause_reservation != 0 || SkipMain != 0 || DemoSkip != 0)
+        return;
+    if (ssTrigCheckEvent(TRIG_EVENT_PANIC_HOLD, 1, 0) != 0)
+        return;
+    if (strcmp(PANIC_SAFE_BANK, BankInfo[0].name) == 0)
+        return;
+
+    EventSoundUpdate(1);
+    check = PanicCheck();
+    if (check < 0) {
+        PanicInfoData.gauge += PanicRiseConst();
+        if (PanicInfoData.gaugeMax <= PanicInfoData.gauge)
+            PanicInfoData.gauge = PanicInfoData.gaugeMax - PANIC_GAUGE_CAP_MARGIN;
+        PanicRiseClear();
+        return;
+    }
+    if (ssTrigCheckEvent(TRIG_EVENT_INVISIBLE, 1, 0) != 0) {
+        if (TransparentBodyTime < 1) {
+            ssTrigRemoveEvent(TRIG_EVENT_INVISIBLE, 1, 0);
+            TransparentBodyTime = PANIC_TRANSPARENT_TIME;
+        } else {
+            TransparentBodyTime--;
+        }
+    }
+    if (ssTrigCheckEvent(TRIG_EVENT_MC_LOADED, 1, 0) != 0) {
+        if (AdvantageousTimeTime < 1) {
+            ssTrigRemoveEvent(TRIG_EVENT_MC_LOADED, 1, 0);
+            AdvantageousTimeTime = PANIC_ADVANTAGEOUS_TIME;
+        } else {
+            AdvantageousTimeTime--;
+        }
+    }
+
+    if (!(PanicInfoData.mode & PANIC_MODE_FULL)) {
+        if (PanicInfoData.recoveryItem >= 0)
+            PanicRecoveryStep(0);
+        if (check != PANIC_CHECK_ON) {
+            if (ssTrigCheckEvent(TRIG_EVENT_PANIC_HIDING, 1, 0) == 0) {
+                mul = 1.0f;
+            } else {
+                int level = ssTrigGetVariable(TRIG_VAR_HIDE_POINT, 1, 0) + 1;
+                mul = level < HIDE_POINT_LEVELS - 1 ? HidePointUpValue[level] : HidePointUpValue[HIDE_POINT_LEVELS - 1];
+            }
+            constRise = PanicRiseConst();
+            threat = 0.0f;
+            attacked = 0;
+            for (i = PANIC_RISE_THREAT; i < PANIC_RISE_THREAT + PANIC_RISE_THREAT_COUNT; i++)
+                if (PanicInfoData.rise[i] != 0.0f) {
+                    threat = PanicInfoData.rise[i];
+                    break;
+                }
+            for (i = PANIC_RISE_ATTACK; i < PANIC_RISE_COUNT; i++)
+                if (PanicInfoData.rise[i] != 0.0f) {
+                    threat += PanicInfoData.rise[i];
+                    attacked = 1;
+                }
+            if (attacked)
+                ssTrigRegisterEvent(TRIG_EVENT_PANIC_ATTACKED, 1, 0);
+            if (threat == 0.0f) {
+                PanicInfoData.gauge += constRise;
+                if (PanicInfoData.gaugeMax <= PanicInfoData.gauge)
+                    PanicInfoData.gauge = PanicInfoData.gaugeMax - PANIC_GAUGE_CAP_MARGIN;
+            } else {
+                PanicInfoData.gauge += threat * mul;
+                constRise = threat;
+            }
+            /* nothing rose and panic is not forced: the calm fall */
+            if (PanicInfoData.gauge != 0.0f && constRise == 0.0f && check == 0) {
+                PanicInfoData.gauge -= Panicdef.calmFall;
+                if (PanicInfoData.gauge < 0.0f)
+                    PanicInfoData.gauge = 0.0f;
+            }
+        }
+        ssTrigRemoveEvent(TRIG_EVENT_PANIC_BEAT, 1, 0);
+        if (PanicInfoData.gaugeMax <= PanicInfoData.gauge) {
+            if (ssTrigCheckEvent(TRIG_EVENT_PANIC_KEEP_MENU, 1, -1) == 0)
+                ssMenuUpdate(1);
+            if (ssTrigCheckEvent(TRIG_EVENT_PANIC_KEEP_PLAYER, 1, -1) == 0)
+                PlayerControlUpdate(1);
+            if (ssTrigCheckEvent(TRIG_EVENT_PANIC_ON_257, 1, 0) == 0) {
+                if (ssTrigCheckEvent(TRIG_EVENT_PANIC_KEEP_MONSTERS, 1, -1) == 0)
+                    MonsterAIUpdate(1);
+                if (ssTrigCheckEvent(TRIG_EVENT_PANIC_NO_RELOAD, 1, -1) == 0)
+                    ssTrigRegisterEvent(TRIG_EVENT_MC_RELOADED, 1, -1);
+                asMothPause(1);
+            }
+            SdReqPlaySE(PANIC_SE_JLS, PANIC_SE_FULL, 1);
+            ssTrigRegisterEvent(TRIG_EVENT_PANIC_STARTED, 1, 0);
+            PanicInfoData.filterAlpha = 0;
+            PanicInfoData.mode |= PANIC_MODE_FULL;
+            PanicInfoData.gauge = PanicInfoData.gaugeMax;
+            ssTrigRegisterEvent(TRIG_EVENT_PANIC_FULL, 1, 0);
+            ssTrigRemoveEvent(TRIG_EVENT_PANIC_48, 1, 0);
+            ssTrigRegisterEvent(TRIG_EVENT_PANIC_BEAT, 1, 0);
+            if (act_small == 0 && act_large == 0)
+                tiVibrationOn(0, ssTrigCheckEvent(TRIG_EVENT_PANIC_VIBRATE, 1, 0),
+                              ssTrigGetVariable(TRIG_VAR_PANIC_VIBRATE, 1, 0), PANIC_VIBRATE_TIME);
+        }
+    } else {
+        if (PanicInfoData.recoveryItem < 0) {
+            if (check == 0)
+                PanicInfoData.gauge -= Panicdef.fullFall;
+        } else {
+            PanicRecoveryStep(1);
+        }
+        if (Panicdef.beatFrom < PanicInfoData.gauge) {
+            if (ssTrigCheckEvent(TRIG_EVENT_PANIC_BEAT, 1, 0) == 0)
+                ssTrigRegisterEvent(TRIG_EVENT_PANIC_BEAT, 1, 0);
+        } else {
+            PanicInfoData.gauge = Panicdef.beatFrom;
+            PanicInfoData.mode &= ~PANIC_MODE_FULL;
+            ssTrigRemoveEvent(TRIG_EVENT_PANIC_BEAT, 1, 0);
+            ssTrigRemoveEvent(TRIG_EVENT_PANIC_FULL, 1, 0);
+        }
+    }
+    ssTrigSetVariable(TRIG_VAR_PANIC, (int)(PanicInfoData.gauge / PANIC_GAUGE_UNIT), 1, 0);
+    PanicRiseClear();
+}
+
+// CT3 0x01854d00: the player character stopped (mode != 0) or free (TRG_CHAR_STOP_PLAYER).
+void PlayerControlUpdate2(int mode)
+{
+    if (mode == 0)
+        TrgCharStopFlag &= ~TRG_CHAR_STOP_PLAYER;
+    else
+        TrgCharStopFlag |= TRG_CHAR_STOP_PLAYER;
+}
+
+// CT3 0x01851f10
+// The game-over sequence's steps (GAME_OVER_*): the music and effects stop with the game-over sting
+// (SE 0x3b in slot 4); everything is frozen, the characters freed, every non-global bank undrawn and
+// the pad's rattle off (the play time saved for the continue); the effects stop.
+void GAME_OVER_END(int step)
+{
+    int bank;
+    switch (step) {
+    case GAME_OVER_STOP_SE:
+        SdStopSEAll();
+        break;
+    case GAME_OVER_FREEZE:
+        backup_progress_time = progress_time;
+        PlayerControlUpdate(1);
+        ssMenuUpdate(1);
+        PlayerControlUpdate2(1);
+        MonsterAIUpdate(1);
+        CharacterAllFree();
+        for (bank = BANK_GLOBAL_MAX; bank < BANK_MAX; bank++)
+            BankInfo[bank].drawOn = DRAW_BANK_OFF;
+        tiVibrationOff(0);
+        break;
+    case GAME_OVER_STING:
+        SdStopSQAll(0);
+        SdReqPlaySE(GAME_OVER_SE_JLS, GAME_OVER_SE, 1);
+        SdStopSEAllSp1();
+        break;
+    default:                                /* 1 does nothing */
+        break;
+    }
 }
 
 // CT3 0x018550b0: stop (mode != 0) or free the player's keys, with the trigger event that tells scripts.
@@ -1312,10 +1601,24 @@ void asWarpObjectBody(int mode, const WARP_CMD *cmd)
     }
 }
 
-// stub of CT3 0x0185c100
-void asWarpSceneObject(void *table, int maxId, float *pos)
+// CT3 0x0185c100
+// Place the scene's part `part` at the world position pos: pos taken into part 0's frame (the inverse
+// of its world matrix, VU0 MULA/MADD over xyzw) lands in the part's drawOnPos, and the part is marked
+// PARTS_FLAG43_WARPED. table is the scene's ALL_TABLE (its partsHeader).
+void asWarpSceneObject(ALL_TABLE *table, int part, float *pos)
 {
-    ALYSSAPAN_STUB("asWarpSceneObject", 0x0185c100);
+    MODEL_PARTS *parts = NULL;
+    alignas(16) float inv[4][4];
+    int i;
+    for (i = 0; i < BANK_MAX; i++)          /* PORT: the bank whose table it is resolves partsHeader */
+        if (All_table_TBL[i] == table)
+            parts = BANK_PTR(MODEL_PARTS *, i, table->partsHeader);
+    if (parts == NULL)
+        return;
+    gaInversMatrix(inv, parts[0].matrix);
+    for (i = 0; i < 4; i++)
+        parts[part].drawOnPos[i] = inv[0][i] * pos[0] + inv[1][i] * pos[1] + inv[2][i] * pos[2] + inv[3][i] * pos[3];
+    parts[part].flags43 |= PARTS_FLAG43_WARPED;
 }
 
 // CT3 0x01854d30: a menu is open (mode != 0) or closed.
@@ -2098,24 +2401,42 @@ u_char *asFindModelParts(u_char *header, u_long hash)
     return header + PARTS_HDR_RECORDS + id * PARTS_REC_SIZE;
 }
 
-// stub of CT3 0x01854b20
+// CT3 0x01854b20: joint bank's part hash to srcBank's part of the same name (its world matrix and
+// position, MODEL_PARTS +0x1c0 / +0x130); JOINT_NOT_FOUND_1 when srcBank has none.
 int asJointParts(int srcBank, int bank, u_long hash)
 {
-    ALYSSAPAN_STUB("asJointParts", 0x01854b20);
-    return {};
+    u_char *rec = asFindModelParts(pModelPartsHeader[srcBank], hash);
+    MODEL_PARTS *src;
+    if (rec == NULL)
+        return JOINT_NOT_FOUND_1;
+    src = (MODEL_PARTS *)(rec - PARTS_HDR_RECORDS);
+    return asJointParts_byMatrix(src->matrix, src->pos, bank, hash);
 }
 
 // stub of CT3 0x01854750
-int asJointParts_byMatrix(float (*mat)[4], int *pos, int bank)
+int asJointParts_byMatrix(float (*mat)[4], float *pos, int bank, u_long hash)
 {
     ALYSSAPAN_STUB("asJointParts_byMatrix", 0x01854750);
     return {};
 }
 
-// stub of CT3 0x01859f00
-void asGetCrossPointInPlaneWithLine(float out[4], float a[4], float b[4], float dir[4], float plane[4])
+// CT3 0x01859f00
+// Where the line through a and b crosses the plane through planePoint with the normal n:
+// out = a + (a - b) * -(n . (a - planePoint)) / (n . (a - b)), xyz; out's w is a's.
+void asGetCrossPointInPlaneWithLine(float out[4], float a[4], float b[4], float n[4], float planePoint[4])
 {
-    ALYSSAPAN_STUB("asGetCrossPointInPlaneWithLine", 0x01859f00);
+    alignas(16) float d[4], e[4];
+    float t;
+    int i;
+    for (i = 0; i < 3; i++) {
+        d[i] = a[i] - b[i];
+        e[i] = a[i] - planePoint[i];
+    }
+    d[3] = e[3] = a[3];
+    t = -gaInnerProductXYZ(n, e) / gaInnerProductXYZ(n, d);
+    for (i = 0; i < 3; i++)
+        out[i] = d[i] * t + a[i];
+    out[3] = a[3];
 }
 
 // CT3 0x018520b0
@@ -2504,17 +2825,37 @@ void asZipTrans2Trans_XYZ1(float *out, const short *in, u_int shift)
 }
 
 
-// stub of CT3 0x0185c840
+// CT3 0x0185c840: packed normals (3 shorts, ZIP_NORMAL_SHIFT) blended, renormalised (VU0 RSQRT, all
+// four lanes scaled) and packed again.
 void asContInterpolateZipNormal_XYZ(short *out, const short *a, const short *b, const float *w, int n)
 {
-    ALYSSAPAN_STUB("asContInterpolateZipNormal_XYZ", 0x0185c840);
+    alignas(16) float va[4], vb[4], v[4];
+    for (; n != 0; n--, out += 3, a += 3, b += 3) {
+        float len;
+        asZipTrans2Trans_XYZ0(va, a, ZIP_NORMAL_SHIFT);
+        asZipTrans2Trans_XYZ0(vb, b, ZIP_NORMAL_SHIFT);
+        asInterpolateVector(v, va, vb, w);
+        len = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
+        len = len > 0.0f ? 1.0f / sqrtf(len) : FLT_MAX;    /* VU RSQRT of 0: the largest float */
+        v[0] *= len;
+        v[1] *= len;
+        v[2] *= len;
+        v[3] *= len;
+        asTrans2ZipTrans_XYZ(out, v, ZIP_NORMAL_SHIFT);
+    }
 }
 
-// stub of CT3 0x0185ca50
+// CT3 0x0185ca50: packed positions (3 shorts, fixed point by shift) blended and packed again.
 void asContInterpolateZipTrans_XYZ(short *out, const short *a, const short *b, const float *w, int n,
                                    u_int shift)
 {
-    ALYSSAPAN_STUB("asContInterpolateZipTrans_XYZ", 0x0185ca50);
+    alignas(16) float va[4], vb[4], v[4];
+    for (; n != 0; n--, out += 3, a += 3, b += 3) {
+        asZipTrans2Trans_XYZ1(va, a, shift);
+        asZipTrans2Trans_XYZ1(vb, b, shift);
+        asInterpolateVector(v, va, vb, w);
+        asTrans2ZipTrans_XYZ(out, v, shift);
+    }
 }
 
 // CT3 0x0185c5a0: a float to the 7.9 form (mul.s by 512, cvt.w.s truncates, the low halfword kept).
@@ -2574,11 +2915,37 @@ void asInterpolateZipUV(short *out, const short *a, const short *b, const float 
     asUV2ZipUV_R(out, u);
 }
 
-// stub of CT3 0x0185dc30
+// CT3 0x0185dc30
+// The angle 0..2pi of the vector in the plane about one axis (RADIAN_AXIS_*): (x, y) = (y, z) for X,
+// (z, x) for Y, (x, y) for Z, measured from the first towards the second. The quadrants are picked by
+// sign bits (a -0 second component counts as negative), and atanf runs on a positive ratio. Another
+// axis reads two uninitialised stack words in the ROM; the port reads 0, 0 (answer 0).
 float asRadianByO(float *v, int axis)
 {
-    ALYSSAPAN_STUB("asRadianByO", 0x0185dc30);
-    return {};
+    float x = 0.0f, y = 0.0f;
+    if (axis == RADIAN_AXIS_Z) {
+        x = v[0];
+        y = v[1];
+    } else if (axis == RADIAN_AXIS_Y) {
+        x = v[2];
+        y = v[0];
+    } else if (axis == RADIAN_AXIS_X) {
+        x = v[1];
+        y = v[2];
+    }
+    if (x == 0.0f) {
+        if (signbit(y))
+            return 4.712389f;                           /* 3pi/2 */
+        return y == 0.0f ? 0.0f : 1.5707964f;           /* pi/2 */
+    }
+    if (!signbit(x)) {
+        if (!signbit(y))
+            return atanf(y / x);
+        return 6.2831855f - atanf(-y / x);
+    }
+    if (!signbit(y))
+        return 3.1415927f - atanf(y / -x);
+    return atanf(y / x) + 3.1415927f;
 }
 
 

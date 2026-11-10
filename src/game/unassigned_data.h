@@ -108,6 +108,8 @@ extern u_char NumPartBlurObj[PART_BLUR_MODES][BANK_MAX]; /* data 0x0193fa80: ALL
 extern PART_BLUR_OBJ *aftSortALLpartBlurObj[PART_BLUR_MAX + 1]; /* data 0x0193fb30: matched, in sorted order */
 extern int DirectLightCharaCounter[CHARACTER_MAX]; /* sbss 0x019400e0 */
 extern short AI_flag[CHARACTER_MAX];            /* sbss 0x0193fca0 */
+#define ATK_CHARA_LIST2_COUNT 9
+extern short ssAtkCharaList2[ATK_CHARA_LIST2_COUNT]; /* data 0x01939d50: the stalker characters (MonsterAIUpdate) */
 extern u_short CharDirectLightSet[CHARACTER_MAX][6]; /* sbss 0x0193ff30 */
 extern u_short CharOmniEffect[CHARACTER_MAX][8];     /* sbss 0x0193fd00 */
 extern u_short AllOmniEffect[8];                /* sbss 0x0193fcf0 */
@@ -168,8 +170,8 @@ extern int backup_progress_time;                /* sbss 0x0193fa18: the play tim
 extern int idCameraScene;                       /* sbss 0x01940e30: the bank whose camera is live */
 extern int TransparentBodyTime;                 /* sbss 0x01940e48: data_load_set: 360 */
 extern PANIC_INFO PanicInfoData;                /* sbss 0x01940e50 */
-extern u_char act_small;                        /* sbss 0x0193f840: the pad's small motor is running (vibration TU) */
-extern u_char act_large;                        /* sbss 0x0193f844: its large motor */
+extern u_char act_small;                        /* sbss 0x0193f740: the pad's small motor is running (vibration TU) */
+extern u_char act_large;                        /* sbss 0x0193f744: its large motor */
 extern int GlobalVariable[GLOBAL_VARIABLE_COUNT]; /* sbss 0x01941190 */
 extern u_char GlobalEventFlag[GLOBAL_EVENT_FLAG_BYTES]; /* sbss 0x01941590 */
 extern qword DrawOnPosSetVectorTemp;            /* sbss 0x01942540: TrgSceneDraw(.., -2, ..) places the bank here */
