@@ -687,6 +687,16 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    confirms them; (fz) the slot's mipData[0] is the FSLoad buffer, so a page file is raw level-0 pixels
    with its other levels and CLUT at fixed bank addresses: check against a DATA/IMG file once one is
    decoded at its source. Left in this TU: GetAreaFloor, asFindMotionID (fv).
+   **game/QuatSlerp.c slice 11 (verify, 2026-11-10): the TU's code is complete (177 of 177).**
+   GetAreaFloor (CHARACTER *; bank +2 >= 0; roomHash vs roomHashPrev; the room literals @3345..@3458 at
+   0x01933758.. read from the ELF: 0A10 0A01 0A06 0B01 0B06 1C01 1C02 1C06 1C04 1B11 1B07 1B08 1B12 2B01
+   2B04 4A04..4A12) sets TRIG_EVENT_AREA_PASS2 / PASS3 on a step between paired rooms, as GetAreaNumber
+   reads them; asFindMotionID walks the motion table. 15 s smoke run: no fault, shot black. Open: (ga)
+   asFindMotionID reads CHARACTER +CHARA_MOTION_TABLE through a static MotionTableOf that answers NULL
+   (index -1), the same gap as ahRelocateSunPs2ObjectArry.c's CharaMotionTable (fv): the TU that writes
+   asInitPlayerBehaviorControler gives the word its host form and both helpers become one; (gb)
+   GetAreaFloor's 1C02 branch has no else (from a room other than 1C01 / 1C04 the flags stay), read from
+   the decompilation and the callee order, not stepped; the PASS2 / PASS3 names stay as GetAreaNumber's.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
    class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~

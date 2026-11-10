@@ -4365,3 +4365,151 @@ float rndf(void)
     memcpy(&f, &bits, sizeof(f));
     return f - 1.0f;
 }
+
+// ---- slice 11 (2026-11-10): GetAreaFloor, asFindMotionID ------------------------------------------
+
+#define ROOM_IS(room, name) (memcmp((name), (room), ROOM_NAME_LEN) == 0)
+
+// Both floor flags off (the ROM's pair of removes, in its order).
+static void AreaFloorClear(void)
+{
+    ssTrigRemoveEvent(TRIG_EVENT_AREA_PASS2, 1, 0);
+    ssTrigRemoveEvent(TRIG_EVENT_AREA_PASS3, 1, 0);
+}
+
+// CT3 0x018524e0: called on a portal crossing (ssScnPortalCheck). The rooms the ROM lists in pairs
+// share an area; stepping from one into its partner sets TRIG_EVENT_AREA_PASS2 (GetAreaNumber's second
+// row), 1B12 -> 1B08 sets TRIG_EVENT_AREA_PASS3; stepping in from anywhere else clears both, and so does
+// entering any of the partners themselves. 1C01 <-> 1C02 keep PASS2 as it was. The tests run in the
+// ROM's order, every one of them (a later match can undo an earlier one).
+void GetAreaFloor(CHARACTER *chara)
+{
+    char room[16];
+    char prev[16];
+
+    // callcheck: memcmp, ssTrigRemoveEvent (ROOM_IS and AreaFloorClear make them)
+    if (chara->bank < 0)
+        return;
+    strcpy(room, asConvertHash2String(chara->roomHash));
+    strcpy(prev, asConvertHash2String(chara->roomHashPrev));
+
+    if (ROOM_IS(room, "0A01")) {
+        if (ROOM_IS(prev, "0A06") || ROOM_IS(prev, "0A10"))
+            ssTrigRegisterEvent(TRIG_EVENT_AREA_PASS2, 1, 0);
+        else
+            AreaFloorClear();
+    }
+    if (ROOM_IS(room, "0A06"))
+        AreaFloorClear();
+    if (ROOM_IS(room, "0A10"))
+        AreaFloorClear();
+    if (ROOM_IS(room, "0B01")) {
+        if (ROOM_IS(prev, "0B06") || ROOM_IS(prev, "0A06") || ROOM_IS(prev, "0A10"))
+            ssTrigRegisterEvent(TRIG_EVENT_AREA_PASS2, 1, 0);
+        else
+            AreaFloorClear();
+    }
+    if (ROOM_IS(room, "0B06"))
+        AreaFloorClear();
+    if (ROOM_IS(room, "1C01")) {
+        if (ROOM_IS(prev, "1C02")) {
+            if (ssTrigCheckEvent(TRIG_EVENT_AREA_PASS2, 1, 0) == 0)
+                AreaFloorClear();
+            else
+                ssTrigRegisterEvent(TRIG_EVENT_AREA_PASS2, 1, 0);
+        } else if (ROOM_IS(prev, "1C06")) {
+            ssTrigRegisterEvent(TRIG_EVENT_AREA_PASS2, 1, 0);
+        } else {
+            AreaFloorClear();
+        }
+    }
+    if (ROOM_IS(room, "1C02")) {
+        // no else here: from anywhere but 1C01 / 1C04 the flags stay as they were
+        if (ROOM_IS(prev, "1C01")) {
+            if (ssTrigCheckEvent(TRIG_EVENT_AREA_PASS2, 1, 0) == 0)
+                AreaFloorClear();
+            else
+                ssTrigRegisterEvent(TRIG_EVENT_AREA_PASS2, 1, 0);
+        }
+        if (ROOM_IS(prev, "1C04"))
+            ssTrigRegisterEvent(TRIG_EVENT_AREA_PASS2, 1, 0);
+    }
+    if (ROOM_IS(room, "1C06"))
+        AreaFloorClear();
+    if (ROOM_IS(room, "1C04"))
+        AreaFloorClear();
+    if (ROOM_IS(room, "1B11")) {
+        if (ROOM_IS(prev, "1B07"))
+            ssTrigRegisterEvent(TRIG_EVENT_AREA_PASS2, 1, 0);
+        else
+            AreaFloorClear();
+    }
+    if (ROOM_IS(room, "1B07"))
+        AreaFloorClear();
+    if (ROOM_IS(room, "1B08")) {
+        if (ROOM_IS(prev, "1B12"))
+            ssTrigRegisterEvent(TRIG_EVENT_AREA_PASS3, 1, 0);
+        else
+            AreaFloorClear();
+    }
+    if (ROOM_IS(room, "1B12"))
+        AreaFloorClear();
+    if (ROOM_IS(room, "2B01")) {
+        if (ROOM_IS(prev, "2B04"))
+            ssTrigRegisterEvent(TRIG_EVENT_AREA_PASS2, 1, 0);
+        else
+            AreaFloorClear();
+    }
+    if (ROOM_IS(room, "2B04"))
+        AreaFloorClear();
+    if (ROOM_IS(room, "4A04")) {
+        if (ROOM_IS(prev, "4A06") || ROOM_IS(prev, "4A07") || ROOM_IS(prev, "4A09") || ROOM_IS(prev, "4A10"))
+            ssTrigRegisterEvent(TRIG_EVENT_AREA_PASS2, 1, 0);
+        else
+            AreaFloorClear();
+    }
+    if (ROOM_IS(room, "4A06")) {
+        if (ROOM_IS(prev, "4A04") || ROOM_IS(prev, "4A05") || ROOM_IS(prev, "4A11") || ROOM_IS(prev, "4A12"))
+            ssTrigRegisterEvent(TRIG_EVENT_AREA_PASS2, 1, 0);
+        else
+            AreaFloorClear();
+    }
+    if (ROOM_IS(room, "4A07") || ROOM_IS(room, "4A09") || ROOM_IS(room, "4A10") || ROOM_IS(room, "4A05")
+        || ROOM_IS(room, "4A11") || ROOM_IS(room, "4A12"))
+        AreaFloorClear();
+}
+
+#undef ROOM_IS
+
+// PORT: CHARACTER +CHARA_MOTION_TABLE holds the EE address of the character's motion table, written
+// by asInitPlayerBehaviorControler (wideXcmd_DebugPrint.c, still a stub); its TU decides the host form
+// (the same gap as ahRelocateSunPs2ObjectArry.c's CharaMotionTable). Until then the table is empty.
+static const u_char *MotionTableOf(const CHARACTER *ch)
+{
+    (void)ch;
+    return NULL;
+}
+
+// CT3 0x0185e060: the index of the character's motion record (CHARA_MOTION_SIZE bytes, led by its
+// hash, a 0 hash ending the table) whose hash is `hash`; MOTION_NOT_FOUND when none has it, 0 when the
+// character has no bank.
+int asFindMotionID(int chara, u_long hash)
+{
+    const CHARACTER *ch = &Character[chara];
+    const u_char *table;
+    u_long h = 0;
+    int i = 0;
+
+    if (ch->bank < 0)
+        return 0;
+    table = MotionTableOf(ch);
+    if (table != NULL)
+        memcpy(&h, table, sizeof(h));
+    while (h != 0) {
+        if (h == hash)
+            return i;
+        i++;
+        memcpy(&h, table + i * CHARA_MOTION_SIZE, sizeof(h));
+    }
+    return MOTION_NOT_FOUND;
+}

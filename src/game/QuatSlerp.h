@@ -675,3 +675,11 @@ float absf(float x);                                                            
 int tnRand(int n);                                                                      // CT3 0x0185c320
 u_int rnd(void);                                                                        // CT3 0x0185e960
 float rndf(void);                                                                       // CT3 0x0185e910
+
+// Slice 11 (2026-11-10): the floor flags a room change sets, the motion lookup.
+void GetAreaFloor(CHARACTER *chara);                                                    // CT3 0x018524e0
+// GetAreaFloor: stepping between the rooms of a two-room area (roomHashPrev -> roomHash) sets
+// TRIG_EVENT_AREA_PASS2 (1B08 from 1B12: PASS3), which GetAreaNumber reads as "the second row"; any
+// other step out of those rooms clears both.
+int asFindMotionID(int chara, u_long hash);                                             // CT3 0x0185e060
+#define MOTION_NOT_FOUND (-1)           /* asFindMotionID: no record has the hash */
