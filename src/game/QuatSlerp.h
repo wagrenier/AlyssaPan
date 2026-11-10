@@ -102,3 +102,6 @@ void QuatSlerp(float *q, float *q0, float *q1, float *ts);                      
 // out = b with its twist about a's Y axis taken out; answers the twist (asMakeStraw negates it and
 // spreads it over the vertices through asMakeRotMatrixByQuartanion).
 int asDelSqueezeInformation(float (*out)[4], float (*a)[4], float (*b)[4]);              // CT3 0x0185d380
+// The vector's angle (radians) for the rotation about one axis (asMakeMirrorMatrixByPlane: 1 for Y,
+// then 0 for X); the TU that writes it confirms the axis meaning.
+float asRadianByO(float *v, int axis);                                                   // CT3 0x0185dc30

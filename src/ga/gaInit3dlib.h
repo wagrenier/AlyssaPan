@@ -14,3 +14,5 @@ void gaMulMatrix(float (*dst)[4], float (*a)[4], float (*b)[4]);                
 float gaInnerProductXYZ(float *a, float *b);                                            // CT3 0x018a7780
 // Loads a part's lights (GA_LIGHT_WORK, ct3_types.h) for drawing under the view matrix view.
 void gaSetLight(void *lightWork, float (*view)[4]);                                      // CT3 0x018a8258
+// dst = a's inverse (asMakeMirrorMatrixByPlane calls it in place).
+void gaInversMatrix(float (*dst)[4], float (*a)[4]);                                     // CT3 0x018a7b50

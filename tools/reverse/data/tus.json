@@ -444,7 +444,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 121..121, 39 functions keyed by their statics, 22 unkeyed; file name from the names"
   },
   "game/ahRelocateSunPs2ObjectArry.c": {
-   "notes": "Next in this TU: asShadowPolygonPositions with asStockShadowVolume as one piece (writes the volume objects and their kind bytes, BANK_INFO.shadowFrame), asShadowEnd, EA_010, the general body of ExecuteAnimation. Shot still black, crash unchanged at main.c:2106 (ActressMP NULL). Open items dq..dw (CAMERA.view2, MIRROR four corners, gaMulMatrix aliasing, tex_attr_A EE address, ALL_TABLE.shadow).",
+   "notes": "Next in this TU: asShadowPolygonPositions with asStockShadowVolume as one piece (open-items dz has a first read of the stock: modes 2 and -1, kinds 5/6/2, ShadowVolume1/2 templates), asShadowEnd, EA_010, the general body of ExecuteAnimation. Shot still black, crash unchanged at main.c:2106 (ActressMP NULL). New open items dx..dz.",
    "ranges": [
     [
      "0183e280",
@@ -506,6 +506,11 @@
      "date": "2026-11-10 06:57",
      "status": "partial",
      "summary": "slice 11: asBuildMirrorMatrixTree and _Back (mrr_ReverseMatrix then Cam[6].view2), asMirrorCulling (the mirror's four corners projected to the portal clip rectangle), the shadow volume pass: asDrawShadowVolumeInit (SDW_drawctrl_A adds, _S subtracts), asShadowStart (shadow buffer 0xc0000, its clear sprite), asDrawShadowVolume (kind byte picks the control)"
+    },
+    {
+     "date": "2026-11-10 07:12",
+     "status": "partial",
+     "summary": "slice 12: asMakeMirrorMatrixByPlane (mrr_ReverseMatrix from the mirror plane: RY, RX, the Y flip, the plane offset row), asSceneAnimationStop_S and asCheckAnimationDirection_X (asSceneAnimationStart's selection as a shared helper), asBehaviorStartAnimation and _FromTop, asCopyShadowInformation, asShadowAllDisable; new stub TU ga/gaSinCos.c"
     }
    ],
    "status": "partial",

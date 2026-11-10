@@ -432,6 +432,15 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    and vertex colour addresses) are overwritten by gaSetupDrawCtrlData's packet head at once: dropped,
    unless the ga TU finds the head keeps them. Left in this TU: EA_010, the general body of
    ExecuteAnimation, asShadowPolygonPositions + asStockShadowVolume, asShadowEnd, and the brief's rest.
+   Slice 12 (2026-11-10): (dx) TRACK_FLAG_STEP_FROM_RUNS (bit 0) is what asCheckAnimationDirection_X
+   answers: probably "plays in reverse" (step starts at the end); rename when IAK's reverse path
+   confirms it. (dy) asSceneAnimationStop_S stops a character's motion slots only under
+   CHARACTER_FLAG_REFRACTION: the bit likely means more than refraction (an "active / drawn"
+   character); CHARACTER +0x398 is short[6] motion slots (CHARA_MOTION_SLOTS). (dz) A first read of
+   asStockShadowVolume for (dv): mode 2 flushes the pending odd plane (_iPcnt_3177: kind 5, gMP) and
+   odd quad (_iMcnt_3178: kind 6, gMM) as one-face volumes (ShadowVolume1_*); mode -1 stocks 4 corners
+   into gMM and emits a two-face volume (ShadowVolume2_*, kind 2) on every second call. Both write a
+   gaCopyObject2 of the template at 0x01937ba0 and the face normal (cross of two edges, rsqrt).
    (bw) Extract is untested against a known image: the first scene_init that runs on relocated data is
    its test (a wrong decode shows as garbage tables); a harness decoding one CT3X file from CT3PACK.DAT
    beside the ROM's (eerun.py) would prove it sooner.

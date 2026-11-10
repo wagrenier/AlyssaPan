@@ -12,6 +12,7 @@
 #include "ga/gaInit3dlib.h"
 #include "ga/gaInitDrawObject.h"
 #include "ga/gaSearchNearLight4.h"
+#include "ga/gaSinCos.h"
 #include "game/Convert.h"
 #include "game/LinkMatrixTree.h"
 #include "game/QuatSlerp.h"
@@ -2745,6 +2746,234 @@ u_long asSceneAnimationStart(float speed, u_long hash, ALL_TABLE *tbl, int from,
     return any ^ 1;
 }
 
+// ---- slice 12 (2026-11-10) ----
+
+// asSceneAnimationStart's selection, as asSceneAnimationStop_S and asCheckAnimationDirection_X repeat
+// it inline: pose for the pose and vertex kinds, other for the number / vector kinds, byPart for the
+// copy and UV kinds whose first key names partId (u_short, a negative UV short never matches).
+static int TrackSelected(int bank, const BEHAVIOR_TRACK *tr, u_short partId, int pose, int other, int byPart)
+{
+    switch (tr->kind) {
+    case TRACK_KIND_BASE_POS:
+    case TRACK_KIND_BASE_ROT:
+    case TRACK_KIND_POS:
+    case TRACK_KIND_ROT:
+    case TRACK_KIND_VECTOR:
+    case TRACK_KIND_NORMAL:
+    case TRACK_KIND_VERTEX:
+        return pose != 0;
+    case TRACK_KIND_COPY:
+        if (byPart != 0) {
+            u_short p;
+            memcpy(&p, BANK_PTR(const u_char *, bank, tr->keys) + 0x1a, sizeof(p));
+            return p == partId;
+        }
+        return 0;
+    case TRACK_KIND_UV:
+        if (byPart != 0) {
+            short p;
+            memcpy(&p, BANK_PTR(const u_char *, bank, tr->keys) + 0x1c, sizeof(p));
+            return p == (int)partId;
+        }
+        return 0;
+    case TRACK_KIND_FLOAT0_7_9:
+    case TRACK_KIND_SUB_NUMBER:
+    case TRACK_KIND_NUMBER:
+    case TRACK_KIND_FLOAT1_1_14:
+    case TRACK_KIND_VECTOR_XYZ:
+        return other != 0;
+    }
+    return 0;
+}
+
+// CT3 0x01848090
+// Stops what asSceneAnimationStart started. SCENE_ANIM_SCENE: the running tracks the switches select
+// in the groups of partId (0: the part named by hash; byPart: part 0's groups too) get
+// TRACK_STOP_REQUEST. SCENE_ANIM_CHARACTER (a CHARACTER_FLAG_REFRACTION character only): the first
+// motion slot whose motion table record has `hash` is stopped, and with hash 0 every used slot.
+// 0 when something stopped (a track, or a slot matched by hash), 1 otherwise.
+u_char asSceneAnimationStop_S(u_long hash, ALL_TABLE *tbl, int partId, int pose, int other, int byPart,
+                              int target, int chara)
+{
+    int bank, g, t;
+    BEHAVIOR *bhv;
+    u_short part;
+    u_char any;
+    if (tbl == NULL)
+        return 1;
+    if ((char)target == SCENE_ANIM_CHARACTER) {
+        CHARACTER *ch = &Character[(u_char)chara];
+        const u_char *table;
+        int slot;
+        if (!(ch->flags & CHARACTER_FLAG_REFRACTION))
+            return 1;
+        // PORT: no character has a host motion table yet (CharaMotionTable): only hash 0 stops slots.
+        table = CharaMotionTable(ch);
+        for (slot = 0; slot < CHARA_MOTION_SLOT_COUNT; slot++) {
+            short idx;
+            memcpy(&idx, (const u_char *)ch + CHARA_MOTION_SLOTS + slot * 2, sizeof(idx));
+            if (idx < 0)
+                continue;
+            if (table != NULL) {
+                u_long h;
+                memcpy(&h, table + idx * CHARA_MOTION_SIZE, sizeof(h));
+                if (h == hash) {
+                    asCharacterMortionStopRequest((u_char)chara, slot);
+                    return 0;
+                }
+            }
+            if (hash == 0)
+                asCharacterMortionStopRequest((u_char)chara, slot);
+        }
+        return 1;
+    }
+    if ((char)target != SCENE_ANIM_SCENE)
+        return 1;
+    bank = BankOfHostPtr(tbl);
+    bhv = BANK_PTR(BEHAVIOR *, bank, tbl->behavior);
+    part = (u_short)partId;
+    if (part == 0)
+        part = (u_short)asFindModelPartsID(BANK_PTR(u_char *, bank, tbl->partsHeader), hash);
+    any = 0;
+    for (g = 0; g < bhv->groupCount; g++) {
+        BEHAVIOR_TRACK *tr;
+        if (!((int)bhv->groups[g].part == (int)part || (byPart != 0 && bhv->groups[g].part == 0)))
+            continue;
+        tr = BehaviorTracks(bank, bhv, g);
+        for (t = bhv->groups[g].trackCount; t > 0; t--, tr++) {
+            if (tr->playing == 0)
+                continue;
+            if (TrackSelected(bank, tr, (u_short)partId, pose, other, byPart)) {
+                any = 1;
+                tr->playing = TRACK_STOP_REQUEST;
+            }
+        }
+    }
+    return any ^ 1;
+}
+
+// CT3 0x018487d0
+// The direction of the first running track asSceneAnimationStop_S's selection takes (partId as
+// given, no hash): its TRACK_FLAG_STEP_FROM_RUNS bit; -1 when none runs.
+int asCheckAnimationDirection_X(ALL_TABLE *tbl, int partId, int pose, int other, int byPart)
+{
+    int bank, g, t;
+    BEHAVIOR *bhv;
+    u_short part = (u_short)partId;
+    if (tbl == NULL)
+        return -1;
+    bank = BankOfHostPtr(tbl);
+    bhv = BANK_PTR(BEHAVIOR *, bank, tbl->behavior);
+    for (g = 0; g < bhv->groupCount; g++) {
+        BEHAVIOR_TRACK *tr;
+        if (!((int)bhv->groups[g].part == (int)part || (byPart != 0 && bhv->groups[g].part == 0)))
+            continue;
+        tr = BehaviorTracks(bank, bhv, g);
+        for (t = bhv->groups[g].trackCount; t > 0; t--, tr++)
+            if (TrackSelected(bank, tr, part, pose, other, byPart) && tr->playing == TRACK_PLAYING)
+                return tr->flags & TRACK_FLAG_STEP_FROM_RUNS;
+    }
+    return -1;
+}
+
+// CT3 0x01847e20
+// asRequestExecute's start: every track of the behaviour from where it stands (asStartAnimation),
+// its flags cleared and, when the end (playable) lies before the range's start, the two swapped.
+void asBehaviorStartAnimation(void *behavior, int go)
+{
+    BEHAVIOR *bhv = (BEHAVIOR *)behavior;
+    int bank, g, t;
+    if (bhv == NULL || go == 0)
+        return;
+    bank = BankOfHostPtr(bhv);
+    for (g = 0; g < bhv->groupCount; g++) {
+        BEHAVIOR_TRACK *tr = BehaviorTracks(bank, bhv, g);
+        for (t = bhv->groups[g].trackCount; t > 0; t--, tr++) {
+            int end;
+            asStartAnimation(tr);
+            tr->flags = 0;
+            end = tr->playable;
+            if (end < tr->rangeStart) {
+                tr->playable = tr->rangeStart;
+                tr->rangeStart = end;
+            }
+        }
+    }
+}
+
+// CT3 0x01847ef0
+// The same from the top (asStartAnimationFromTop with resetTime).
+void asBehaviorStartAnimationFromTop(void *behavior, int go, int resetTime)
+{
+    BEHAVIOR *bhv = (BEHAVIOR *)behavior;
+    int bank, g, t;
+    if (bhv == NULL || go == 0)
+        return;
+    bank = BankOfHostPtr(bhv);
+    for (g = 0; g < bhv->groupCount; g++) {
+        BEHAVIOR_TRACK *tr = BehaviorTracks(bank, bhv, g);
+        for (t = bhv->groups[g].trackCount; t > 0; t--, tr++) {
+            int end;
+            asStartAnimationFromTop(tr, resetTime);
+            tr->flags = 0;
+            end = tr->playable;
+            if (end < tr->rangeStart) {
+                tr->playable = tr->rangeStart;
+                tr->rangeStart = end;
+            }
+        }
+    }
+}
+
+// CT3 0x018442d0
+// The trigger's copy: dstChara's bank takes srcChara's shadow settings (BankInfo +0x30..+0x4f, the
+// light position, length, colour, +0x64 / +0x68 and the four bytes from shadowOrder; not the stocked
+// frame nor the block). Nothing when either character has no bank.
+void asCopyShadowInformation(int dstChara, int srcChara)
+{
+    BANK_INFO *d, *s;
+    if (Character[dstChara].bank < 0 || Character[srcChara].bank < 0)
+        return;
+    d = &BankInfo[Character[dstChara].bank];
+    s = &BankInfo[Character[srcChara].bank];
+    memcpy(d->shadowVec, s->shadowVec, sizeof(d->shadowVec));
+    memcpy(d->pad40, s->pad40, sizeof(d->pad40));
+    d->shadowLightPos = s->shadowLightPos;
+    d->shadowLength = s->shadowLength;
+    memcpy(d->shadowColor, s->shadowColor, sizeof(d->shadowColor));
+    d->shadow64 = s->shadow64;
+    d->shadow68 = s->shadow68;
+    d->shadowOrder = s->shadowOrder;
+    d->shadow6d = s->shadow6d;
+    d->shadowDraw = s->shadowDraw;
+    d->pad6f = s->pad6f;
+}
+
+// CT3 0x01847360
+// Turns shadows off (asShadowDrawing_Disable): SHADOW_DISABLE_BANKS every drawn BANK_TYPE_SHADOW bank
+// (groups skipped as BankInfo's walk does), SHADOW_DISABLE_CHARACTERS the bank of every character with
+// both CHARACTER_FLAG_REFRACTION and _SHADOW.
+void asShadowAllDisable(u_int which)
+{
+    int i;
+    if (which & SHADOW_DISABLE_BANKS) {
+        for (i = 0; i < BANK_MAX; i++) {
+            BANK_INFO *bi = &BankInfo[i];
+            if (bi->drawOn > 0 && bi->type == BANK_TYPE_SHADOW)
+                asShadowDrawing_Disable(i);
+            if (bi->state > 0)
+                i += bi->groupCount - 1;
+        }
+    }
+    if (which & SHADOW_DISABLE_CHARACTERS) {
+        for (i = 0; i < CHARACTER_MAX; i++) {
+            CHARACTER *ch = &Character[i];
+            if ((ch->flags & CHARACTER_FLAG_REFRACTION) && (ch->flags & CHARACTER_FLAG_SHADOW) && ch->bank >= 0)
+                asShadowDrawing_Disable(ch->bank);
+        }
+    }
+}
+
 // ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x0184bf60
@@ -2811,11 +3040,42 @@ void asBuildMirrorMatrixTreeBack(u_char *partsHeader)
 }
 
 
-// stub of CT3 0x0184f910
+// CT3 0x0184f910
+// The mirror's reflection from its plane (normal planeVec, w cleared here; a point planePoint):
+// mrr_ReverseMatrix = RY^-1 * (RX^-1 * (flipY * (RX * RY))), RY turning the normal about Y
+// (asRadianByO axis 1) and RX the turned normal about X (axis 0, negated), flipY = diag(1, -1, 1, 1)
+// built from vf0; row 3 = the normal * 2 (n . p) / (n . n), w 1. 1 for a zero normal (nothing made).
 int asMakeMirrorMatrixByPlane(float *planeVec, float *planePoint)
 {
-    ALYSSAPAN_STUB("asMakeMirrorMatrixByPlane", 0x0184f910);
-    return {};
+    alignas(16) float flip[4][4] = { { 1, 0, 0, 0 }, { 0, -1, 0, 0 }, { 0, 0, 1, 0 }, { 0, 0, 0, 1 } };
+    alignas(16) float ry[4][4];
+    alignas(16) float rx[4][4];
+    alignas(16) float v[4];
+    alignas(16) float w[4];
+    float a, d;
+    int i;
+    if (planeVec[0] == 0.0f && planeVec[1] == 0.0f && planeVec[2] == 0.0f)
+        return 1;
+    planeVec[3] = 0.0f;
+    memcpy(v, planeVec, sizeof(v));
+    a = asRadianByO(v, 1);
+    gaSetRotMatrixY(ry, (int)((a * 65536.0f) / 6.2831855f) & 0xffff);
+    for (i = 0; i < 4; i++) /* vmulabc / vmaddabc / vmaddbc: v * ry */
+        w[i] = ry[0][i] * v[0] + ry[1][i] * v[1] + ry[2][i] * v[2] + ry[3][i] * v[3];
+    a = asRadianByO(w, 0);
+    gaSetRotMatrixX(rx, -((int)((a * 65536.0f) / 6.2831855f) & 0xffff));
+    gaMulMatrix(mrr_ReverseMatrix, rx, ry);
+    gaMulMatrix(mrr_ReverseMatrix, flip, mrr_ReverseMatrix);
+    gaInversMatrix(rx, rx);
+    gaMulMatrix(mrr_ReverseMatrix, rx, mrr_ReverseMatrix);
+    gaInversMatrix(ry, ry);
+    gaMulMatrix(mrr_ReverseMatrix, ry, mrr_ReverseMatrix);
+    d = gaInnerProductXYZ(planeVec, planePoint);
+    d = (d / gaInnerProductXYZ(planeVec, planeVec)) * 2.0f;
+    for (i = 0; i < 3; i++)
+        mrr_ReverseMatrix[3][i] = planeVec[i] * d;
+    mrr_ReverseMatrix[3][3] = 1.0f;
+    return 0;
 }
 
 // asMirrorCulling's modes (main: 0 before the mirror pass, 1 after it).

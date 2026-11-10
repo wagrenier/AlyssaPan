@@ -97,3 +97,9 @@ u_long asCharacterMortionChangeRequestHash(int chara, int mode, u_long hash)
     ALYSSAPAN_STUB("asCharacterMortionChangeRequestHash", 0x018fe230);
     return {};
 }
+
+// stub of CT3 0x018fe1f0
+void asCharacterMortionStopRequest(int chara, int slot)
+{
+    ALYSSAPAN_STUB("asCharacterMortionStopRequest", 0x018fe1f0);
+}

@@ -437,3 +437,26 @@ extern void *ShadowBlock[BANK_MAX];
 #define POLY_DISPLAY_ROTATE 0x1         /* a ga draw object's first byte: the winding a mirror flips */
 extern float vPVbk[4];                  /* 0x01937740 */
 extern float vPPbk[4];                  /* 0x01937750 */
+
+// ---- slice 12 (2026-11-10) ----
+// The character's shadow settings copied from another character's bank (the triggers' copy).
+void asCopyShadowInformation(int dstChara, int srcChara);                                // CT3 0x018442d0
+// asShadowAllDisable's selection bits.
+#define SHADOW_DISABLE_BANKS 0x1        /* every loaded BANK_TYPE_SHADOW bank that is drawn */
+#define SHADOW_DISABLE_CHARACTERS 0x2   /* every CHARACTER_FLAG_REFRACTION | _SHADOW character's bank */
+void asShadowAllDisable(u_int which);                                                    // CT3 0x01847360
+// Every track of the behaviour starts (asStartAnimation / _FromTop); flags cleared, and the end and
+// the range's start swapped when the end lies before it. `go` 0: nothing (the ROM's only test of it).
+void asBehaviorStartAnimation(void *behavior, int go);                                   // CT3 0x01847e20
+void asBehaviorStartAnimationFromTop(void *behavior, int go, int resetTime);             // CT3 0x01847ef0
+#define TRACK_STOP_REQUEST 2            /* BEHAVIOR_TRACK.playing: asSceneAnimationStop_S's mark */
+#define CHARA_MOTION_SLOTS 0x398        /* CHARACTER: short[CHARA_MOTION_SLOT_COUNT], motion table indices, -1 none */
+#define CHARA_MOTION_SLOT_COUNT 6
+// asSceneAnimationStart's counterpart (the same selection; target SCENE_ANIM_*): the selected running
+// tracks get TRACK_STOP_REQUEST; a character's motion slot playing `hash` (hash 0: every slot) is
+// stopped by asCharacterMortionStopRequest. 0 when something stopped, 1 otherwise.
+u_char asSceneAnimationStop_S(u_long hash, ALL_TABLE *tbl, int partId, int pose, int other, int byPart,
+                              int target, int chara);                                    // CT3 0x01848090
+// The first selected running track's TRACK_FLAG_STEP_FROM_RUNS bit (1: it plays backwards from its
+// end), -1 when none runs. No hash lookup: partId as given.
+int asCheckAnimationDirection_X(ALL_TABLE *tbl, int partId, int pose, int other, int byPart); // CT3 0x018487d0

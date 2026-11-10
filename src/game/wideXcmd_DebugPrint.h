@@ -20,3 +20,5 @@ u_long asCharacterMortionChangeRequestHash(int chara, int mode, u_long hash);   
 u_long asCharacterMortionChangeRequest(int chara, int mode, int index);                  // CT3 0x018fe290
 void ChrMoveControllerMode_init(void);                                                   // CT3 0x018fe4b0
 void asInitPlayerBehaviorControler(CHARACTER *chr);                                      // CT3 0x018fe380
+// Stops the character's motion slot (asSceneAnimationStop_S's call: chara, slot 0..5).
+void asCharacterMortionStopRequest(int chara, int slot);                                 // CT3 0x018fe1f0

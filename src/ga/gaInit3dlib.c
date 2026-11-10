@@ -42,3 +42,9 @@ float gaInnerProductXYZ(float *a, float *b)
     ALYSSAPAN_STUB("gaInnerProductXYZ", 0x018a7780);
     return {};
 }
+
+// stub of CT3 0x018a7b50
+void gaInversMatrix(float (*dst)[4], float (*a)[4])
+{
+    ALYSSAPAN_STUB("gaInversMatrix", 0x018a7b50);
+}

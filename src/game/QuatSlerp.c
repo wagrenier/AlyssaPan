@@ -536,3 +536,10 @@ void asInterpolateZipUV(short *out, const short *a, const short *b, const float 
 {
     ALYSSAPAN_STUB("asInterpolateZipUV", 0x0185cfb0);
 }
+
+// stub of CT3 0x0185dc30
+float asRadianByO(float *v, int axis)
+{
+    ALYSSAPAN_STUB("asRadianByO", 0x0185dc30);
+    return {};
+}
