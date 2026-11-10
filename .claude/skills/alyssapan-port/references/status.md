@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-10 07:41 at commit `1b27067` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-10 08:01 at commit `cd60432` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **396**; stubs: **240**
+- reconstructed CT3 functions: **414**; stubs: **237**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -55,9 +55,9 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/CpDivideEECom.c` | 0 | 1 |
 | `src/game/IOPGetFileSize.c` | 0 | 3 |
 | `src/game/LinkMatrixTree.c` | 4 | 0 |
-| `src/game/QuatSlerp.c` | 18 | 54 |
+| `src/game/QuatSlerp.c` | 33 | 53 |
 | `src/game/SdMasterVolumeSetSE.c` | 0 | 34 |
-| `src/game/ahRelocateSunPs2ObjectArry.c` | 90 | 2 |
+| `src/game/ahRelocateSunPs2ObjectArry.c` | 93 | 0 |
 | `src/game/ahalloc.c` | 7 | 0 |
 | `src/game/asEyeForcusUP2CamMat.c` | 0 | 9 |
 | `src/game/asMothPause.c` | 0 | 1 |
@@ -83,7 +83,7 @@ Least-named game-code regions (64 KB blocks):
 - 65 TUs: todo 48, partial 4, verify 13, done 3
 - next: **game/ahRelocateSunPs2ObjectArry.c** (pinned in the queue)
 - pinned queue: game/ahRelocateSunPs2ObjectArry.c, game/fileio.c
-- partial: `game/ahRelocateSunPs2ObjectArry.c` 90/93 -- Next in this TU: asShadowEnd, EA_010, the general body of ExecuteAnimation. Shot still black, crash unchanged at main.c:2106 (ActressMP NULL). The volume object
+- partial: `game/ahRelocateSunPs2ObjectArry.c` 93/93 -- Left in the TU: the general body of ExecuteAnimation (marked stub; no caller reaches it yet). Shot still black, crash unchanged at main.c:2106 (ActressMP NULL).
 - partial: `game/fileio.c` 33/40 -- Written: FSMltLoadProc (steps FSMLT_*), ReserveBank, Extract; FQUE +0 is dir. The first global bank now loads and the run crashes in scene_init (main.c) reading
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaInitDrawObject.c` 24/24 -- No ROM caller for the texture three (the game uses its sun* copies in QuatSlerp.c): complete, nothing on screen can show them. Shot black as before: packets go 
@@ -101,6 +101,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-10 08:01 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 14: asCheckAnimationFlamePassing_S (time1c pass test, forward / backward / either, character motion behaviour), asShadowEnd (shadow buffer fold, then the 
 - 2026-11-10 07:41 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 13: asShadowPolygonPositions (casters to volume quads: lit-face edges and segment rings, plus or minus by the camera side of the light-edge plane, the ang
 - 2026-11-10 07:12 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 12: asMakeMirrorMatrixByPlane (mrr_ReverseMatrix from the mirror plane: RY, RX, the Y flip, the plane offset row), asSceneAnimationStop_S and asCheckAnima
 - 2026-11-10 06:57 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 11: asBuildMirrorMatrixTree and _Back (mrr_ReverseMatrix then Cam[6].view2), asMirrorCulling (the mirror's four corners projected to the portal clip recta
@@ -108,11 +109,10 @@ Recent sessions:
 - 2026-11-10 06:20 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 9: InterpolateAnimationKey and IAK_0 (play modes once / loop, forward and reverse, the slow-speed snap, the key search and the per-kind key write, ANIM_SU
 - 2026-11-10 05:54 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 8: ExecuteAnimation dispatch (play / replay / matOnly to EA_100 / EA_010 / EA_001, the general body a marked stub), EA_100 the per-frame scene pass (histo
 - 2026-11-10 05:34 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 7: asStartAnimation, asDecInterpolateTicks, asGetBehaviorPlayingTicks, asBehaviorActEndAnimation, asForceOperateMirroring_Character, asBuildDOFMatrixTree 
-- 2026-11-10 05:16 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 6: asMakeStraw from the disassembly (the straw joints: slerped and Bezier-blended frames cached per weight in SkinWork, the plain and squeeze skin loops w
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `game/QuatSlerp.c` | partial | 18/54/177 | 50.3 | 288 | 18 |
+| `game/QuatSlerp.c` | partial | 33/53/177 | 50.3 | 277 | 18 |
 | `game/ssGrpPortalCheck.c` | todo | 0/11/59 | 26.4 | 225 | 10 |
 | `game/SdMasterVolumeSetSE.c` | todo | 0/34/61 | 22.9 | 134 | 9 |
 | `game/Clipping_Portal.c` | todo | 0/33/73 | 44.8 | 130 | 14 |
@@ -135,8 +135,8 @@ Recent sessions:
 | `018d95e0` | ssTrigRegisterEvent | 30 | sym | stub | game/ssGrpPortalCheck.c |
 | `018d9560` | ssTrigRemoveEvent | 30 | sym | stub | game/ssGrpPortalCheck.c |
 | `018d1600` | SdSetEffect | 27 | sym | stub | game/SdMasterVolumeSetSE.c |
+| `0185e150` | asFindModelPartsID | 19 | sym | stub | game/QuatSlerp.c |
 | `018d9430` | ssTrigGetVariable | 18 | sym | stub | game/ssGrpPortalCheck.c |
-| `0185e150` | asFindModelPartsID | 18 | sym | stub | game/QuatSlerp.c |
 | `0185e360` | asCheckBankID | 18 | sym | stub | game/QuatSlerp.c |
 | `01851b10` | ConvertQuat2Matrix | 16 | sym | stub | game/Convert.c |
 | `0185e100` | asFindModelParts | 13 | sym | stub | game/QuatSlerp.c |

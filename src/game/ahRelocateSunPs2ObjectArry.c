@@ -2937,7 +2937,7 @@ void asCopyShadowInformation(int dstChara, int srcChara)
     d = &BankInfo[Character[dstChara].bank];
     s = &BankInfo[Character[srcChara].bank];
     memcpy(d->shadowVec, s->shadowVec, sizeof(d->shadowVec));
-    memcpy(d->pad40, s->pad40, sizeof(d->pad40));
+    memcpy(d->shadowAnchor, s->shadowAnchor, sizeof(d->shadowAnchor));
     d->shadowLightPos = s->shadowLightPos;
     d->shadowLength = s->shadowLength;
     memcpy(d->shadowColor, s->shadowColor, sizeof(d->shadowColor));
@@ -3106,14 +3106,97 @@ int asGetSceneAnimationCurrent(u_long hash, ALL_TABLE *tbl, int partId, int kind
     return -1;
 }
 
-// ---- stubs (tools/reverse/stubgen.py) ----
+// ---- slice 14 (2026-11-10) ----
 
-// stub of CT3 0x0184bf60
-int EA_010(int bank, u_int anim, ALL_TABLE *tbl)
+// Did the track's time pass `frame` between last frame and this one? time1c holds last frame's frame
+// (high half) and this frame's (low half). Forward: (last, now], wrapping past the end; backward:
+// [now, last), wrapping too. Equal halves: the frame it stands on. dir picks which play direction
+// counts (PASS_DIR_*). romSceneQuirk: the scene branch's backward test repeats its first condition in
+// place of the wrap test (the ROM's own code), so there a backward track that wrapped passes only the
+// frame it came from.
+static int TrackPassedFrame(const BEHAVIOR_TRACK *tr, u_int frame, int dir, int romSceneQuirk)
 {
-    ALYSSAPAN_STUB("EA_010", 0x0184bf60);
-    return {};
+    u_int now = (u_int)tr->time1c & 0xffff, last = (u_int)tr->time1c >> 16;
+    int reverse = (tr->flags & TRACK_FLAG_REVERSE) != 0;
+    if (reverse ? !(dir & PASS_DIR_REVERSE) : !(dir & PASS_DIR_FORWARD))
+        return 0;
+    if (!reverse) {
+        if (last < now)
+            return last < frame && frame <= now;
+        if (now < last)
+            return frame <= now || last < frame;
+        return last == frame;
+    }
+    if (now < last)
+        return now <= frame && frame < last;
+    if (last < now && !romSceneQuirk)
+        return frame <= last || now < frame;
+    return last == frame;
 }
+
+// CT3 0x01848fb0
+// The triggers' "animation passed frame" condition. SCENE_ANIM_SCENE: any track in the groups of
+// partId (0: the part named by hash) and of part 0 that the full selection picks (pose, other and
+// byPart all on) whose time passed `frame` this frame in a direction dir accepts. SCENE_ANIM_CHARACTER
+// (a CHARACTER_FLAG_REFRACTION character): the behaviour named by the motion slot playing `hash` (the
+// last slot that matches), its group 0's first track; frame PASS_FRAME_ANY asks only whether one plays.
+// The ROM returns distinct codes per case (0xa..0xc forward, 0x14..0x16 backward, 0x1e..0x23 either
+// way) but only their being non-zero leaves the function.
+int asCheckAnimationFlamePassing_S(u_long hash, ALL_TABLE *tbl, u_int frame, int partId, int dir, int target,
+                                   int chara)
+{
+    int bank, g, t;
+    BEHAVIOR *bhv;
+    u_short part;
+    if (tbl == NULL)
+        return 0;
+    if ((char)target == SCENE_ANIM_CHARACTER) {
+        const CHARACTER *ch = &Character[(u_char)chara];
+        const u_char *table;
+        int i;
+        if (!(ch->flags & CHARACTER_FLAG_REFRACTION))
+            return 0;
+        bhv = NULL;
+        // PORT: no character has a host motion table yet (CharaMotionTable): nothing matches until it does.
+        table = CharaMotionTable(ch);
+        for (i = 0; table != NULL && i < CHARA_MOTION_SLOT_COUNT; i++) {
+            short idx;
+            u_long h, behaviorHash;
+            memcpy(&idx, (const u_char *)ch + CHARA_MOTION_SLOTS + i * 2, sizeof(idx));
+            if (idx == -1)
+                continue;
+            memcpy(&h, table + idx * CHARA_MOTION_SIZE, sizeof(h));
+            if (h != hash)
+                continue;
+            memcpy(&behaviorHash, table + idx * CHARA_MOTION_SIZE + CHARA_MOTION_BEHAVIOR, sizeof(behaviorHash));
+            bhv = asFindBehaviorByCharacter((u_char)chara, behaviorHash);
+        }
+        if (bhv == NULL)
+            return 0;
+        if (frame == (u_int)PASS_FRAME_ANY)
+            return 1;
+        return TrackPassedFrame(BehaviorTracks(BankOfHostPtr(bhv), bhv, 0), frame, dir, 0);
+    }
+    if ((char)target != SCENE_ANIM_SCENE)
+        return 0;
+    bank = BankOfHostPtr(tbl);
+    bhv = BANK_PTR(BEHAVIOR *, bank, tbl->behavior);
+    part = (u_short)partId;
+    if (part == 0)
+        part = (u_short)asFindModelPartsID(BANK_PTR(u_char *, bank, tbl->partsHeader), hash);
+    for (g = 0; g < bhv->groupCount; g++) {
+        BEHAVIOR_TRACK *tr;
+        if (!((int)bhv->groups[g].part == (int)part || bhv->groups[g].part == 0))
+            continue;
+        tr = BehaviorTracks(bank, bhv, g);
+        for (t = bhv->groups[g].trackCount; t > 0; t--, tr++)
+            if (TrackSelected(bank, tr, (u_short)partId, 1, 1, 1) && TrackPassedFrame(tr, frame, dir, 1))
+                return 1;
+    }
+    return 0;
+}
+
+// ---- stubs (tools/reverse/stubgen.py) ----
 
 
 
@@ -3938,7 +4021,7 @@ void asShadowPolygonPositions(int bank)
     }
     light = bi->shadowVec;
     {
-        float *anchor = (float *)bi->pad40;     // BANK_INFO +0x40: the shadow's anchor
+        float *anchor = bi->shadowAnchor;
         if (bi->type == FS_LOAD_SHAPE) {
             u_char *hdr = BANK_PTR(u_char *, bank, tbl->partsHeader);
             u_char *rec = asFindModelParts(hdr, SP_ANCHOR_HASH);
@@ -4052,10 +4135,277 @@ void asShadowPolygonPositions(int bank)
     asStockShadowVolume(bank, NULL, SV_STOCK_FLUSH);
 }
 
-// stub of CT3 0x01846360
+// ---- asShadowEnd (slice 14, 2026-11-10) ----
+//
+// The shadow buffer counted the volume faces from 0x80 (asShadowStart's clear): +0x60 under D, then
+// -0xe0 under F folds it to "how far into shadow" (0 outside). Then drawing goes back to the frame and
+// the shadow buffer, read as a texture (asShadowStart's tex_attr_A), is laid over it, coloured by the
+// bank's shadowColor * |shadowOrder| / 100: a negative value lightens (W: Cd + Cs * 2), a positive one
+// darkens (B: Cd - Cs * 2). The split pass covers the screen with 8 x 7 sprites of 64 x 64; the plain
+// pass draws four Gouraud fans about the anchor's screen point, coloured there and black at the edges.
+// All in screen_0's 512 x 448 space (the shadow buffer's): the host widens the 3D, not this pass.
+
+#define SHADOW_TILE 64                  /* the split pass's sprites: 8 x 7 of them over 512 x 448 */
+#define SHADOW_TILES_X 8
+#define SHADOW_TILES_Y 7
+#define SHADOW_SCREEN_W 0x200
+#define SHADOW_SCREEN_H 0x1c0
+#define SCREEN_SCALE_X 6                /* screen_0[6]: x's projection scale (0.832) */
+#define SCREEN_SCALE_Y 7                /* screen_0[7]: y's (0.94) */
+#define SHADOW_FAN_SIDE_LOW 0           /* the anchor clamped to the screen's low edge */
+#define SHADOW_FAN_SIDE_IN 1
+#define SHADOW_FAN_SIDE_HIGH 2          /* clamped to the high edge */
+#define SHADOW_FAN_COUNT 4
+#define SHADOW_FAN_SIZE 0xa0            /* one fan's packet: 10 qwords (ShadowBlock[bank] holds 4) */
+#define SHADOW_FAN_RINGS 1              /* the ROM's ring loop runs once (ring 0: the full colour) */
+
+// The fold's two controls: untextured, alpha test always, no depth test; D adds Cs * FIX, F
+// subtracts it (FIX 0x80 = 1.0). From the disassembly.
+static const GA_DRAWCTRL_ARGS EBCLEAR_D_ARGS = {
+    0, 0, 0, 1, 0, 0, 0, 0, /* PRMODE: ABE */
+    0, 1, 0, 1, 0, 0, 0, 1, /* TEST_1: ATST 1, AFAIL 1, ZTST 1 */
+    0, 2, 2, 1, 0x80,       /* ALPHA_1: Cs * FIX + Cd */
+    0,                      /* FBA_1 */
+    1, 0, 1, 1, 0, 0,       /* TEX1_1 */
+    0};                     /* TEXA */
+static const GA_DRAWCTRL_ARGS EBCLEAR_F_ARGS = {
+    0, 0, 0, 1, 0, 0, 0, 0, /* PRMODE: ABE */
+    0, 1, 0, 1, 0, 0, 0, 1, /* TEST_1: as D */
+    2, 0, 2, 1, 0x80,       /* ALPHA_1: Cd - Cs * FIX */
+    0,                      /* FBA_1 */
+    1, 0, 1, 1, 0, 0,       /* TEX1_1 */
+    0};                     /* TEXA */
+// The overlay's controls: textured (TME, FST), blended, alpha test always, no depth test; W adds
+// Cs * FIX, B subtracts it (FIX 0xff: about 2.0). The fans' (2808 / 2807) add Gouraud (IIP).
+#define EBCLEAR_OVERLAY_ARGS(iip, a, b) {                                     \
+    iip, 1, 0, 1, 0, 1, 0, 0, /* PRMODE: IIP?, TME, ABE, FST */               \
+    0, 1, 0, 0, 0, 0, 0, 1,   /* TEST_1: ATST 1, ZTST 1 */                    \
+    a, b, 2, 1, 0xff,         /* ALPHA_1: A, B, C 2 (FIX), D 1 (Cd), FIX */   \
+    0,                        /* FBA_1 */                                     \
+    0, 0, 1, 1, 0, 0,         /* TEX1_1: MMAG 1, MMIN 1 */                    \
+    0}                        /* TEXA */
+static const GA_DRAWCTRL_ARGS EBCLEAR_W_ARGS = EBCLEAR_OVERLAY_ARGS(0, 0, 2);
+static const GA_DRAWCTRL_ARGS EBCLEAR_B_OVERLAY_ARGS = EBCLEAR_OVERLAY_ARGS(0, 2, 0);
+static const GA_DRAWCTRL_ARGS EBCLEAR_W_FAN_ARGS = EBCLEAR_OVERLAY_ARGS(1, 0, 2);
+static const GA_DRAWCTRL_ARGS EBCLEAR_B_FAN_ARGS = EBCLEAR_OVERLAY_ARGS(1, 2, 0);
+
+alignas(16) static GA_DRAWCTRL_DATA gaDC_EBclear_D_2764;      /* bss 0x0193c300 */
+alignas(16) static GA_DRAWCTRL_DATA gaDC_EBclear_F_2769;      /* bss 0x0193c240 */
+alignas(16) static GA_DRAWCTRL_DATA gaDC_EBclearW_2780;       /* bss 0x0193c0c0 */
+alignas(16) static GA_DRAWCTRL_DATA gaDC_EBclearB_2779;       /* bss 0x0193c180 */
+alignas(16) static GA_DRAWCTRL_DATA gaDC_EBclearW_2808;       /* bss 0x0193bf40 */
+alignas(16) static GA_DRAWCTRL_DATA gaDC_EBclearB_2807;       /* bss 0x0193c000 */
+static char iCngFlag_2765;                                    /* sbss 0x0193bd78 */
+static char iCngFlag_2770;                                    /* sbss 0x0193bd7c */
+static char iCngFlag_2781;                                    /* sbss 0x0193bd80 */
+static int iInit_2788;                                        /* sbss 0x0193bd84 */
+static char iCntFlag_2809;                                    /* sbss 0x0193bd88 */
+
+/* sdata 0x01937d50 dc_EBclear_E$2768 / 0x01937da0 dc_EBclear_G$2773: dc_EBclear_C's sprite (512 x 448)
+   with RGBA 0x60606080 / 0xe0e0e080. */
+static GA_DRAWCOMMAND_DATA dc_EBclear_make(u_char rgb)
+{
+    GA_DRAWCOMMAND_DATA d;
+    memcpy(&d, dc_EBclear_C_init, sizeof d);
+    ((u_char *)&d)[0x38] = ((u_char *)&d)[0x39] = ((u_char *)&d)[0x3a] = rgb;
+    return d;
+}
+alignas(16) static GA_DRAWCOMMAND_DATA dc_EBclear_E_2768 = dc_EBclear_make(0x60);
+alignas(16) static GA_DRAWCOMMAND_DATA dc_EBclear_G_2773 = dc_EBclear_make(0xe0);
+
+/* bss 0x0194bec0 asFS$2787: the split pass's 56 sprites, 0x60 bytes each (DMAtag CNT 5, VIF DIRECT 4,
+   GIFtag reglist PRIM RGBAQ UV XYZ2 UV XYZ2). */
+#define ASFS_QW 12                      /* u_longs per sprite */
+#define ASFS_RGBAQ 7
+alignas(16) static u_long asFS_2787[SHADOW_TILES_X * SHADOW_TILES_Y][ASFS_QW];
+
+// GIF words of the two packet kinds (from the ROM's stores).
+#define SHADOW_DMATAG_CNT(qwc) (0x10000000ull | (qwc))
+#define SHADOW_VIF_DIRECT(qwc) ((u_long)(0x50000000u | (qwc)) << 32)
+#define SHADOW_GIFTAG_SPRITE 0x6400000000008001ull      /* NLOOP 1, EOP, reglist, NREG 6 */
+#define SHADOW_GIFREGS_SPRITE 0x434310ull               /* PRIM RGBAQ UV XYZ2 UV XYZ2 */
+#define SHADOW_GIFTAG_FAN 0xe400000000008001ull         /* NLOOP 1, EOP, reglist, NREG 14 */
+#define SHADOW_GIFREGS_FAN 0xd4314314314310ull          /* PRIM, 4 x (RGBAQ UV XYZ2), XYZ3 */
+#define GS_PRIM_TRIFAN 5
+#define GS_PRIM_SPRITE 6
+#define SHADOW_RGBAQ_BLACK 0x3f80000000000000ull        /* RGBA 0, Q 1.0 */
+#define SHADOW_Q_ONE 1.0f
+
+// One fan: centre, three corners (screen pixels / UV in 1/16 texel), the last corner again as XYZ3.
+static void ShadowFan(u_long *p, u_long rgbaq, u_int uvC, u_long xyzC, u_int uv1, u_long xyz1, u_int uv2,
+                      u_long xyz2, u_int uv3, u_long xyz3, u_long xyz3End)
+{
+    p[7] = rgbaq;
+    p[8] = uvC;
+    p[9] = xyzC;
+    p[11] = uv1;
+    p[12] = xyz1;
+    p[14] = uv2;
+    p[15] = xyz2;
+    p[17] = uv3;
+    p[18] = xyz3;
+    p[19] = xyz3End;
+    gaBGT_ExecDrawCommandData_VIF1((GA_DRAWCOMMAND_DATA *)p);
+}
+
+// CT3 0x01846360
+// The end of a bank's shadow pass (comment above). A negative bank sends drawbuffer_0 only.
+// callcheck: __fixdfdi, dpmul, fptodp (the sprite set-up's double maths: the compiler's runtime)
 void asShadowEnd(int bank)
 {
-    ALYSSAPAN_STUB("asShadowEnd", 0x01846360);
+    BANK_INFO *bi;
+    int level, lighten, i, j;
+    if (bank >= 0) {
+        bi = &BankInfo[bank];
+        FlushCache(0);
+        if (iCngFlag_2765 == 0) {
+            gaSetupDrawCtrlData(&gaDC_EBclear_D_2764, EBCLEAR_D_ARGS);
+            iCngFlag_2765 = 1;
+        }
+        gaBGT_ExecDrawCtrlData_VIF1(&gaDC_EBclear_D_2764);
+        gaBGT_ExecDrawCommandData_VIF1(&dc_EBclear_E_2768);
+        if (iCngFlag_2770 == 0) {
+            gaSetupDrawCtrlData(&gaDC_EBclear_F_2769, EBCLEAR_F_ARGS);
+            iCngFlag_2770 = 1;
+        }
+        gaBGT_ExecDrawCtrlData_VIF1(&gaDC_EBclear_F_2769);
+        gaBGT_ExecDrawCommandData_VIF1(&dc_EBclear_G_2773);
+        ga_draw_fbuf_address = asSD_BackBufferAdd;
+        gaBGT_ExecDBufferData_VIF1(&drawbuffer_0);
+        level = bi->shadowOrder;
+        lighten = level < 0;
+        if (lighten)
+            level = -level;
+        if (asShadowDrawing_CheckTransMode(SHADOW_TRANS_FIN) < 2) {
+            u_long rgbaq;
+            if (iCngFlag_2781 == 0) {
+                gaSetupDrawCtrlData(&gaDC_EBclearW_2780, EBCLEAR_W_ARGS);
+                gaSetupDrawCtrlData(&gaDC_EBclearB_2779, EBCLEAR_B_OVERLAY_ARGS);
+                iCngFlag_2781 = 1;
+            }
+            gaBGT_ExecDrawCtrlData_VIF1(lighten ? &gaDC_EBclearW_2780 : &gaDC_EBclearB_2779);
+            if (iInit_2788 == 0) {
+                iInit_2788 = 1;
+                for (i = 0; i < SHADOW_TILES_Y; i++) {
+                    for (j = 0; j < SHADOW_TILES_X; j++) {
+                        u_long *p = asFS_2787[j + i * SHADOW_TILES_X];
+                        int x1 = j * SHADOW_TILE + SHADOW_TILE, y1 = i * SHADOW_TILE + SHADOW_TILE;
+                        p[0] = SHADOW_DMATAG_CNT(5);
+                        p[1] = 0;
+                        p[2] = 0;
+                        p[3] = SHADOW_VIF_DIRECT(4);
+                        p[4] = SHADOW_GIFTAG_SPRITE;
+                        p[5] = SHADOW_GIFREGS_SPRITE;
+                        p[6] = GS_PRIM_SPRITE;
+                        p[8] = (u_long)(u_short)(i << 10) << 16 | (u_short)(j << 10);
+                        // the ROM goes through doubles: (64-bit int)(x * 16.0) + 0x8000
+                        p[9] = (u_long)(u_short)((int64_t)((double)(j * SHADOW_TILE) * 16.0) + 0x8000)
+                             | (u_long)(u_short)((int64_t)((double)(i * SHADOW_TILE) * 16.0) + 0x8000) << 16;
+                        p[10] = (u_long)(u_short)(y1 * 0x10) << 16 | (u_short)(x1 * 0x10);
+                        p[11] = (u_long)(u_short)((int64_t)((double)x1 * 16.0) + 0x8000)
+                              | (u_long)(u_short)((int64_t)((double)y1 * 16.0) + 0x8000) << 16;
+                    }
+                }
+            }
+            rgbaq = asDR_RGBAQ((u_char)(bi->shadowColor[0] * level / 100), (u_char)(bi->shadowColor[1] * level / 100),
+                               (u_char)(bi->shadowColor[2] * level / 100), 0x80, SHADOW_Q_ONE);
+            for (i = 0; i < SHADOW_TILES_X * SHADOW_TILES_Y; i++) {
+                asFS_2787[i][ASFS_RGBAQ] = rgbaq;
+                gaBGT_ExecDrawCommandData_VIF1((GA_DRAWCOMMAND_DATA *)asFS_2787[i]);
+            }
+        } else {
+            alignas(16) float v[4];
+            float sx, sy, hi;
+            int xSide = SHADOW_FAN_SIDE_IN, ySide = SHADOW_FAN_SIDE_IN, ring;
+            int ix, iy, u, v16;
+            u_char *block;
+            if (iCntFlag_2809 == 0) {
+                gaSetupDrawCtrlData(&gaDC_EBclearW_2808, EBCLEAR_W_FAN_ARGS);
+                gaSetupDrawCtrlData(&gaDC_EBclearB_2807, EBCLEAR_B_FAN_ARGS);
+                iCntFlag_2809 = 1;
+            }
+            gaBGT_ExecDrawCtrlData_VIF1(lighten ? &gaDC_EBclearW_2808 : &gaDC_EBclearB_2807);
+            if (ShadowBlock[bank] == NULL) {    /* ROM: BankInfo +0x58 */
+                ShadowBlock[bank] = _SunAlloc(&gHeapJunc, SHADOW_FAN_COUNT * SHADOW_FAN_SIZE, 0x10);
+                bi->shadow70 = 1;
+            }
+            for (i = 0; i < SHADOW_FAN_COUNT; i++) {
+                u_long *p = (u_long *)((u_char *)ShadowBlock[bank] + i * SHADOW_FAN_SIZE);
+                p[0] = SHADOW_DMATAG_CNT(9);
+                p[1] = 0;
+                p[2] = 0;
+                p[3] = SHADOW_VIF_DIRECT(8);
+                p[4] = SHADOW_GIFTAG_FAN;
+                p[5] = SHADOW_GIFREGS_FAN;
+                p[6] = GS_PRIM_TRIFAN;
+                p[10] = SHADOW_RGBAQ_BLACK;
+                p[13] = SHADOW_RGBAQ_BLACK;
+                p[16] = SHADOW_RGBAQ_BLACK;
+            }
+            // the anchor to the screen: VU0 matrix_global_view * anchor, then centre + scale * d * x / z
+            for (j = 0; j < 4; j++)
+                v[j] = matrix_global_view[0][j] * bi->shadowAnchor[0] + matrix_global_view[1][j] * bi->shadowAnchor[1]
+                     + matrix_global_view[2][j] * bi->shadowAnchor[2] + matrix_global_view[3][j] * bi->shadowAnchor[3];
+            sy = screen_0[SCREEN_CY] - screen_0[SCREEN_SCALE_Y] * ((screen_0[SCREEN_PROJ_D] * v[1]) / v[2]);
+            sx = screen_0[SCREEN_CX] + screen_0[SCREEN_SCALE_X] * ((screen_0[SCREEN_PROJ_D] * v[0]) / v[2]);
+            hi = screen_0[SCREEN_X] + screen_0[SCREEN_W] / screen_0[SCREEN_SCALE_X];
+            if (sx < screen_0[SCREEN_X]) {
+                sx = screen_0[SCREEN_X];
+                xSide = SHADOW_FAN_SIDE_LOW;
+            } else if (hi < sx) {
+                sx = hi;
+                xSide = SHADOW_FAN_SIDE_HIGH;
+            }
+            hi = screen_0[SCREEN_Y] + screen_0[SCREEN_H] / screen_0[SCREEN_SCALE_Y];
+            if (sy < screen_0[SCREEN_Y]) {
+                sy = screen_0[SCREEN_Y];
+                ySide = SHADOW_FAN_SIDE_LOW;
+            } else if (hi < sy) {
+                sy = hi;
+                ySide = SHADOW_FAN_SIDE_HIGH;
+            }
+            block = (u_char *)ShadowBlock[bank];
+            ix = (int)sx;
+            iy = (int)sy;
+            u = ix * 16;
+            v16 = iy * 16;
+            for (ring = 0; ring < SHADOW_FAN_RINGS; ring++) {
+                // ring r would pull the outer corners r% of the way in and halve the colour per ring
+                int u0 = u * ring * 4 / 100, u1 = 0x2000 - (0x2000 - ix * 16) * ring / 100;
+                int v0 = v16 * ring * 4 / 100, v1 = 0x1c00 - (0x1c00 - iy * 16) * ring / 100;
+                u_long col = asDR_RGBAQ((u_char)((bi->shadowColor[0] * level / 100) >> ring),
+                                        (u_char)((bi->shadowColor[1] * level / 100) >> ring),
+                                        (u_char)((bi->shadowColor[2] * level / 100) >> ring), 0x80, SHADOW_Q_ONE);
+                u_int uvC = asDR_UV(u, v16);
+                u_long xyzC = asDR_XYZ2(ix, iy, 0);
+                if (xSide != SHADOW_FAN_SIDE_LOW && ySide != SHADOW_FAN_SIDE_LOW) {        /* top left */
+                    ShadowFan((u_long *)block, col, uvC, xyzC, asDR_UV(u0, v16), asDR_XYZ2(0, iy, 0),
+                              asDR_UV(u0, v0), asDR_XYZ2(0, 0, 0), asDR_UV(u, v0), asDR_XYZ2(ix, 0, 0),
+                              asDR_XYZ3(ix, 0, 0));
+                    block += SHADOW_FAN_SIZE;
+                }
+                if (xSide != SHADOW_FAN_SIDE_HIGH && ySide != SHADOW_FAN_SIDE_LOW) {       /* top right */
+                    ShadowFan((u_long *)block, col, uvC, xyzC, asDR_UV(u, v0), asDR_XYZ2(ix, 0, 0),
+                              asDR_UV(u1, v0), asDR_XYZ2(SHADOW_SCREEN_W, 0, 0), asDR_UV(u1, v16),
+                              asDR_XYZ2(SHADOW_SCREEN_W, iy, 0), asDR_XYZ3(SHADOW_SCREEN_W, iy, 0));
+                    block += SHADOW_FAN_SIZE;
+                }
+                if (xSide != SHADOW_FAN_SIDE_LOW && ySide != SHADOW_FAN_SIDE_HIGH) {       /* bottom left */
+                    ShadowFan((u_long *)block, col, uvC, xyzC, asDR_UV(u, v1), asDR_XYZ2(ix, SHADOW_SCREEN_H, 0),
+                              asDR_UV(u0, v1), asDR_XYZ2(0, SHADOW_SCREEN_H, 0), asDR_UV(u0, v16),
+                              asDR_XYZ2(0, iy, 0), asDR_XYZ3(0, iy, 0));
+                    block += SHADOW_FAN_SIZE;
+                }
+                if (xSide != SHADOW_FAN_SIDE_HIGH && ySide != SHADOW_FAN_SIDE_HIGH) {      /* bottom right */
+                    ShadowFan((u_long *)block, col, uvC, xyzC, asDR_UV(u1, v16), asDR_XYZ2(SHADOW_SCREEN_W, iy, 0),
+                              asDR_UV(u1, v1), asDR_XYZ2(SHADOW_SCREEN_W, SHADOW_SCREEN_H, 0), asDR_UV(u, v1),
+                              asDR_XYZ2(ix, SHADOW_SCREEN_H, 0), asDR_XYZ3(ix, SHADOW_SCREEN_H, 0));
+                    block += SHADOW_FAN_SIZE;
+                }
+            }
+        }
+    }
+    gaBGT_ExecDBufferData_VIF1(&drawbuffer_0);
 }
 
 
@@ -4688,4 +5038,301 @@ void asCopyDoubleBufferL2W(u_char *partsHeader)
         memcpy(rec + REC_PREV_SCALE_Y, rec + REC_SCALE + 4, 4);
         memcpy(rec + REC_PREV_SCALE_Z, rec + REC_SCALE + 8, 4);
     }
+}
+
+// ---- slice 14 (2026-11-10): EA_010, the replay pass ----
+
+#define TRACK_KEY_SPARSE 0x2000000      /* BEHAVIOR_TRACK.length ('='): the _nw writers, which skip vertices
+                                           marked ANIM_SKIP_SHORT (packed) or w == 0 (TRACK_KEY_RAW) */
+#define ANIM_SKIP_SHORT (-0x8000)
+#define GA_OBJ_UV_OFFSET 0x78           /* float[2]: TRACK_KIND_UV's key (+8, +0xc) */
+#define GA_OBJ_COLOR_ALPHA(i) (0x10 + (i) * 4 + 3) /* GA_OBJ_COLORS' data: vertex i's alpha byte */
+#define SUN_OBJ_COPY_TARGET 2           /* a sun object record's word 2: where TRACK_KIND_COPY writes */
+#define PARTS_ANIM_VECTOR_XYZ 0x310     /* float[4]: TRACK_KIND_VECTOR_XYZ's value */
+#define PARTS_ANIM_NUMBER 0x5a          /* short: TRACK_KIND_NUMBER's value */
+#define PARTS_ANIM_FLOAT1_1_14 0x58     /* short: TRACK_KIND_FLOAT1_1_14's packed value */
+#define SUB_NUMBER_MAX 0x7f
+
+// The ga draw object of entry idx of the bank's objOpaque list (a sun object record's word 0).
+static u_char *ObjOpaqueObject(int bank, const ALL_TABLE *tbl, int idx)
+{
+    const u_int *list = BANK_PTR(const u_int *, bank, tbl->objOpaque);
+    const u_int *entry = BANK_PTR(const u_int *, bank, list[idx]);
+    return BANK_PTR(u_char *, bank, entry[0]);
+}
+
+// A ga draw object's relocated word at `off` as a host pointer.
+static u_char *ObjWord(int bank, const u_char *obj, int off)
+{
+    u_int ee;
+    memcpy(&ee, obj + off, sizeof(ee));
+    return BANK_PTR(u_char *, bank, ee);
+}
+
+// objGroups[group]: (first, count) into objGroupIndex.
+static void ObjGroup(int bank, const ALL_TABLE *tbl, int group, int *first, int *count)
+{
+    const short *g = BANK_PTR(const short *, bank, tbl->objGroups) + group * 2;
+    *first = g[0];
+    *count = g[1];
+}
+
+static int ObjGroupIndex(int bank, const ALL_TABLE *tbl, int i)
+{
+    return BANK_PTR(const short *, bank, tbl->objGroupIndex)[i];
+}
+
+// The kinds EA_010 writes (the pose kinds are EA_100's: an ending pose track keeps TRACK_ACT_END here).
+static int IsReplayKind(int kind)
+{
+    switch (kind) {
+    case TRACK_KIND_FLOAT0_7_9: case TRACK_KIND_UV: case TRACK_KIND_NORMAL: case TRACK_KIND_VERTEX:
+    case TRACK_KIND_SUB_NUMBER: case TRACK_KIND_NUMBER: case TRACK_KIND_FLOAT1_1_14: case TRACK_KIND_VECTOR_XYZ:
+    case TRACK_KIND_COPY:
+        return 1;
+    }
+    return 0;
+}
+
+// CT3 0x0184bf60
+// Puts the key each running (TRACK_PLAYING) or ending (TRACK_ACT_END) track stands on into what it
+// animates, without moving the time: set when the parts header's ticks are 0 or the track is ending,
+// else blended by AnimWeights. The pose kinds are EA_100's; here the rest: the part's FLOAT0_7_9 /
+// VECTOR_XYZ / NUMBER / FLOAT1_1_14 values, the UV offset of a group of ga objects, the vertex
+// positions, normals and alphas of the objects the key's sub-records name; a COPY track's key word
+// goes to its group's objects either way. An ending track of these kinds stops (playing 0). Always 0.
+// PORT: (bank, anim) for the behaviour's EE word. The ROM keeps one stack vector across the tracks
+// (FLOAT0_7_9 writes its x only, UV its xy): `held` is that vector, zeroed where the ROM's stack is stale.
+int EA_010(int bank, u_int anim, ALL_TABLE *tbl)
+{
+    BEHAVIOR *bhv = BANK_PTR(BEHAVIOR *, bank, anim);
+    u_char *hdr = BANK_PTR(u_char *, bank, tbl->partsHeader);
+    int ticks = *(int *)(hdr + PARTS_HDR_ANIM_ABS);
+    int dir = *(int *)(hdr + PARTS_HDR_ANIM_SIGN);
+    int total = *(int *)(hdr + PARTS_HDR_ANIM_STEP);
+    alignas(16) float held[4] = { 0, 0, 0, 0 };
+    alignas(16) float w[4] = { 0, 0, 0, 0 };
+    int g, t;
+    for (g = 0; g < bhv->groupCount; g++) {
+        const BEHAVIOR_GROUP *grp = &bhv->groups[g];
+        u_char *part = hdr + grp->part * (int)sizeof(MODEL_PARTS);
+        BEHAVIOR_TRACK *tr;
+        if (grp->tracks == 0)
+            continue;
+        tr = BehaviorTracks(bank, bhv, g);
+        for (t = grp->trackCount; t > 0; t--, tr++) {
+            const u_char *keys;
+            if (tr->playing != TRACK_PLAYING && tr->playing != TRACK_ACT_END)
+                continue;
+            keys = BANK_PTR(const u_char *, bank, tr->keys);
+            if (ticks == 0 || tr->playing == TRACK_ACT_END) {
+                /* set */
+                switch (tr->kind) {
+                case TRACK_KIND_FLOAT0_7_9:
+                    asZipFloat0_7_9X2Float((float *)(part + PARTS_ANIM_VECTOR), (const u_short *)(keys + 8));
+                    break;
+                case TRACK_KIND_UV: {
+                    int first, count, i;
+                    short group;
+                    memcpy(&held[0], keys + 8, 8);
+                    memcpy(&group, keys + 0x1c, sizeof(group));
+                    ObjGroup(bank, tbl, group, &first, &count);
+                    for (i = 0; i < count; i++)
+                        memcpy(ObjOpaqueObject(bank, tbl, ObjGroupIndex(bank, tbl, first + i)) + GA_OBJ_UV_OFFSET,
+                               held, 8);
+                    break;
+                }
+                case TRACK_KIND_NORMAL: {
+                    const ANIM_SUBKEY *sub = (const ANIM_SUBKEY *)keys;
+                    int n = (int)(tr->length & TRACK_KEY_STRIDE);
+                    if (n != 0) {
+                        do {
+                            u_char *obj = ObjOpaqueObject(bank, tbl, sub->obj);
+                            asContZipNormal2Normal_XYZ0((float *)(ObjWord(bank, obj, GA_OBJ_NORMALS) + 0x10),
+                                                        BANK_PTR(const short *, bank, sub->data), sub->count);
+                            n -= sub->size;
+                            sub++;
+                        } while (n > 0);
+                    }
+                    break;
+                }
+                case TRACK_KIND_VERTEX: {
+                    const ANIM_SUBKEY *sub = (const ANIM_SUBKEY *)keys;
+                    u_int len = tr->length;
+                    int n = (int)(len & TRACK_KEY_STRIDE);
+                    if (n != 0) {
+                        do {
+                            u_char *obj = ObjOpaqueObject(bank, tbl, sub->obj);
+                            float *dst = (float *)ObjWord(bank, obj, GA_OBJ_POSITIONS);
+                            const void *src = BankEePtr(bank, sub->data);
+                            if (len & TRACK_KEY_RAW) {
+                                if (len & TRACK_KEY_SPARSE)
+                                    asMemCopy128c_nw(0.0f, dst, src, sub->count);
+                                else
+                                    asMemCopy128c(dst, src, (u_int)sub->count);
+                            } else if (len & TRACK_KEY_SPARSE) {
+                                asContZipTrans2Trans_XYZ1_nw(dst, (const short *)src, sub->count,
+                                                             TRACK_KEY_SHIFT(len), ANIM_SKIP_SHORT);
+                            } else {
+                                asContZipTrans2Trans_XYZ1(dst, (const short *)src, sub->count, TRACK_KEY_SHIFT(len));
+                            }
+                            n -= sub->size;
+                            sub++;
+                        } while (n > 0);
+                    }
+                    break;
+                }
+                case TRACK_KIND_SUB_NUMBER: {
+                    const ANIM_SUBKEY *sub = (const ANIM_SUBKEY *)keys;
+                    int n;
+                    for (n = (int)tr->length; n > 0; n -= sub->size, sub++) {
+                        u_char *colors = ObjWord(bank, ObjOpaqueObject(bank, tbl, sub->obj), GA_OBJ_COLORS);
+                        const signed char *pct = BANK_PTR(const signed char *, bank, sub->data);
+                        int i;
+                        for (i = 0; i < sub->count; i++) {
+                            short a = (short)(sub->number * pct[i] / 100);
+                            if (a > SUB_NUMBER_MAX)
+                                a = SUB_NUMBER_MAX;
+                            colors[GA_OBJ_COLOR_ALPHA(i)] = (u_char)a;
+                        }
+                    }
+                    break;
+                }
+                case TRACK_KIND_NUMBER:
+                    memcpy(part + PARTS_ANIM_NUMBER, keys + 8, 2);
+                    break;
+                case TRACK_KIND_FLOAT1_1_14:
+                    memcpy(part + PARTS_ANIM_FLOAT1_1_14, keys + 8, 2);
+                    break;
+                case TRACK_KIND_VECTOR_XYZ:
+                    asZipVECTOR2VECTOR_XYZ1((float *)(part + PARTS_ANIM_VECTOR_XYZ), (const short *)(keys + 8));
+                    break;
+                default:
+                    break;
+                }
+            } else {
+                /* blend */
+                u_int elapsed = (u_int)anim_play_slow * (u_int)gGlobalNextTicksInterval * tr->playRate / 100;
+                AnimWeights(w, ticks, elapsed, total, dir);
+                switch (tr->kind) {
+                case TRACK_KIND_FLOAT0_7_9:
+                    asZipFloat0_7_9X2Float(held, (const u_short *)(keys + 8));
+                    asInterpolateVector((float *)(part + PARTS_ANIM_VECTOR), (float *)(part + PARTS_ANIM_VECTOR), held, w);
+                    break;
+                case TRACK_KIND_UV: {
+                    int first, count, i;
+                    short group;
+                    memcpy(&held[0], keys + 8, 8);
+                    memcpy(&group, keys + 0x1c, sizeof(group));
+                    ObjGroup(bank, tbl, group, &first, &count);
+                    for (i = 0; i < count; i++) {
+                        u_char *obj = ObjOpaqueObject(bank, tbl, ObjGroupIndex(bank, tbl, first + i));
+                        alignas(16) float cur[4] = { 0, 0, 0, 0 }, out[4];
+                        memcpy(cur, obj + GA_OBJ_UV_OFFSET, 8);
+                        asInterpolateVector(out, cur, held, w);
+                        memcpy(obj + GA_OBJ_UV_OFFSET, out, 8);
+                    }
+                    break;
+                }
+                case TRACK_KIND_NORMAL: {
+                    const ANIM_SUBKEY *sub = (const ANIM_SUBKEY *)keys;
+                    int n;
+                    for (n = (int)tr->length; n > 0; n -= sub->size, sub++) {
+                        u_char *obj = ObjOpaqueObject(bank, tbl, sub->obj);
+                        float *dst = (float *)(ObjWord(bank, obj, GA_OBJ_NORMALS) + 0x10);
+                        asContInterpolateGA_VECTORZipNormal_XYZ0(dst, dst, BANK_PTR(const short *, bank, sub->data), w,
+                                                                 sub->count);
+                    }
+                    break;
+                }
+                case TRACK_KIND_VERTEX: {
+                    const ANIM_SUBKEY *sub = (const ANIM_SUBKEY *)keys;
+                    u_int len = tr->length;
+                    int n = (int)(len & TRACK_KEY_STRIDE);
+                    if (n != 0) {
+                        do {
+                            u_char *obj = ObjOpaqueObject(bank, tbl, sub->obj);
+                            float *dst = (float *)ObjWord(bank, obj, GA_OBJ_POSITIONS);
+                            const void *src = BankEePtr(bank, sub->data);
+                            if (len & TRACK_KEY_RAW) {
+                                if (len & TRACK_KEY_SPARSE)
+                                    asContInterpolateVector_nw(0.0f, dst, dst, (const float *)src, w, sub->count);
+                                else
+                                    asContInterpolateVector(dst, dst, (const float *)src, w, sub->count);
+                            } else if (len & TRACK_KEY_SPARSE) {
+                                asContInterpolateGA_VECTORZipTrans_XYZ1_nw(dst, dst, (const short *)src, w, sub->count,
+                                                                           TRACK_KEY_SHIFT(len), ANIM_SKIP_SHORT);
+                            } else {
+                                asContInterpolateGA_VECTORZipTrans_XYZ1(dst, dst, (const short *)src, w, sub->count,
+                                                                        TRACK_KEY_SHIFT(len));
+                            }
+                            n -= sub->size;
+                            sub++;
+                        } while (n > 0);
+                    }
+                    break;
+                }
+                case TRACK_KIND_SUB_NUMBER: {
+                    const ANIM_SUBKEY *sub = (const ANIM_SUBKEY *)keys;
+                    int n;
+                    for (n = (int)tr->length; n > 0; n -= sub->size, sub++) {
+                        u_char *colors = ObjWord(bank, ObjOpaqueObject(bank, tbl, sub->obj), GA_OBJ_COLORS);
+                        const signed char *pct = BANK_PTR(const signed char *, bank, sub->data);
+                        int i;
+                        for (i = 0; i < sub->count; i++) {
+                            short a = (short)(sub->number * pct[i] / 100);
+                            if (a > SUB_NUMBER_MAX)
+                                a = SUB_NUMBER_MAX;
+                            colors[GA_OBJ_COLOR_ALPHA(i)] = (u_char)(int)asInterpolateNumber(
+                                (float)(signed char)colors[GA_OBJ_COLOR_ALPHA(i)], (float)a, w);
+                        }
+                    }
+                    break;
+                }
+                case TRACK_KIND_NUMBER: {
+                    short cur, key;
+                    memcpy(&cur, part + PARTS_ANIM_NUMBER, 2);
+                    memcpy(&key, keys + 8, 2);
+                    cur = (short)(int)asInterpolateNumber((float)cur, (float)key, w);
+                    memcpy(part + PARTS_ANIM_NUMBER, &cur, 2);
+                    break;
+                }
+                case TRACK_KIND_FLOAT1_1_14:
+                    asInterpolateZipFloat1_1_14X((short *)(part + PARTS_ANIM_FLOAT1_1_14),
+                                                 (const short *)(part + PARTS_ANIM_FLOAT1_1_14),
+                                                 (const short *)(keys + 8), w);
+                    break;
+                case TRACK_KIND_VECTOR_XYZ:
+                    asZipVECTOR2VECTOR_XYZ1(held, (const short *)(keys + 8));
+                    asInterpolateVector((float *)(part + PARTS_ANIM_VECTOR_XYZ),
+                                        (float *)(part + PARTS_ANIM_VECTOR_XYZ), held, w);
+                    break;
+                default:
+                    break;
+                }
+            }
+            if (tr->kind == TRACK_KIND_COPY) {
+                // set either way: the word copyWords[key +8] to each object of group key +0xa
+                u_short which, group;
+                u_int word;
+                int first, count, i;
+                memcpy(&which, keys + 8, 2);
+                memcpy(&group, keys + 0xa, 2);
+                word = BANK_PTR(const u_int *, bank, tbl->copyWords)[which];
+                {
+                    const u_short *pair = BANK_PTR(const u_short *, bank, tbl->objGroups) + group * 2;
+                    first = pair[0];
+                    count = pair[1];
+                }
+                for (i = 0; i < count; i++) {
+                    const u_int *list = BANK_PTR(const u_int *, bank, tbl->objOpaque);
+                    const u_int *entry = BANK_PTR(const u_int *, bank, list[ObjGroupIndex(bank, tbl, first + i)]);
+                    *BANK_PTR(u_int *, bank, entry[SUN_OBJ_COPY_TARGET]) = word;
+                }
+            }
+            if (tr->playing == TRACK_ACT_END && IsReplayKind(tr->kind))
+                tr->playing = 0;        /* the ROM resets it in each kind's branch: pose kinds stay */
+        }
+    }
+    return 0;
 }

@@ -140,7 +140,8 @@ typedef struct BANK_INFO {
     // asShadowDrawing_Init / _Disable / _CheckTransMode, 2026-11-10)
     float shadowVec[4];                 /* 0x30: (0, 0, 0, 1) at init; w (0x3c) is cleared by
                                            asShadowDrawing_Disable: the shadow's on word */
-    u_char pad40[0x10];
+    float shadowAnchor[4];              /* 0x40: the shadow's anchor in the world (asShadowPolygonPositions);
+                                           asShadowEnd projects it: the centre of its light fans */
     int shadowFrame;                    /* 0x50: the FrameCounter the volume was stocked on: drawn only then
                                            (asDrawShadowVolume) */
     u_int shadowLightPos;               /* 0x54: the attached light position (0: detached) */
@@ -263,10 +264,14 @@ typedef struct ALL_TABLE {
     u_int light;                        /* 0x28: SCENE_LIGHT, the bank's light table (charaScale) */
     u_int partsHeader;                  /* 0x2c: the MODEL_PARTS header (scene_init -> pModelPartsHeader;
                                            InitMatrixTree, asBuildMirrorMatrixTree / _Back) */
-    u_int pad30[2];
+    u_int copyWords;                    /* 0x30: u_int[count38]: the words TRACK_KIND_COPY keys pick (EA_010) */
+    u_int pad34;
     int count38;                        /* 0x38: the +0x30 list's length (the relocator's bound) */
     int count3c;                        /* 0x3c: the +0x34 list's length */
-    u_int pad40[4];
+    u_int objGroups;                    /* 0x40: (short first, short count) pairs into objGroupIndex (EA_010's
+                                           TRACK_KIND_UV / _COPY keys name one) */
+    u_int objGroupIndex;                /* 0x44: short[]: indices into the objOpaque list */
+    u_int pad48[2];
     u_int straw;                        /* 0x50: asMakeStraw's first argument (with partsHeader) */
     u_int sound;                       /* 0x54: SOUND_OBJ_TABLE (sound.c's SSFindSoundObj) */
     u_int particles;                    /* 0x58: list of PARTICLE_ENTRY: main_rtn_Particle's */

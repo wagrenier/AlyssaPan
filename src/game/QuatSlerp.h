@@ -107,3 +107,26 @@ int asDelSqueezeInformation(float (*out)[4], float (*a)[4], float (*b)[4]);     
 // The vector's angle (radians) for the rotation about one axis (asMakeMirrorMatrixByPlane: 1 for Y,
 // then 0 for X); the TU that writes it confirms the axis meaning.
 float asRadianByO(float *v, int axis);                                                   // CT3 0x0185dc30
+// GS register words for the shadow pass's own packets (written early, ahRelocateSunPs2ObjectArry.c slice 14):
+// RGBAQ (q as a float), UV (u low, v high, 1/16 texel), XYZ2 / XYZ3 (screen pixels + 0x800, * 16).
+u_long asDR_RGBAQ(u_char r, u_char g, u_char b, u_char a, float q);                     // CT3 0x0185c450
+u_int asDR_UV(u_short u, u_short v);                                                     // CT3 0x0185c3a0
+u_long asDR_XYZ2(short x, short y, u_short z);                                           // CT3 0x0185c410
+u_long asDR_XYZ3(short x, short y, u_short z);                                           // CT3 0x0185c3d0
+// EA_010's packed-key writers (prototypes from the disassembly, ahRelocateSunPs2ObjectArry.c slice 14).
+// The _nw forms skip an element whose first short is `skip` (packed) or whose w is skipW (floats).
+void asZipFloat0_7_9X2Float(float *out, const u_short *in);                              // CT3 0x0185c5d0
+void asContZipNormal2Normal_XYZ0(float *out, const short *in, int n);                    // CT3 0x0185c9e0
+void asContZipTrans2Trans_XYZ1(float *out, const short *in, int n, u_int shift);          // CT3 0x0185cd30
+void asContZipTrans2Trans_XYZ1_nw(float *out, const short *in, int n, u_int shift, short skip); // CT3 0x0185cc90
+void asMemCopy128c_nw(float skipW, void *dst, const void *src, int n);                   // CT3 0x0185c480
+void asContInterpolateVector_nw(float skipW, float *out, const float *a, const float *b, const float *w,
+                                int n);                                                  // CT3 0x0185d1f0
+void asContInterpolateGA_VECTORZipTrans_XYZ1(float *out, const float *a, const short *b, const float *w,
+                                             int n, u_int shift);                        // CT3 0x0185cbe0
+void asContInterpolateGA_VECTORZipTrans_XYZ1_nw(float *out, const float *a, const short *b, const float *w,
+                                                int n, u_int shift, short skip);         // CT3 0x0185cb20
+void asContInterpolateGA_VECTORZipNormal_XYZ0(float *out, const float *a, const short *b, const float *w,
+                                              int n);                                    // CT3 0x0185c920
+#define ZIP_NORMAL_SHIFT 14             /* packed normals: shorts / 16384 */
+void asZipTrans2Trans_XYZ0(float *out, const short *in, u_int shift);                     // CT3 0x0185cf30

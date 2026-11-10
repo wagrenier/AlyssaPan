@@ -644,3 +644,28 @@ The auto-load at boot (MemorycardAutoLoad, xcmd_tn.c) has its own states (mcMain
   positional one gets `SetPositionalParam_Alys` as its per-frame callback: the source is model part objId
   of the bank (`MODEL_PARTS.pos`, +0x130), heard from the player's `posBefore` (or the camera), volume
   0x7f minus 3 per 55 units, pan 0..0x7f from the angle to the camera's view.
+
+## The shadow overlay, frame-pass checks and the replay pass, game/ahRelocateSunPs2ObjectArry.c (2026-11-10, slice 14)
+
+- **asShadowEnd** ends a bank's shadow pass. The shadow buffer (0xc0000, cleared to 0x80) holds the
+  volume count; two full-screen sprites fold it (`gaDC_EBclear_D$2764` adds 0x60 with FIX 0x80, then
+  `gaDC_EBclear_F$2769` subtracts 0xe0), drawing returns to the frame (`asSD_BackBufferAdd`,
+  `drawbuffer_0`), and the buffer read as a texture is laid over it in shadowColor RGB * |shadowOrder| /
+  100 (alpha 0x80): negative shadowOrder lightens (`EBclearW`, Cd + Cs * FIX 0xff), positive darkens
+  (`EBclearB`, Cd - Cs * FIX). Split pass: `asFS$2787`, 56 sprites of 64 x 64. Plain pass: four
+  TRIFANs (Gouraud) from BANK_INFO +0x40 (the shadow anchor, asShadowPolygonPositions writes it)
+  projected by matrix_global_view and screen_0 (CX + 0.832 * d * x / z, CY - 0.94 * d * y / z), coloured
+  at the centre and black at the screen corners; a side whose anchor left the screen is not drawn. The
+  fans' packets live in the bank's _SunAlloc'd shadow block (BankInfo +0x58, 0x280 bytes; +0x70 = 1).
+  screen_0 = {0, 0, 512, 448, 256, 224, 0.832, 0.94, 512, 5, 40000, 16777215}.
+- **asCheckAnimationFlamePassing_S** is the triggers' "animation passed frame N" test: BEHAVIOR_TRACK
+  +0x1c (time1c) holds last frame's frame (high half) and this frame's (low half); forward tracks pass
+  (last, now], backward [now, last), each wrapping past the end; a character's motion asks the
+  behaviour its motion table record names (record +8: the behaviour's hash), group 0's first track.
+- **EA_010** (ExecuteAnimation's replay) writes the key each running or ending track stands on into its
+  target without moving the time: the part's +0x300 (FLOAT0_7_9) / +0x310 (VECTOR_XYZ) / +0x5a (NUMBER) /
+  +0x58 (FLOAT1_1_14), a group of ga objects' UV offset (+0x78, groups via ALL_TABLE +0x40 / +0x44 into
+  objOpaque), the vertex positions (+0x60) / normals (+0x64, data at +0x10) / alphas (+0x6c) of the
+  objects the key's sub-records name (ANIM_SUBKEY +0x10), and for COPY tracks a word of ALL_TABLE +0x30
+  stored through each grouped sun object record's word 2. The packed keys' `_nw` writers skip a vertex
+  whose first short is -0x8000 (or whose w is 0): BEHAVIOR_TRACK.length bit 0x2000000.

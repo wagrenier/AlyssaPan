@@ -15,6 +15,142 @@ float asVectorLength3D(const float *v)
     return sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
 }
 
+// ---- GS register words (written early, ahRelocateSunPs2ObjectArry.c slice 14: asShadowEnd) ----
+
+// CT3 0x0185c450
+u_long asDR_RGBAQ(u_char r, u_char g, u_char b, u_char a, float q)
+{
+    u_int qbits;
+    memcpy(&qbits, &q, sizeof(qbits));
+    return (u_long)r | (u_long)g << 8 | (u_long)b << 16 | (u_long)a << 24 | (u_long)qbits << 32;
+}
+
+// CT3 0x0185c3a0
+u_int asDR_UV(u_short u, u_short v)
+{
+    return (u_int)u | (u_int)v << 16;
+}
+
+// CT3 0x0185c410: pixels to the GS's 12.4 window coordinates (offset 0x800).
+u_long asDR_XYZ2(short x, short y, u_short z)
+{
+    return (u_long)(u_short)((x + 0x800) * 0x10) | (u_long)(u_short)((y + 0x800) * 0x10) << 16 | (u_long)z << 32;
+}
+
+// CT3 0x0185c3d0: as asDR_XYZ2 (the register it goes to differs, not the word).
+u_long asDR_XYZ3(short x, short y, u_short z)
+{
+    return (u_long)(u_short)((x + 0x800) * 0x10) | (u_long)(u_short)((y + 0x800) * 0x10) << 16 | (u_long)z << 32;
+}
+
+// ---- the Cont* writers EA_010 calls (written early, ahRelocateSunPs2ObjectArry.c slice 14) ----
+// Each walks n elements (the ROM's do / while on a non-zero count): float vectors 0x10 apart, packed
+// ones 3 shorts apart.
+
+// CT3 0x0185cf30: as asZipTrans2Trans_XYZ1, w = 0 (a direction).
+void asZipTrans2Trans_XYZ0(float *out, const short *in, u_int shift)
+{
+    float scale = 1.0f / (float)(1 << shift);
+    int i;
+    for (i = 0; i < 3; i++)
+        out[i] = (float)in[i] * scale;
+    out[3] = 0.0f;
+}
+
+// CT3 0x0185d2a0
+void asContInterpolateVector(float *out, const float *a, const float *b, const float *w, int n)
+{
+    for (; n != 0; n--, out += 4, a += 4, b += 4)
+        asInterpolateVector(out, a, b, w);
+}
+
+// CT3 0x0185d1f0: a vertex whose w is skipW keeps its value.
+void asContInterpolateVector_nw(float skipW, float *out, const float *a, const float *b, const float *w,
+                                int n)
+{
+    for (; n != 0; n--, out += 4, a += 4, b += 4)
+        if (a[3] != skipW)
+            asInterpolateVector(out, a, b, w);
+}
+
+// CT3 0x0185c480: the qwords whose w is not skipW.
+void asMemCopy128c_nw(float skipW, void *dst, const void *src, int n)
+{
+    float *d = (float *)dst;
+    const float *s = (const float *)src;
+    for (; n != 0; n--, d += 4, s += 4)
+        if (s[3] != skipW)
+            memmove(d, s, 16);
+}
+
+// CT3 0x0185c9e0: packed normals (shift 14), w 0.
+void asContZipNormal2Normal_XYZ0(float *out, const short *in, int n)
+{
+    for (; n != 0; n--, out += 4, in += 3)
+        asZipTrans2Trans_XYZ0(out, in, ZIP_NORMAL_SHIFT);
+}
+
+// CT3 0x0185cd30
+void asContZipTrans2Trans_XYZ1(float *out, const short *in, int n, u_int shift)
+{
+    for (; n != 0; n--, out += 4, in += 3)
+        asZipTrans2Trans_XYZ1(out, in, shift);
+}
+
+// CT3 0x0185cc90: a vertex whose x short is `skip` keeps its value.
+void asContZipTrans2Trans_XYZ1_nw(float *out, const short *in, int n, u_int shift, short skip)
+{
+    for (; n != 0; n--, out += 4, in += 3)
+        if (in[0] != skip)
+            asZipTrans2Trans_XYZ1(out, in, shift);
+}
+
+// CT3 0x0185cbe0
+void asContInterpolateGA_VECTORZipTrans_XYZ1(float *out, const float *a, const short *b, const float *w,
+                                             int n, u_int shift)
+{
+    alignas(16) float v[4];
+    for (; n != 0; n--, out += 4, a += 4, b += 3) {
+        asZipTrans2Trans_XYZ1(v, b, shift);
+        asInterpolateVector(out, a, v, w);
+    }
+}
+
+// CT3 0x0185cb20
+void asContInterpolateGA_VECTORZipTrans_XYZ1_nw(float *out, const float *a, const short *b, const float *w,
+                                                int n, u_int shift, short skip)
+{
+    alignas(16) float v[4];
+    for (; n != 0; n--, out += 4, a += 4, b += 3) {
+        if (b[0] != skip) {
+            asZipTrans2Trans_XYZ1(v, b, shift);
+            asInterpolateVector(out, a, v, w);
+        }
+    }
+}
+
+// CT3 0x0185c920: the blend renormalised (VU0 RSQRT: xyz * 1 / |xyz|; w as blended).
+void asContInterpolateGA_VECTORZipNormal_XYZ0(float *out, const float *a, const short *b, const float *w,
+                                              int n)
+{
+    alignas(16) float v[4];
+    for (; n != 0; n--, out += 4, a += 4, b += 3) {
+        float len;
+        asZipTrans2Trans_XYZ0(v, b, ZIP_NORMAL_SHIFT);
+        asInterpolateVector(out, a, v, w);
+        len = 1.0f / sqrtf(out[0] * out[0] + out[1] * out[1] + out[2] * out[2]);
+        out[0] *= len;
+        out[1] *= len;
+        out[2] *= len;
+    }
+}
+
+// CT3 0x0185c5d0: an unsigned 7.9 fixed value (u_short / 512) into x; the other lanes untouched.
+void asZipFloat0_7_9X2Float(float *out, const u_short *in)
+{
+    out[0] = (float)*in / 512.0f;
+}
+
 // ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x01856c30
@@ -509,11 +645,6 @@ void asZipTrans2Trans_XYZ1(float *out, const short *in, u_int shift)
     out[3] = 1.0f;
 }
 
-// stub of CT3 0x0185d2a0
-void asContInterpolateVector(float *out, const float *a, const float *b, const float *w, int n)
-{
-    ALYSSAPAN_STUB("asContInterpolateVector", 0x0185d2a0);
-}
 
 // stub of CT3 0x0185c840
 void asContInterpolateZipNormal_XYZ(short *out, const short *a, const short *b, const float *w, int n)
@@ -552,3 +683,4 @@ float asRadianByO(float *v, int axis)
     ALYSSAPAN_STUB("asRadianByO", 0x0185dc30);
     return {};
 }
+

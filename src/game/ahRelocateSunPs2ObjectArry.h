@@ -337,7 +337,7 @@ typedef struct ANIM_SUBKEY {
     int size;                           /* 0x04: the bytes of the key it takes up */
     u_int data;                         /* 0x08: EE address of the packed data (BankEePtr) */
     int count;                          /* 0x0c: the vertices (asContInterpolate*'s n) */
-    int pad10;
+    int obj;                            /* 0x10: the objOpaque index of the ga object it writes (EA_010) */
     short number;                       /* 0x14: TRACK_KIND_SUB_NUMBER's value */
     short pad16;
 } ANIM_SUBKEY;
@@ -485,3 +485,14 @@ int asGetSceneAnimationCurrent(u_long hash, ALL_TABLE *tbl, int partId, int kind
 #define SV_STOCK_FLUSH 2                /* the lone quads left become objects */
 // The bank's shadow volume objects, built from quads of 4 position qwords.
 void asStockShadowVolume(int bank, float (*quad)[4], int mode);                          // CT3 0x01844650
+
+// ---- slice 14 (2026-11-10) ----
+// asCheckAnimationFlamePassing_S's direction filter (its 5th argument: bit 0 forward, bit 1 backward).
+#define PASS_DIR_FORWARD 1              /* tracks playing forward (TRACK_FLAG_REVERSE clear) */
+#define PASS_DIR_REVERSE 2              /* tracks playing backward */
+#define PASS_DIR_EITHER 3
+#define PASS_FRAME_ANY (-10)            /* a character: does the motion play at all */
+#define CHARA_MOTION_BEHAVIOR 8         /* motion table record: u_long hash of its behaviour */
+// Whether a selected track's time passed `frame` this frame (by time1c's halves), 1 or 0.
+int asCheckAnimationFlamePassing_S(u_long hash, ALL_TABLE *tbl, u_int frame, int partId, int dir, int target,
+                                   int chara);                                           // CT3 0x01848fb0

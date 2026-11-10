@@ -455,6 +455,24 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    unchecked (the host bounds it); CHARACTER +0x3b0 is a 42-entry motion request queue with modes at
    +0x404 (CHARA_MOTION_QUEUE*): the motion TU names them. gaCopyObject2, gaInnerProductXYZ and
    asVectorLength3D were written early in their TUs.
+   Slice 14 (2026-11-10): asCheckAnimationFlamePassing_S, asShadowEnd and EA_010 written; left in the TU:
+   ExecuteAnimation's general body (a marked stub, no caller reaches it yet). (ef) asCheckAnimationFlamePassing_S's
+   scene branch tests a backward track's wrap with its first condition again (the decompiler's reading,
+   kept: such a track passes only the frame it came from); PASS_DIR_* (1 forward, 2 backward, 3 both) and
+   PASS_FRAME_ANY (-10) are named from this one use; the argument order of its caller
+   ssTrigCheckConditions (unwritten) is the ROM's slots. (eg) asShadowEnd: asShadowDrawing_CheckTransMode(1)
+   < 2 lays the shadow buffer over the screen as 8 x 7 sprites, >= 2 as four Gouraud fans about the
+   projected BANK_INFO.shadowAnchor (renamed from pad40); BANK_INFO.shadowOrder is also the overlay's
+   strength in percent (negative: lighten with W, positive: darken with B) -- rename it when its other
+   users are next touched; the fans clamp x to X + W / 0.832 (615) while their corners stop at 512, as the
+   ROM. The overlay needs sunSetupTBufferData (QuatSlerp.c, a stub) to bind the shadow buffer as a texture.
+   (eh) EA_010 names ALL_TABLE +0x30 copyWords, +0x40 objGroups ((first, count) pairs), +0x44
+   objGroupIndex (short indices into objOpaque), ANIM_SUBKEY +0x10 obj, the ga object's +0x78 UV offset
+   and the colour data's alpha bytes (+0x10 + 4 i + 3) from this one use. TRACK_KIND_COPY stores a
+   copyWords word (an EE value, unresolved) through the sun object record's word 2: the gaBGT_DrawObject
+   TU decides what that word is. EA_010 keeps the ROM's one stack vector across tracks (`held`, zeroed
+   where the ROM's lanes are stale). The QuatSlerp.c Cont* writers, asZipTrans2Trans_XYZ0, the asDR_*
+   GS words and asZipFloat0_7_9X2Float were written early.
    (bw) Extract is untested against a known image: the first scene_init that runs on relocated data is
    its test (a wrong decode shows as garbage tables); a harness decoding one CT3X file from CT3PACK.DAT
    beside the ROM's (eerun.py) would prove it sooner.
