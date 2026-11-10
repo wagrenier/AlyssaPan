@@ -40,6 +40,10 @@
 #define SCE_GS_PRMODECONT 0x1a
 #define SCE_GS_PRMODE     0x1b
 #define SCE_GS_SCANMSK    0x22
+#define SCE_GS_MIPTBP1_1  0x34
+#define SCE_GS_MIPTBP1_2  0x35
+#define SCE_GS_MIPTBP2_1  0x36
+#define SCE_GS_MIPTBP2_2  0x37
 #define SCE_GS_TEXA       0x3b
 #define SCE_GS_FOGCOL     0x3d
 #define SCE_GS_TEXFLUSH   0x3f

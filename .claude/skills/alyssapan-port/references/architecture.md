@@ -264,8 +264,18 @@ the TU map's evidence.
 - **Host:** the packets are built as the ROM builds them and go to gaBGT_DmaSendN_fromSPR_VIF1 (stub until
   ga/gaDmaSync_VIF1.c); the scratchpad keeps its EE layout and its address words hold EE addresses (u_int);
   the microprogram is a zeroed stand-in of its size. MADR / TADR / VIF1_STAT are host variables that read
-  idle. Not written yet: gaSetupTBufferData, gaBGT_SetLoadGSEnv, gaBGT_LoadGSTexClutData_VIF1 (no caller a
-  smoke run reaches; gaSetupTBufferData is the texture upload packet: slice 2).
+  idle.
+- **Textures (slice 2, 2026-11-09; no caller in the ROM -- the game uses its sun* copies in
+  QuatSlerp.c, which likely share this shape):** `gaSetupTBufferData(tbuf, tex, tbp, cbp, clut, wms, wmt,
+  minu, maxu, minv, maxv, tfx)` builds a 0x130 `GA_TBUFFER_DATA`: kind 6, TEX0_1 (TCC 1, CLD from tex
+  +0x3c, CBP = cbp + clut x the CLUT block: 0x100 words for PSMT8, 0x40 otherwise), CLAMP_1, MIPTBP1_1 /
+  MIPTBP2_1 (levels packed after level 0, each >= 0x100 words; widths >= 128 for PSMT8 / PSMT4, >= 64
+  else; PSMCT16 is sized at 4 bpp, a ROM slip) and TEXFLUSH; then, unsent, the level and CLUT addresses
+  `gaBGT_LoadGSTexClutData_VIF1` uploads. The source (`GA_TEX_DESC`, 0x60): width, height, TW, TH, PSM,
+  last mip level (-1 none), 7 level data addresses (+0x1c), CLUT count (+0x38), CLD (+0x3c), 8 CLUT
+  addresses (+0x40). An upload is a 9-qword scratchpad packet at 0x70000800: CNT 7 (mark `0xdddd000N`: 0
+  / 1 CLUT env / REF, 2 / 3 level env / REF, 0xf TEXFLUSH), `gaBGT_SetLoadGSEnv`'s 7 qwords (BITBLTBUF,
+  TRXPOS, TRXREG, TRXDIR 0, IMAGE tag; returns the image's qwords by PSM), then a REF tag to the data.
 
 ## Data (2026-11-09)
 

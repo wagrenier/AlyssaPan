@@ -27,6 +27,7 @@ enum GA_PACKET_KIND {
     GA_PACKET_DBUFFER = 1,
     GA_PACKET_DRAWCTRL = 3,
     GA_PACKET_FOGCTRL = 5,
+    GA_PACKET_TBUFFER = 6,
 };
 
 typedef struct GA_AD {
@@ -139,6 +140,73 @@ typedef struct GA_FOGCTRL_DATA {
 static_assert(sizeof(GA_FOGCTRL_DATA) == 0x50, "GA_FOGCTRL_DATA");
 static_assert(offsetof(GA_FOGCTRL_DATA, fog) == 0x40, "GA_FOGCTRL_DATA.fog");
 
+// ---- textures (gaSetupTBufferData / gaBGT_LoadGSTexClutData_VIF1; no caller in the ROM: the game uses
+// its own sun* copies, QuatSlerp.c) --------------------------------------------------------------------
+#define GA_MIP_LEVELS 7                 /* level 0 and MIPTBP1 / MIPTBP2's six */
+#define GA_CLUTS 8
+
+// The texture gaSetupTBufferData is given (layout from its loads; words at +0x18 unread). Addresses are
+// GS word addresses (TBP / CBP before >> 6) and EE addresses of the image data, as the ROM keeps them.
+typedef struct GA_TEX_DESC {
+    u_int width;                        /* 0x00: pixels */
+    u_int height;                       /* 0x04 */
+    u_int tw;                           /* 0x08: TEX0.TW (log2 width) */
+    u_int th;                           /* 0x0c: TEX0.TH */
+    u_int psm;                          /* 0x10: SCE_GS_PSM* */
+    int mipMax;                         /* 0x14: the last mip level; -1 = no image to load */
+    u_int pad18;
+    u_int mipData[GA_MIP_LEVELS];       /* 0x1c: EE address of each level's pixels */
+    u_int clutCount;                    /* 0x38 */
+    u_int cld;                          /* 0x3c: != 0 sets TEX0.CLD = 1 (load the CLUT buffer) */
+    u_int clutData[GA_CLUTS];           /* 0x40: EE address of each CLUT */
+} GA_TEX_DESC;
+static_assert(sizeof(GA_TEX_DESC) == 0x60, "GA_TEX_DESC");
+static_assert(offsetof(GA_TEX_DESC, clutCount) == 0x38, "GA_TEX_DESC.clutCount");
+
+// A texture buffer packet (0x130): TEX0_1, CLAMP_1, MIPTBP1_1, MIPTBP2_1, TEXFLUSH (8 qwords sent), then
+// what gaBGT_LoadGSTexClutData_VIF1 reads to upload the levels and CLUTs.
+typedef struct GA_TBUFFER_DATA {
+    GA_PACKET_HEAD head;                /* 0x00 */
+    GA_AD tex0;                         /* 0x30 */
+    GA_AD clamp;                        /* 0x40 */
+    GA_AD miptbp1;                      /* 0x50 */
+    GA_AD miptbp2;                      /* 0x60 */
+    GA_AD texflush;                     /* 0x70 */
+    int mipMax;                         /* 0x80: GA_TEX_DESC.mipMax */
+    u_int mipData[GA_MIP_LEVELS];       /* 0x84 */
+    u_int mipTbp[GA_MIP_LEVELS];        /* 0xa0: word address of each level in GS memory */
+    u_int mipTbw[GA_MIP_LEVELS];        /* 0xbc: each level's buffer width, pixels (TBW << 6) */
+    u_int psm;                          /* 0xd8 */
+    u_int width;                        /* 0xdc */
+    u_int height;                       /* 0xe0 */
+    u_int clutCount;                    /* 0xe4 */
+    u_int clutData[GA_CLUTS];           /* 0xe8 */
+    u_int clutCbp[GA_CLUTS];            /* 0x108: word address of each CLUT in GS memory */
+    u_int clutWidth;                    /* 0x128: 16 (PSMT8) or 8 */
+    u_int clutHeight;                   /* 0x12c: 16 (PSMT8) or 2 */
+} GA_TBUFFER_DATA;
+static_assert(offsetof(GA_TBUFFER_DATA, mipMax) == 0x80, "GA_TBUFFER_DATA.mipMax");
+static_assert(offsetof(GA_TBUFFER_DATA, mipTbw) == 0xbc, "GA_TBUFFER_DATA.mipTbw");
+static_assert(offsetof(GA_TBUFFER_DATA, clutData) == 0xe8, "GA_TBUFFER_DATA.clutData");
+static_assert(offsetof(GA_TBUFFER_DATA, clutCbp) == 0x108, "GA_TBUFFER_DATA.clutCbp");
+static_assert(sizeof(GA_TBUFFER_DATA) == 0x130, "GA_TBUFFER_DATA");
+
+// An image upload's GS set-up (0x70, gaBGT_SetLoadGSEnv): VIFcodes {NOP, NOP, NOP, DIRECT 6 + image qwc},
+// a GIFtag (A+D x 4, no EOP), BITBLTBUF / TRXPOS / TRXREG / TRXDIR, then the IMAGE GIFtag whose data the
+// DMA REF tag after it brings.
+typedef struct GA_LOADENV {
+    u_int vifcode[4];                   /* 0x00 */
+    u_long giftag;                      /* 0x10 */
+    u_long giftagRegs;                  /* 0x18 */
+    GA_AD bitbltbuf;                    /* 0x20 */
+    GA_AD trxpos;                       /* 0x30 */
+    GA_AD trxreg;                       /* 0x40 */
+    GA_AD trxdir;                       /* 0x50 */
+    u_long imageTag;                    /* 0x60: IMAGE, EOP, NLOOP = the image's qwords */
+    u_long imageTagRegs;                /* 0x68 */
+} GA_LOADENV;
+static_assert(sizeof(GA_LOADENV) == 0x70, "GA_LOADENV");
+
 // ---- the scratchpad work area (EE 0x70000000..) ----------------------------------------------------
 // The VU1 renderer's constants and VIFcode templates. Kept at its EE layout: its address words hold EE
 // addresses (u_int), as the ROM wrote them (open-items.md (h)'s rule for relocated bank data); a host reader
@@ -222,7 +290,13 @@ void gaSetupDrawCtrlData(GA_DRAWCTRL_DATA *ctrl, GA_DRAWCTRL_ARGS args);        
 void gaBGT_ExecDrawCtrlData_VIF1(GA_DRAWCTRL_DATA *ctrl);                                // CT3 0x018a22b0
 void gaSetupFogCtrlData(GA_FOGCTRL_DATA *fog, float f0, float f1, float f2, int r, int g, int b); // CT3 0x018a22c8
 void gaBGT_ExecFogCtrlData_VIF1(GA_FOGCTRL_DATA *fog);                                  // CT3 0x018a2358
+void gaSetupTBufferData(GA_TBUFFER_DATA *tbuf, const GA_TEX_DESC *tex, u_int tbp, u_int cbp, u_int clut,
+                        u_int wms, u_int wmt, u_int minu, u_int maxu, u_int minv, u_int maxv,
+                        u_int tfx);                                                      // CT3 0x018a2370
 void gaBGT_ExecTBufferData_VIF1(void *tbuf);                                             // CT3 0x018a2960
+int gaBGT_SetLoadGSEnv(GA_LOADENV *env, u_int dbp, u_int dbw, u_int dpsm, u_int dsax, u_int dsay, int rrw,
+                       int rrh);                                                         // CT3 0x018a2978
+void gaBGT_LoadGSTexClutData_VIF1(GA_TBUFFER_DATA *tbuf);                                // CT3 0x018a2ac8
 void gaBGT_ExecDrawCommandData_VIF1(GA_DRAWCOMMAND_DATA *com);                           // CT3 0x018a2e70
 void gaBGT_PutMark_VIF1(u_int mark);                                                     // CT3 0x018a2e90
 void gaPutMark_VIF1(u_int mark);                                                         // CT3 0x018a2f10

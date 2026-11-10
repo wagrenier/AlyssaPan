@@ -1,6 +1,5 @@
 {
  "queue": [
-  "ga/gaInitDrawObject.c",
   "game/gaInitMeter.c",
   "game/ahalloc.c",
   "game/sound.c",
@@ -92,7 +91,7 @@
    "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 25 unkeyed; file name from the names"
   },
   "ga/gaInitDrawObject.c": {
-   "notes": "Slice 2: gaSetupTBufferData (0x5f0), gaBGT_SetLoadGSEnv, gaBGT_LoadGSTexClutData_VIF1 (no caller a smoke run reaches yet). Shot black as before: the packets go to gaBGT_DmaSendN_fromSPR_VIF1, stubbed until ga/gaDmaSync_VIF1.c, and no host draw module consumes them yet. The scratchpad keeps EE layout with EE-address words (open-items.md); vu1_object_draw_program is a zeroed stand-in. VC_* and VU_MPG_ENTRY_* moved to gaVifInit.h; three host registers added to sdk/eeregs.h.",
+   "notes": "No ROM caller for the texture three (the game uses its sun* copies in QuatSlerp.c): complete, nothing on screen can show them. Shot black as before: packets go to gaBGT_DmaSendN_fromSPR_VIF1, stubbed until ga/gaDmaSync_VIF1.c, and no host draw module consumes them. PSMCT16 sized at 4 bpp is a ROM slip, kept. MIPTBP1_1/2 constants added to sdk/libgraph.h.",
    "ranges": [
     [
      "018a1a48",
@@ -104,9 +103,14 @@
      "date": "2026-11-09 21:42",
      "status": "partial",
      "summary": "slice 1: 21 of 24 functions -- the ga packet builders (gsinit, dbuffer with its 14 values, drawctrl with GA_DRAWCTRL_ARGS fields named, fogctrl), the scratchpad work area GA_SPR_WORK, gaInitDrawObject, gaInit3dlibWork, the BGT ring start/status/sync/end, marks, DR_ST/DR_Q; main.c calls gaSetupDBufferData with the ROM's 14 values (open item q fixed)"
+    },
+    {
+     "date": "2026-11-09 21:53",
+     "status": "verify",
+     "summary": "slice 2: the texture three -- gaSetupTBufferData (TEX0, CLAMP, MIPTBP1/2, TEXFLUSH and the upload record, GA_TEX_DESC / GA_TBUFFER_DATA), gaBGT_SetLoadGSEnv (BITBLTBUF/TRXPOS/TRXREG/TRXDIR and the IMAGE tag), gaBGT_LoadGSTexClutData_VIF1 (CLUT and mip uploads by REF through the scratchpad packet); all 24 functions written"
     }
    ],
-   "status": "partial",
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 24 unkeyed; file name from the names"
   },
   "ga/gaInitInterrupt.c": {

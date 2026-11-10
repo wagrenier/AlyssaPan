@@ -3,8 +3,8 @@
 // end. Object extent from the symtab: a .text section symbol at 0x018a1a48 (a GCC-built object, like
 // gaVifInit's before it), up to gaObjectClippingCheck's object at 0x018a3078.
 //
-// Slice 1 (2026-11-09): every function but gaSetupTBufferData, gaBGT_SetLoadGSEnv and
-// gaBGT_LoadGSTexClutData_VIF1 (no caller a smoke run reaches yet).
+// Slice 1 (2026-11-09): every function but the texture three; slice 2 (2026-11-09): gaSetupTBufferData,
+// gaBGT_SetLoadGSEnv, gaBGT_LoadGSTexClutData_VIF1 (no caller in the ROM: the game uses its sun* copies).
 //
 // Host: there is no VIF, VU or GS. The packets are built byte for byte as the ROM builds them and still
 // go through the BGT DMA wrapper; the draws they would order are made natively by the host draw modules.
@@ -235,10 +235,287 @@ void gaBGT_ExecFogCtrlData_VIF1(GA_FOGCTRL_DATA *fog)
     gaBGT_DmaSendN_fromSPR_VIF1(fog, FOGCTRL_QWC + 1);
 }
 
+// The CLUT block per palette format: PSMT8's 16x16 (0x100 words), every other's 8x2 (0x40 words, the
+// ROM's step even though an 8x2 CT32 CLUT is 16 words).
+#define CLUT8_WORDS 0x100
+#define CLUT8_W 16
+#define CLUT8_H 16
+#define CLUT4_WORDS 0x40
+#define CLUT4_W 8
+#define CLUT4_H 2
+
+#define GS_BLOCK_SHIFT 6                   /* TBP / CBP: word address >> 6 */
+#define MIP_LEVEL_MIN_WORDS 0x100          /* every mip level takes at least 0x100 words */
+#define MIP_TBW_MIN_INDEXED 0x80           /* PSMT8 / PSMT4 levels: buffer width >= 128 pixels */
+#define MIP_TBW_MIN 0x40
+#define TEX0_TCC_RGBA (1ull << 34)
+#define TEX0_CLD_SHIFT 61
+
+static int IsPsmIndexed(u_int psm) /* PSMT8, PSMT4 (the ROM's psm - 0x13 < 2) */
+{
+    return psm - SCE_GS_PSMT8 < 2;
+}
+
+// CT3 0x018a2370: a texture buffer -- TEX0 (level 0 at tbp, CLUT number `clut` of the eight laid from cbp),
+// CLAMP, the six mip levels packed after level 0 (MIPTBP1 / MIPTBP2) and TEXFLUSH; then, unsent, what
+// gaBGT_LoadGSTexClutData_VIF1 needs. Addresses are GS word addresses. No caller in the ROM.
+void gaSetupTBufferData(GA_TBUFFER_DATA *tbuf, const GA_TEX_DESC *tex, u_int tbp, u_int cbp, u_int clut,
+                        u_int wms, u_int wmt, u_int minu, u_int maxu, u_int minv, u_int maxv, u_int tfx)
+{
+    u_int width = tex->width;
+    u_int height = tex->height;
+    u_int psm = tex->psm;
+    u_int clutWords;
+    u_int clutW;
+    u_int clutH;
+    u_int tbw;
+    u_int bpp;
+    u_int levelTbw[GA_MIP_LEVELS];
+    u_int levelTbp[GA_MIP_LEVELS];
+    u_int minTbw;
+    int level;
+
+    SetPacketHead(&tbuf->head, TBUFFER_SEND_QWC - 1, GA_PACKET_TBUFFER, 5);
+    if (psm == SCE_GS_PSMT8) {
+        clutWords = CLUT8_WORDS;
+        clutW = CLUT8_W;
+        clutH = CLUT8_H;
+    } else {
+        clutWords = CLUT4_WORDS;
+        clutW = CLUT4_W;
+        clutH = CLUT4_H;
+    }
+
+    // Level 0's buffer width in 64-pixel units, at least 1, even for the indexed formats.
+    tbw = width >> 6;
+    if (tbw == 0)
+        tbw = 1;
+    if (IsPsmIndexed(psm))
+        tbw += tbw & 1;
+    tbw <<= 6;
+    tbuf->tex0.data = (u_long)(tbp >> GS_BLOCK_SHIFT) +
+                      ((u_long)((clutWords * clut + cbp) >> GS_BLOCK_SHIFT) << 37) +
+                      ((u_long)tex->tw << 26) + TEX0_TCC_RGBA + ((u_long)psm << 20) +
+                      ((u_long)((tbw >> 6) & 0x3ffffff) << 14) + ((u_long)tex->th << 30) +
+                      ((u_long)tfx << 35) + ((u_long)(tex->cld != 0) << TEX0_CLD_SHIFT);
+    tbuf->tex0.addr = SCE_GS_TEX0_1;
+    tbuf->clamp.data = (u_long)wms + ((u_long)maxv << 34) + ((u_long)maxu << 14) + ((u_long)minu << 4) +
+                       ((u_long)wmt << 2) + ((u_long)minv << 24);
+    tbuf->clamp.addr = SCE_GS_CLAMP_1;
+
+    // Bits per pixel as the ROM sizes the levels (PSMCT16 falls to 4 like PSMT4: a ROM slip, kept).
+    if (psm == SCE_GS_PSMCT16)
+        bpp = 4;
+    else if (psm < SCE_GS_PSMCT16)
+        bpp = 32;
+    else if (psm == SCE_GS_PSMT8)
+        bpp = 8;
+    else
+        bpp = 4;
+
+    // Each level after the one before it, in words (w * h * bpp / 32), at least 0x100.
+    levelTbp[0] = tbp;
+    for (level = 1; level < GA_MIP_LEVELS; level++) {
+        u_int words = (width >> (level - 1)) * (height >> (level - 1)) * bpp >> 5;
+
+        if (words < MIP_LEVEL_MIN_WORDS)
+            words = MIP_LEVEL_MIN_WORDS;
+        levelTbp[level] = levelTbp[level - 1] + words;
+    }
+    minTbw = IsPsmIndexed(psm) ? MIP_TBW_MIN_INDEXED : MIP_TBW_MIN;
+    levelTbw[0] = tbw;
+    for (level = 1; level < GA_MIP_LEVELS; level++) {
+        levelTbw[level] = width >> level;
+        if (levelTbw[level] < minTbw)
+            levelTbw[level] = minTbw;
+    }
+
+    tbuf->miptbp1.data = (u_long)(levelTbp[1] >> 6) + ((u_long)(levelTbw[1] >> 6) << 14) +
+                         ((u_long)(levelTbp[2] >> 6) << 20) + ((u_long)(levelTbw[2] >> 6) << 34) +
+                         ((u_long)(levelTbp[3] >> 6) << 40) + ((u_long)(levelTbw[3] >> 6) << 54);
+    tbuf->miptbp1.addr = SCE_GS_MIPTBP1_1;
+    tbuf->miptbp2.data = (u_long)(levelTbp[4] >> 6) + ((u_long)(levelTbw[4] >> 6) << 14) +
+                         ((u_long)(levelTbp[5] >> 6) << 20) + ((u_long)(levelTbw[5] >> 6) << 34) +
+                         ((u_long)(levelTbp[6] >> 6) << 40) + ((u_long)(levelTbw[6] >> 6) << 54);
+    tbuf->miptbp2.addr = SCE_GS_MIPTBP2_1;
+    tbuf->texflush.data = 0;
+    tbuf->texflush.addr = SCE_GS_TEXFLUSH;
+
+    tbuf->mipMax = tex->mipMax;
+    for (level = 0; level < GA_MIP_LEVELS; level++) {
+        tbuf->mipData[level] = tex->mipData[level];
+        tbuf->mipTbp[level] = levelTbp[level];
+        tbuf->mipTbw[level] = levelTbw[level];
+    }
+    tbuf->psm = psm;
+    tbuf->width = width;
+    tbuf->height = height;
+    tbuf->clutCount = tex->clutCount;
+    for (level = 0; level < GA_CLUTS; level++) {
+        tbuf->clutData[level] = tex->clutData[level];
+        tbuf->clutCbp[level] = cbp + clutWords * level;
+    }
+    tbuf->clutWidth = clutW;
+    tbuf->clutHeight = clutH;
+}
+
 // CT3 0x018a2960 (no caller in the ROM)
 void gaBGT_ExecTBufferData_VIF1(void *tbuf)
 {
     gaBGT_DmaSendN_fromSPR_VIF1(tbuf, TBUFFER_SEND_QWC);
+}
+
+#define GA_GIFTAG_AD_NOEOP(nloop) (0x1000000000000000ull | (u_long)(nloop))
+#define GA_GIFTAG_IMAGE(nloop) (0x0800000000008000ull | (u_long)(nloop)) /* FLG IMAGE, EOP */
+#define LOADENV_QWC 6                      /* the A+D qwords DIRECT sends before the image */
+#define TEXLOAD_ENV_QWC 7                  /* the CNT part: the packet's GA_LOADENV */
+#define TEXLOAD_SEND_QWC 9                 /* tag, GA_LOADENV, REF tag */
+#define TEXFLUSH_QWC 3
+
+// Marks in the upload packets' DMAtag upper halves (0xdddd000N: the VIF never sees them).
+#define GA_LOAD_MARK(kind) (0xdddd0000ull | (u_long)(kind))
+enum GA_LOAD_MARK_KIND {
+    GA_LOAD_CLUT_ENV = 0,
+    GA_LOAD_CLUT_REF = 1,
+    GA_LOAD_MIP_ENV = 2,
+    GA_LOAD_MIP_REF = 3,
+    GA_LOAD_TEXFLUSH = 0xf,
+};
+
+// The upload packet, built at the scratchpad's mark packet area (EE 0x70000800), 9 qwords.
+typedef struct GA_TEXLOAD_PACKET {
+    u_long dmatag;                      /* 0x00: CNT 7 */
+    u_long mark;                        /* 0x08 */
+    GA_LOADENV env;                     /* 0x10 */
+    u_long refTag;                      /* 0x80: REF, qwc = the image's, addr = the image */
+    u_long refMark;                     /* 0x88 */
+} GA_TEXLOAD_PACKET;
+static_assert(sizeof(GA_TEXLOAD_PACKET) == 0x90, "GA_TEXLOAD_PACKET");
+
+typedef struct GA_TEXFLUSH_PACKET {
+    GA_PACKET_HEAD head;                /* 0x00: CNT 3, DIRECT 2, A+D x 1 (no EOP) */
+    GA_AD texflush;                     /* 0x30 */
+} GA_TEXFLUSH_PACKET;
+static_assert(sizeof(GA_TEXFLUSH_PACKET) == 0x40, "GA_TEXFLUSH_PACKET");
+
+// CT3 0x018a2978: an upload's GS set-up -- destination (dbp, dbw in their GS units, dpsm), the rectangle at
+// (dsax, dsay) of rrw x rrh, host to local -- and the IMAGE tag. Returns the image's qwords (0xffff for a
+// format it does not size).
+int gaBGT_SetLoadGSEnv(GA_LOADENV *env, u_int dbp, u_int dbw, u_int dpsm, u_int dsax, u_int dsay, int rrw,
+                       int rrh)
+{
+    int qwc = 0xffff;
+
+    switch (dpsm) {
+    case SCE_GS_PSMCT32:
+        qwc = rrw * rrh >> 2;
+        break;
+    case SCE_GS_PSMCT24:
+        qwc = rrw * rrh * 3 >> 4;
+        break;
+    case SCE_GS_PSMCT16:
+        qwc = rrw * rrh >> 3;
+        break;
+    case SCE_GS_PSMT8:
+    case SCE_GS_PSMT8H:
+        qwc = rrw * rrh >> 4;
+        break;
+    case SCE_GS_PSMT4:
+    case SCE_GS_PSMT4HL:
+    case SCE_GS_PSMT4HH:
+        qwc = rrw * rrh >> 5;
+        break;
+    }
+    env->vifcode[3] = GA_VIFCODE_DIRECT((qwc + LOADENV_QWC) & 0xffff);
+    env->giftag = GA_GIFTAG_AD_NOEOP(4);
+    env->giftagRegs = GA_GIFTAG_REGS_AD;
+    env->bitbltbuf.data = ((u_long)dbp << 32) | ((u_long)dbw << 48) | ((u_long)dpsm << 56);
+    env->bitbltbuf.addr = SCE_GS_BITBLTBUF;
+    env->trxpos.data = (u_long)dsax | ((u_long)dsay << 16);
+    env->trxpos.addr = SCE_GS_TRXPOS;
+    env->trxreg.data = (u_long)(u_int)rrw | ((u_long)(u_int)rrh << 32);
+    env->trxreg.addr = SCE_GS_TRXREG;
+    env->trxdir.addr = SCE_GS_TRXDIR;
+    env->imageTag = GA_GIFTAG_IMAGE((u_int)qwc);
+    env->imageTagRegs = 0;
+    env->vifcode[0] = VC_NOP;
+    env->vifcode[1] = VC_NOP;
+    env->vifcode[2] = VC_NOP;
+    env->trxdir.data = 0;
+    return qwc;
+}
+
+// A REF tag's address from an EE address, as the ROM converts it: a scratchpad address loses its base;
+// bit 30 moves to bit 31 and flips bit 28 (the ROM's arithmetic, whatever it meant), the rest is masked to
+// physical.
+static u_int GaRefTagAddr(u_int ee)
+{
+    u_int addr = ee;
+    u_int bit30;
+
+    if (ee >= SCRATCHPAD_EE_BASE)
+        addr = ee - SCRATCHPAD_EE_BASE;
+    bit30 = addr & 0x40000000u;
+    return (bit30 << 1) | ((addr & 0x1fffffffu) ^ (bit30 >> 2));
+}
+
+static void SetTexFlush(GA_TEXFLUSH_PACKET *packet)
+{
+    packet->head.vifcode[3] = GA_VIFCODE_DIRECT(TEXFLUSH_QWC - 1);
+    packet->head.dmatag = GA_DMATAG_CNT(TEXFLUSH_QWC);
+    packet->head.mark = GA_LOAD_MARK(GA_LOAD_TEXFLUSH);
+    packet->head.giftag = GA_GIFTAG_AD_NOEOP(1);
+    packet->head.giftagRegs = GA_GIFTAG_REGS_AD;
+    packet->texflush.addr = SCE_GS_TEXFLUSH;
+    packet->head.vifcode[0] = VC_NOP;
+    packet->head.vifcode[1] = VC_NOP;
+    packet->head.vifcode[2] = VC_NOP;
+    packet->texflush.data = 0;
+}
+
+static void SetTexLoadRef(GA_TEXLOAD_PACKET *packet, int envKind, u_int data, int qwc)
+{
+    packet->refMark = GA_LOAD_MARK(envKind + 1);
+    packet->refTag = ((u_long)GaRefTagAddr(data) << 32) | (u_long)(u_int)qwc | GA_DMATAG_REF_EMPTY;
+}
+
+// CT3 0x018a2ac8: upload a texture buffer's CLUTs (CT32, to clutCbp) and its levels 0..mipMax (to mipTbp,
+// each halving), each through the scratchpad's upload packet with a REF to the data, between TEXFLUSHes.
+// No caller in the ROM.
+void gaBGT_LoadGSTexClutData_VIF1(GA_TBUFFER_DATA *tbuf)
+{
+    GA_TEXFLUSH_PACKET *flush = (GA_TEXFLUSH_PACKET *)SCRATCHPAD(GA_SPR_MARK_PACKET);
+    GA_TEXLOAD_PACKET *load = (GA_TEXLOAD_PACKET *)SCRATCHPAD(GA_SPR_MARK_PACKET);
+    u_int i;
+    int qwc;
+
+    gaDmaSync_fromSPR();
+    SetTexFlush(flush);
+    gaBGT_DmaSendN_fromSPR_VIF1(flush, TEXFLUSH_QWC + 1);
+    for (i = 0; i < tbuf->clutCount; i++) {
+        gaDmaSync_fromSPR();
+        load->dmatag = GA_DMATAG_CNT(TEXLOAD_ENV_QWC);
+        load->mark = GA_LOAD_MARK(GA_LOAD_CLUT_ENV);
+        qwc = gaBGT_SetLoadGSEnv(&load->env, tbuf->clutCbp[i] >> GS_BLOCK_SHIFT, 1, SCE_GS_PSMCT32, 0, 0,
+                                 (int)tbuf->clutWidth, (int)tbuf->clutHeight);
+        SetTexLoadRef(load, GA_LOAD_CLUT_ENV, tbuf->clutData[i], qwc);
+        gaBGT_DmaSendN_fromSPR_VIF1(load, TEXLOAD_SEND_QWC);
+    }
+    if (tbuf->mipMax != -1) {
+        for (i = 0; i < (u_int)tbuf->mipMax + 1; i++) {
+            gaDmaSync_fromSPR();
+            load->dmatag = GA_DMATAG_CNT(TEXLOAD_ENV_QWC);
+            load->mark = GA_LOAD_MARK(GA_LOAD_MIP_ENV);
+            qwc = gaBGT_SetLoadGSEnv(&load->env, tbuf->mipTbp[i] >> GS_BLOCK_SHIFT,
+                                     tbuf->mipTbw[i] >> GS_BLOCK_SHIFT, tbuf->psm, 0, 0,
+                                     (int)(tbuf->width >> (i & 0x1f)), (int)(tbuf->height >> (i & 0x1f)));
+            SetTexLoadRef(load, GA_LOAD_MIP_ENV, tbuf->mipData[i], qwc);
+            gaBGT_DmaSendN_fromSPR_VIF1(load, TEXLOAD_SEND_QWC);
+        }
+    }
+    gaDmaSync_fromSPR();
+    SetTexFlush(flush);
+    gaBGT_DmaSendN_fromSPR_VIF1(flush, TEXFLUSH_QWC + 1);
 }
 
 // CT3 0x018a2e70: a draw command packet's length is its DMAtag's qwc.

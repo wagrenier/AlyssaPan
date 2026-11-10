@@ -86,9 +86,9 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    its function is written; (e) main.c's .sbss run is a placement guess (architecture.md).
    **Queue refilled 2026-11-09 (scheduled run, the queue was empty)** in the order the smoke run reaches
    the stubs: ~~ga/gaDma.c~~ (verify), ~~ga/gaVifInit.c~~ (verify; its calls made ga/gaDmaSync_VIF1.c's
-   gaDmaSendN_VIF1 / gaDmaSync_VIF1 stubs: that hand-asm object is a small TU worth queueing next), ga/gaInitDrawObject.c
-   (partial 2026-11-09: slice 1, 21 of 24 functions; slice 2 = gaSetupTBufferData, gaBGT_SetLoadGSEnv,
-   gaBGT_LoadGSTexClutData_VIF1, the texture upload), game/gaInitMeter.c,
+   gaDmaSendN_VIF1 / gaDmaSync_VIF1 stubs: that hand-asm object is a small TU worth queueing next),
+   ~~ga/gaInitDrawObject.c~~ (verify 2026-11-09: all 24 functions; the texture three have no ROM caller),
+   game/gaInitMeter.c,
    game/ahalloc.c, game/sound.c, game/Character_Init.c, game/ArtoolDebugOpen.c, game/main2.c,
    game/fileio.c.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
@@ -197,6 +197,10 @@ apply here):
   host definition yet: its reader's TU adds it and the mapping (with the BankEePtr precedent, (h)).
 - (2026-11-09, ga/gaInitDrawObject.c) GA_SPR_WORK's floats from the 3dlib work are named by index
   (`work21`, `work23x16`...): name them when gaSet3dlibStruct's TU names ga3dlibwork's fields.
+- (2026-11-09, ga/gaInitDrawObject.c slice 2) gaSetupTBufferData / gaBGT_LoadGSTexClutData_VIF1 have no
+  ROM caller: `GA_TEX_DESC` / `GA_TBUFFER_DATA` are named from their loads alone, address words kept as EE
+  u_int. QuatSlerp.c's `sunSetupTBufferData` (TEX_INFO by value) is the live copy: compare it when that TU
+  is written, and decide there how the host turns these uploads into GPU textures (decoded at the source).
 
 ## Done
 
