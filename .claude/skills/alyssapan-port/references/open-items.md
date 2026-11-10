@@ -85,7 +85,8 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    from main's use only; (d) the prototypes in the new TU headers come from call sites: confirm each when
    its function is written; (e) main.c's .sbss run is a placement guess (architecture.md).
    **Queue refilled 2026-11-09 (scheduled run, the queue was empty)** in the order the smoke run reaches
-   the stubs: ~~ga/gaDma.c~~ (verify), ga/gaVifInit.c, ga/gaInitDrawObject.c, game/gaInitMeter.c,
+   the stubs: ~~ga/gaDma.c~~ (verify), ~~ga/gaVifInit.c~~ (verify; its calls made ga/gaDmaSync_VIF1.c's
+   gaDmaSendN_VIF1 / gaDmaSync_VIF1 stubs: that hand-asm object is a small TU worth queueing next), ga/gaInitDrawObject.c, game/gaInitMeter.c,
    game/ahalloc.c, game/sound.c, game/Character_Init.c, game/ArtoolDebugOpen.c, game/main2.c,
    game/fileio.c.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like

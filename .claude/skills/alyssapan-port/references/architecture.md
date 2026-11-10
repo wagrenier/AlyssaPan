@@ -226,6 +226,19 @@ the TU map's evidence.
   chain (`sceDmaSend`) transfers do nothing. D_CTRL / D_ENABLEW are host variables (sdk/eeregs.h).
   main.c's `SPR_3DLIB_WORK` is `SCRATCHPAD(0x400)` since this TU (ga3dlibwork's per-frame copy).
 
+## The ga library's VIF set-up, ga/gaVifInit.c (2026-11-09)
+
+- A GCC object 0x018a1948..0x018a1a48 (6 functions) with its .data 0x0192e640..0x0192e790: 18 global
+  `vifcode_*` qwords named by their content (`vifcode_mscal_0002_flush_mscnt_flushe` = MSCAL 2, FLUSH,
+  MSCNT, FLUSHE), the renderer's canned VU kicks. MSCAL entries used: 0, 2, 4, 6, 8, 0xa.
+- `gaVifInit` sends `vifcode_init_VIF0` (1 qword: STCYCL 1/1, ITOP 0, STMOD 0, STMASK -- its mask word is
+  not in the qword) and `vifcode_init_VIF1` (4 qwords: STCYCL, OFFSET, BASE, ITOP, STMOD 0, MSKPATH3 imm 1,
+  STMASK 0, STROW 1.0f x4). `gaVIFSync_VIF0/1` return STAT & 0x0f000007 / 0x1f00000f (FQC, VGW, VEW, VPS);
+  `gaVUSync_VU0` polls VIF0_STAT bit 3. Callers: main.c (init, FLUSH then the VIF1 poll), SystemReReset;
+  gaVUSync_VU0, gaVifcodeFlushe_VIF1, gaVIFSync_VIF0 have no ROM caller.
+- **Host:** VIF0_STAT / VIF1_STAT are host variables that stay 0 (sdk/eeregs.h): the polls return at once.
+  The packets go through gaDmaSendN_VIF1 (ga/gaDmaSync_VIF1.c, stubbed until its TU) and are dropped.
+
 ## Data (2026-11-09)
 
 - `DATA\CT3PACK.DAT` (the ELF names `DATA\CT3PACK.DAT;1` and `\DATA\CT3PACK.DAT;1` at 0x01934b90,

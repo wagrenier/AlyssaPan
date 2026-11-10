@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-09 20:50 at commit `b2accde` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-09 21:11 at commit `57ac634` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,17 +30,18 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **48**; stubs: **216**
+- reconstructed CT3 functions: **54**; stubs: **215**
 
 | file | reconstructed | stubs |
 |---|---|---|
 | `src/ga/gaBGT_DrawObject.c` | 0 | 2 |
 | `src/ga/gaDma.c` | 16 | 0 |
+| `src/ga/gaDmaSync_VIF1.c` | 0 | 2 |
 | `src/ga/gaInit3dlib.c` | 0 | 3 |
 | `src/ga/gaInitDrawObject.c` | 0 | 13 |
 | `src/ga/gaInitInterrupt.c` | 3 | 0 |
 | `src/ga/gaObjectClippingCheck.c` | 0 | 1 |
-| `src/ga/gaVifInit.c` | 0 | 3 |
+| `src/ga/gaVifInit.c` | 6 | 0 |
 | `src/ga/pad_button_read.c` | 0 | 1 |
 | `src/game/ArtoolDebugOpen.c` | 0 | 1 |
 | `src/game/Character_Init.c` | 0 | 5 |
@@ -69,15 +70,17 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 62, verify 3, done 2
-- next: **ga/gaVifInit.c** (pinned in the queue)
-- pinned queue: ga/gaVifInit.c, ga/gaInitDrawObject.c, game/gaInitMeter.c, game/ahalloc.c, game/sound.c, game/Character_Init.c, game/ArtoolDebugOpen.c, game/main2.c, game/fileio.c
+- 65 TUs: todo 61, verify 4, done 2
+- next: **ga/gaInitDrawObject.c** (pinned in the queue)
+- pinned queue: ga/gaInitDrawObject.c, game/gaInitMeter.c, game/ahalloc.c, game/sound.c, game/Character_Init.c, game/ArtoolDebugOpen.c, game/main2.c, game/fileio.c
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaInitInterrupt.c` 3/3 -- GCC object; wait_vsync_state (data 0x0192e790), ga_main_timer, ga_down_timer defined here. gaWaitVSync takes no argument and returns the CSR FIELD bit; main.c c
+- verify: `ga/gaVifInit.c` 6/6 -- GCC object. VIF0/VIF1 STAT are host variables that read idle (sdk/eeregs.h), so the polls return at once and main frame loop passes the FLUSH wait. gaDmaSendN_V
 - verify: `game/main.c` 29/29 -- Smoke run: build green, layoutcheck OK, callcheck: main_rtn_Particle2 matches the ROM (extra BankEePtr only); AllDrawObject / GlobalDrawObject / DrawObjectRefra
 
 Recent sessions:
 
+- 2026-11-09 21:11 `ga/gaVifInit.c` verify: gaVifInit, gaVUSync_VU0, gaVifcodeFlush_VIF1, gaVifcodeFlushe_VIF1, gaVIFSync_VIF0, gaVIFSync_VIF1 and the 18 vifcode qwords of .data 0x0192e640..0x0192e790 rec
 - 2026-11-09 20:50 `ga/gaDma.c` verify: ga DMA wrappers: all 16 functions; host scratchpad buffer, libdma SPR transfers, D_CTRL and D_ENABLEW registers
 - 2026-11-09 20:31 `sdk/libmc.cpp` done: the real memory card: io::MemoryCards (RosePan libmc as a class, folders memcard/mc<port>-<slot>/, the async sceMcSync handshake kept) behind every sceMc entry 
 - 2026-11-09 20:20 `alyssapan/core/window.cpp` done: siblings shims (a): pad database, window and exe icon, mute and pause in the background, overlay DPI scale, cursor auto-hide
@@ -85,7 +88,6 @@ Recent sessions:
 - 2026-11-09 19:39 `game/main.c` partial: main.c slice 6: scene_init (a bank's set-up after load: BaseobjCount / pModelPartsHeader / pBehaviorHeader / FogCtrlAddr from ALL_TABLE +0x14 / +0x2c / +0xbc / 
 - 2026-11-09 19:28 `game/main.c` partial: main.c slice 5: AllDrawObject (the scene draw: banks, sorted characters, mirrors, translucent banks, particles, translucent and ghost characters), ssHQDOF_DrawA
 - 2026-11-09 19:11 `game/main.c` partial: main.c slice 4: DrawObjectRefraction (the refraction pass over type-1 banks 6..85 and refracting characters) and main_rtn_DOF (main_rtn for one depth-of-field s
-- 2026-11-09 18:58 `game/main.c` partial: main.c slice 3: main_rtn (the bank list draw: sort, fog, 3dlib set-up, per-part texture / draw-ctrl / light / clip) and main_rtn_Particle (particle rings); DRAW
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|

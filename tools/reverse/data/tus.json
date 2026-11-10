@@ -1,6 +1,5 @@
 {
  "queue": [
-  "ga/gaVifInit.c",
   "ga/gaInitDrawObject.c",
   "game/gaInitMeter.c",
   "game/ahalloc.c",
@@ -156,12 +155,21 @@
    "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 13 unkeyed; file name from the names"
   },
   "ga/gaVifInit.c": {
+   "notes": "GCC object. VIF0/VIF1 STAT are host variables that read idle (sdk/eeregs.h), so the polls return at once and main frame loop passes the FLUSH wait. gaDmaSendN_VIF1 and gaDmaSync_VIF1 (ga/gaDmaSync_VIF1.c, hand asm) are now stubs with a header from the call-site registers. Smoke run 15 s: build green, callcheck and layoutcheck clean, screen black as before (nothing draws yet), so verify.",
    "ranges": [
     [
      "018a1948",
      "018a1a48"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-09 21:11",
+     "status": "verify",
+     "summary": "gaVifInit, gaVUSync_VU0, gaVifcodeFlush_VIF1, gaVifcodeFlushe_VIF1, gaVIFSync_VIF0, gaVIFSync_VIF1 and the 18 vifcode qwords of .data 0x0192e640..0x0192e790 reconstructed"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 6 unkeyed; file name from the names"
   },
   "ga/pad_button_read.c": {
