@@ -96,8 +96,10 @@ typedef struct CHARA_JUNC {
 // One camera of Cam[7] (0x01ae7c40, 0x1c0 bytes each; indexed by asCheckBankID: scene banks 0..5 and
 // the shared one). Only what main.c reads.
 typedef struct CAMERA {
-    u_char pad000[0xf0];
-    float focus[4];                     /* 0x0f0: the point looked at (ssHQDOF_DrawAllObject's focusPos) */
+    float view[4][4];                   /* 0x000: the view matrix (asGetShadowMatrixGlobalView copies
+                                           Cam[6]'s, the shared one, for the shadows) */
+    u_char pad040[0xb0];
+    float focus[4];                    /* 0x0f0: the point looked at (ssHQDOF_DrawAllObject's focusPos) */
     u_char pad100[0x78];
     short cut;                          /* 0x178: the camera's cut, CamChange_S's second argument (a save
                                            keeps the live bank's; name from data_save_set) */
@@ -122,7 +124,25 @@ typedef struct BANK_INFO {
     int drawOn;                         /* 0x20: FSMltSetDrawBank's mode (DRAW_BANK_ON: drawn) */
     int handle;                         /* 0x24: the FSMltLoad handle that loaded it */
     u_int flags;                        /* 0x28: BANK_FLAG_* */
-    u_char pad2c[0x64];
+    u_char pad2c[4];
+    // 0x30..0x70: the bank's shadow (ahRelocateSunPs2ObjectArry.c's asShadowDrawing_*; names from
+    // asShadowDrawing_Init / _Disable / _CheckTransMode, 2026-11-10)
+    float shadowVec[4];                 /* 0x30: (0, 0, 0, 1) at init; w (0x3c) is cleared by
+                                           asShadowDrawing_Disable: the shadow's on word */
+    u_char pad40[0x14];
+    u_int shadowLightPos;               /* 0x54: the attached light position (0: detached) */
+    int shadow58;                       /* 0x58: 0 at init */
+    float shadowLength;                 /* 0x5c: 500 at init (the ROM stores 1000, 250, then 500) */
+    u_char shadowColor[4];              /* 0x60: RGBA, 0xff each; _Disable sets alpha 0xff */
+    float shadow64;                     /* 0x64: 200 at init */
+    float shadow68;                     /* 0x68: 100 at init */
+    signed char shadowOrder;            /* 0x6c: 100 at init; _CheckTransMode sorts banks > 0 to the
+                                           front of its order, <= 0 to the back */
+    u_char shadow6d;                    /* 0x6d: 0 at init */
+    u_char shadowDraw;                  /* 0x6e: non-0: _CheckTransMode takes the bank's shadow */
+    u_char pad6f;
+    u_char shadow70;                    /* 0x70: 0 at init */
+    u_char pad71[0x1f];
 } BANK_INFO;
 static_assert(sizeof(BANK_INFO) == 0x90, "BANK_INFO");
 static_assert(offsetof(BANK_INFO, name) == 0x08, "BANK_INFO.name");
@@ -131,6 +151,13 @@ static_assert(offsetof(BANK_INFO, image) == 0x1c, "BANK_INFO.image");
 static_assert(offsetof(BANK_INFO, drawOn) == 0x20, "BANK_INFO.drawOn");
 static_assert(offsetof(BANK_INFO, handle) == 0x24, "BANK_INFO.handle");
 static_assert(offsetof(BANK_INFO, flags) == 0x28, "BANK_INFO.flags");
+static_assert(offsetof(BANK_INFO, shadowVec) == 0x30, "BANK_INFO.shadowVec");
+static_assert(offsetof(BANK_INFO, shadowLightPos) == 0x54, "BANK_INFO.shadowLightPos");
+static_assert(offsetof(BANK_INFO, shadowLength) == 0x5c, "BANK_INFO.shadowLength");
+static_assert(offsetof(BANK_INFO, shadowColor) == 0x60, "BANK_INFO.shadowColor");
+static_assert(offsetof(BANK_INFO, shadowOrder) == 0x6c, "BANK_INFO.shadowOrder");
+static_assert(offsetof(BANK_INFO, shadowDraw) == 0x6e, "BANK_INFO.shadowDraw");
+static_assert(offsetof(BANK_INFO, shadow70) == 0x70, "BANK_INFO.shadow70");
 
 #define BANK_MAX 86                     /* 0x56: BankInfo[], the per-scene tables (FogCtrlAddr, ...) */
 #define BANK_TYPE_SHADOW 1              /* main: banks of this type cast shadow polygons; scene_init:
@@ -144,7 +171,11 @@ static_assert(offsetof(BANK_INFO, flags) == 0x28, "BANK_INFO.flags");
 #define BANK_FLAG_DRAW_FIRST 0x2        /* scene_draw_init: ARRW.BIN, "E_*" and "M<digit>*" banks;
                                            GlobalDrawObject draws them before the other banks
                                            (AllDrawObject's "trans" pass draws them after the rest) */
-#define BANK_FLAG_NO_MIRROR 0x10        /* AllDrawObject: a character of this bank is not mirrored
+// asForceOperateAnimation_Scene's bits (2026-11-10): a forced stop / run of the bank's animation.
+#define BANK_FLAG_ANIM_FORCE_STOP 0x4   /* asCheckAnimationExecutable_Scene: still while the world moves */
+#define BANK_FLAG_ANIM_FORCE_RUN 0x8    /* ... runs while the world is paused */
+#define BANK_FLAG_ANIM_STOPPED 0x20     /* set with a forced stop, cleared by a run or a release */
+#define BANK_FLAG_NO_MIRROR 0x10       /* AllDrawObject: a character of this bank is not mirrored
                                            (name from that use) */
 
 // A bank's light table (ALL_TABLE.light; Character_Init.c's SceneLightSet / CharLightSet, main_rtn).
@@ -217,8 +248,9 @@ typedef struct ALL_TABLE {
     u_int pad30[2];
     int count38;                        /* 0x38: the +0x30 list's length (the relocator's bound) */
     int count3c;                        /* 0x3c: the +0x34 list's length */
-    u_int pad40[5];
-    u_int sound;                        /* 0x54: SOUND_OBJ_TABLE (sound.c's SSFindSoundObj) */
+    u_int pad40[4];
+    u_int straw;                        /* 0x50: asMakeStraw's first argument (with partsHeader) */
+    u_int sound;                       /* 0x54: SOUND_OBJ_TABLE (sound.c's SSFindSoundObj) */
     u_int particles;                    /* 0x58: list of PARTICLE_ENTRY: main_rtn_Particle's */
     u_int pad5c;
     u_int objAfter;                     /* 0x60: list: after the particles; non-empty -> ExportDrawToTex */

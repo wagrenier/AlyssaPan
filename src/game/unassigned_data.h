@@ -46,6 +46,7 @@ extern u_char *gGlobalBankArea;                 /* sdata 0x01939c54: EE 0x004000
 extern u_int OMAKE_FLAG;                        /* sbss 0x0193f9f0: OMAKE_* (the extras unlocked) */
 extern int pause;                               /* sbss 0x01941804: PAUSE_* */
 extern int pause_reservation;                   /* sbss 0x01941800: next frame's pause */
+extern void *SkinWork;                          /* sbss 0x01940200: asUpDateGAobjectsAnimation's scratch (gHeapJunc) */
 extern int time_stop_fream;                     /* sbss 0x019417f8 (sic) */
 extern int time_stop_flag;                      /* sbss 0x019417fc: TIME_STOP_* */
 extern int fReset;                              /* sbss 0x0193f9d0 */

@@ -59,6 +59,7 @@ u_char *gGlobalBankArea = gGlobalBankArea_host; /* sdata 0x01939c54 */
 u_int OMAKE_FLAG;                               /* sbss 0x0193f9f0 */
 int pause;                                      /* sbss 0x01941804 */
 int pause_reservation;                          /* sbss 0x01941800 */
+void *SkinWork;                                 /* sbss 0x01940200 */
 int time_stop_fream;                            /* sbss 0x019417f8 */
 int time_stop_flag;                             /* sbss 0x019417fc */
 int fReset;                                     /* sbss 0x0193f9d0 */

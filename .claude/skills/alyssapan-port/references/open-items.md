@@ -269,6 +269,22 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    count38 / count3c (the +0x30 / +0x34 lists' lengths) until their reader names them; (by)
    PARTICLE2 +0x6c (obj6c) is relocated and unread; (bz) TEX_INFO.tim is resolved with the entry's own
    bank: a texture shared from another bank would need that bank -- none seen yet.
+   **game/ahRelocateSunPs2ObjectArry.c slice 2 (partial, 2026-11-10):** the animation pass
+   (asUpDateSceneAnimation, asUpDateGAobjectsAnimation, asCheckAnimationExecutable_Scene,
+   asCheckNowMoving, asForceOperateAnimation_Scene / _Character), the shadow init (asShadowDrawing_Init /
+   _Disable / _DetachLightPosition, Shadow_OnceInit, asGetShadowMatrixGlobalView), asInitMirrorMatrix,
+   asGetBeziePosition, ExecuteAnimationHistory_init (architecture.md "Animation and shadows"). A smoke
+   run reaches the new stubs asMakeStraw / ExecuteAnimation / asSeekBarAnimation / asSearchObject, then
+   still crashes at main.c:2106 (ActressMP, unchanged). Next in this TU: BuildMatrixTree (0xa38, VU0)
+   with BMT_01 / BMT_20, asMakeStraw, ExecuteAnimation (0x16bc), Execute_ExecuteAnimationHistory. Open:
+   (ca) asMakeStraw and ExecuteAnimation take the bank as a PORT first argument (their words are the
+   bank's EE words); the history records (lpEAS, 0x10 bytes: anim, tbl, a sign pair for AbsSignI32, a
+   word stored to partsHeader +0x28) must carry the bank too -- whoever writes the history adder
+   decides; (cb) BANK_INFO +0x30..0x70 (shadowVec, shadowLength, shadowColor, shadow64 / 68, shadowOrder,
+   shadowDraw, shadow58 / 6d / 70) are named from the init and _CheckTransMode only; (cc)
+   matrix_global_view_for_shadow is a symtab local, assumed this TU's (made static here); SkinWork and
+   the EAS / shadow globals are defined here or in lib/unassigned_data.cpp with their EE addresses;
+   (cd) ALL_TABLE +0x50 named `straw` from asMakeStraw's call only.
    (bw) Extract is untested against a known image: the first scene_init that runs on relocated data is
    its test (a wrong decode shows as garbage tables); a harness decoding one CT3X file from CT3PACK.DAT
    beside the ROM's (eerun.py) would prove it sooner.

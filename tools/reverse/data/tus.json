@@ -435,7 +435,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 121..121, 39 functions keyed by their statics, 22 unkeyed; file name from the names"
   },
   "game/ahRelocateSunPs2ObjectArry.c": {
-   "notes": "Slice 1 (2026-11-10) wrote the relocator only (not the brief's auto-slice): the global bank relocates without a fault and scene_init now faults reading ALL_TABLE.partsHeader as a host pointer (it reads the counts at +0x38 / +0x3c, 8 and 0xc: real data). Next for this TU: the brief's slice (asShadowDrawing_Init, Shadow_OnceInit, ExecuteAnimationHistory_init, BuildMatrixTree and BMT_*, the mirror and shadow-volume functions, asForceOperateAnimation_*). Blocker first: the host task game/ct3_types.h (ALL_TABLE and its lists in EE layout, queued at the top). The relocator is unproven against a known image: a wrong offset shows as garbage once scene_init reads the tables; the ALL_TABLE slot map is in architecture.md The file relocator.",
+   "notes": "Smoke run reaches the new stubs asMakeStraw, ExecuteAnimation, asSeekBarAnimation, asSearchObject, then still crashes at main.c:2106 (ActressMP NULL, unchanged blocker); shot black as before. Next in this TU: BuildMatrixTree (0xa38, VU0) with BMT_01 and BMT_20, asMakeStraw, ExecuteAnimation, Execute_ExecuteAnimationHistory. asMakeStraw and ExecuteAnimation take the bank as a PORT first argument (open-items (ca)). BANK_INFO +0x30..0x70 shadow fields and CAMERA.view named (ct3_types.h).",
    "ranges": [
     [
      "0183e280",
@@ -447,6 +447,11 @@
      "date": "2026-11-10 02:55",
      "status": "partial",
      "summary": "slice 1: the file relocator -- ahRelocateFileObject (0x3b80 bytes), ahRelocateBehavior, ahRelocateSunPs2ObjectArry; words stay EE addresses relocated to BankImageEE (decision h)"
+    },
+    {
+     "date": "2026-11-10 03:34",
+     "status": "partial",
+     "summary": "slice 2: the animation pass (asUpDateSceneAnimation, asUpDateGAobjectsAnimation, asCheckAnimationExecutable_Scene, asCheckNowMoving, asForceOperateAnimation_Scene and _Character), shadow init (asShadowDrawing_Init, _Disable, _DetachLightPosition, Shadow_OnceInit, asGetShadowMatrixGlobalView), asInitMirrorMatrix, asGetBeziePosition, ExecuteAnimationHistory_init"
     }
    ],
    "status": "partial",

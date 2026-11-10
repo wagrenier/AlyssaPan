@@ -4,6 +4,14 @@
 #include "common/alyssapan_stub.h"
 #include "game/ahRelocateSunPs2ObjectArry.h"
 
+#include <string.h>
+
+#include "game/ahalloc.h"
+#include "game/fileio.h"
+#include "game/main.h"
+#include "game/main2.h"
+#include "game/unassigned_data.h"
+
 // ---- the file relocator (CT3 0x0183e280..0x01842290) ----
 //
 // A CT3X file (a bank image, fileio.c's FSMltLoadProc) is linked for the EE address in its word +8; the
@@ -591,36 +599,252 @@ void ahRelocateFileObject(u_char *image, int persona)
 #undef R
 }
 
-// ---- stubs (tools/reverse/stubgen.py) ----
+// ---- the animation pass (CT3 0x018422e0..0x018427f0, slice 2, 2026-11-10) ----
+//
+// Every frame main runs asUpDateSceneAnimation (the scene banks' behaviours, then their matrix trees)
+// and asUpDateGAobjectsAnimation (the ga objects' straws, through a SkinWork scratch block). A bank
+// animates while it is drawn (or BANK_FLAG_DRAW_FIRST) and asCheckAnimationExecutable_Scene allows it:
+// a type-0 bank always, the others by the world's pause state and asForceOperateAnimation_Scene's bits.
 
-// stub of CT3 0x0184ef00
-void ExecuteAnimationHistory_init(void)
+int iEASnum;                            /* sbss 0x0193f780 (symtab: global) */
+void *lpEAS;                            /* sbss 0x0193f77c: the history records (_SunAlloc'd) */
+int iEASidx;                            /* sbss 0x0193f784: records in lpEAS */
+
+// CT3 0x01842380
+// 1 while the world moves: no pause (or a PAUSE_RUNNING one) and none reserved for the next frame.
+int asCheckNowMoving(void)
 {
-    ALYSSAPAN_STUB("ExecuteAnimationHistory_init", 0x0184ef00);
+    if (pause != 0 && !(pause & PAUSE_RUNNING))
+        return 0;
+    if (pause_reservation != 0)
+        return 0;
+    return 1;
 }
 
-// stub of CT3 0x01847c30
+// CT3 0x018422e0
+int asCheckAnimationExecutable_Scene(int scene)
+{
+    BANK_INFO *bi;
+    if (scene < 0)
+        return 0;
+    bi = &BankInfo[scene];
+    if (bi->type == BANK_TYPE_0)
+        return 1;
+    if (asCheckNowMoving())
+        return (bi->flags & BANK_FLAG_ANIM_FORCE_STOP) == 0;
+    return (bi->flags & BANK_FLAG_ANIM_FORCE_RUN) != 0;
+}
+
+// CT3 0x018423c0
+// The character's bank, with the caller's mode (the ROM leaves a1 as it came).
+void asForceOperateAnimation_Character(int chara, int mode)
+{
+    if (chara >= 0)
+        asForceOperateAnimation_Scene(Character[chara].bank, mode);
+}
+
+// CT3 0x01842400
+void asForceOperateAnimation_Scene(int scene, int mode)
+{
+    u_int *flags;
+    if (scene < 0 || BankInfo[scene].state != BANK_STATE_LOADED)
+        return;
+    flags = &BankInfo[scene].flags;
+    *flags &= ~(BANK_FLAG_ANIM_FORCE_STOP | BANK_FLAG_ANIM_FORCE_RUN);
+    if (mode == ANIM_FORCE_RUN)
+        *flags |= BANK_FLAG_ANIM_FORCE_RUN;
+    else if (mode == ANIM_FORCE_STOP)
+        *flags |= BANK_FLAG_ANIM_FORCE_STOP;
+    if (mode == ANIM_FORCE_STOP)
+        *flags |= BANK_FLAG_ANIM_STOPPED;
+    else if (mode == ANIM_FORCE_RUN || mode == ANIM_FORCE_NONE)
+        *flags &= ~BANK_FLAG_ANIM_STOPPED;
+}
+
+// CT3 0x01842540
+void asUpDateGAobjectsAnimation(void)
+{
+    int bank;
+    short i;
+    Execute_ExecuteAnimationHistory();
+    SkinWork = _SunAlloc(&gHeapJunc, SKIN_WORK_SIZE, 0x10);
+    for (bank = 0; bank < BANK_MAX; bank++) {
+        BANK_INFO *bi = &BankInfo[bank];
+        if (bi->state == BANK_STATE_LOADED
+            && (bi->drawOn == DRAW_BANK_ON || (bi->flags & BANK_FLAG_DRAW_FIRST))
+            && (bi->type == BANK_TYPE_SHADOW || bi->type == BANK_TYPE_0)
+            && All_table_TBL[bank] != NULL && asCheckAnimationExecutable_Scene(bank)) {
+            ALL_TABLE *tbl = All_table_TBL[bank];
+            asMakeStraw(bank, tbl->straw, tbl->partsHeader);
+        }
+        if (bi->state > 0)
+            bank += bi->groupCount - 1;
+    }
+    for (i = 0; i < CHARACTER_MAX; i++) {
+        CHARACTER *chr = &Character[i];
+        if ((chr->flags & CHARACTER_FLAG_REFRACTION) && chr->bank > 0 && (chr->flags & CHARACTER_FLAG_SHADOW)) {
+            ALL_TABLE *tbl = All_table_TBL[chr->bank];
+            asMakeStraw(chr->bank, tbl->straw, tbl->partsHeader);
+        }
+    }
+    _SunFree(&gHeapJunc, &SkinWork);
+}
+
+// CT3 0x018426e0
+void asUpDateSceneAnimation(void)
+{
+    int bank;
+    for (bank = 0; bank < BANK_MAX; bank++) {
+        BANK_INFO *bi = &BankInfo[bank];
+        if (bi->state != BANK_STATE_LOADED)
+            continue;
+        if ((bi->drawOn == DRAW_BANK_ON || (bi->flags & BANK_FLAG_DRAW_FIRST))
+            && asCheckAnimationExecutable_Scene(bank)
+            && (bi->type == BANK_TYPE_SHADOW || bi->type == BANK_TYPE_0)) {
+            ALL_TABLE *tbl = All_table_TBL[bank];
+            asSeekBarAnimation(bank);
+            ExecuteAnimation(bank, tbl->behavior, tbl, 0, 1, 0, 0, 0);
+            BuildMatrixTree(bank, 2, 0);
+            asSearchObject(bank);
+        }
+        if (bi->state > 0)
+            bank += bi->groupCount - 1;
+    }
+}
+
+// CT3 0x0184a4b0
+// The weights in single precision as the ROM rounds them, then vmulax / vmadday / vmaddaz / vmaddw.
+void asGetBeziePosition(float t, float s, float out[4], const float ctrl[4][4])
+{
+    float t2 = t * t, s2 = s * s;
+    float w[4];
+    int i;
+    w[0] = t2 * t;
+    w[1] = 3.0f * (t2 * s);
+    w[2] = 3.0f * (s2 * t);
+    w[3] = s2 * s;
+    for (i = 0; i < 4; i++)
+        out[i] = ctrl[0][i] * w[0] + ctrl[1][i] * w[1] + ctrl[2][i] * w[2] + ctrl[3][i] * w[3];
+}
+
+// CT3 0x0184ef00
+void ExecuteAnimationHistory_init(void)
+{
+    iEASnum = 0;
+    lpEAS = NULL;
+    iEASidx = 0;
+}
+
+// ---- shadows (CT3 0x01847330..0x01847c30, slice 2) ----
+
+char iShadowTransMode;                  /* sbss 0x0193fa7c */
+char iShadowTransModeFin;               /* sbss 0x0193fa78 */
+int iPleaseShadowDraw;                  /* sbss 0x0193fa74 */
+char iShadowTransOrderBW;               /* sbss 0x0193fa70 */
+// The symtab's local; its other readers are this TU's shadow code (assumed: move it if not).
+alignas(16) static float matrix_global_view_for_shadow[4][4]; /* bss 0x0193c840 */
+
+#define CAMERA_SHARED BANK_SCENE_MAX    /* Cam[6]: the banks past the scene ones share it (asCheckBankID) */
+
+// CT3 0x01847330
+void asGetShadowMatrixGlobalView(void)
+{
+    memcpy(matrix_global_view_for_shadow, Cam[CAMERA_SHARED].view, sizeof(matrix_global_view_for_shadow));
+}
+
+// CT3 0x01847460
+void asShadowDrawing_DetachLightPosition(int scene)
+{
+    if (scene >= 0)
+        BankInfo[scene].shadowLightPos = 0;
+}
+
+// CT3 0x01847520
+void asShadowDrawing_Disable(int scene)
+{
+    BankInfo[scene].shadowVec[3] = 0.0f;
+    BankInfo[scene].shadowColor[3] = 0xff;
+}
+
+// CT3 0x01847b10
+void asShadowDrawing_Init(int scene)
+{
+    BANK_INFO *bi;
+    if (scene < 0)
+        return;
+    bi = &BankInfo[scene];
+    asShadowDrawing_DetachLightPosition(scene);
+    bi->shadowVec[0] = bi->shadowVec[1] = bi->shadowVec[2] = 0.0f; /* sqc2 vf0 */
+    bi->shadowVec[3] = 1.0f;
+    asShadowDrawing_Disable(scene);
+    bi->shadow58 = 0;
+    bi->shadow70 = 0;
+    bi->shadowLength = 1000.0f;         /* the ROM's three stores, the last one stays */
+    bi->shadowLength = 250.0f;
+    bi->shadowLength = 500.0f;
+    bi->shadowColor[0] = bi->shadowColor[1] = bi->shadowColor[2] = bi->shadowColor[3] = 0xff;
+    bi->shadowOrder = 100;
+    bi->shadow6d = 0;
+    bi->shadow64 = 200.0f;
+    bi->shadow68 = 100.0f;
+    bi->shadowDraw = 0;
+}
+
+// CT3 0x01847c30
 void Shadow_OnceInit(void)
 {
-    ALYSSAPAN_STUB("Shadow_OnceInit", 0x01847c30);
+    iShadowTransMode = 0;
+    iShadowTransModeFin = 0;
+    iPleaseShadowDraw = 0;
+    iShadowTransOrderBW = 0;
+}
+
+// ---- mirrors (slice 2) ----
+
+// CT3 0x0184fd00
+// mrr_ReverseMatrix = identity (vf0 = (0,0,0,1), rotated by vmr32 into each row).
+void asInitMirrorMatrix(void)
+{
+    memset(mrr_ReverseMatrix, 0, sizeof(mrr_ReverseMatrix));
+    mrr_ReverseMatrix[0][0] = mrr_ReverseMatrix[1][1] = mrr_ReverseMatrix[2][2] = mrr_ReverseMatrix[3][3] = 1.0f;
+}
+
+// ---- stubs (tools/reverse/stubgen.py) ----
+
+// stub of CT3 0x0184ec20
+void Execute_ExecuteAnimationHistory(void)
+{
+    ALYSSAPAN_STUB("Execute_ExecuteAnimationHistory", 0x0184ec20);
+}
+
+// stub of CT3 0x018497d0
+void asMakeStraw(int bank, u_int straw, u_int partsHeader)
+{
+    ALYSSAPAN_STUB("asMakeStraw", 0x018497d0);
+}
+
+// stub of CT3 0x01842b20
+void asSeekBarAnimation(int scene)
+{
+    ALYSSAPAN_STUB("asSeekBarAnimation", 0x01842b20);
+}
+
+// stub of CT3 0x0184a570
+void ExecuteAnimation(int bank, u_int anim, ALL_TABLE *tbl, int a2, int a3, int a4, int a5, int a6)
+{
+    ALYSSAPAN_STUB("ExecuteAnimation", 0x0184a570);
+}
+
+// stub of CT3 0x01843950
+void asSearchObject(int scene)
+{
+    ALYSSAPAN_STUB("asSearchObject", 0x01843950);
 }
 
 // stub of CT3 0x01851150
 void asCopyDoubleBuffer(void)
 {
     ALYSSAPAN_STUB("asCopyDoubleBuffer", 0x01851150);
-}
-
-// stub of CT3 0x01842400
-void asForceOperateAnimation_Scene(int scene, int mode)
-{
-    ALYSSAPAN_STUB("asForceOperateAnimation_Scene", 0x01842400);
-}
-
-// stub of CT3 0x01847330
-void asGetShadowMatrixGlobalView(void)
-{
-    ALYSSAPAN_STUB("asGetShadowMatrixGlobalView", 0x01847330);
 }
 
 // stub of CT3 0x01842fe0
@@ -639,18 +863,6 @@ void asShadowDrawing_Fin(int scene)
 void asShadowPolygonPositions(int bank)
 {
     ALYSSAPAN_STUB("asShadowPolygonPositions", 0x01844df0);
-}
-
-// stub of CT3 0x01842540
-void asUpDateGAobjectsAnimation(void)
-{
-    ALYSSAPAN_STUB("asUpDateGAobjectsAnimation", 0x01842540);
-}
-
-// stub of CT3 0x018426e0
-void asUpDateSceneAnimation(void)
-{
-    ALYSSAPAN_STUB("asUpDateSceneAnimation", 0x018426e0);
 }
 
 // stub of CT3 0x018427f0
@@ -702,12 +914,6 @@ void asGAobjectControlPolygonDisplayRotateFlagReverse(ALL_TABLE *tbl)
     ALYSSAPAN_STUB("asGAobjectControlPolygonDisplayRotateFlagReverse", 0x0184f330);
 }
 
-// stub of CT3 0x0184fd00
-void asInitMirrorMatrix(void)
-{
-    ALYSSAPAN_STUB("asInitMirrorMatrix", 0x0184fd00);
-}
-
 // stub of CT3 0x0184f910
 int asMakeMirrorMatrixByPlane(float *planeVec, float *planePoint)
 {
@@ -757,14 +963,3 @@ void asSeekBarInitializeForX(int scene)
     ALYSSAPAN_STUB("asSeekBarInitializeForX", 0x018430d0);
 }
 
-// stub of CT3 0x01847b10
-void asShadowDrawing_Init(int scene)
-{
-    ALYSSAPAN_STUB("asShadowDrawing_Init", 0x01847b10);
-}
-
-// stub of CT3 0x018423c0
-void asForceOperateAnimation_Character(int chara, int mode)
-{
-    ALYSSAPAN_STUB("asForceOperateAnimation_Character", 0x018423c0);
-}

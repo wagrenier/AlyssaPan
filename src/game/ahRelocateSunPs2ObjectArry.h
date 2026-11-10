@@ -5,6 +5,35 @@
 #include "sdk/scetypes.h"
 #include "game/ct3_types.h"
 
+// asForceOperateAnimation_Scene / _Character's modes (BANK_FLAG_ANIM_* in ct3_types.h).
+#define ANIM_FORCE_NONE 0               /* release: the bank follows the world's pause */
+#define ANIM_FORCE_STOP 1               /* still while the world moves (and BANK_FLAG_ANIM_STOPPED) */
+#define ANIM_FORCE_RUN 2                /* runs while the world is paused */
+#define SKIN_WORK_SIZE 0x4000           /* asUpDateGAobjectsAnimation's SkinWork block */
+
+int asCheckNowMoving(void);                                                              // CT3 0x01842380
+int asCheckAnimationExecutable_Scene(int scene);                                         // CT3 0x018422e0
+void asShadowDrawing_DetachLightPosition(int scene);                                     // CT3 0x01847460
+void asShadowDrawing_Disable(int scene);                                                 // CT3 0x01847520
+void Execute_ExecuteAnimationHistory(void);                                              // CT3 0x0184ec20
+void asSeekBarAnimation(int scene);                                                      // CT3 0x01842b20
+void asSearchObject(int scene);                                                          // CT3 0x01843950
+// PORT: the bank is added in front: straw and partsHeader are the bank's EE words (BANK_PTR).
+void asMakeStraw(int bank, u_int straw, u_int partsHeader);                              // CT3 0x018497d0
+// PORT: (bank, anim, tbl, ...): anim is an EE word of the bank (ALL_TABLE.behavior from
+// asUpDateSceneAnimation); the history records (Execute_ExecuteAnimationHistory) must carry the bank.
+void ExecuteAnimation(int bank, u_int anim, ALL_TABLE *tbl, int a2, int a3, int a4, int a5, int a6); // CT3 0x0184a570
+// out = a cubic Bezier point: ctrl[0] t^3 + ctrl[1] 3t^2 s + ctrl[2] 3ts^2 + ctrl[3] s^3 (s = 1 - t
+// at the callers, asMakeStraw / tiLightBelt2Update). All four lanes.
+void asGetBeziePosition(float t, float s, float out[4], const float ctrl[4][4]);         // CT3 0x0184a4b0
+extern int iEASnum;                     /* 0x0193f780 */
+extern void *lpEAS;                     /* 0x0193f77c */
+extern int iEASidx;                     /* 0x0193f784 */
+extern char iShadowTransMode;           /* 0x0193fa7c */
+extern char iShadowTransModeFin;        /* 0x0193fa78 */
+extern int iPleaseShadowDraw;           /* 0x0193fa74 */
+extern char iShadowTransOrderBW;        /* 0x0193fa70 */
+
 void asForceOperateAnimation_Scene(int scene, int mode);                                 // CT3 0x01842400
 void asUpDateGAobjectsAnimation(void);                                                   // CT3 0x01842540
 void asUpDateSceneAnimation(void);                                                       // CT3 0x018426e0

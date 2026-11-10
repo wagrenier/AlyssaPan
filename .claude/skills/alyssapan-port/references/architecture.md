@@ -405,6 +405,25 @@ u_short(+2) tracks of 0x20 bytes at its +4; a track's +9 byte is its kind ('H', 
 BankImageEE[bank] (the bank found by its BankImage[]), so the words stay EE addresses (open-items.md 1 h);
 `RelocPtr` maps them back into the image during the walk.
 
+## Animation and shadows, game/ahRelocateSunPs2ObjectArry.c (2026-11-10, slice 2)
+
+The same object holds the animation pass. Each frame main calls asUpDateGAobjectsAnimation (first
+Execute_ExecuteAnimationHistory, then a 0x4000-byte SkinWork block from gHeapJunc, asMakeStraw(tbl +0x50
+`straw`, tbl +0x2c partsHeader) for every animating bank and for every character with both flags
+0x80000000 and 0x40000000, then the block freed) and asUpDateSceneAnimation (asSeekBarAnimation,
+ExecuteAnimation(tbl +0xbc behavior, tbl, 0, 1, 0, 0, 0), BuildMatrixTree(bank, 2, 0), asSearchObject).
+A bank animates when it is loaded, drawn (drawOn 1) or BANK_FLAG_DRAW_FIRST, of type 0 or 1, and
+asCheckAnimationExecutable_Scene says so: type 0 always; otherwise while the world moves (asCheckNowMoving:
+pause 0 or PAUSE_RUNNING, no pause_reservation) unless BANK_FLAG_ANIM_FORCE_STOP (4), and while paused
+only with BANK_FLAG_ANIM_FORCE_RUN (8). asForceOperateAnimation_Scene(bank, mode) sets them: mode 1 stop
+(+ 0x20 STOPPED), 2 run, 0 release; _Character passes the character's bank.
+BankInfo[] +0x30..0x70 is the bank's shadow (asShadowDrawing_Init): +0x30 a vector (0,0,0,1) whose w
+asShadowDrawing_Disable clears, +0x54 the attached light position, +0x5c 500, +0x60 RGBA, +0x64 200, +0x68
+100, +0x6c a signed order byte (asShadowDrawing_CheckTransMode sorts > 0 / <= 0 apart), +0x6e "draw this
+shadow". CAMERA +0 is the view matrix: asGetShadowMatrixGlobalView copies Cam[6]'s into the local
+matrix_global_view_for_shadow. asInitMirrorMatrix sets mrr_ReverseMatrix to identity (vf0 rotated by
+vmr32). asGetBeziePosition is a cubic Bezier with weights t^3, 3t^2 s, 3ts^2, s^3.
+
 ## The IOP side (2026-11-09)
 
 The EE loads `cdrom0:\IOP\IOPRP255.IMG;1` (an IOP reboot), then `SIO2MAN`, `PADMAN`, `MCMAN`, `MCSERV`,
