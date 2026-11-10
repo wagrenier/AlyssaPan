@@ -1310,7 +1310,9 @@ void asSeatArrange_Init(int scene)
 #define REC_POS 0xf0                    /* float[4]: MODEL_PARTS.pos */
 #define REC_MATRIX 0x180                /* float[4][4]: MODEL_PARTS.matrix */
 #define REC_SCALE 0x2c0                 /* float[3]: the diagonal of the scale BMT_01 applies */
-#define REC_POS_PREV 0x2f0              /* float[4]: REC_POS copied by BMT_01 */
+#define REC_GA_MATRIX 0x100             /* float[4][4]: the ga draw object's first matrix (DRAW_OBJ_MATRIX) */
+#define REC_GA_MATRIX2 0x140            /* float[4][4]: its second (DRAW_OBJ_MATRIX2) */
+#define REC_POS_PREV 0x2f0             /* float[4]: REC_POS copied by BMT_01 */
 #define REC_DRAW_MATRIX 0x300           /* float[4][4]: view * matrix * scale */
 #define REC_VIEW_MATRIX 0x340           /* float[4][4]: view * matrix */
 #define REC_VIEW_HOLD 0x34c             /* float: != 0 keeps the view matrices (BMT_01 skips them);
@@ -2118,6 +2120,222 @@ int asGetBehaviorPlayableTicks(int bank, u_int anim)
     return BehaviorTracks(bank, BANK_PTR(BEHAVIOR *, bank, anim), 0)->playable;
 }
 
+// ---- slice 7 (2026-11-10): the small animation helpers, the DOF tree, asEnumMirror ----
+
+// CT3 0x0184a530
+// The behaviour's time so far: its first group's first track's (the ROM reads +0x14, +0x18).
+// PORT: (bank, anim), as asGetBehaviorPlayableTicks.
+int asGetBehaviorPlayingTicks(int bank, u_int anim)
+{
+    return BehaviorTracks(bank, BANK_PTR(BEHAVIOR *, bank, anim), 0)->time;
+}
+
+// CT3 0x01849750
+// A track runs on from where it is: step 1 (or its runs, TRACK_FLAG_STEP_FROM_RUNS); a track at its
+// end (time == playable * 100) clears its +0xe.
+void asStartAnimation(BEHAVIOR_TRACK *track)
+{
+    if (track->flags & TRACK_FLAG_STEP_FROM_RUNS)
+        track->step = (short)track->runs;
+    else
+        track->step = 1;
+    track->playing = TRACK_PLAYING;
+    if (track->time == track->playable * TRACK_TIME_SCALE)
+        track->value0e = 0;
+}
+
+// CT3 0x0184a540
+void asDecInterpolateTicks(u_char *ctrl, int ticks)
+{
+    int *left = (int *)(ctrl + ANIM_CTRL_TICKS);
+    *left -= ticks;
+    if (*left < 0)
+        *left = 0;
+}
+
+// CT3 0x01847d50
+// Every running track of the behaviour is marked TRACK_ACT_END (NULL: none).
+void asBehaviorActEndAnimation(void *behavior)
+{
+    BEHAVIOR *bhv = (BEHAVIOR *)behavior;
+    int bank, g, t;
+    if (bhv == NULL)
+        return;
+    bank = BankOfHostPtr(bhv);
+    for (g = 0; g < bhv->groupCount; g++) {
+        BEHAVIOR_TRACK *tr = BehaviorTracks(bank, bhv, g);
+        for (t = bhv->groups[g].trackCount; t > 0; t--, tr++)
+            if (tr->playing == TRACK_PLAYING)
+                tr->playing = TRACK_ACT_END;
+    }
+}
+
+// CT3 0x018424d0
+// The character's bank is mirrored (on == 0) or not (BANK_FLAG_NO_MIRROR).
+void asForceOperateMirroring_Character(int chara, int on)
+{
+    u_int *flags;
+    if (chara < 0 || Character[chara].bank < 0)
+        return;
+    flags = &BankInfo[Character[chara].bank].flags;
+    *flags &= ~BANK_FLAG_NO_MIRROR;
+    if (on)
+        *flags |= BANK_FLAG_NO_MIRROR;
+}
+
+// The part record fields asBuildDOFMatrixTree reads (record offsets, named from that one use).
+#define REC_DOF_MATRIX 0x1c0            /* float[4][4]: the part's matrix for the DOF pass (rows 0..2 w
+                                           taken as 0) */
+#define REC_DOF_SCALE_X 0x4c            /* floats: the DOF scale's diagonal, 0x10 apart */
+#define REC_DOF_SCALE_Y 0x5c
+#define REC_DOF_SCALE_Z 0x6c
+#define PARTS_KIND_3 3                  /* REC_KIND: asBuildDOFMatrixTree skips it (meaning unread) */
+
+// CT3 0x0184f020
+// The DOF slices' matrices: every part but PARTS_KIND_STATIC / PARTS_KIND_NO_POS / PARTS_KIND_3 gets
+// REC_GA_MATRIX2 = matrix_global_view * its REC_DOF_MATRIX (w of rows 0..2 zeroed), REC_GA_MATRIX =
+// that * the diagonal scale (the identity from sdata 0x019377e0 with REC_DOF_SCALE_*). From the
+// disassembly: the decompiler dropped gaMulMatrix's third argument.
+void asBuildDOFMatrixTree(u_char *partsHeader)
+{
+    alignas(16) float scale[4][4] = { { 1, 0, 0, 0 }, { 0, 1, 0, 0 }, { 0, 0, 1, 0 }, { 0, 0, 0, 1 } }; /* 0x019377e0 */
+    u_char *rec;
+    for (rec = partsHeader + PARTS_RECORDS; !PARTS_END(rec); rec += sizeof(MODEL_PARTS)) {
+        signed char kind = (signed char)rec[REC_KIND];
+        alignas(16) float m[4][4];
+        if (kind == PARTS_KIND_STATIC || kind == PARTS_KIND_NO_POS || kind == PARTS_KIND_3)
+            continue;
+        memcpy(m, rec + REC_DOF_MATRIX, sizeof(m));
+        scale[0][0] = *(float *)(rec + REC_DOF_SCALE_X);
+        scale[1][1] = *(float *)(rec + REC_DOF_SCALE_Y);
+        scale[2][2] = *(float *)(rec + REC_DOF_SCALE_Z);
+        m[0][3] = m[1][3] = m[2][3] = 0.0f;
+        gaMulMatrix((float (*)[4])(rec + REC_GA_MATRIX2), matrix_global_view, m);
+        gaMulMatrix((float (*)[4])(rec + REC_GA_MATRIX), (float (*)[4])(rec + REC_GA_MATRIX2), scale);
+    }
+}
+
+// CT3 0x0184bc30
+// ExecuteAnimation's case for one part (the group whose part has EA_001_PART_HASH): its running tracks
+// build a local matrix (TRACK_KIND_ROT / _POS) and a base (TRACK_KIND_BASE_ROT / _POS), both from the
+// identity; out = base * local. out's +0x3c word (row 3 w) takes four done bytes, one per kind, set
+// when that track's InterpolateAnimationKey ran out: byte 0 ROT, 1 POS, 2 BASE_ROT, 3 BASE_POS.
+int EA_001(void *behavior, ALL_TABLE *tbl, float (*out)[4])
+{
+    BEHAVIOR *bhv = (BEHAVIOR *)behavior;
+    int bank = BankOfHostPtr(bhv);
+    u_char *header = BANK_PTR(u_char *, bank, tbl->partsHeader);
+    alignas(16) float local[4][4] = { { 1, 0, 0, 0 }, { 0, 1, 0, 0 }, { 0, 0, 1, 0 }, { 0, 0, 0, 1 } };
+    alignas(16) float base[4][4] = { { 1, 0, 0, 0 }, { 0, 1, 0, 0 }, { 0, 0, 1, 0 }, { 0, 0, 0, 1 } };
+    alignas(16) float rot[4][4];
+    alignas(16) float q[4];
+    u_char done[4] = { 0, 0, 0, 0 };
+    int g, t;
+    for (g = 0; g < bhv->groupCount; g++) {
+        const BEHAVIOR_GROUP *grp = &bhv->groups[g];
+        BEHAVIOR_TRACK *tr;
+        if (grp->tracks == 0)
+            continue;
+        if (((MODEL_PARTS *)(header + grp->part * (int)sizeof(MODEL_PARTS)))->hash != EA_001_PART_HASH)
+            continue;
+        tr = BehaviorTracks(bank, bhv, g);
+        for (t = grp->trackCount; t > 0; t--, tr++) {
+            u_char *keys;
+            int more, slot;
+            float *dst;
+            if (tr->playing != TRACK_PLAYING)
+                continue;
+            switch (tr->kind) {
+            case TRACK_KIND_BASE_POS: slot = 3; dst = base[3]; break;
+            case TRACK_KIND_POS: slot = 1; dst = local[3]; break;
+            case TRACK_KIND_BASE_ROT: slot = 2; dst = NULL; break;
+            case TRACK_KIND_ROT: slot = 0; dst = NULL; break;
+            default: continue;
+            }
+            more = InterpolateAnimationKey(tr, 0);
+            keys = BANK_PTR(u_char *, bank, tr->keys); /* the ROM reads the word after the call */
+            if (dst != NULL) {
+                if (tr->length & TRACK_KEY_RAW)
+                    memcpy(dst, keys + 0x10, 0x10);
+                else
+                    asZipTrans2Trans_XYZ1(dst, (const short *)(keys + 8), TRACK_KEY_SHIFT(tr->length));
+            } else {
+                asZipQuat2Quat(q, (const short *)(keys + 8));
+                ConvertQuat2Matrix(rot, q);
+                memcpy(slot == 2 ? base : local, rot, 0x30); /* rows 0..2 */
+            }
+            if (more == 0)
+                done[slot] = 1;
+        }
+    }
+    gaMulMatrix(out, base, local);
+    memcpy(&out[3][3], done, 4);        /* ROM: sw of the done word into the matrix's +0x3c */
+    return 0;
+}
+
+MIRROR *mrr_pActvMirrorMO;              /* sbss 0x0193cae0 */
+u_char *mrr_pActvMirrorMP;              /* sbss 0x0193cb00 */
+
+// out = m applied to v (vmulax / vmadday / vmaddaz / vmaddw): m[0] v.x + m[1] v.y + m[2] v.z + m[3] v.w.
+static void MirrorApply(float out[4], const float m[4][4], const float v[4])
+{
+    int i;
+    for (i = 0; i < 4; i++)
+        out[i] = m[0][i] * v[0] + m[1][i] * v[1] + m[2][i] * v[2] + m[3][i] * v[3];
+}
+
+// CT3 0x0184fb40
+// The scene's first mirror whose part is shown (no PARTS_FLAG_HIDDEN) becomes the active one: its
+// three points into world space by the part's matrix (REC_MATRIX), vPPbk = the third, vPVbk = the unit
+// normal (a - b) x (b - c) (w: a's). 1 when one was found; mrr_ReverseMatrix is reset either way when
+// the scene has a mirror list.
+int asEnumMirror(ALL_TABLE *tbl)
+{
+    int bank, i;
+    MIRROR_LIST *list;
+    MIRROR *mirrors;
+    u_char *header;
+    if (tbl->mirror == 0)
+        return 0;
+    bank = BankOfHostPtr(tbl);
+    list = BANK_PTR(MIRROR_LIST *, bank, tbl->mirror);
+    mirrors = BANK_PTR(MIRROR *, bank, list->mirrors);
+    header = BANK_PTR(u_char *, bank, tbl->partsHeader);
+    asInitMirrorMatrix();
+    mrr_pActvMirrorMP = NULL;
+    mrr_pActvMirrorMO = NULL;
+    for (i = 0; i < list->count; i++) {
+        MIRROR *mo = &mirrors[i];
+        MODEL_PARTS *part = (MODEL_PARTS *)(header + mo->part * (int)sizeof(MODEL_PARTS));
+        u_char *rec = (u_char *)part + PARTS_RECORDS;
+        const float (*m)[4] = (const float (*)[4])(rec + REC_MATRIX);
+        alignas(16) float a[4], b[4], n[4];
+        float len;
+        if (part->flags & PARTS_FLAG_HIDDEN)
+            continue;
+        mrr_pActvMirrorMO = mo;         /* ROM: both set after the maths; nothing reads them between */
+        mrr_pActvMirrorMP = rec;
+        MirrorApply(a, m, mo->p[0]);
+        MirrorApply(b, m, mo->p[1]);
+        MirrorApply(vPPbk, m, mo->p[2]);
+        for (int k = 0; k < 3; k++) {   /* vsub.xyz: w stays a's / b's */
+            a[k] -= b[k];
+            b[k] -= vPPbk[k];
+        }
+        n[0] = a[1] * b[2] - a[2] * b[1]; /* vopmula / vopmsub.xyz into a: w stays a's */
+        n[1] = a[2] * b[0] - a[0] * b[2];
+        n[2] = a[0] * b[1] - a[1] * b[0];
+        n[3] = a[3];
+        len = 1.0f / sqrtf(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]); /* vrsqrt vf0w */
+        vPVbk[0] = n[0] * len;
+        vPVbk[1] = n[1] * len;
+        vPVbk[2] = n[2] * len;
+        vPVbk[3] = n[3];
+        return 1;
+    }
+    return 0;
+}
+
 // CT3 0x0184ed90
 // Records an animation for Execute_ExecuteAnimationHistory to play next frame: the history grows by
 // 0x10 records at a time (from gHeapJunc), sign = a * b.
@@ -2187,12 +2405,6 @@ void asBuildMirrorMatrixTreeBack(void *tree)
     ALYSSAPAN_STUB("asBuildMirrorMatrixTreeBack", 0x0184f120);
 }
 
-// stub of CT3 0x0184fb40
-int asEnumMirror(ALL_TABLE *tbl)
-{
-    ALYSSAPAN_STUB("asEnumMirror", 0x0184fb40);
-    return {};
-}
 
 // stub of CT3 0x0184f910
 int asMakeMirrorMatrixByPlane(float *planeVec, float *planePoint)
@@ -2207,11 +2419,6 @@ void asMirrorCulling(int on)
     ALYSSAPAN_STUB("asMirrorCulling", 0x0184f390);
 }
 
-// stub of CT3 0x0184f020
-void asBuildDOFMatrixTree(u_char *partsHeader)
-{
-    ALYSSAPAN_STUB("asBuildDOFMatrixTree", 0x0184f020);
-}
 
 
 // stub of CT3 0x018444b0
@@ -2252,8 +2459,6 @@ void asShadowStart(void)
 // drawing has just been switched on, or a character that has just taken CHARACTER_FLAG_SHADOW, gets
 // the gNoDraw matrices instead: last frame's matrices are not drawn.
 
-#define REC_GA_MATRIX 0x100          /* float[4][4]: the ga draw object's first matrix (DRAW_OBJ_MATRIX) */
-#define REC_GA_MATRIX2 0x140            /* float[4][4]: its second (DRAW_OBJ_MATRIX2) */
 #define REC_GA_VIEW_HOLD 0x14c          /* float: REC_GA_MATRIX2 row 0 w = the copied REC_VIEW_HOLD;
                                            != 0 leaves the part's ga matrices alone */
 #define L2V_COPY 0                      /* asCopyDoubleBufferL2V: the view matrices to the ga ones */
@@ -2319,4 +2524,11 @@ void asCopyDoubleBuffer(void)
         }
         chr->flagsPrev = chr->flags;
     }
+}
+
+// stub of CT3 0x0184dbc0
+int InterpolateAnimationKey(BEHAVIOR_TRACK *track, int dir)
+{
+    ALYSSAPAN_STUB("InterpolateAnimationKey", 0x0184dbc0);
+    return {};
 }

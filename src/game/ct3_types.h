@@ -270,8 +270,10 @@ typedef struct ALL_TABLE {
                                            words to 0xe8: the table's end is not known */
     u_int ctrl;                         /* 0xc0: OBJ_CTRL_TABLE: the scene's controlled parts
                                            (asSeekBarInitializeForX takes the CTRL_KIND_SEEKBAR ones) */
-    u_int padc4[5];
-    u_int search;                       /* 0xd8: SEARCH_TABLE (asSearchObject), 0 = none */
+    u_int padc4[2];
+    u_int mirror;                       /* 0xcc: MIRROR_LIST (asEnumMirror), 0 = no mirror */
+    u_int padd0[2];
+    u_int search;                      /* 0xd8: SEARCH_TABLE (asSearchObject), 0 = none */
     u_int seat;                         /* 0xdc: SEAT_TABLE (asSeatArrange_Init), 0 = none */
     u_int pade0[2];
     u_int seekBarX;                     /* 0xe8: the relocator clears it; the ROM keeps the _SunAlloc'd
@@ -279,6 +281,7 @@ typedef struct ALL_TABLE {
                                            so the host keeps it in SeekBarX[bank] (this word stays 0) */
 } ALL_TABLE;
 static_assert(offsetof(ALL_TABLE, ctrl) == 0xc0, "ALL_TABLE.ctrl");
+static_assert(offsetof(ALL_TABLE, mirror) == 0xcc, "ALL_TABLE.mirror");
 static_assert(offsetof(ALL_TABLE, search) == 0xd8, "ALL_TABLE.search");
 static_assert(offsetof(ALL_TABLE, seat) == 0xdc, "ALL_TABLE.seat");
 static_assert(offsetof(ALL_TABLE, seekBarX) == 0xe8, "ALL_TABLE.seekBarX");

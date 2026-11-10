@@ -247,8 +247,8 @@ static_assert(offsetof(BEHAVIOR_TRACK, step) == 0x0a, "BEHAVIOR_TRACK.step");
 static_assert(offsetof(BEHAVIOR_TRACK, value0e) == 0x0e, "BEHAVIOR_TRACK.value0e");
 static_assert(offsetof(BEHAVIOR_TRACK, time) == 0x18, "BEHAVIOR_TRACK.time");
 typedef struct BEHAVIOR_GROUP {         /* 8 bytes, from BEHAVIOR +0x10 */
-    short pad0;
-    short trackCount;                   /* 0x2 */
+    short part;                         /* 0x0: the MODEL_PARTS index the group animates (EA_001) */
+    short trackCount;                  /* 0x2 */
     u_int tracks;                       /* 0x4: BEHAVIOR_TRACK[trackCount] */
 } BEHAVIOR_GROUP;
 static_assert(sizeof(BEHAVIOR_GROUP) == 8, "BEHAVIOR_GROUP");
@@ -264,6 +264,50 @@ static_assert(offsetof(BEHAVIOR, groups) == 0x10, "BEHAVIOR.groups");
 #define TRACK_FLAG_STARTED 0x2          /* asSceneAutoStartAnimation sets it on an auto-start track */
 #define TRACK_FLAG_AUTO_START 0x4       /* the track plays from the top at scene start */
 #define TRACK_VALUE0E_START 100         /* asSceneAutoStartAnimation's value for every track's +0xe */
+#define TRACK_FLAG_STEP_FROM_RUNS 0x1   /* asStartAnimation: step starts at runs (+0xc), not 1 */
+#define TRACK_PLAYING 1                 /* BEHAVIOR_TRACK.playing: running */
+#define TRACK_ACT_END 3                 /* ... asBehaviorActEndAnimation's mark on a running track */
+#define TRACK_TIME_SCALE 100            /* time counts playable * 100 at the end (asStartAnimation) */
+
+// slice 7 (2026-11-10)
+void asStartAnimation(BEHAVIOR_TRACK *track);                                            // CT3 0x01849750
+void asBehaviorActEndAnimation(void *behavior);                                          // CT3 0x01847d50
+int asGetBehaviorPlayingTicks(int bank, u_int anim);                                     // CT3 0x0184a530
+// ExecuteAnimation's control record (its table +0x2c word): a mode byte at +0, ticks left at +0x20.
+#define ANIM_CTRL_TICKS 0x20            /* int: asDecInterpolateTicks counts it down to 0 */
+void asDecInterpolateTicks(u_char *ctrl, int ticks);                                     // CT3 0x0184a540
+void asForceOperateMirroring_Character(int chara, int on);                               // CT3 0x018424d0 (asXcmd.c)
+// The key at the track's time (dir 0: as it stands; IAK_0); 0 once the track has run out.
+int InterpolateAnimationKey(BEHAVIOR_TRACK *track, int dir);                             // CT3 0x0184dbc0
+// Track kinds EA_001 reads (BEHAVIOR_TRACK.kind; named from that one use): a local rotation /
+// position, and the base's the local one is multiplied into.
+#define TRACK_KIND_ROT 0x0b             /* a packed quaternion: rows 0..2 of the local matrix */
+#define TRACK_KIND_POS 0x0c             /* a packed position: row 3 of the local matrix */
+#define TRACK_KIND_BASE_ROT 0x1f        /* the same for the base matrix */
+#define TRACK_KIND_BASE_POS 0x20
+#define TRACK_KEY_RAW 0x4000000         /* BEHAVIOR_TRACK.length: the key is a float[4] at keys + 0x10 */
+#define TRACK_KEY_SHIFT(len) ((len) >> 28) /* ... else three shorts at keys + 8, scaled by 1 >> this */
+#define EA_001_PART_HASH 0x74dda77d0cbcf0c2ull /* the one part EA_001 animates (MODEL_PARTS.hash) */
+int EA_001(void *behavior, ALL_TABLE *tbl, float (*out)[4]);                            // CT3 0x0184bc30
+
+// A scene's mirrors (ALL_TABLE.mirror): asEnumMirror takes the first whose part is shown. layout: ee.
+typedef struct MIRROR_LIST {            /* 8 bytes */
+    u_int mirrors;                      /* 0x0: MIRROR[count], an EE address */
+    int count;                          /* 0x4 */
+} MIRROR_LIST;
+typedef struct MIRROR {                 /* 0x50 bytes */
+    int part;                           /* 0x00: the part (MODEL_PARTS index) whose matrix places it */
+    u_char pad04[0xc];
+    float p[3][4];                      /* 0x10: three points of the plane, in the part's space (w 1) */
+    u_char pad40[0x10];
+} MIRROR;
+static_assert(sizeof(MIRROR_LIST) == 8, "MIRROR_LIST");
+static_assert(sizeof(MIRROR) == 0x50, "MIRROR");
+static_assert(offsetof(MIRROR, p) == 0x10, "MIRROR.p");
+// PORT: host pointers (the ROM's words 0x0193cae0 / 0x0193cb00): the mirror asEnumMirror found and its
+// part record (PARTS_REC); asMirrorCulling and the mirror tree read them.
+extern MIRROR *mrr_pActvMirrorMO;       /* sbss 0x0193cae0 */
+extern u_char *mrr_pActvMirrorMP;       /* sbss 0x0193cb00 */
 
 void asStartAnimationFromTop(BEHAVIOR_TRACK *track, int resetTime);                      // CT3 0x018497b0
 int asGetForceMatrixOperationFlag(void);                                                 // CT3 0x01851370

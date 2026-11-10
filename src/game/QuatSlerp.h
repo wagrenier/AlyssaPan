@@ -22,7 +22,10 @@ void asWarpObjectBody(int a0, int a1);                                          
 void WarpObjectUpdate(void);                                                             // CT3 0x0185bd50
 void WarpObjectUpdateInit(void);                                                         // CT3 0x0185bf80
 void asWarpSceneObject(void *table, int maxId, float *pos);                              // CT3 0x0185c100
-int asFindModelPartsID(u_char *header, u_long hash);                                     // CT3 0x0185e150
+// The packed keys: three shorts scaled by 1 / (1 << shift), w = 1; four shorts scaled by 1 / 16384.
+void asZipTrans2Trans_XYZ1(float *out, const short *in, u_int shift);                     // CT3 0x0185cdb0
+void asZipQuat2Quat(float *out, const short *in);                                        // CT3 0x0185c6d0
+int asFindModelPartsID(u_char *header, u_long hash);                                    // CT3 0x0185e150
 int asCheckBankID(int bank);                                                             // CT3 0x0185e360
 int asCheckBankType(int bank);                                                           // CT3 0x0185e380
 u_long ahGetHash(const char *name);                                                      // CT3 0x0185e580

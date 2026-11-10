@@ -356,6 +356,15 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    ssCalcInversMatrix2 take (out, in): confirm in QuatSlerp.c / Convert.c / ssCalcInversMatrix2.c (new
    stub TUs); (cz) SetExecuteAnimationHistory is the history adder (cr): callers EA_100 and
    ExecuteAnimation pass the bank in front (PORT); BEHAVIOR_TRACK +0x10 is now `playable`.
+   Open from slice 7 (2026-11-10): (da) asBuildDOFMatrixTree reads a matrix at record +0x1c0
+   (REC_DOF_MATRIX) and a scale diagonal at record +0x4c / +0x5c / +0x6c (REC_DOF_SCALE_*), named from
+   that one use; kind 3 (PARTS_KIND_3) is skipped there, meaning unread; (db) ALL_TABLE +0xcc is `mirror`
+   (MIRROR_LIST, MIRROR 0x50 bytes: part index + three plane points at +0x10); mrr_pActvMirrorMO / _MP
+   are host pointers defined in this TU (asMirrorCulling and the mirror tree read them); (dc) EA_001's
+   track kinds 0x0b / 0x0c / 0x1f / 0x20 (TRACK_KIND_*), TRACK_KEY_RAW, the part hash and
+   BEHAVIOR_GROUP +0 `part` are named from EA_001; InterpolateAnimationKey (0x0184dbc0, this TU, now a
+   stub) is assumed to take (track, dir) and answer 0 when the track ran out; asZipTrans2Trans_XYZ1 /
+   asZipQuat2Quat (QuatSlerp.c) take (out, in[, shift]).
    (bw) Extract is untested against a known image: the first scene_init that runs on relocated data is
    its test (a wrong decode shows as garbage tables); a harness decoding one CT3X file from CT3PACK.DAT
    beside the ROM's (eerun.py) would prove it sooner.

@@ -444,7 +444,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 121..121, 39 functions keyed by their statics, 22 unkeyed; file name from the names"
   },
   "game/ahRelocateSunPs2ObjectArry.c": {
-   "notes": "Next in this TU: ExecuteAnimation (0x16bc, reached every frame, a slice of its own), then EA_001. asMakeStraw is unverified on screen: shot still black, crash unchanged at main.c:2106 (ActressMP NULL, the character shape load in fileio.c). Open items cw..cz.",
+   "notes": "Next in this TU: ExecuteAnimation (0x16bc, reached every frame, a slice of its own), then EA_100 and InterpolateAnimationKey / IAK_0 (now stubbed). Shot still black, crash unchanged at main.c:2106 (ActressMP NULL, the character shape load in fileio.c). Open items da..dc.",
    "ranges": [
     [
      "0183e280",
@@ -481,6 +481,11 @@
      "date": "2026-11-10 05:16",
      "status": "partial",
      "summary": "slice 6: asMakeStraw from the disassembly (the straw joints: slerped and Bezier-blended frames cached per weight in SkinWork, the plain and squeeze skin loops with the twist about the joint axis), SetExecuteAnimationHistory (the history adder, host EAS_RECORD), asGetBehaviorPlayableTicks; new stub TUs Convert.c and ssCalcInversMatrix2.c"
+    },
+    {
+     "date": "2026-11-10 05:34",
+     "status": "partial",
+     "summary": "slice 7: asStartAnimation, asDecInterpolateTicks, asGetBehaviorPlayingTicks, asBehaviorActEndAnimation, asForceOperateMirroring_Character, asBuildDOFMatrixTree (from the disassembly), asEnumMirror (MIRROR_LIST at ALL_TABLE +0xcc), EA_001 (base * local matrix from four track kinds)"
     }
    ],
    "status": "partial",

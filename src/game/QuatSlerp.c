@@ -324,3 +324,15 @@ int asDelSqueezeInformation(float (*out)[4], float (*a)[4], float (*b)[4])
     ALYSSAPAN_STUB("asDelSqueezeInformation", 0x0185d380);
     return {};
 }
+
+// stub of CT3 0x0185c6d0
+void asZipQuat2Quat(float *out, const short *in)
+{
+    ALYSSAPAN_STUB("asZipQuat2Quat", 0x0185c6d0);
+}
+
+// stub of CT3 0x0185cdb0
+void asZipTrans2Trans_XYZ1(float *out, const short *in, u_int shift)
+{
+    ALYSSAPAN_STUB("asZipTrans2Trans_XYZ1", 0x0185cdb0);
+}
