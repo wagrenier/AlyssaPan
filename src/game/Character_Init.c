@@ -225,7 +225,7 @@ static void LightOmniOverride(GA_LIGHT_WORK *lw, u_short *pair, int i)
 // skipped; banks of type other than 0 take AllOmniEffect's overrides. Then gaSetLight under the view.
 void SceneLightSet(int scene)
 {
-    SCENE_LIGHT *sl = All_table_TBL[scene]->light;
+    SCENE_LIGHT *sl = BANK_PTR(SCENE_LIGHT *, scene, All_table_TBL[scene]->light);
     short *pairs = (short *)BankEePtr(scene, sl->pairs);
     LIGHT_SET *sets = (LIGHT_SET *)BankEePtr(scene, sl->sets);
     MODEL_PARTS *parts = (MODEL_PARTS *)pModelPartsHeader[scene];
@@ -382,8 +382,8 @@ void CharLightSet(int chara)
     short lightBank = chr->lightBank;
     int bank = chr->bank;
     MODEL_PARTS *parts = (MODEL_PARTS *)pModelPartsHeader[bank];
-    short *pairs = (short *)BankEePtr(bank, All_table_TBL[bank]->light->pairs);
-    LIGHT_SET *sets = (LIGHT_SET *)BankEePtr(bank, All_table_TBL[bank]->light->sets);
+    short *pairs = (short *)BankEePtr(bank, BANK_PTR(SCENE_LIGHT *, bank, All_table_TBL[bank]->light)->pairs);
+    LIGHT_SET *sets = (LIGHT_SET *)BankEePtr(bank, BANK_PTR(SCENE_LIGHT *, bank, All_table_TBL[bank]->light)->sets);
     u_short *dlSet = CharDirectLightSet[chara];
     int actress;
     short *dir;
@@ -402,7 +402,7 @@ void CharLightSet(int chara)
     if (lightBank < 0) {
         return;
     }
-    lsl = All_table_TBL[lightBank]->light;
+    lsl = BANK_PTR(SCENE_LIGHT *, lightBank, All_table_TBL[lightBank]->light);
     lparts = (MODEL_PARTS *)pModelPartsHeader[lightBank];
     if (dlSet[CHAR_DLS_ON] == 0) {
         dir = (short *)BankEePtr(lightBank, lsl->charaDir);
@@ -2962,7 +2962,7 @@ void data_load_set(u_char *data)
                 Character[chara].lightBank = -1;
                 TrgCharacterShapeSet(chara, name, -1, 0, 0);
                 InitMatrixTree(pModelPartsHeader[bank]);
-                LinkMatrixTree(All_table_TBL[bank]->objOpaque, pModelPartsHeader[bank]);
+                LinkMatrixTree(BANK_PTR(u_int *, bank, All_table_TBL[bank]->objOpaque), pModelPartsHeader[bank]);
             }
         } else if (rec->type == MC_BANK_SCENE || rec->type == MC_BANK_SCENE0) {
             TrgSceneLoad(name, bank, -1);

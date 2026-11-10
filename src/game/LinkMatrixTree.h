@@ -6,5 +6,5 @@
 
 void ahTimeMaintenance(int paused);                                                      // CT3 0x018517d0
 void ahTimeInit(void);                                                                   // CT3 0x01851880
-void LinkMatrixTree(void **objList, u_char *partsHeader);                                // CT3 0x018514d0
+void LinkMatrixTree(u_int *objList, u_char *partsHeader);                                // CT3 0x018514d0
 void InitMatrixTree(u_char *partsHeader);                                                // CT3 0x018516a0

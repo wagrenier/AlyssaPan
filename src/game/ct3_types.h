@@ -197,29 +197,49 @@ static_assert(offsetof(GA_LIGHT_WORK, dirPos) == 0x110, "GA_LIGHT_WORK.dirPos");
 static_assert(offsetof(GA_LIGHT_WORK, omniPos) == 0x150, "GA_LIGHT_WORK.omniPos");
 
 // A loaded scene's object tables (All_table_TBL[86], a record of the scene's bank): each list is a
-// NULL-terminated array of draw objects. Only the fields main.c reads; fileio.c owns the layout.
-// layout: host -- pointers (EE offsets in the comments); the file TU decides whether the bank's
-// relocated words become host pointers or stay u_int EE addresses (open-items.md item 1).
+// NULL-terminated array of EE words, each the address of a draw list entry. Only the fields the
+// written TUs read; fileio.c owns the layout. layout: ee (2026-11-10, open-items.md item 1 bv): the
+// table is the bank image + 0x80, so every pointer word is a u_int EE address the relocator
+// (ahRelocateFileObject) moved; read it with BANK_PTR(type, bank, word). Only +0x14, +0x38 and +0x3c
+// are counts. The other words (0x20..0x24, 0x30..0x50, 0x5c, 0x64..0x6c, 0x74, 0x80..0xb4) are lists
+// no written TU reads yet: named by their readers.
 typedef struct ALL_TABLE {
     u_char pad00[0x10];
-    float (*partsPos)[4];               /* EE 0x10: per model part; main_rtn draws a part only while
+    u_int partsPos;                     /* 0x10: float[parts][4]; main_rtn draws a part only while
                                            its w > PARTS_POS_HIDDEN_W; main_rtn_Particle2 starts from it */
-    int baseobjCount;                   /* EE 0x14: scene_init -> BaseobjCount[bank] */
-    void **objOpaque;                   /* EE 0x18: GlobalDrawObject's first main_rtn list */
-    void **objTrans;                    /* EE 0x1c: main_rtn mode 1; scene_draw_init sorts it */
-    SCENE_LIGHT *light;                 /* EE 0x28: the bank's light table (charaScale: main_rtn) */
-    u_char *partsHeader;                /* EE 0x2c: the MODEL_PARTS header (scene_init -> pModelPartsHeader;
+    int baseobjCount;                   /* 0x14: scene_init -> BaseobjCount[bank] */
+    u_int objOpaque;                    /* 0x18: list: GlobalDrawObject's first main_rtn list */
+    u_int objTrans;                     /* 0x1c: list: main_rtn mode 1; scene_draw_init sorts it */
+    u_int pad20[2];
+    u_int light;                        /* 0x28: SCENE_LIGHT, the bank's light table (charaScale) */
+    u_int partsHeader;                  /* 0x2c: the MODEL_PARTS header (scene_init -> pModelPartsHeader;
                                            InitMatrixTree, asBuildMirrorMatrixTree / _Back) */
-    struct SOUND_OBJ_TABLE *sound;      /* EE 0x54: the scene's sound objects (sound.c's SSFindSoundObj) */
-    void **particles;                   /* EE 0x58: main_rtn_Particle's list */
-    void **objAfter;                    /* EE 0x60: after the particles; non-empty -> ExportDrawToTex */
-    float *partsLight;                  /* EE 0x70: per model part: TEX_KIND_LIGHT parts' DRAW_OBJ_LIGHT */
-    void **particles2;                  /* EE 0x78: main_rtn_Particle2 mode 0 */
-    void **particles2After;             /* EE 0x7c: main_rtn_Particle2 mode 1; non-empty -> ExportDrawToTex */
-    u_char *fog;                        /* EE 0xb8: FOG_INFO (scene_init -> FogCtrlAddr, bank types 0 / 1) */
-    void *behavior;                     /* EE 0xbc: scene_init -> pBehaviorHeader[bank] */
+    u_int pad30[2];
+    int count38;                        /* 0x38: the +0x30 list's length (the relocator's bound) */
+    int count3c;                        /* 0x3c: the +0x34 list's length */
+    u_int pad40[5];
+    u_int sound;                        /* 0x54: SOUND_OBJ_TABLE (sound.c's SSFindSoundObj) */
+    u_int particles;                    /* 0x58: list of PARTICLE_ENTRY: main_rtn_Particle's */
+    u_int pad5c;
+    u_int objAfter;                     /* 0x60: list: after the particles; non-empty -> ExportDrawToTex */
+    u_int pad64[3];
+    u_int partsLight;                   /* 0x70: float[parts]: TEX_KIND_LIGHT parts' DRAW_OBJ_LIGHT */
+    u_int pad74;
+    u_int particles2;                   /* 0x78: list of PARTICLE2_ENTRY: main_rtn_Particle2 mode 0 */
+    u_int particles2After;              /* 0x7c: the same, mode 1; non-empty -> ExportDrawToTex */
+    u_int pad80[14];
+    u_int fog;                          /* 0xb8: FOG_INFO (scene_init -> FogCtrlAddr, bank types 0 / 1) */
+    u_int behavior;                     /* 0xbc: scene_init -> pBehaviorHeader[bank]; the relocator reads
+                                           words to 0xe0 at least: the table's end is not known */
 } ALL_TABLE;
 static_assert(offsetof(ALL_TABLE, partsPos) == 0x10, "ALL_TABLE.partsPos");
+static_assert(offsetof(ALL_TABLE, light) == 0x28, "ALL_TABLE.light");
+static_assert(offsetof(ALL_TABLE, count38) == 0x38, "ALL_TABLE.count38");
+static_assert(offsetof(ALL_TABLE, sound) == 0x54, "ALL_TABLE.sound");
+static_assert(offsetof(ALL_TABLE, objAfter) == 0x60, "ALL_TABLE.objAfter");
+static_assert(offsetof(ALL_TABLE, partsLight) == 0x70, "ALL_TABLE.partsLight");
+static_assert(offsetof(ALL_TABLE, particles2After) == 0x7c, "ALL_TABLE.particles2After");
+static_assert(offsetof(ALL_TABLE, fog) == 0xb8, "ALL_TABLE.fog");
 
 // A bank's sound objects (ALL_TABLE.sound): the sources the trigger actions and room-in start play.
 // layout: ee -- bank data; loadSE and objs are relocated words (BankEePtr, open-items.md item 1 h).
@@ -315,30 +335,33 @@ typedef struct FOG_INFO {
 static_assert(sizeof(FOG_INFO) == 0x40, "FOG_INFO");
 static_assert(offsetof(FOG_INFO, charaFog) == 0x28, "FOG_INFO.charaFog");
 
-// A texture of a draw list entry (DRAW_OBJ_ENTRY.tex). layout: host (tim is a pointer; EE offsets in
-// the comments). tim's first two words are the texture's width and height.
+// A texture of a draw list entry (DRAW_OBJ_ENTRY.tex). layout: ee (2026-11-10): bank data, tim an EE
+// word (BANK_PTR). tim's first two words are the texture's width and height.
 typedef struct TEX_INFO {
-    u_int *tim;                         /* EE 0x00: the texture; NULL = none */
-    int tbuf[6];                        /* EE 0x04: sunSetupTBufferData's arguments */
+    u_int tim;                          /* 0x00: EE address of the texture; 0 = none */
+    int tbuf[6];                        /* 0x04: sunSetupTBufferData's arguments */
     int pad1c[3];
-    int kind;                           /* EE 0x28: TEX_KIND_* */
+    int kind;                           /* 0x28: TEX_KIND_* */
 } TEX_INFO;
+static_assert(offsetof(TEX_INFO, kind) == 0x28, "TEX_INFO.kind");
 
 #define TEX_KIND_LIGHT 3                /* the part's DRAW_OBJ_LIGHT comes from ALL_TABLE.partsLight */
 #define TEX_SMALL_MAX 32                /* both sides <= 32: the BGT ring restarts before the upload */
 
-// One entry of a draw list (ALLobject[bank][i], NULL-terminated; objSort's tables). layout: host.
+// One entry of a draw list (ALLobject[bank][i], 0-terminated EE words; objSort's tables). layout: ee
+// (2026-11-10): bank data; the pointer words are the ones ahRelocateSunPs2ObjectArry relocates.
 typedef struct DRAW_OBJ_ENTRY {
-    u_char *obj;                        /* EE 0x00: the ga draw object (DRAW_OBJ_* offsets below) */
-    struct GA_DRAWCTRL_ARGS *drawCtrlArgs; /* EE 0x04: the entry's draw control settings (scene_init sets
-                                           drawCtrl from them); non-NULL and new: switch to drawCtrl */
-    TEX_INFO *tex;                      /* EE 0x08 */
-    int parts;                          /* EE 0x0c: MODEL_PARTS index */
-    int dofMode;                        /* EE 0x10: ssDOF_ClipObjectFromZRange's mode (< 2: test the
+    u_int obj;                          /* 0x00: the ga draw object (DRAW_OBJ_* offsets below) */
+    u_int drawCtrlArgs;                 /* 0x04: GA_DRAWCTRL_ARGS, the entry's draw control settings
+                                           (scene_init sets drawCtrl from them); non-0 and new: switch */
+    u_int tex;                          /* 0x08: TEX_INFO; 0 = none */
+    int parts;                          /* 0x0c: MODEL_PARTS index */
+    int dofMode;                        /* 0x10: ssDOF_ClipObjectFromZRange's mode (< 2: test the
                                            object's depth against the slice) */
-    void *tbuffer;                      /* EE 0x14: the texture's upload packet */
-    void *drawCtrl;                     /* EE 0x18: GA_DRAWCTRL_DATA */
+    u_int tbuffer;                      /* 0x14: the texture's upload packet */
+    u_int drawCtrl;                     /* 0x18: GA_DRAWCTRL_DATA */
 } DRAW_OBJ_ENTRY;
+static_assert(sizeof(DRAW_OBJ_ENTRY) == 0x1c, "DRAW_OBJ_ENTRY");
 
 // The ga draw object's bytes main_rtn touches (gaBGT_DrawObject's TU owns the layout).
 #define DRAW_OBJ_FLAGS 0x00             /* u_char: DRAW_OBJ_FLAG_* */
@@ -359,27 +382,30 @@ typedef struct PARTICLE_STATE {
 static_assert(offsetof(PARTICLE_STATE, ringSize) == 0x46, "PARTICLE_STATE.ringSize");
 static_assert(offsetof(PARTICLE_STATE, tail) == 0x4a, "PARTICLE_STATE.tail");
 
-// One entry of a bank's particle list (ALL_TABLE.particles, NULL-terminated). layout: host.
+// One entry of a bank's particle list (ALL_TABLE.particles, 0-terminated EE words). layout: ee
+// (2026-11-10): the relocator moves +0, +4, +8, +0xc, +0x14..+0x24.
 typedef struct PARTICLE_ENTRY {
-    int pad00;
-    int drawCtrlId;                     /* EE 0x04: non-zero: the draw control to switch to */
-    TEX_INFO *tex;                      /* EE 0x08 */
-    PARTICLE_STATE *state;              /* EE 0x0c */
+    u_int obj;                          /* 0x00: a ga draw object (the relocator's GA_OBJ_RELOC) */
+    u_int drawCtrlId;                   /* 0x04: non-0: the draw control to switch to (a relocated word:
+                                           probably GA_DRAWCTRL_ARGS, open-items.md 1 s) */
+    u_int tex;                          /* 0x08: TEX_INFO */
+    u_int state;                        /* 0x0c: PARTICLE_STATE */
     u_char pad10[0x10];
-    void *tbuffer;                      /* EE 0x20: the texture's upload packet */
-    void *drawCtrl;                     /* EE 0x24: GA_DRAWCTRL_DATA */
+    u_int tbuffer;                      /* 0x20: the texture's upload packet */
+    u_int drawCtrl;                     /* 0x24: GA_DRAWCTRL_DATA */
 } PARTICLE_ENTRY;
+static_assert(offsetof(PARTICLE_ENTRY, drawCtrl) == 0x24, "PARTICLE_ENTRY.drawCtrl");
 
 // One entry of a bank's second particle list (ALL_TABLE.particles2 / particles2After, NULL-terminated;
 // main_rtn_Particle2). A ring of PARTICLE2 records, each drawn as one ga draw object placed at the
-// entry's model part (ALL_TABLE.partsPos[parts]) plus the record's offset. layout: host (EE offsets in
-// the comments).
+// entry's model part (ALL_TABLE.partsPos[parts]) plus the record's offset. layout: ee (2026-11-10).
 typedef struct PARTICLE2 {
     u_char pad00[0x20];
-    float offset[4];                    /* EE 0x20: added to the part's position; w scales its w
+    float offset[4];                    /* 0x20: added to the part's position; w scales its w
                                            around PARTS_POS_W_CENTER */
     u_char pad30[0x38];
-    u_char *obj;                        /* EE 0x68: the ga draw object (DRAW_OBJ_* offsets) */
+    u_int obj;                          /* 0x68: the ga draw object (DRAW_OBJ_* offsets) */
+    u_int obj6c;                        /* 0x6c: relocated; not read yet */
     u_char pad70[0x10];
 } PARTICLE2;
 static_assert(sizeof(PARTICLE2) == 0x80, "PARTICLE2");
@@ -394,16 +420,17 @@ typedef struct PARTICLE2_ENTRY {
     u_short count;                      /* EE 0x46: live records; 0 = nothing to draw */
     u_short head;                       /* EE 0x48: the oldest live record */
     u_char pad4a[6];
-    int drawCtrlId;                     /* EE 0x50: non-zero: the draw control to switch to */
-    TEX_INFO *tex;                      /* EE 0x54: uploaded only for particles2 (not ...After) */
+    u_int drawCtrlId;                   /* 0x50: non-0: the draw control to switch to (relocated) */
+    u_int tex;                          /* 0x54: TEX_INFO; uploaded only for particles2 (not ...After) */
     int pad58;
-    PARTICLE2 *ring;                    /* EE 0x5c */
+    u_int ring;                         /* 0x5c: PARTICLE2[ringSize] */
     u_char pad60[0x14];
-    void *tbuffer;                      /* EE 0x74: the texture's upload packet */
-    void *drawCtrl;                     /* EE 0x78: GA_DRAWCTRL_DATA */
+    u_int tbuffer;                      /* 0x74: the texture's upload packet */
+    u_int drawCtrl;                     /* 0x78: GA_DRAWCTRL_DATA */
 } PARTICLE2_ENTRY;
 static_assert(offsetof(PARTICLE2_ENTRY, parts) == 0x40, "PARTICLE2_ENTRY.parts");
 static_assert(offsetof(PARTICLE2_ENTRY, drawCtrlId) == 0x50, "PARTICLE2_ENTRY.drawCtrlId");
+static_assert(offsetof(PARTICLE2_ENTRY, drawCtrl) == 0x78, "PARTICLE2_ENTRY.drawCtrl");
 
 #define PARTS_POS_W_CENTER 128.0f       /* main_rtn_Particle2: w' = (w + 128) * scale - 128 */
 
@@ -418,6 +445,8 @@ static inline void *BankEePtr(int bank, u_int ee)
 {
     return ee ? BankImage[bank] + (int)(ee - BankImageEE[bank]) : NULL;
 }
+// A relocated word of bank `bank` as a host pointer of type T (ALL_TABLE's fields, the draw lists).
+#define BANK_PTR(T, bank, ee) ((T)BankEePtr((bank), (ee)))
 // The other way: the EE address a host pointer into bank `bank` had (TrgCharacterShapeSet's leg parts).
 static inline u_int BankEeAddr(int bank, const void *host)
 {

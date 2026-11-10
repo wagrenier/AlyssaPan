@@ -29,7 +29,7 @@ void ssBGT_DOFSetDrawEnvPreRend(int pass, int level);                           
 int ssDOF_ClipObjectFromZRange(u_char *obj, u_int mode);                                // CT3 0x0189da90
 int ssGetNumBlurDrawObjForScene(int scene, int mode);                                    // CT3 0x01896920
 void ssBGT_ZBufferClear(void);                                                           // CT3 0x0189dec0
-void ssPartMotionBlurInsertObjToDrawTable(int bank, void *table, void **list, int count, int mode); // CT3 0x01896a90
+void ssPartMotionBlurInsertObjToDrawTable(int bank, void *table, u_int *list, int count, int mode); // CT3 0x01896a90
 void ssBGT_HQDOF_WriteBackFB(int alpha);                                                 // CT3 0x0189b390
 void ssBGT_HQDOF_SetDrawEnvPreRend(void);                                                // CT3 0x0189b510
 void ssSetAmbColorToAllObj(int scene);                                                   // CT3 0x01895f00

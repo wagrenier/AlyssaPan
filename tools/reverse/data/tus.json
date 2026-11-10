@@ -1,6 +1,5 @@
 {
  "queue": [
-  "game/ct3_types.h",
   "game/ahRelocateSunPs2ObjectArry.c",
   "game/fileio.c"
  ],
@@ -535,6 +534,15 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 111..111, 2 functions keyed by their statics, 0 unkeyed; file name from the names"
   },
   "game/ct3_types.h": {
+   "notes": "scene_init now runs to the end on the relocated global bank (all three draw lists walked) and the frame loop reaches the updates. Next blocker: main.c:2106, ActressMP is NULL because Alyssa's shape bank never loads in the smoke run (open-items.md item 1 bv). Shot black: draws are stubs.",
+   "sessions": [
+    {
+     "date": "2026-11-10 03:12",
+     "status": "done",
+     "summary": "ALL_TABLE, DRAW_OBJ_ENTRY, TEX_INFO, PARTICLE_ENTRY, PARTICLE2_ENTRY in EE layout; pointer words u_int read through BANK_PTR in main.c, Character_Init.c, sound.c, main2.c; ALLobject and the matrix-tree lists take EE words"
+    }
+   ],
+   "status": "done",
    "task": "Host task: ALL_TABLE and its lists in EE layout (open-items.md item 1 bv): ALL_TABLE fields to u_int words read through BankEePtr in main.c, Character_Init.c, sound.c, main2.c, fileio.c; ALLobject and LinkMatrixTree / asBuildMirrorMatrixTree lists as u_int EE words; DRAW_OBJ_ENTRY, TEX_INFO, PARTICLE_ENTRY, PARTICLE2_ENTRY to EE layout with u_int pointer words at the offsets ahRelocateFileObject relocates (architecture.md The file relocator). Done when scene_init runs past the global bank load."
   },
   "game/fileio.c": {

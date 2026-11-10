@@ -86,7 +86,7 @@ int gArgc;                                      /* sbss 0x01942b44 */
 #define ALL_DRAW_DOF_FIRST 2                    /* AllDrawObject / main_rtn_DOF: the farthest DOF slice clip-checks */
 #define ALL_DRAW_DOF_NEXT 3                     /* the nearer slices reuse the stored clip byte */
 #define MAIN_RTN_CLIP_FAR 50000.0f              /* gaSet3dlibStruct's far clip */
-#define DRAW_CTRL_NONE ((GA_DRAWCTRL_ARGS *)-1) /* main_rtn's "no draw control yet" (the ROM's -1) */
+#define DRAW_CTRL_NONE ((u_int)-1)      /* main_rtn's "no draw control yet" (the ROM's -1; an EE word) */
 // FirstInitialization's frame-clear draw control (the ROM's 29 argument slots, 0x01835708).
 static const GA_DRAWCTRL_ARGS FRAMECLEAR_DRAWCTRL_ARGS = {
     0, 0, 0, 1, 0, 0, 0, 0, /* PRMODE: ABE */
@@ -171,7 +171,7 @@ void main_rtn_GHOST_DOF(int bank, int mode, int chara, int pass, int charaIndex,
     u_char *table;
     FOG_INFO *fog;
     TEX_INFO *texNow;
-    u_int *timNow = NULL;
+    u_int timNow = 0;
     int zonlyParts = -1;
     int i;
 
@@ -193,11 +193,11 @@ void main_rtn_GHOST_DOF(int bank, int mode, int chara, int pass, int charaIndex,
             objSort(bank, count, table);
         else
             objSortWithBlurIdx(bank, count, table);
-        ALLobject[bank] = (void **)table;
+        ALLobject[bank] = (u_int *)table;
     }
     if (blur != 0) {
         ssPartMotionBlurInsertObjToDrawTable(bank, table, ALLobject[bank], count, mode);
-        ALLobject[bank] = (void **)table;
+        ALLobject[bank] = (u_int *)table;
     }
 
     fog = (FOG_INFO *)FogCtrlAddr[idCurrentScene];
@@ -213,15 +213,15 @@ void main_rtn_GHOST_DOF(int bank, int mode, int chara, int pass, int charaIndex,
     gaSetupDrawCtrlData(&ctrl, GHOST_DRAWCTRL_ARGS);
     gaBGT_ExecDrawCtrlData_VIF1(&ctrl);
 
-    for (i = 0; ALLobject[bank][i] != NULL; i++) {
-        DRAW_OBJ_ENTRY *ent = (DRAW_OBJ_ENTRY *)ALLobject[bank][i];
-        u_char *obj = ent->obj;
-        TEX_INFO *tex = ent->tex;
+    for (i = 0; ALLobject[bank][i] != 0; i++) {
+        DRAW_OBJ_ENTRY *ent = BANK_PTR(DRAW_OBJ_ENTRY *, bank, ALLobject[bank][i]);
+        u_char *obj = BANK_PTR(u_char *, bank, ent->obj);
+        TEX_INFO *tex = BANK_PTR(TEX_INFO *, bank, ent->tex);
         MODEL_PARTS *parts = &((MODEL_PARTS *)pModelPartsHeader[bank])[ent->parts];
 
         if (parts->flags & PARTS_FLAG_FOG)
             continue;
-        if (!(All_table_TBL[bank]->partsPos[ent->parts][3] > PARTS_POS_HIDDEN_W))
+        if (!(BANK_PTR(float (*)[4], bank, All_table_TBL[bank]->partsPos)[ent->parts][3] > PARTS_POS_HIDDEN_W))
             continue;
         if (parts->kind == PARTS_KIND_NO_DOF)
             continue;
@@ -232,9 +232,9 @@ void main_rtn_GHOST_DOF(int bank, int mode, int chara, int pass, int charaIndex,
         if ((s_char)obj[DRAW_OBJ_CLIP] < 0)
             continue;
 
-        if (texNow != tex && tex != NULL && tex->tim != timNow && tex->tim != NULL) {
-            sunSetupTBufferData(ent->tbuffer, *tex);
-            sunBGT_LoadGSTexClutData_VIF1(ent->tbuffer);
+        if (texNow != tex && tex != NULL && tex->tim != timNow && tex->tim != 0) {
+            sunSetupTBufferData(BANK_PTR(void *, bank, ent->tbuffer), *tex);
+            sunBGT_LoadGSTexClutData_VIF1(BANK_PTR(void *, bank, ent->tbuffer));
         }
         if (ssDOF_ClipObjectFromZRange(obj, (u_int)ent->dofMode) == 0)
             continue;
@@ -244,9 +244,9 @@ void main_rtn_GHOST_DOF(int bank, int mode, int chara, int pass, int charaIndex,
 
             if (chara == 0) {
                 if (tex->kind == TEX_KIND_LIGHT)
-                    *light = All_table_TBL[bank]->partsLight[ent->parts];
+                    *light = BANK_PTR(float *, bank, All_table_TBL[bank]->partsLight)[ent->parts];
             } else if (tex->kind == TEX_KIND_LIGHT && lightBank != -1 && BankInfo[lightBank].drawOn == 1) {
-                float target = All_table_TBL[lightBank]->light->charaScale * All_table_TBL[bank]->partsLight[ent->parts];
+                float target = BANK_PTR(SCENE_LIGHT *, lightBank, All_table_TBL[lightBank]->light)->charaScale * BANK_PTR(float *, bank, All_table_TBL[bank]->partsLight)[ent->parts];
 
                 if (lightFrames == 0.0f)
                     *light = target;
@@ -257,14 +257,14 @@ void main_rtn_GHOST_DOF(int bank, int mode, int chara, int pass, int charaIndex,
 
         drawobj_attr = 0;
         if (texNow != tex && tex != NULL) {
-            if (tex->tim != timNow && tex->tim != NULL) {
-                if (tex->tim[0] <= TEX_SMALL_MAX && tex->tim[1] <= TEX_SMALL_MAX) {
+            if (tex->tim != timNow && tex->tim != 0) {
+                if (BANK_PTR(u_int *, bank, tex->tim)[0] <= TEX_SMALL_MAX && BANK_PTR(u_int *, bank, tex->tim)[1] <= TEX_SMALL_MAX) {
                     gaBGT_End();
                     gaBGT_Start(bgt_ringbuffer, BGT_RINGBUFFER_SIZE);
                 }
                 timNow = tex->tim;
             }
-            sunBGT_ExecTBufferData_VIF1(ent->tbuffer);
+            sunBGT_ExecTBufferData_VIF1(BANK_PTR(void *, bank, ent->tbuffer));
             texNow = tex;
         }
         if (obj[DRAW_OBJ_CLIP] == 0 && !(obj[DRAW_OBJ_FLAGS] & DRAW_OBJ_FLAG_CLIP))
@@ -293,7 +293,7 @@ void main_rtn_GHOST(int bank, int mode, int chara, u_int flags, int charaIndex, 
     MODEL_PARTS *parts;
     FOG_INFO *fog;
     TEX_INFO *texNow;
-    u_int *timNow = NULL;
+    u_int timNow = 0;
     int zonlyParts = -1;
     int i;
 
@@ -315,11 +315,11 @@ void main_rtn_GHOST(int bank, int mode, int chara, u_int flags, int charaIndex, 
             objSort(bank, count, table);
         else
             objSortWithBlurIdx(bank, count, table);
-        ALLobject[bank] = (void **)table;
+        ALLobject[bank] = (u_int *)table;
     }
     if (blur != 0) {
         ssPartMotionBlurInsertObjToDrawTable(bank, table, ALLobject[bank], count, mode);
-        ALLobject[bank] = (void **)table;
+        ALLobject[bank] = (u_int *)table;
     }
 
     fog = (FOG_INFO *)FogCtrlAddr[idCurrentScene];
@@ -335,16 +335,16 @@ void main_rtn_GHOST(int bank, int mode, int chara, u_int flags, int charaIndex, 
     gaSetupDrawCtrlData(&ctrl, GHOST_DRAWCTRL_ARGS);
     gaBGT_ExecDrawCtrlData_VIF1(&ctrl);
 
-    for (i = 0; ALLobject[bank][i] != NULL; i++) {
-        DRAW_OBJ_ENTRY *ent = (DRAW_OBJ_ENTRY *)ALLobject[bank][i];
-        u_char *obj = ent->obj;
-        TEX_INFO *tex = ent->tex;
+    for (i = 0; ALLobject[bank][i] != 0; i++) {
+        DRAW_OBJ_ENTRY *ent = BANK_PTR(DRAW_OBJ_ENTRY *, bank, ALLobject[bank][i]);
+        u_char *obj = BANK_PTR(u_char *, bank, ent->obj);
+        TEX_INFO *tex = BANK_PTR(TEX_INFO *, bank, ent->tex);
         int clip;
 
         parts = &((MODEL_PARTS *)pModelPartsHeader[bank])[ent->parts];
         if (parts->flags & PARTS_FLAG_FOG)
             continue;
-        if (!(All_table_TBL[bank]->partsPos[ent->parts][3] > PARTS_POS_HIDDEN_W))
+        if (!(BANK_PTR(float (*)[4], bank, All_table_TBL[bank]->partsPos)[ent->parts][3] > PARTS_POS_HIDDEN_W))
             continue;
         if ((parts->flags & PARTS_FLAG_ZONLY_FIRST) && zonlyParts != ent->parts)
             zonlyParts = OneMaxObjectDrawZOnly(bank, i);
@@ -352,9 +352,9 @@ void main_rtn_GHOST(int bank, int mode, int chara, u_int flags, int charaIndex, 
         if (clip < 0)
             continue;
 
-        if (texNow != tex && tex != NULL && tex->tim != timNow && tex->tim != NULL) {
-            sunSetupTBufferData(ent->tbuffer, *tex);
-            sunBGT_LoadGSTexClutData_VIF1(ent->tbuffer);
+        if (texNow != tex && tex != NULL && tex->tim != timNow && tex->tim != 0) {
+            sunSetupTBufferData(BANK_PTR(void *, bank, ent->tbuffer), *tex);
+            sunBGT_LoadGSTexClutData_VIF1(BANK_PTR(void *, bank, ent->tbuffer));
         }
         *(int *)(obj + DRAW_OBJ_ATTR) = parts->attr;
         if (tex != NULL) {
@@ -362,9 +362,9 @@ void main_rtn_GHOST(int bank, int mode, int chara, u_int flags, int charaIndex, 
 
             if (chara == 0) {
                 if (tex->kind == TEX_KIND_LIGHT)
-                    *light = All_table_TBL[bank]->partsLight[ent->parts];
+                    *light = BANK_PTR(float *, bank, All_table_TBL[bank]->partsLight)[ent->parts];
             } else if (tex->kind == TEX_KIND_LIGHT && lightBank != -1 && BankInfo[lightBank].drawOn == 1) {
-                float target = All_table_TBL[lightBank]->light->charaScale * All_table_TBL[bank]->partsLight[ent->parts];
+                float target = BANK_PTR(SCENE_LIGHT *, lightBank, All_table_TBL[lightBank]->light)->charaScale * BANK_PTR(float *, bank, All_table_TBL[bank]->partsLight)[ent->parts];
 
                 if (lightFrames == 0.0f)
                     *light = target;
@@ -375,14 +375,14 @@ void main_rtn_GHOST(int bank, int mode, int chara, u_int flags, int charaIndex, 
 
         drawobj_attr = 0;
         if (texNow != tex && tex != NULL) {
-            if (tex->tim != timNow && tex->tim != NULL) {
-                if (tex->tim[0] <= TEX_SMALL_MAX && tex->tim[1] <= TEX_SMALL_MAX) {
+            if (tex->tim != timNow && tex->tim != 0) {
+                if (BANK_PTR(u_int *, bank, tex->tim)[0] <= TEX_SMALL_MAX && BANK_PTR(u_int *, bank, tex->tim)[1] <= TEX_SMALL_MAX) {
                     gaBGT_End();
                     gaBGT_Start(bgt_ringbuffer, BGT_RINGBUFFER_SIZE);
                 }
                 timNow = tex->tim;
             }
-            sunBGT_ExecTBufferData_VIF1(ent->tbuffer);
+            sunBGT_ExecTBufferData_VIF1(BANK_PTR(void *, bank, ent->tbuffer));
             texNow = tex;
         }
         if (clip == 0 && !(obj[DRAW_OBJ_FLAGS] & DRAW_OBJ_FLAG_CLIP)) {
@@ -761,9 +761,9 @@ static void AllDrawCharacter(short c, int mode, void **lastTex)
 
     if (mode != ALL_DRAW_DOF_NEXT)
         CharLightSet(c);
-    ALLobject[bank] = tbl->objOpaque;
+    ALLobject[bank] = BANK_PTR(u_int *, bank, tbl->objOpaque);
     AllDrawList(bank, 0, 1, mode, c, lastTex);
-    ALLobject[bank] = tbl->objTrans;
+    ALLobject[bank] = BANK_PTR(u_int *, bank, tbl->objTrans);
     AllDrawList(bank, 1, 1, mode, c, lastTex);
 }
 
@@ -811,7 +811,7 @@ void AllDrawObject(int mode)
         if (AllDrawSceneBank(i)) {
             if (mode != ALL_DRAW_DOF_NEXT)
                 SceneLightSet(i);
-            ALLobject[i] = All_table_TBL[i]->objOpaque;
+            ALLobject[i] = BANK_PTR(u_int *, i, All_table_TBL[i]->objOpaque);
             AllDrawList(i, 0, 0, mode, 0, &lastTex);
         }
         if (BankInfo[i].groupCount != 0)
@@ -844,7 +844,7 @@ void AllDrawObject(int mode)
             asMirrorPlaneCalc(planeVec, planePoint);
             asMakeMirrorMatrixByPlane(planeVec, planePoint);
             asMirrorCulling(0);
-            asBuildMirrorMatrixTree(tbl->partsHeader);
+            asBuildMirrorMatrixTree(BANK_PTR(u_char *, Character[c].bank, tbl->partsHeader));
             asGAobjectControlPolygonDisplayRotateFlagReverse(tbl);
             AllDrawCharacter(c, mode, &lastTex);
             asMirrorCulling(1);
@@ -857,7 +857,7 @@ void AllDrawObject(int mode)
             ALL_TABLE *tbl = All_table_TBL[Character[c].bank];
 
             asGAobjectControlPolygonDisplayRotateFlagReverse(tbl);
-            asBuildMirrorMatrixTreeBack(tbl->partsHeader);
+            asBuildMirrorMatrixTreeBack(BANK_PTR(u_char *, Character[c].bank, tbl->partsHeader));
         }
     }
     if (ssTrigCheckEvent(EV_SHADOW_AFTER_MIRROR, 1, 0) != 0)
@@ -867,7 +867,7 @@ void AllDrawObject(int mode)
     lastTex = NULL;
     for (i = BANK_SCENE_MAX; i < BANK_MAX; i++) {
         if (AllDrawSceneBank(i) && !(BankInfo[i].flags & BANK_FLAG_DRAW_FIRST)) {
-            ALLobject[i] = All_table_TBL[i]->objTrans;
+            ALLobject[i] = BANK_PTR(u_int *, i, All_table_TBL[i]->objTrans);
             AllDrawList(i, 1, 0, mode, 0, &lastTex);
         }
         if (BankInfo[i].groupCount != 0)
@@ -875,7 +875,7 @@ void AllDrawObject(int mode)
     }
     for (i = BANK_SCENE_MAX; i < BANK_MAX; i++) {
         if (AllDrawSceneBank(i) && (BankInfo[i].flags & BANK_FLAG_DRAW_FIRST)) {
-            ALLobject[i] = All_table_TBL[i]->objTrans;
+            ALLobject[i] = BANK_PTR(u_int *, i, All_table_TBL[i]->objTrans);
             AllDrawList(i, 1, 0, mode, 0, &lastTex);
         }
         if (BankInfo[i].groupCount != 0)
@@ -921,12 +921,12 @@ void AllDrawObject(int mode)
             tiChara_Translucence_Start2();
             if (AllDrawLightBankLoaded(chr->lightBank)) {
                 tbl = All_table_TBL[bank];
-                ALLobject[bank] = tbl->objOpaque;
+                ALLobject[bank] = BANK_PTR(u_int *, bank, tbl->objOpaque);
                 if (mode == ALL_DRAW_DOF_FIRST || mode == ALL_DRAW_DOF_NEXT)
                     main_rtn_GHOST_DOF(bank, 0, 1, mode, c, &lastTex);
                 else
                     main_rtn_GHOST(bank, 0, 1, (u_int)mode, c, &lastTex);
-                ALLobject[bank] = tbl->objTrans;
+                ALLobject[bank] = BANK_PTR(u_int *, bank, tbl->objTrans);
                 if (mode == ALL_DRAW_DOF_FIRST || mode == ALL_DRAW_DOF_NEXT)
                     main_rtn_GHOST_DOF(bank, 1, 1, mode, c, &lastTex);
                 else
@@ -950,19 +950,19 @@ static void GlobalDrawBank(int bank, int *exported, void **lastTex)
     FlushCache(0);
     ssBGT_ZBufferClear();
     SceneLightSet(bank);
-    ALLobject[bank] = tbl->objOpaque;
+    ALLobject[bank] = BANK_PTR(u_int *, bank, tbl->objOpaque);
     main_rtn(bank, 0, 0, 0, 0, lastTex);
-    ALLobject[bank] = tbl->objTrans;
+    ALLobject[bank] = BANK_PTR(u_int *, bank, tbl->objTrans);
     main_rtn(bank, 1, 0, 0, 0, lastTex);
     main_rtn_Particle(bank, 0, lastTex);
     main_rtn_Particle2(bank, 0, 0, lastTex);
-    ALLobject[bank] = tbl->objAfter;
-    if (!*exported && *ALLobject[bank] != NULL) {
+    ALLobject[bank] = BANK_PTR(u_int *, bank, tbl->objAfter);
+    if (!*exported && *ALLobject[bank] != 0) {
         ExportDrawToTex();
         *exported = 1;
     }
     main_rtn(bank, 0, 0, 0, 0, lastTex);
-    if (!*exported && *tbl->particles2After != NULL) {
+    if (!*exported && *BANK_PTR(u_int *, bank, tbl->particles2After) != 0) {
         ExportDrawToTex();
         *exported = 1;
     }
@@ -1005,9 +1005,9 @@ void main_rtn_Particle2(int bank, int fog, int after, void **lastTex)
 {
     ALL_TABLE *tbl;
     TEX_INFO *texNow;
-    int ctrlNow = -1;
-    u_int *timNow = NULL;
-    void **list;
+    u_int ctrlNow = (u_int)-1;
+    u_int timNow = 0;
+    u_int *list;
     FOG_INFO *info;
     int i;
 
@@ -1015,7 +1015,7 @@ void main_rtn_Particle2(int bank, int fog, int after, void **lastTex)
         asChangeViewMatrix_forTheBank(asCheckBankID(bank));
     tbl = All_table_TBL[bank];
     texNow = (TEX_INFO *)*lastTex;
-    list = after == 0 ? tbl->particles2 : tbl->particles2After;
+    list = BANK_PTR(u_int *, bank, after == 0 ? tbl->particles2 : tbl->particles2After);
     if (fog == 0) {
         info = (FOG_INFO *)FogCtrlAddr[bank];
         gaSetupFogCtrlData(&fogctrl[bank], info->fog[0], info->fog[1], info->fog[2],
@@ -1036,29 +1036,29 @@ void main_rtn_Particle2(int bank, int fog, int after, void **lastTex)
             FOG_mode = 1;
     }
 
-    for (i = 0; list[i] != NULL; i++) {
-        PARTICLE2_ENTRY *ent = (PARTICLE2_ENTRY *)list[i];
-        TEX_INFO *tex = ent->tex;
+    for (i = 0; list[i] != 0; i++) {
+        PARTICLE2_ENTRY *ent = BANK_PTR(PARTICLE2_ENTRY *, bank, list[i]);
+        TEX_INFO *tex = BANK_PTR(TEX_INFO *, bank, ent->tex);
         const float *base;
         int j;
 
         if (ent->count == 0)
             continue;
         if (ent->drawCtrlId != 0 && ent->drawCtrlId != ctrlNow)
-            gaBGT_ExecDrawCtrlData_VIF1((GA_DRAWCTRL_DATA *)ent->drawCtrl);
+            gaBGT_ExecDrawCtrlData_VIF1(BANK_PTR(GA_DRAWCTRL_DATA *, bank, ent->drawCtrl));
         if (after == 0 && tex != NULL && tex != texNow) {
             if (tex->tim != timNow) {
-                sunBGT_LoadGSTexClutData_VIF1(ent->tbuffer);
+                sunBGT_LoadGSTexClutData_VIF1(BANK_PTR(void *, bank, ent->tbuffer));
                 gaBGT_End();
                 gaBGT_Start(bgt_ringbuffer, BGT_RINGBUFFER_SIZE);
                 timNow = tex->tim;
             }
-            sunBGT_ExecTBufferData_VIF1(ent->tbuffer);
+            sunBGT_ExecTBufferData_VIF1(BANK_PTR(void *, bank, ent->tbuffer));
         }
-        base = tbl->partsPos[ent->parts];
+        base = BANK_PTR(float (*)[4], bank, tbl->partsPos)[ent->parts];
         for (j = 0; j < ent->count; j++) {
-            PARTICLE2 *rec = &ent->ring[(ent->head + j) % ent->ringSize];
-            u_char *obj = rec->obj;
+            PARTICLE2 *rec = &BANK_PTR(PARTICLE2 *, bank, ent->ring)[(ent->head + j) % ent->ringSize];
+            u_char *obj = BANK_PTR(u_char *, bank, rec->obj);
 
             obj[DRAW_OBJ_CLIP] = (u_char)gaObjectClippingCheck(obj);
             if ((s_char)obj[DRAW_OBJ_CLIP] >= 0) {
@@ -1086,9 +1086,9 @@ void main_rtn_Particle2(int bank, int fog, int after, void **lastTex)
 void main_rtn_Particle(int bank, int fog, void **lastTex)
 {
     TEX_INFO *texNow = (TEX_INFO *)*lastTex;
-    int ctrlNow = -1;
-    u_int *timNow = NULL;
-    void **list = All_table_TBL[bank]->particles;
+    u_int ctrlNow = (u_int)-1;
+    u_int timNow = 0;
+    u_int *list = BANK_PTR(u_int *, bank, All_table_TBL[bank]->particles);
     FOG_INFO *info;
     int i;
 
@@ -1114,25 +1114,25 @@ void main_rtn_Particle(int bank, int fog, void **lastTex)
             FOG_mode = 1;
     }
 
-    for (i = 0; list[i] != NULL; i++) {
-        PARTICLE_ENTRY *ent = (PARTICLE_ENTRY *)list[i];
-        PARTICLE_STATE *state = ent->state;
-        TEX_INFO *tex = ent->tex;
+    for (i = 0; list[i] != 0; i++) {
+        PARTICLE_ENTRY *ent = BANK_PTR(PARTICLE_ENTRY *, bank, list[i]);
+        PARTICLE_STATE *state = BANK_PTR(PARTICLE_STATE *, bank, ent->state);
+        TEX_INFO *tex = BANK_PTR(TEX_INFO *, bank, ent->tex);
         u_int slot = state->head;
         u_int tail = state->tail;
 
         if (slot == tail)
             continue;
         if (ent->drawCtrlId != 0 && ent->drawCtrlId != ctrlNow)
-            gaBGT_ExecDrawCtrlData_VIF1((GA_DRAWCTRL_DATA *)ent->drawCtrl);
+            gaBGT_ExecDrawCtrlData_VIF1(BANK_PTR(GA_DRAWCTRL_DATA *, bank, ent->drawCtrl));
         if (tex != NULL && tex != texNow) {
             if (tex->tim != timNow) {
-                sunBGT_LoadGSTexClutData_VIF1(ent->tbuffer);
+                sunBGT_LoadGSTexClutData_VIF1(BANK_PTR(void *, bank, ent->tbuffer));
                 gaBGT_End();
                 gaBGT_Start(bgt_ringbuffer, BGT_RINGBUFFER_SIZE);
                 timNow = tex->tim;
             }
-            sunBGT_ExecTBufferData_VIF1(ent->tbuffer);
+            sunBGT_ExecTBufferData_VIF1(BANK_PTR(void *, bank, ent->tbuffer));
         }
         texNow = tex;
         ctrlNow = ent->drawCtrlId;
@@ -1172,8 +1172,8 @@ void main_rtn(int bank, int mode, int chara, u_int flags, int charaIndex, void *
     MODEL_PARTS *parts;
     FOG_INFO *fog;
     TEX_INFO *texNow;
-    u_int *timNow = NULL;
-    GA_DRAWCTRL_ARGS *ctrlNow = DRAW_CTRL_NONE;
+    u_int timNow = 0;
+    u_int ctrlNow = DRAW_CTRL_NONE;
     int zonlyParts = -1;
     u_int pass = flags & MAIN_RTN_PASS_MASK;
     int i;
@@ -1199,11 +1199,11 @@ void main_rtn(int bank, int mode, int chara, u_int flags, int charaIndex, void *
             else
                 objSortWithBlurIdx(bank, count, table);
         }
-        ALLobject[bank] = (void **)table;
+        ALLobject[bank] = (u_int *)table;
     }
     if ((pass == MAIN_RTN_PASS_SORT || pass == MAIN_RTN_PASS_SORT2) && blur != 0) {
         ssPartMotionBlurInsertObjToDrawTable(bank, table, ALLobject[bank], count, mode);
-        ALLobject[bank] = (void **)table;
+        ALLobject[bank] = (u_int *)table;
     }
 
     if (chara == 0) {
@@ -1229,16 +1229,16 @@ void main_rtn(int bank, int mode, int chara, u_int flags, int charaIndex, void *
             FOG_mode = 1;
     }
 
-    for (i = 0; ALLobject[bank][i] != NULL; i++) {
-        DRAW_OBJ_ENTRY *ent = (DRAW_OBJ_ENTRY *)ALLobject[bank][i];
-        u_char *obj = ent->obj;
-        TEX_INFO *tex = ent->tex;
+    for (i = 0; ALLobject[bank][i] != 0; i++) {
+        DRAW_OBJ_ENTRY *ent = BANK_PTR(DRAW_OBJ_ENTRY *, bank, ALLobject[bank][i]);
+        u_char *obj = BANK_PTR(u_char *, bank, ent->obj);
+        TEX_INFO *tex = BANK_PTR(TEX_INFO *, bank, ent->tex);
         int clip;
 
         parts = &((MODEL_PARTS *)pModelPartsHeader[bank])[ent->parts];
         if (parts->flags & PARTS_FLAG_FOG)
             continue;
-        if (!(All_table_TBL[bank]->partsPos[ent->parts][3] > PARTS_POS_HIDDEN_W))
+        if (!(BANK_PTR(float (*)[4], bank, All_table_TBL[bank]->partsPos)[ent->parts][3] > PARTS_POS_HIDDEN_W))
             continue;
         if ((parts->flags & PARTS_FLAG_ZONLY_FIRST) && zonlyParts != ent->parts) {
             zonlyParts = OneMaxObjectDrawZOnly(bank, i);
@@ -1248,12 +1248,12 @@ void main_rtn(int bank, int mode, int chara, u_int flags, int charaIndex, void *
         if (clip < 0)
             continue;
 
-        if (texNow != tex && tex != NULL && tex->tim != timNow && tex->tim != NULL) {
-            sunSetupTBufferData(ent->tbuffer, *tex);
-            sunBGT_LoadGSTexClutData_VIF1(ent->tbuffer);
+        if (texNow != tex && tex != NULL && tex->tim != timNow && tex->tim != 0) {
+            sunSetupTBufferData(BANK_PTR(void *, bank, ent->tbuffer), *tex);
+            sunBGT_LoadGSTexClutData_VIF1(BANK_PTR(void *, bank, ent->tbuffer));
         }
-        if (ctrlNow != ent->drawCtrlArgs && ent->drawCtrlArgs != NULL) {
-            gaBGT_ExecDrawCtrlData_VIF1((GA_DRAWCTRL_DATA *)ent->drawCtrl);
+        if (ctrlNow != ent->drawCtrlArgs && ent->drawCtrlArgs != 0) {
+            gaBGT_ExecDrawCtrlData_VIF1(BANK_PTR(GA_DRAWCTRL_DATA *, bank, ent->drawCtrl));
             ctrlNow = ent->drawCtrlArgs;
         }
         *(int *)(obj + DRAW_OBJ_ATTR) = parts->attr;
@@ -1262,9 +1262,9 @@ void main_rtn(int bank, int mode, int chara, u_int flags, int charaIndex, void *
 
             if (chara == 0) {
                 if (tex->kind == TEX_KIND_LIGHT)
-                    *light = All_table_TBL[bank]->partsLight[ent->parts];
+                    *light = BANK_PTR(float *, bank, All_table_TBL[bank]->partsLight)[ent->parts];
             } else if (tex->kind == TEX_KIND_LIGHT && lightBank != -1 && BankInfo[lightBank].drawOn == 1) {
-                float target = All_table_TBL[lightBank]->light->charaScale * All_table_TBL[bank]->partsLight[ent->parts];
+                float target = BANK_PTR(SCENE_LIGHT *, lightBank, All_table_TBL[lightBank]->light)->charaScale * BANK_PTR(float *, bank, All_table_TBL[bank]->partsLight)[ent->parts];
 
                 if (lightFrames == 0.0f)
                     *light = target;
@@ -1275,17 +1275,17 @@ void main_rtn(int bank, int mode, int chara, u_int flags, int charaIndex, void *
 
         drawobj_attr = 0;
         if (texNow != tex && tex != NULL) {
-            if (tex->tim != timNow && tex->tim != NULL) {
+            if (tex->tim != timNow && tex->tim != 0) {
                 if (bank < BANK_SCENE_MAX && strcmp(BANK_NAME_MENU, BankInfo[0].name) == 0) {
                     gaBGT_End();
                     gaBGT_Start(bgt_ringbuffer, BGT_RINGBUFFER_SIZE);
-                } else if (tex->tim[0] <= TEX_SMALL_MAX && tex->tim[1] <= TEX_SMALL_MAX) {
+                } else if (BANK_PTR(u_int *, bank, tex->tim)[0] <= TEX_SMALL_MAX && BANK_PTR(u_int *, bank, tex->tim)[1] <= TEX_SMALL_MAX) {
                     gaBGT_End();
                     gaBGT_Start(bgt_ringbuffer, BGT_RINGBUFFER_SIZE);
                 }
                 timNow = tex->tim;
             }
-            sunBGT_ExecTBufferData_VIF1(ent->tbuffer);
+            sunBGT_ExecTBufferData_VIF1(BANK_PTR(void *, bank, ent->tbuffer));
             texNow = tex;
         }
         if (clip == 0 && !(obj[DRAW_OBJ_FLAGS] & DRAW_OBJ_FLAG_CLIP)) {
@@ -1309,8 +1309,8 @@ static void RefractionDrawBank(int bank, int chara, int mode, int charaIndex, in
 {
     ALL_TABLE *tbl = All_table_TBL[bank];
 
-    ALLobject[bank] = tbl->objAfter;
-    if (!*exported && *ALLobject[bank] != NULL) {
+    ALLobject[bank] = BANK_PTR(u_int *, bank, tbl->objAfter);
+    if (!*exported && *ALLobject[bank] != 0) {
         ExportDrawToTex();
         *exported = 1;
     }
@@ -1318,7 +1318,7 @@ static void RefractionDrawBank(int bank, int chara, int mode, int charaIndex, in
         main_rtn_DOF(bank, 0, chara, mode, charaIndex, lastTex);
     else
         main_rtn(bank, 0, chara, (u_int)mode, charaIndex, lastTex);
-    if (!*exported && *tbl->particles2After != NULL) {
+    if (!*exported && *BANK_PTR(u_int *, bank, tbl->particles2After) != 0) {
         ExportDrawToTex();
         *exported = 1;
     }
@@ -1363,8 +1363,8 @@ void main_rtn_DOF(int bank, int mode, int chara, int pass, int charaIndex, void 
     u_char *table;
     FOG_INFO *fog;
     TEX_INFO *texNow;
-    u_int *timNow = NULL;
-    GA_DRAWCTRL_ARGS *ctrlNow = DRAW_CTRL_NONE;
+    u_int timNow = 0;
+    u_int ctrlNow = DRAW_CTRL_NONE;
     int zonlyParts = -1;
     int i;
 
@@ -1386,11 +1386,11 @@ void main_rtn_DOF(int bank, int mode, int chara, int pass, int charaIndex, void 
             objSort(bank, count, table);
         else
             objSortWithBlurIdx(bank, count, table);
-        ALLobject[bank] = (void **)table;
+        ALLobject[bank] = (u_int *)table;
     }
     if (blur != 0) {
         ssPartMotionBlurInsertObjToDrawTable(bank, table, ALLobject[bank], count, mode);
-        ALLobject[bank] = (void **)table;
+        ALLobject[bank] = (u_int *)table;
     }
 
     if (chara == 0) {
@@ -1416,15 +1416,15 @@ void main_rtn_DOF(int bank, int mode, int chara, int pass, int charaIndex, void 
             FOG_mode = 1;
     }
 
-    for (i = 0; ALLobject[bank][i] != NULL; i++) {
-        DRAW_OBJ_ENTRY *ent = (DRAW_OBJ_ENTRY *)ALLobject[bank][i];
-        u_char *obj = ent->obj;
-        TEX_INFO *tex = ent->tex;
+    for (i = 0; ALLobject[bank][i] != 0; i++) {
+        DRAW_OBJ_ENTRY *ent = BANK_PTR(DRAW_OBJ_ENTRY *, bank, ALLobject[bank][i]);
+        u_char *obj = BANK_PTR(u_char *, bank, ent->obj);
+        TEX_INFO *tex = BANK_PTR(TEX_INFO *, bank, ent->tex);
         MODEL_PARTS *parts = &((MODEL_PARTS *)pModelPartsHeader[bank])[ent->parts];
 
         if (parts->flags & PARTS_FLAG_FOG)
             continue;
-        if (!(All_table_TBL[bank]->partsPos[ent->parts][3] > PARTS_POS_HIDDEN_W))
+        if (!(BANK_PTR(float (*)[4], bank, All_table_TBL[bank]->partsPos)[ent->parts][3] > PARTS_POS_HIDDEN_W))
             continue;
         if (parts->kind == PARTS_KIND_NO_DOF)
             continue;
@@ -1437,14 +1437,14 @@ void main_rtn_DOF(int bank, int mode, int chara, int pass, int charaIndex, void 
         if ((s_char)obj[DRAW_OBJ_CLIP] < 0)
             continue;
 
-        if (texNow != tex && tex != NULL && tex->tim != timNow && tex->tim != NULL) {
-            sunSetupTBufferData(ent->tbuffer, *tex);
-            sunBGT_LoadGSTexClutData_VIF1(ent->tbuffer);
+        if (texNow != tex && tex != NULL && tex->tim != timNow && tex->tim != 0) {
+            sunSetupTBufferData(BANK_PTR(void *, bank, ent->tbuffer), *tex);
+            sunBGT_LoadGSTexClutData_VIF1(BANK_PTR(void *, bank, ent->tbuffer));
         }
         if (ssDOF_ClipObjectFromZRange(obj, (u_int)ent->dofMode) == 0)
             continue;
-        if (ctrlNow != ent->drawCtrlArgs && ent->drawCtrlArgs != NULL) {
-            gaBGT_ExecDrawCtrlData_VIF1((GA_DRAWCTRL_DATA *)ent->drawCtrl);
+        if (ctrlNow != ent->drawCtrlArgs && ent->drawCtrlArgs != 0) {
+            gaBGT_ExecDrawCtrlData_VIF1(BANK_PTR(GA_DRAWCTRL_DATA *, bank, ent->drawCtrl));
             ctrlNow = ent->drawCtrlArgs;
         }
         *(int *)(obj + DRAW_OBJ_ATTR) = parts->attr;
@@ -1453,9 +1453,9 @@ void main_rtn_DOF(int bank, int mode, int chara, int pass, int charaIndex, void 
 
             if (chara == 0) {
                 if (tex->kind == TEX_KIND_LIGHT)
-                    *light = All_table_TBL[bank]->partsLight[ent->parts];
+                    *light = BANK_PTR(float *, bank, All_table_TBL[bank]->partsLight)[ent->parts];
             } else if (tex->kind == TEX_KIND_LIGHT && lightBank != -1 && BankInfo[lightBank].drawOn == 1) {
-                float target = All_table_TBL[lightBank]->light->charaScale * All_table_TBL[bank]->partsLight[ent->parts];
+                float target = BANK_PTR(SCENE_LIGHT *, lightBank, All_table_TBL[lightBank]->light)->charaScale * BANK_PTR(float *, bank, All_table_TBL[bank]->partsLight)[ent->parts];
 
                 if (lightFrames == 0.0f)
                     *light = target;
@@ -1466,14 +1466,14 @@ void main_rtn_DOF(int bank, int mode, int chara, int pass, int charaIndex, void 
 
         drawobj_attr = 0;
         if (texNow != tex && tex != NULL) {
-            if (tex->tim != timNow && tex->tim != NULL) {
-                if (tex->tim[0] <= TEX_SMALL_MAX && tex->tim[1] <= TEX_SMALL_MAX) {
+            if (tex->tim != timNow && tex->tim != 0) {
+                if (BANK_PTR(u_int *, bank, tex->tim)[0] <= TEX_SMALL_MAX && BANK_PTR(u_int *, bank, tex->tim)[1] <= TEX_SMALL_MAX) {
                     gaBGT_End();
                     gaBGT_Start(bgt_ringbuffer, BGT_RINGBUFFER_SIZE);
                 }
                 timNow = tex->tim;
             }
-            sunBGT_ExecTBufferData_VIF1(ent->tbuffer);
+            sunBGT_ExecTBufferData_VIF1(BANK_PTR(void *, bank, ent->tbuffer));
             texNow = tex;
         }
         if (obj[DRAW_OBJ_CLIP] == 0 && !(obj[DRAW_OBJ_FLAGS] & DRAW_OBJ_FLAG_CLIP))
@@ -1539,7 +1539,7 @@ void scene_draw_init(int scene)
     ACTRESS_LIGHT_BASE_MAX_ID[scene] =
         asFindModelPartsID(pModelPartsHeader[scene], ahGetHash(PARTS_ACTRESS_OMNI_BASE));
 
-    for (n = 0; All_table_TBL[scene]->objTrans[n] != NULL; n++)
+    for (n = 0; BANK_PTR(u_int *, scene, All_table_TBL[scene]->objTrans)[n] != 0; n++)
         ;
     if (ssGetNumBlurDrawObjForScene(scene, 1) != 0)
         objSortWithBlurIdx(scene, n + 1, osTotalObjTable[1][scene]);
@@ -1560,21 +1560,21 @@ void scene_init(int scene)
 {
     ALL_TABLE **tbl;
     int list, i;
-    void **objs = NULL;
+    u_int *objs = NULL;
 
     Trigger_init();
     tbl = &All_table_TBL[scene];
     BaseobjCount[scene] = (*tbl)->baseobjCount;
-    pModelPartsHeader[scene] = (*tbl)->partsHeader;
-    pBehaviorHeader[scene] = (*tbl)->behavior;
+    pModelPartsHeader[scene] = BANK_PTR(u_char *, scene, (*tbl)->partsHeader);
+    pBehaviorHeader[scene] = BANK_PTR(void *, scene, (*tbl)->behavior);
     gaSetupFogCtrlData(&fogctrl[scene], 0.0f, 0.0f, 0.0f, 0, 0, 0);
     if (BankInfo[scene].type == BANK_TYPE_SHADOW || BankInfo[scene].type == BANK_TYPE_0)
-        FogCtrlAddr[scene] = (*tbl)->fog;
+        FogCtrlAddr[scene] = BANK_PTR(u_char *, scene, (*tbl)->fog);
     if (BankInfo[scene].type == BANK_TYPE_SHADOW)
         drawcom_frameclear.rgbaq = FogClearColor(FogCtrlAddr[scene]);
     gaSet3dlibStruct(MAIN_RTN_CLIP_FAR, ga3dlibwork, &drawbuffer_0, &fogctrl[scene], screen_0);
     InitMatrixTree(pModelPartsHeader[scene]);
-    LinkMatrixTree((*tbl)->objOpaque, pModelPartsHeader[scene]);
+    LinkMatrixTree(BANK_PTR(u_int *, scene, (*tbl)->objOpaque), pModelPartsHeader[scene]);
     if ((s_char)pModelPartsHeader[scene][0] == PARTS_HEADER_ANIMATED) {
         asBehaviorStopAnimation(pBehaviorHeader[scene]);
         asSceneAutoStartAnimation(pBehaviorHeader[scene]);
@@ -1591,19 +1591,19 @@ void scene_init(int scene)
 
     for (list = 0; list < SCENE_INIT_LISTS; list++) {
         if (list == 2)
-            objs = (*tbl)->objAfter;
+            objs = BANK_PTR(u_int *, scene, (*tbl)->objAfter);
         else if (list == 1)
-            objs = (*tbl)->objOpaque;
+            objs = BANK_PTR(u_int *, scene, (*tbl)->objOpaque);
         else if (list == 0)
-            objs = (*tbl)->objTrans;
-        for (i = 0; objs[i] != NULL; i++) {
-            DRAW_OBJ_ENTRY *ent = (DRAW_OBJ_ENTRY *)objs[i];
-            TEX_INFO *tex = ent->tex;
-            GA_DRAWCTRL_DATA *ctrl = (GA_DRAWCTRL_DATA *)ent->drawCtrl;
-            GA_DRAWCTRL_ARGS *args = ent->drawCtrlArgs;
+            objs = BANK_PTR(u_int *, scene, (*tbl)->objTrans);
+        for (i = 0; objs[i] != 0; i++) {
+            DRAW_OBJ_ENTRY *ent = BANK_PTR(DRAW_OBJ_ENTRY *, scene, objs[i]);
+            TEX_INFO *tex = BANK_PTR(TEX_INFO *, scene, ent->tex);
+            GA_DRAWCTRL_DATA *ctrl = BANK_PTR(GA_DRAWCTRL_DATA *, scene, ent->drawCtrl);
+            GA_DRAWCTRL_ARGS *args = BANK_PTR(GA_DRAWCTRL_ARGS *, scene, ent->drawCtrlArgs);
 
             if (tex != NULL)
-                sunSetupTBufferData(ent->tbuffer, *tex);
+                sunSetupTBufferData(BANK_PTR(void *, scene, ent->tbuffer), *tex);
             gaSetupDrawCtrlData(ctrl, *args);
         }
     }

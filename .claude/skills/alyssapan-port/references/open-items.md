@@ -253,6 +253,22 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    persona) was declared host-side as (u_char *image, int persona): it relocates to the EE address
    BankImageEE[] of the bank holding the image (fileio.c fills it before the call; a global bank's EE
    address is GLOBAL_BANK_AREA_EE + its offset in gGlobalBankArea).** Queued at the top (tus.py queue).
+   **Done 2026-11-10 (host task game/ct3_types.h, scheduled run): the EE-layout conversion.** ALL_TABLE,
+   DRAW_OBJ_ENTRY, TEX_INFO, PARTICLE_ENTRY, PARTICLE2_ENTRY and PARTICLE2 are layout ee (ct3_types.h,
+   static_asserts); every pointer word is a u_int read through the new BANK_PTR(type, bank, word)
+   (BankEePtr with a cast); ALLobject[] is u_int * (a host pointer to a list of EE words, as are
+   osTotalObjTable's sorted lists); ctrlNow / timNow in the main_rtn family compare EE words;
+   LinkMatrixTree and ssPartMotionBlurInsertObjToDrawTable (stubs) take u_int lists -- their TUs need
+   the bank to resolve the entries (add it, or resolve through the list's owner). A smoke run now runs
+   scene_init to the end (all three draw lists walked, sunSetupTBufferData / AmbientAlphaInit reached)
+   and the frame loop's updates; **THE BLOCKER is now main.c:2106**, the actress light: ActressMP is
+   still NULL (main2's TrgCharacterShapeSet sets it only once Alyssa's shape bank has an ALL_TABLE, and
+   that bank never loads in the smoke run): find why the shape bank does not load (FSMltLoad of the
+   character shape, fileio.c) rather than guard the read -- the ROM reads ActressMP unguarded. Open:
+   (bx) ALL_TABLE's end is unknown (the relocator reads to 0xe0 at least); +0x38 / +0x3c are named
+   count38 / count3c (the +0x30 / +0x34 lists' lengths) until their reader names them; (by)
+   PARTICLE2 +0x6c (obj6c) is relocated and unread; (bz) TEX_INFO.tim is resolved with the entry's own
+   bank: a texture shared from another bank would need that bank -- none seen yet.
    (bw) Extract is untested against a known image: the first scene_init that runs on relocated data is
    its test (a wrong decode shows as garbage tables); a harness decoding one CT3X file from CT3PACK.DAT
    beside the ROM's (eerun.py) would prove it sooner.

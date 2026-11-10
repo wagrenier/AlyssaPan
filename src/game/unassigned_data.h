@@ -85,7 +85,7 @@ extern int Omni0_num[BANK_MAX];                 /* sbss 0x019421c0 */
 extern char ActressLightFlag[BANK_MAX];         /* sbss 0x01942320 */
 extern u_char *ActressMP;                       /* sbss 0x01942380: the actress's model (matrix at +0x1c0) */
 extern ALL_TABLE *All_table_TBL[BANK_MAX];      /* sbss 0x019416a0 */
-extern void **ALLobject[BANK_MAX];              /* sbss 0x01940cd0: the list main_rtn draws next */
+extern u_int *ALLobject[BANK_MAX];              /* sbss 0x01940cd0: the list main_rtn draws next (EE words) */
 extern u_char *pModelPartsHeader[BANK_MAX];     /* sbss 0x01940380 */
 extern u_char osTotalObjTable[3][BANK_MAX][OS_OBJ_TABLE_BYTES]; /* bss 0x01a59870: [1] = objSort's */
 extern u_char *FogCtrlAddr[BANK_MAX];           /* sbss 0x019405f0: fog colour bytes at +4, +8, +0xc */

@@ -108,7 +108,7 @@ int Omni0_num[BANK_MAX];                        /* sbss 0x019421c0 */
 char ActressLightFlag[BANK_MAX];                /* sbss 0x01942320 */
 u_char *ActressMP;                              /* sbss 0x01942380 */
 ALL_TABLE *All_table_TBL[BANK_MAX];             /* sbss 0x019416a0 */
-void **ALLobject[BANK_MAX];                     /* sbss 0x01940cd0 */
+u_int *ALLobject[BANK_MAX];                     /* sbss 0x01940cd0: a host pointer to a list of EE words */
 u_char *pModelPartsHeader[BANK_MAX];            /* sbss 0x01940380 */
 u_char osTotalObjTable[3][BANK_MAX][OS_OBJ_TABLE_BYTES]; /* bss 0x01a59870 */
 u_char *FogCtrlAddr[BANK_MAX];                  /* sbss 0x019405f0 */

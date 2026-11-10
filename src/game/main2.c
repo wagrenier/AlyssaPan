@@ -143,7 +143,7 @@ void InitLoadSceneChar(void)
         load_continue = 0;
     }
     // Host: All_table_TBL[0] is null until the bank loader fills it (fileio.c's TU).
-    FogCtrlAddr[0] = All_table_TBL[0] != NULL ? All_table_TBL[0]->fog : NULL;
+    FogCtrlAddr[0] = All_table_TBL[0] != NULL ? BANK_PTR(u_char *, 0, All_table_TBL[0]->fog) : NULL;
     drawcom_frameclear.rgbaq = FogClearColor(FogCtrlAddr[0]);
 }
 
@@ -281,7 +281,7 @@ void TrgCharacterShapeSet(int chara, char *name, int bank, int initA, int initB)
     }
 
     if (chara == CHARA_ALYSSA && All_table_TBL[bank] != NULL)   // host: null until the loader fills it
-        ActressMP = asFindModelParts(All_table_TBL[bank]->partsHeader, ahGetHash("Bip01 Head"));
+        ActressMP = asFindModelParts(BANK_PTR(u_char *, bank, All_table_TBL[bank]->partsHeader), ahGetHash("Bip01 Head"));
 
     header = pModelPartsHeader[bank];
     for (i = 0; i < 8; i++) {

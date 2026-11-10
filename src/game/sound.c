@@ -128,7 +128,7 @@ SOUND_OBJ *SSFindSoundObj(int bank, int id)
     if (id == 0) {
         return nullptr;
     }
-    table = All_table_TBL[bank]->sound;
+    table = BANK_PTR(SOUND_OBJ_TABLE *, bank, All_table_TBL[bank]->sound);
     if (table == nullptr) {
         return nullptr;
     }
@@ -154,7 +154,7 @@ void SSAutoStartSoundRoomIn(int bank)
     if (BankInfo[bank].type == BANK_TYPE_NO_ROOM_SOUND) {
         return;
     }
-    table = All_table_TBL[bank]->sound;
+    table = BANK_PTR(SOUND_OBJ_TABLE *, bank, All_table_TBL[bank]->sound);
     if (table == nullptr) {
         return;
     }
@@ -210,7 +210,7 @@ void SSLoadSEfromLoadPoint(u_char *image)
     if (bank < 0 || All_table_TBL[bank] == nullptr) {
         return;
     }
-    table = All_table_TBL[bank]->sound;
+    table = BANK_PTR(SOUND_OBJ_TABLE *, bank, All_table_TBL[bank]->sound);
     if (table == nullptr) {
         return;
     }
