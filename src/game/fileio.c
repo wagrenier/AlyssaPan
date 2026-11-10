@@ -7,8 +7,8 @@
 // the status and wait functions), the bank table (FSMltInit, the finds, draw on / off, SceneEndBank), the
 // file server, FSFileType and fs_error. Slice 2 (2026-11-10): the bank loader itself (FSMltLoadProc,
 // ReserveBank, Extract: the 'CT3X' unpacker). Slice 3 (2026-11-10): the sorts (CharacterSort, objSort,
-// objSortWithBlurIdx, SortAlphaObjects), SceneEndBankMovie, Round2ChangeSectInfo. Left: the
-// second-round character swap (Round2ChangeChar).
+// objSortWithBlurIdx, SortAlphaObjects), SceneEndBankMovie, Round2ChangeSectInfo. Slice 4 (2026-11-10):
+// the second-round file swap (Round2ChangeChar): the TU's code is complete.
 
 #include "game/fileio.h"
 
@@ -357,6 +357,82 @@ void SortAlphaObjects(int n, CAM2OBJ *rows)
 }
 
 // ---- the second round -----------------------------------------------------------------------------------
+// Round2ChangeChar's argument: data_load_set passes ROUND2_NEW_GAME when the game was never cleared, else
+// ssTrigGetVariable(TRIG_VAR_ROUND) clamped to >= 1; hhXcmd_DressUp passes its own. Rounds 2..5 dress
+// Alyssa in one of four costumes (CAL1..CAL4); every round from 1 on also swaps the shared second-round
+// files (s_r2CommonFiles). The meaning of 1..5 is read from the file names, not from the game's text.
+#define ROUND2_NEW_GAME 0                       /* the pack directory as on the disc (FlInit reloads it) */
+#define ROUND2_CLEARED 1                        /* reloaded, then only the shared second-round swaps */
+#define ROUND2_COSTUME_1 2                      /* Alyssa's files from CAL1 / 2xxx */
+#define ROUND2_COSTUME_4 5                      /* the last: CAL4 / 5xxx */
+#define ROUND2_COSTUME_FILES 19                 /* Alyssa's model and animations, swapped per costume */
+#define ROUND2_COMMON_FILES 25                  /* the shared swaps */
+
+// The ROM calls Round2ChangeSectInfo once per pair with these literals (data 0x01935768..0x01936068, 16
+// bytes each, in this order); the tables keep the order and the pairs.
+static const char *const s_r2AlyssaFiles[ROUND2_COSTUME_FILES] = {
+    "ALYS.BIN", "ALYS.ANM", "YAJI.ANM", "A000.ANM", "K004.ANM", "A001.ANM", "A002.ANM",
+    "PALY.ANM", "A003.ANM", "A004.ANM", "A017.ANM", "A007.ANM", "A021.ANM", "A053.ANM",
+    "ALE2.ANM", "ALE3.ANM", "S34D.ANM", "ALE4.ANM", "ALE5.ANM",
+};
+
+static const char *const s_r2CostumeFiles[ROUND2_COSTUME_4 - ROUND2_COSTUME_1 + 1][ROUND2_COSTUME_FILES] = {
+    { "CAL1.BIN", "CAL1.ANM", "YAJ1.ANM", "2000.ANM", "6004.ANM", "2001.ANM", "2002.ANM",
+      "2ALY.ANM", "2003.ANM", "2004.ANM", "2017.ANM", "2007.ANM", "2021.ANM", "2053.ANM",
+      "2LE2.ANM", "2LE3.ANM", "234D.ANM", "2LE4.ANM", "2LE5.ANM" },
+    { "CAL2.BIN", "CAL2.ANM", "YAJ2.ANM", "3000.ANM", "7004.ANM", "3001.ANM", "3002.ANM",
+      "3ALY.ANM", "3003.ANM", "3004.ANM", "3017.ANM", "3007.ANM", "3021.ANM", "3053.ANM",
+      "3LE2.ANM", "3LE3.ANM", "334D.ANM", "3LE4.ANM", "3LE5.ANM" },
+    { "CAL3.BIN", "CAL3.ANM", "YAJ3.ANM", "4000.ANM", "8004.ANM", "4001.ANM", "4002.ANM",
+      "4ALY.ANM", "4003.ANM", "4004.ANM", "4017.ANM", "4007.ANM", "4021.ANM", "4053.ANM",
+      "4LE2.ANM", "4LE3.ANM", "434D.ANM", "4LE4.ANM", "4LE5.ANM" },
+    { "CAL4.BIN", "CAL4.ANM", "YAJ4.ANM", "5000.ANM", "9004.ANM", "5001.ANM", "5002.ANM",
+      "5ALY.ANM", "5003.ANM", "5004.ANM", "5017.ANM", "5007.ANM", "5021.ANM", "5053.ANM",
+      "5LE2.ANM", "5LE3.ANM", "534D.ANM", "5LE4.ANM", "5LE5.ANM" },
+};
+
+static const char *const s_r2CommonFiles[ROUND2_COMMON_FILES][2] = {  /* { dst, src } */
+    { "HAMM.BIN", "HAM1.BIN" }, { "HAMM.ANM", "HAM1.ANM" }, { "HALB.ANM", "HALF.ANM" },
+    { "CSAA.BIN", "CSA1.BIN" }, { "CSAA.ANM", "CSA1.ANM" }, { "CSLB.ANM", "CSLF.ANM" },
+    { "E_93.BIN", "E_83.BIN" },
+    { "CAXA.BIN", "CAX1.BIN" }, { "CAXA.ANM", "CAX1.ANM" }, { "CALB.ANM", "CALF.ANM" },
+    { "E_14.BIN", "E_24.BIN" },
+    { "CSNA.BIN", "CSN1.BIN" }, { "CSNA.ANM", "CSN1.ANM" }, { "CNLB.ANM", "CNLF.ANM" },
+    { "CSWA.BIN", "CSW1.BIN" }, { "CSWA.ANM", "CSW1.ANM" }, { "CWLB.ANM", "CWLF.ANM" },
+    { "CVRA.BIN", "CVR1.BIN" }, { "CVRA.ANM", "CVR1.ANM" },
+    { "HM02.ANM", "2HM2.ANM" }, { "HM04.ANM", "2HM4.ANM" }, { "CSA2.ANM", "2SA2.ANM" },
+    { "CAX2.ANM", "2AX2.ANM" }, { "CSN2.ANM", "2SN2.ANM" }, { "CSW2.ANM", "2SW2.ANM" },
+};
+
+// CT3 0x018c2df0 -- points pack files at their second-round versions (Round2ChangeSectInfo: the names
+// stay, the sectors change). Nothing happens without ALYS.BIN in the pack. A new game reloads the
+// directory and stops; a cleared game reloads it before the shared swaps; a costume round swaps Alyssa's
+// files on the directory as it stands (the ROM's cases 2..5 have no reload), then the shared ones. Any
+// other value (the switch's default) does only the shared swaps.
+void Round2ChangeChar(int round)
+{
+    int i;
+
+    if (FlFindPacked("ALYS.BIN") == -1) {              /* data 0x01935768 */
+        return;
+    }
+    if (round == ROUND2_NEW_GAME) {
+        FlInit();
+        return;
+    }
+    if (round == ROUND2_CLEARED) {
+        FlInit();
+    } else if ((u_int)round <= ROUND2_COSTUME_4 && round >= ROUND2_COSTUME_1) {  /* ROM: sltiu 6, table */
+        for (i = 0; i < ROUND2_COSTUME_FILES; i++) {
+            Round2ChangeSectInfo((char *)s_r2AlyssaFiles[i],
+                                 (char *)s_r2CostumeFiles[round - ROUND2_COSTUME_1][i]);
+        }
+    }
+    for (i = 0; i < ROUND2_COMMON_FILES; i++) {
+        Round2ChangeSectInfo((char *)s_r2CommonFiles[i][0], (char *)s_r2CommonFiles[i][1]);
+    }
+}
+
 
 // CT3 0x018c3670 -- the pack file dst is read from src's sectors from now on: gFlPackInfo[dst] takes
 // src's size, sector and sector count (the names stay). Both names are upper-cased first; a missing one
@@ -1572,13 +1648,5 @@ void FSMltLoadProc(void)
     memmove(&FQue[0], &FQue[1], (FQUE_MAX - 1) * sizeof(FQUE));             /* ROM: memcpy */
     FQue[FQUE_MAX - 1].name[0] = '\0';
     Phase = FSMLT_IDLE;
-}
-
-// ---- stubs (tools/reverse/stubgen.py) ----
-
-// stub of CT3 0x018c2df0
-void Round2ChangeChar(int round)
-{
-    ALYSSAPAN_STUB("Round2ChangeChar", 0x018c2df0);
 }
 

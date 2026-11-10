@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-10 08:35 at commit `ec33336` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-10 08:50 at commit `85e1167` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **420**; stubs: **234**
+- reconstructed CT3 functions: **421**; stubs: **233**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -64,7 +64,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/asMothRouteSearch.c` | 0 | 2 |
 | `src/game/asUseArrow.c` | 0 | 2 |
 | `src/game/asXcmd.c` | 0 | 1 |
-| `src/game/fileio.c` | 39 | 1 |
+| `src/game/fileio.c` | 40 | 0 |
 | `src/game/hhXcmd_DressUp.c` | 0 | 1 |
 | `src/game/main.c` | 29 | 0 |
 | `src/game/main2.c` | 18 | 0 |
@@ -80,10 +80,9 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 48, partial 3, verify 14, done 3
-- next: **game/fileio.c** (pinned in the queue)
-- pinned queue: game/fileio.c
-- partial: `game/fileio.c` 39/40 -- Left: Round2ChangeChar (0x878). Smoke run passes CharacterSort, still crashes at main.c:2106 (ActressMP NULL: asFindModelParts in QuatSlerp.c is a stub; asVecto
+- 65 TUs: todo 48, partial 2, verify 15, done 3
+- next: **game/QuatSlerp.c** (frontier score 293)
+- pinned queue: (empty)
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaInitDrawObject.c` 24/24 -- No ROM caller for the texture three (the game uses its sun* copies in QuatSlerp.c): complete, nothing on screen can show them. Shot black as before: packets go 
 - verify: `ga/gaInitInterrupt.c` 3/3 -- GCC object; wait_vsync_state (data 0x0192e790), ga_main_timer, ga_down_timer defined here. gaWaitVSync takes no argument and returns the CSR FIELD bit; main.c c
@@ -95,12 +94,14 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/LinkMatrixTree.c` 4/4 -- Code complete, nothing on screen shows it yet: the smoke run still crashes at main.c 2106 (ActressMP NULL, the known blocker) and the shot stays black. LinkMatr
 - verify: `game/ahRelocateSunPs2ObjectArry.c` 93/93 -- All 93 functions written; nothing reaches the general body yet (the two written callers pass one flag each; asCharacterAnimationExecute and asResetCharacterPosi
 - verify: `game/ahalloc.c` 7/7 -- Host block header is 0x20 bytes (EE 0x10). SunAllocInit runs at boot; nothing calls _SunAlloc yet. AlignedNum is a stub answering 0, so game/AlignedNum.c is que
+- verify: `game/fileio.c` 40/40 -- All 40 functions written. Round2ChangeChar keeps the ROM order of its 150 Round2ChangeSectInfo pairs as three tables; round values named from the file names onl
 - verify: `game/main.c` 29/29 -- Smoke run: build green, layoutcheck OK, callcheck: main_rtn_Particle2 matches the ROM (extra BankEePtr only); AllDrawObject / GlobalDrawObject / DrawObjectRefra
 - verify: `game/main2.c` 18/18 -- Smoke run leaves main2 and runs the frame loop with no crash; the shot stays black because FSMltLoad (fileio.c) is a stub so no bank loads. PORT BankReady skips
 - verify: `game/sound.c` 69/69 -- All 69 written. SSLoadSEfromLoadPoint takes the bank image (BankInfo +0x1c); All_table_TBL[bank] is image + 0x80, so the old +0xd4 record is ALL_TABLE.sound, wo
 
 Recent sessions:
 
+- 2026-11-10 08:49 `game/fileio.c` verify: slice 4: Round2ChangeChar, the second-round file swap; the code is complete
 - 2026-11-10 08:35 `game/fileio.c` partial: slice 3: the sorts (CharacterSort, objSort, objSortWithBlurIdx, SortAlphaObjects), SceneEndBankMovie, Round2ChangeSectInfo
 - 2026-11-10 08:10 `game/ahRelocateSunPs2ObjectArry.c` verify: slice 15: ExecuteAnimation's general body (any mix of play, replay and matOnly: time1c shift, key at this frame's ticks, pose write, replay set or blend, the EA
 - 2026-11-10 08:01 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 14: asCheckAnimationFlamePassing_S (time1c pass test, forward / backward / either, character motion behaviour), asShadowEnd (shadow buffer fold, then the 
@@ -108,7 +109,6 @@ Recent sessions:
 - 2026-11-10 07:12 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 12: asMakeMirrorMatrixByPlane (mrr_ReverseMatrix from the mirror plane: RY, RX, the Y flip, the plane offset row), asSceneAnimationStop_S and asCheckAnima
 - 2026-11-10 06:57 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 11: asBuildMirrorMatrixTree and _Back (mrr_ReverseMatrix then Cam[6].view2), asMirrorCulling (the mirror's four corners projected to the portal clip recta
 - 2026-11-10 06:31 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 10: asShadowDrawing_CheckTransMode (the shadow pass order, BID front and back, the ROM's shared index kept), asSceneAnimationStart (scene tracks by kind s
-- 2026-11-10 06:20 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 9: InterpolateAnimationKey and IAK_0 (play modes once / loop, forward and reverse, the slow-speed snap, the key search and the per-kind key write, ANIM_SU
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|

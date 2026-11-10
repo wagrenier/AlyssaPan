@@ -502,6 +502,13 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    (REC_SORT_POINT, MODEL_PARTS +0x60) are named from the sorts only; CharacterSort and main.c's
    actress light both read record +0x1c0 (REC_MATRIX_PREV) with the +0x20 point; (en) CharacterSort's
    rows and CharacterSortBuff got one PORT row each (the ROM writes row / slot 35 when all 35 count).
+   **Slice 4 (2026-11-10, verify): Round2ChangeChar -- fileio.c's code is complete.** The ROM's 150
+   unrolled Round2ChangeSectInfo calls became three tables (Alyssa's 19 files, four costumes' 19, 25
+   shared pairs) in ROM order. Open: (eo) the argument's meaning is read from the file names only:
+   0 ROUND2_NEW_GAME (FlInit, stop), 1 ROUND2_CLEARED (FlInit, then the shared swaps), 2..5
+   ROUND2_COSTUME_1..4 (CAL1..CAL4, no FlInit first: a costume picked after another keeps the earlier
+   swaps of files the new one does not cover -- none, as all four tables cover the same 19 names), any
+   other value only the shared swaps; hhXcmd_DressUp's TU says what its value is.
    Open: (bq) BANK_INFO renamed from the loader's use: +0 `state` (was `count`; BANK_STATE_*, a group's
    later banks hold their place 2..n), +0x20 `drawOn` (was `loaded`: FSMltSetDrawBank's mode), +0x1c
    `image` (EE address), +0x24 `handle`; every user was updated. A bank's type is the FS_LOAD_* kind it

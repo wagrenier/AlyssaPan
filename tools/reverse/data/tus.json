@@ -1,7 +1,5 @@
 {
- "queue": [
-  "game/fileio.c"
- ],
+ "queue": [],
  "settings": {
   "data_dir": "C:/Users/willi/Documents/Decomp/Clocl Tower 3",
   "frontier_ignore": [],
@@ -609,7 +607,7 @@
    "task": "Host task: ALL_TABLE and its lists in EE layout (open-items.md item 1 bv): ALL_TABLE fields to u_int words read through BankEePtr in main.c, Character_Init.c, sound.c, main2.c, fileio.c; ALLobject and LinkMatrixTree / asBuildMirrorMatrixTree lists as u_int EE words; DRAW_OBJ_ENTRY, TEX_INFO, PARTICLE_ENTRY, PARTICLE2_ENTRY to EE layout with u_int pointer words at the offsets ahRelocateFileObject relocates (architecture.md The file relocator). Done when scene_init runs past the global bank load."
   },
   "game/fileio.c": {
-   "notes": "Left: Round2ChangeChar (0x878). Smoke run passes CharacterSort, still crashes at main.c:2106 (ActressMP NULL: asFindModelParts in QuatSlerp.c is a stub; asVectorDistance stub answers 0 so sorts keep input order). Open items (ek)-(en) in open-items.md.",
+   "notes": "All 40 functions written. Round2ChangeChar keeps the ROM order of its 150 Round2ChangeSectInfo pairs as three tables; round values named from the file names only (open-items eo). Smoke run still crashes at main.c:2106 (ActressMP NULL: asFindModelParts in QuatSlerp.c is a stub); shots black, so nothing on screen can show this TU yet.",
    "ranges": [
     [
      "018c2170",
@@ -631,9 +629,14 @@
      "date": "2026-11-10 08:35",
      "status": "partial",
      "summary": "slice 3: the sorts (CharacterSort, objSort, objSortWithBlurIdx, SortAlphaObjects), SceneEndBankMovie, Round2ChangeSectInfo"
+    },
+    {
+     "date": "2026-11-10 08:49",
+     "status": "verify",
+     "summary": "slice 4: Round2ChangeChar, the second-round file swap; the code is complete"
     }
    ],
-   "status": "partial",
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 118..118, 21 functions keyed by their statics, 19 unkeyed; source string fileio.c"
   },
   "game/hhXcmd_BGM_SE_VOLUME.c": {
