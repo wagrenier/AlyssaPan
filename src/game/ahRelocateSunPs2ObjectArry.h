@@ -26,6 +26,32 @@ void ExecuteAnimation(int bank, u_int anim, ALL_TABLE *tbl, int a2, int a3, int 
 // out = a cubic Bezier point: ctrl[0] t^3 + ctrl[1] 3t^2 s + ctrl[2] 3ts^2 + ctrl[3] s^3 (s = 1 - t
 // at the callers, asMakeStraw / tiLightBelt2Update). All four lanes.
 void asGetBeziePosition(float t, float s, float out[4], const float ctrl[4][4]);         // CT3 0x0184a4b0
+int asCheckAnimationExecutable_Character(int chara);                                      // CT3 0x01842290
+void asShadowDrawing_Enable(int scene);                                                  // CT3 0x018474f0
+void asShadowDrawing_SetTransOrderBW(char on);                                           // CT3 0x01847610
+// One animation history record (lpEAS). The ROM's are 0x10 bytes {anim, tbl, sign, step}; PORT: host
+// layout, with the bank whose EE words anim and tbl's fields are (open-items.md (ca)). Nothing writes
+// them yet: the history adder's TU fills them, _SunAlloc'd from gHeapJunc.
+typedef struct EAS_RECORD {             /* layout: host */
+    u_int anim;                         /* EE word of the bank: ExecuteAnimation's animation */
+    ALL_TABLE *tbl;                     /* the bank's table */
+    int sign;                           /* AbsSignI32 -> parts header PARTS_HDR_ANIM_ABS / _SIGN */
+    u_int step;                         /* -> parts header PARTS_HDR_ANIM_STEP while it plays */
+    int bank;                           /* PORT */
+} EAS_RECORD;
+// The parts header's words Execute_ExecuteAnimationHistory sets around ExecuteAnimation (names from
+// this use only).
+#define PARTS_HDR_ANIM_ABS 0x20         /* int: |sign| */
+#define PARTS_HDR_ANIM_SIGN 0x24        /* int: -1, 0, 1 */
+#define PARTS_HDR_ANIM_STEP 0x28        /* u_int: the record's step, 0 after */
+#define EAS_REC_PARENT 0x8c             /* a part record's parent word (REC_PARENT) */
+// ALL_TABLE.ctrl's first list: the attached parts (0x20-byte entries; names from this use only).
+#define OBJ_CTRL_ATTACH_LIST 0x0        /* u_int: the entries */
+#define OBJ_CTRL_ATTACH_COUNT 0xc       /* u_char: their count */
+#define OBJ_CTRL_ATTACH_SIZE 0x20
+#define OBJ_CTRL_ATTACH_PARENT 0x8      /* u_int: the part's parent word, refreshed by an all-ones animation */
+#define OBJ_CTRL_ATTACH_PART 0xe        /* u_short: the part (record index of the bank) */
+extern int FrameCounter;                /* 0x0194494c: Execute_ExecuteAnimationHistory's calls */
 extern int iEASnum;                     /* 0x0193f780 */
 extern void *lpEAS;                     /* 0x0193f77c */
 extern int iEASidx;                     /* 0x0193f784 */
@@ -129,6 +155,48 @@ extern SEEKBAR_X *SeekBarX[BANK_MAX];
 #define SEAT_ROW_CELLS 0x4
 #define SEAT_ROW_COUNT 0xe
 #define SEAT_CELL_SIZE 0x10
+// asSeatArrange_FlameInit's (names from this use only): a row's grid of bytes, a cell's places in it.
+#define SEAT_ROW_GRID 0x0               /* u_int: the grid's bytes (row 0's is the one marked) */
+#define SEAT_ROW_WIDTH 0xa              /* u_char: the grid's width (row 0's is used) */
+#define SEAT_ROW_GRID_QWORDS 0xc        /* u_short: the grid's size in 16-byte units */
+#define SEAT_CELL_X 0x4                 /* u_char: the cell's place (its home, bytes 2..3, at init) */
+#define SEAT_CELL_Y 0x5
+#define SEAT_CELL_X2 0x6                /* u_char: its second place */
+#define SEAT_CELL_Y2 0x7
+#define SEAT_CELL_PLACES 0xc            /* char: SEAT_CELL_TWO_PLACES marks the second place too */
+#define SEAT_CELL_TWO_PLACES 1
+#define SEAT_GRID_KEEP 0x3              /* the grid bits the frame keeps */
+#define SEAT_GRID_TAKEN 0x4             /* a cell stands here */
+#define SEAT_ROW_PART 0x8               /* u_short: the row's part (the grid's origin and axes) */
+#define SEAT_CELL_PART 0x0              /* u_short: the cell's part (asSeatArrange_ObjectMatchGlid moves it) */
+#define SEAT_SQUARE 25.0f               /* a grid square's size */
+
+// ALL_TABLE.search (layout: ee): {int count; u_int SEARCH_OBJ[]}. A searching part (an eye, a lamp)
+// follows the nearest visible target from its owner character's eye part; names from asSearchObject.
+typedef struct SEARCH_OBJ {             /* 0x50 bytes, layout: ee */
+    u_int parts;                        /* 0x00: short[]: target parts of this bank, -1 ends */
+    u_int charas;                       /* 0x04: short[]: target characters (Character[]), -1 ends */
+    u_int hashes;                       /* 0x08: u_long[]: each target character's part */
+    u_short part;                       /* 0x0c: the part moved (this bank's) */
+    u_short chara;                      /* 0x0e: the owner character */
+    u_long eyeHash;                     /* 0x10: the owner's part the search starts from */
+    u_long restHash;                    /* 0x18: the owner's part that sets the axis, and the goal
+                                           when nothing is seen */
+    u_short range;                      /* 0x20: how far it sees (0: any distance) */
+    u_short halfAngle;                  /* 0x22: the cone about the axis (0: any direction) */
+    u_short turn;                       /* 0x24: SEARCH_MOVE_STRAIGHT, else it turns about the eye */
+    u_short turnStep;                   /* 0x26: the most it turns in a frame (an angle) */
+    float speed;                        /* 0x28: SEARCH_MOVE_STRAIGHT: units per 5 ticks */
+    u_int candidates;                   /* 0x2c: float[n][4] scratch: the targets this frame */
+    float pos[4];                       /* 0x30: where the part is (copied to its MODEL_PARTS.pos) */
+    float goal[4];                      /* 0x40: where it is going */
+} SEARCH_OBJ;
+static_assert(sizeof(SEARCH_OBJ) == 0x50, "SEARCH_OBJ");
+#define SEARCH_MOVE_STRAIGHT 0
+#define SEARCH_CANDIDATE_W 0x322bcc77   /* the w a candidate's position is stored with (1e-8f) */
+#define SEARCH_IN_CONE 0x1
+#define SEARCH_IN_RANGE 0x2
+#define SEARCH_SEEN (SEARCH_IN_CONE | SEARCH_IN_RANGE)
 
 // The model part records (pModelPartsHeader[bank] + 0x40 + i * 0x380: asFindModelParts' answer, the
 // records BMT_01 walks). MODEL_PARTS (ct3_types.h) is indexed from the header, so its offsets are the

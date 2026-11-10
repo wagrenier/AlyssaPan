@@ -18,7 +18,7 @@ typedef struct CHARACTER {
     char behaviorName[10][10];          /* 0x022: behaviorBank[i]'s file */
     u_char pad086[2];
     u_int flags;                        /* 0x088: CHARACTER_FLAG_* */
-    u_char pad08c[4];
+    u_int flagsPrev;                    /* 0x08c: flags as the last asCopyDoubleBuffer left them */
     u_long w090;                        /* 0x090: Character_All_Init: 0 (a doubleword store) */
     u_long w098;                        /* 0x098: Character_All_Init: 0 (a doubleword store) */
     short lightBank;                    /* 0x0a0: the bank whose light main_rtn applies, -1 = none */
@@ -58,6 +58,7 @@ typedef struct CHARACTER {
     u_char pad578[0x580 - 0x570 - sizeof(void *)];
 } CHARACTER;
 static_assert(sizeof(CHARACTER) == 0x580, "CHARACTER");
+static_assert(offsetof(CHARACTER, flagsPrev) == 0x8c, "CHARACTER.flagsPrev");
 static_assert(offsetof(CHARACTER, bank) == 0x002, "CHARACTER.bank");
 static_assert(offsetof(CHARACTER, flags) == 0x088, "CHARACTER.flags");
 static_assert(offsetof(CHARACTER, lightBank) == 0x0a0, "CHARACTER.lightBank");
@@ -143,9 +144,12 @@ typedef struct BANK_INFO {
     u_char shadowDraw;                  /* 0x6e: non-0: _CheckTransMode takes the bank's shadow */
     u_char pad6f;
     u_char shadow70;                    /* 0x70: 0 at init */
-    u_char pad71[0x1f];
+    u_char pad71[0xf];
+    int drawOnPrev;                     /* 0x80: drawOn as the last asCopyDoubleBuffer left it */
+    u_char pad84[0xc];
 } BANK_INFO;
 static_assert(sizeof(BANK_INFO) == 0x90, "BANK_INFO");
+static_assert(offsetof(BANK_INFO, drawOnPrev) == 0x80, "BANK_INFO.drawOnPrev");
 static_assert(offsetof(BANK_INFO, name) == 0x08, "BANK_INFO.name");
 static_assert(offsetof(BANK_INFO, type) == 0x18, "BANK_INFO.type");
 static_assert(offsetof(BANK_INFO, image) == 0x1c, "BANK_INFO.image");
@@ -266,7 +270,8 @@ typedef struct ALL_TABLE {
                                            words to 0xe8: the table's end is not known */
     u_int ctrl;                         /* 0xc0: OBJ_CTRL_TABLE: the scene's controlled parts
                                            (asSeekBarInitializeForX takes the CTRL_KIND_SEEKBAR ones) */
-    u_int padc4[6];
+    u_int padc4[5];
+    u_int search;                       /* 0xd8: SEARCH_TABLE (asSearchObject), 0 = none */
     u_int seat;                         /* 0xdc: SEAT_TABLE (asSeatArrange_Init), 0 = none */
     u_int pade0[2];
     u_int seekBarX;                     /* 0xe8: the relocator clears it; the ROM keeps the _SunAlloc'd
@@ -274,6 +279,7 @@ typedef struct ALL_TABLE {
                                            so the host keeps it in SeekBarX[bank] (this word stays 0) */
 } ALL_TABLE;
 static_assert(offsetof(ALL_TABLE, ctrl) == 0xc0, "ALL_TABLE.ctrl");
+static_assert(offsetof(ALL_TABLE, search) == 0xd8, "ALL_TABLE.search");
 static_assert(offsetof(ALL_TABLE, seat) == 0xdc, "ALL_TABLE.seat");
 static_assert(offsetof(ALL_TABLE, seekBarX) == 0xe8, "ALL_TABLE.seekBarX");
 static_assert(offsetof(ALL_TABLE, partsPos) == 0x10, "ALL_TABLE.partsPos");

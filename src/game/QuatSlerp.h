@@ -52,6 +52,13 @@ int asJointParts(int srcBank, int bank, u_long hash);                           
 int asJointParts_byMatrix(float (*mat)[4], int *pos, int bank);                          // CT3 0x01854750
 // From BuildMatrixTree's calls (ahRelocateSunPs2ObjectArry.c slice 4, 2026-11-10); confirm when written.
 int absi(int v);                                                                         // CT3 0x0185e040
+// *abs = |v|, *sign = -1, 0 or 1.
+void AbsSignI32(int v, int *abs, int *sign);                                            // CT3 0x0185e390
+// The game's angles are u_short turns (asSearchObject's cone and step); from asSearchObject's calls.
+float ahCos(int angle);                                                                  // CT3 0x01851d60
+int ahAcos(float c);                                                                     // CT3 0x01851dc0
+// m = the rotation by angle about the unit axis (asSearchObject's turn step).
+void asMakeRotMatrixByQuartanion(float (*m)[4], float *axis, int angle);                // CT3 0x0185ddf0
 // out = m turned to look at target; `axis` is the part's +0x34 byte.
 void asMakeWatchMeMatrixToPosition(float (*out)[4], float (*m)[4], float *target, int axis); // CT3 0x0185d4d0
 // a point light part's range (its record, MODEL_PARTS + 0x40).

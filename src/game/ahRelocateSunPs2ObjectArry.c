@@ -8,6 +8,8 @@
 #include <string.h>
 
 #include "ga/gaInit3dlib.h"
+#include "ga/gaSearchNearLight4.h"
+#include "game/LinkMatrixTree.h"
 #include "game/QuatSlerp.h"
 #include "game/ahalloc.h"
 #include "game/fileio.h"
@@ -613,6 +615,7 @@ void ahRelocateFileObject(u_char *image, int persona)
 int iEASnum;                            /* sbss 0x0193f780 (symtab: global) */
 void *lpEAS;                            /* sbss 0x0193f77c: the history records (_SunAlloc'd) */
 int iEASidx;                            /* sbss 0x0193f784: records in lpEAS */
+int FrameCounter;                       /* sbss 0x0194494c (symtab: global; owner unknown, defined with its one writer) */
 
 // CT3 0x01842380
 // 1 while the world moves: no pause (or a PAUSE_RUNNING one) and none reserved for the next frame.
@@ -637,6 +640,15 @@ int asCheckAnimationExecutable_Scene(int scene)
     if (asCheckNowMoving())
         return (bi->flags & BANK_FLAG_ANIM_FORCE_STOP) == 0;
     return (bi->flags & BANK_FLAG_ANIM_FORCE_RUN) != 0;
+}
+
+// CT3 0x01842290
+// The character's bank (Character[].bank), as asCheckAnimationExecutable_Scene answers it.
+int asCheckAnimationExecutable_Character(int chara)
+{
+    if (chara < 0)
+        return 0;
+    return asCheckAnimationExecutable_Scene(Character[chara].bank);
 }
 
 // CT3 0x018423c0
@@ -739,6 +751,49 @@ void ExecuteAnimationHistory_init(void)
     iEASidx = 0;
 }
 
+// CT3 0x0184ec20
+// Plays back the animations recorded since the last frame (lpEAS, iEASidx records), each at its
+// recorded sign and step (the parts header's PARTS_HDR_ANIM_*, cleared after), then, for a record
+// whose animation's first doubleword is all ones, copies each attached part's parent word into the
+// scene's attach list (ALL_TABLE.ctrl +0); frees the records. FrameCounter counts every call.
+// iEASidx is left as it is (the ROM's: the history adder sets it).
+void Execute_ExecuteAnimationHistory(void)
+{
+    EAS_RECORD *base = (EAS_RECORD *)lpEAS;
+    EAS_RECORD *rec;
+    int n;
+    FrameCounter++;
+    if (base == NULL)
+        return;
+    for (rec = base, n = iEASidx; n != 0; n--, rec++) {
+        int bank = rec->bank;
+        u_char *hdr = BANK_PTR(u_char *, bank, rec->tbl->partsHeader);
+        u_char *ctrl;
+        u_long animWord;
+        AbsSignI32(rec->sign, (int *)(hdr + PARTS_HDR_ANIM_ABS), (int *)(hdr + PARTS_HDR_ANIM_SIGN));
+        *(u_int *)(hdr + PARTS_HDR_ANIM_STEP) = rec->step;
+        ExecuteAnimation(bank, rec->anim, rec->tbl, 0, 0, 1, 0, 0);
+        *(u_int *)(hdr + PARTS_HDR_ANIM_STEP) = 0;
+        ctrl = BANK_PTR(u_char *, bank, rec->tbl->ctrl);
+        if (ctrl == NULL)
+            continue;
+        memcpy(&animWord, BANK_PTR(u_char *, bank, rec->anim), sizeof(animWord));
+        if (animWord == ~(u_long)0) {
+            u_char *list = BANK_PTR(u_char *, bank, *(u_int *)(ctrl + OBJ_CTRL_ATTACH_LIST));
+            int count = ctrl[OBJ_CTRL_ATTACH_COUNT];
+            int i;
+            for (i = 0; i < count; i++) {
+                u_char *e = list + i * OBJ_CTRL_ATTACH_SIZE;
+                u_int parent = *(u_int *)(PARTS_REC(hdr, *(u_short *)(e + OBJ_CTRL_ATTACH_PART)) + EAS_REC_PARENT);
+                if (parent != 0)
+                    *(u_int *)(e + OBJ_CTRL_ATTACH_PARENT) = parent;
+            }
+        }
+    }
+    _SunFree(&gHeapJunc, (void **)&base);
+    lpEAS = NULL;
+}
+
 // ---- shadows (CT3 0x01847330..0x01847c30, slice 2) ----
 
 char iShadowTransMode;                  /* sbss 0x0193fa7c */
@@ -764,11 +819,25 @@ void asShadowDrawing_DetachLightPosition(int scene)
         BankInfo[scene].shadowLightPos = 0;
 }
 
+// CT3 0x018474f0
+// The shadow's on word (shadowVec w; asShadowDrawing_Disable clears it).
+void asShadowDrawing_Enable(int scene)
+{
+    if (scene >= 0)
+        BankInfo[scene].shadowVec[3] = 1.0f;
+}
+
 // CT3 0x01847520
 void asShadowDrawing_Disable(int scene)
 {
     BankInfo[scene].shadowVec[3] = 0.0f;
     BankInfo[scene].shadowColor[3] = 0xff;
+}
+
+// CT3 0x01847610
+void asShadowDrawing_SetTransOrderBW(char on)
+{
+    iShadowTransOrderBW = on != 0;
 }
 
 // CT3 0x01847b10
@@ -966,6 +1035,246 @@ void asSeekBarAnimation(int scene)
 }
 
 // ---- seats (slice 3) ----
+
+// CT3 0x018437c0
+// Puts cell `cell` of row `row` on its grid square: the cell's part's translation (REC_BASE row 3) =
+// the row's part's position + its matrix's x axis * (x + 1.5) * SEAT_SQUARE + its z axis * (y + 1.5)
+// * SEAT_SQUARE (all four lanes). The ROM reads the current scene's table, not the caller's bank.
+void asSeatArrange_ObjectMatchGlid(int row, int cell)
+{
+    int bank = idCurrentScene;
+    u_int *seat = BANK_PTR(u_int *, bank, All_table_TBL[bank]->seat);
+    u_char *header = BANK_PTR(u_char *, bank, All_table_TBL[bank]->partsHeader);
+    u_char *r = BANK_PTR(u_char *, bank, seat[1]) + row * SEAT_ROW_SIZE;
+    u_char *c = BANK_PTR(u_char *, bank, *(u_int *)(r + SEAT_ROW_CELLS)) + cell * SEAT_CELL_SIZE;
+    u_char *base = PARTS_REC(header, *(u_short *)(r + SEAT_ROW_PART));
+    float *t = (float *)(PARTS_REC(header, *(u_short *)(c + SEAT_CELL_PART)) + 0x2b0); /* REC_BASE row 3 */
+    float fx = ((float)c[SEAT_CELL_X] + 1.5f) * SEAT_SQUARE;
+    float fz = ((float)c[SEAT_CELL_Y] + 1.5f) * SEAT_SQUARE;
+    const float *pos = (const float *)(base + 0xf0);    /* REC_POS */
+    const float *ax = (const float *)(base + 0x180);    /* REC_MATRIX row 0 */
+    const float *az = (const float *)(base + 0x1a0);    /* REC_MATRIX row 2 */
+    int i;
+    for (i = 0; i < 4; i++)
+        t[i] = pos[i];
+    for (i = 0; i < 4; i++)
+        t[i] += ax[i] * fx;
+    for (i = 0; i < 4; i++)
+        t[i] += az[i] * fz;
+}
+
+// The 4 x 4 grid bytes from (x, y) take SEAT_GRID_TAKEN (asSeatArrange_FlameInit, unrolled in the ROM).
+static void SeatMarkBlock(u_char *grid, int width, int x, int y)
+{
+    int at = x + y * width;
+    int r, k;
+    for (r = 0; r < 4; r++, at += width)
+        for (k = 0; k < 4; k++)
+            grid[at + k] |= SEAT_GRID_TAKEN;
+}
+
+// CT3 0x01843270
+// The seat grid's frame: every grid byte keeps its low two bits (SEAT_GRID_KEEP), then each cell marks
+// the 4 x 4 grid bytes at its position (SEAT_GRID_TAKEN), and a SEAT_CELL_TWO_PLACES cell those at its
+// second position too. The marks go into row 0's grid with row 0's width, for every row (the ROM's).
+void asSeatArrange_FlameInit(int scene)
+{
+    u_int *seat;
+    u_char *rows;
+    u_char *grid;
+    int width;
+    int i, j;
+    if (BankInfo[scene].state != BANK_STATE_LOADED || All_table_TBL[scene]->seat == 0 || !asCheckBankType(scene))
+        return;
+    seat = BANK_PTR(u_int *, scene, All_table_TBL[scene]->seat);
+    rows = BANK_PTR(u_char *, scene, seat[1]);
+    grid = BANK_PTR(u_char *, scene, *(u_int *)(rows + SEAT_ROW_GRID));
+    width = rows[SEAT_ROW_WIDTH];
+    for (i = 0; i < (int)seat[0]; i++) {
+        u_char *row = rows + i * SEAT_ROW_SIZE;
+        u_char *g = BANK_PTR(u_char *, scene, *(u_int *)(row + SEAT_ROW_GRID));
+        int n;
+        for (n = *(u_short *)(row + SEAT_ROW_GRID_QWORDS) * 0x10; n != 0; n--, g++)
+            *g &= SEAT_GRID_KEEP;
+        for (j = 0; j < row[SEAT_ROW_COUNT]; j++) {
+            u_char *cell = BANK_PTR(u_char *, scene, *(u_int *)(row + SEAT_ROW_CELLS)) + j * SEAT_CELL_SIZE;
+            SeatMarkBlock(grid, width, cell[SEAT_CELL_X], cell[SEAT_CELL_Y]);
+            if (cell[SEAT_CELL_PLACES] == SEAT_CELL_TWO_PLACES)
+                SeatMarkBlock(grid, width, cell[SEAT_CELL_X2], cell[SEAT_CELL_Y2]);
+        }
+    }
+}
+
+// ---- searching parts (asSearchObject, slice 5, 2026-11-10) ----
+
+#define REC_FLAGS 0x10                  /* u_int: MODEL_PARTS.flags (PARTS_FLAG_HIDDEN) */
+#define REC_POS 0xf0                    /* float[4]: MODEL_PARTS.pos */
+
+// v.xyz /= |v.xyz| (vrsqrt, vmulq.xyz: w is kept); answers |v.xyz| (the vdiv after it).
+static float SearchNormalize(float v[4])
+{
+    float len = sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    float q = 1.0f / len;
+    v[0] *= q;
+    v[1] *= q;
+    v[2] *= q;
+    return 1.0f / q;
+}
+
+// SEARCH_IN_CONE when the direction from the eye is inside the cone about the axis (or there is no
+// cone), SEARCH_IN_RANGE when the target is near enough (or there is no range).
+static int SearchSees(const SEARCH_OBJ *so, float *axis, float *dir, float dist)
+{
+    float dot = gaInnerProductXYZ(axis, dir);
+    float c = ahCos(so->halfAngle);
+    int seen = 0;
+    if (so->halfAngle == 0 || !(dot <= c))
+        seen |= SEARCH_IN_CONE;
+    if (so->range == 0 || dist < (float)so->range)
+        seen |= SEARCH_IN_RANGE;
+    return seen;
+}
+
+// CT3 0x01843950
+// For each searching part whose part is shown and whose owner character is in use: gathers the
+// targets (this bank's shown parts, the in-use characters' parts by hash), takes the nearest to the
+// owner's eye part that is inside the cone and the range (gaSearchNearLight4, dropping each miss),
+// else the rest part's position; moves the part towards it (straight at speed per 5 ticks, or turning
+// about the eye by at most turnStep); sets the part's w to 1 while it sees its goal, else 0. The
+// "nothing seen" flag is set once per call and never cleared (the ROM's: sp+0xb0 is zeroed once), so
+// after one blind search every later part of the bank also gets w 0.
+void asSearchObject(int scene)
+{
+    u_int *table;
+    u_char *header;
+    int blind = 0;
+    int r;
+    // callcheck: ahCos (SearchSees makes it)
+    if (BankInfo[scene].state != BANK_STATE_LOADED)
+        return;
+    table = BANK_PTR(u_int *, scene, All_table_TBL[scene]->search);
+    if (table == NULL)
+        return;
+    header = BANK_PTR(u_char *, scene, All_table_TBL[scene]->partsHeader);
+    for (r = 0; r < (int)table[0]; r++) {
+        SEARCH_OBJ *so = BANK_PTR(SEARCH_OBJ *, scene, table[1]) + r;
+        u_char *self = PARTS_REC(header, so->part);
+        float (*cand)[4] = BANK_PTR(float (*)[4], scene, so->candidates);
+        CHARACTER *owner = &Character[so->chara];
+        alignas(16) float axis[4], dir[4], toGoal[4];
+        u_char *eye, *rest, *ownerHdr;
+        u_char nearest[32];
+        const short *list;
+        int n = 0, k, seen = -1;
+        float dist;
+
+        if ((*(u_int *)(self + REC_FLAGS) & PARTS_FLAG_HIDDEN) || !(owner->flags & CHARACTER_FLAG_SHADOW))
+            continue;
+        list = BANK_PTR(const short *, scene, so->parts);
+        for (k = 0; list[k] != -1; k++) {
+            u_char *t = PARTS_REC(header, list[k]);
+            if (!(*(u_int *)(t + REC_FLAGS) & PARTS_FLAG_HIDDEN)) {
+                memcpy(cand[n], t + REC_POS, 0x10);
+                *(u_int *)&cand[n][3] = SEARCH_CANDIDATE_W;
+                n++;
+            }
+        }
+        list = BANK_PTR(const short *, scene, so->charas);
+        for (k = 0; list[k] != -1; k++) {
+            CHARACTER *ch = &Character[list[k]];
+            u_long hash;
+            u_char *t;
+            if (!(ch->flags & CHARACTER_FLAG_SHADOW))
+                continue;
+            memcpy(&hash, BANK_PTR(u_char *, scene, so->hashes) + k * 8, sizeof(hash));
+            t = asFindModelParts(pModelPartsHeader[ch->bank], hash);
+            if (t != NULL && !(*(u_int *)(t + REC_FLAGS) & PARTS_FLAG_HIDDEN)) {
+                memcpy(cand[n], t + REC_POS, 0x10);
+                *(u_int *)&cand[n][3] = SEARCH_CANDIDATE_W;
+                n++;
+            }
+        }
+        ownerHdr = pModelPartsHeader[owner->bank];
+        eye = asFindModelParts(ownerHdr, so->eyeHash);
+        rest = asFindModelParts(ownerHdr, so->restHash);
+        if (eye == NULL || rest == NULL)
+            continue;                   /* PORT: the ROM reads through them unchecked */
+        for (k = 0; k < 4; k++)
+            axis[k] = ((float *)(rest + REC_POS))[k] - ((float *)(eye + REC_POS))[k];
+        SearchNormalize(axis);
+
+        for (k = 0; n - k > 0; k++) {
+            int i;
+            gaSearchNearLight4(nearest, (float (*)[4])(eye + REC_POS), 1, cand, n - k);
+            memcpy(so->goal, cand[nearest[0]], 0x10);
+            so->goal[3] = 1.0f;
+            for (i = 0; i < 4; i++)
+                dir[i] = so->goal[i] - ((float *)(eye + REC_POS))[i];
+            dist = SearchNormalize(dir);
+            seen = SearchSees(so, axis, dir, dist);
+            if (seen == SEARCH_SEEN)
+                break;
+            memcpy(cand[nearest[0]], cand[n - k - 1], 0x10);
+        }
+        if (seen != SEARCH_SEEN) {
+            memcpy(so->goal, rest + REC_POS, 0x10);
+            blind = 1;
+        }
+
+        if (so->turn == SEARCH_MOVE_STRAIGHT) {
+            float step = gGlobalNextTicksInterval < 0 ? 0.0f : (float)gGlobalNextTicksInterval / 5.0f;
+            int i;
+            step = so->speed * step;
+            for (i = 0; i < 4; i++)
+                dir[i] = so->goal[i] - so->pos[i];
+            if (SearchNormalize(dir) <= step) {
+                memcpy(so->pos, so->goal, 0x10);
+            } else {
+                for (i = 0; i < 4; i++)
+                    so->pos[i] += dir[i] * step;
+            }
+        } else {
+            alignas(16) float m[4][4], cross[4], v[4];
+            float la, lb;
+            int angle, i;
+            for (i = 0; i < 4; i++) {
+                dir[i] = so->pos[i] - ((float *)(eye + REC_POS))[i];
+                toGoal[i] = so->goal[i] - ((float *)(eye + REC_POS))[i];
+            }
+            la = SearchNormalize(dir);
+            lb = SearchNormalize(toGoal);
+            angle = ahAcos(gaInnerProductXYZ(dir, toGoal));
+            (void)ahAcos(gaInnerProductXYZ(dir, axis)); /* the ROM's: its answer is not used */
+            if (angle < so->turnStep) {
+                memcpy(so->pos, so->goal, 0x10);
+            } else {
+                float len = la + (lb - la) / ((float)angle / (float)so->turnStep);
+                // cross(toGoal, dir) (vopmula / vopmsub .xyz; w stays toGoal's), normalized
+                cross[0] = toGoal[1] * dir[2] - dir[1] * toGoal[2];
+                cross[1] = toGoal[2] * dir[0] - dir[2] * toGoal[0];
+                cross[2] = toGoal[0] * dir[1] - dir[0] * toGoal[1];
+                cross[3] = toGoal[3];
+                SearchNormalize(cross);
+                asMakeRotMatrixByQuartanion(m, cross, so->turnStep);
+                for (i = 0; i < 4; i++)
+                    v[i] = m[0][i] * dir[0] + m[1][i] * dir[1] + m[2][i] * dir[2] + m[3][i] * dir[3];
+                for (i = 0; i < 4; i++)
+                    so->pos[i] = ((float *)(eye + REC_POS))[i] + v[i] * len;
+            }
+        }
+        memcpy(self + REC_POS, so->pos, 0x10);
+
+        if (blind) {
+            ((float *)(self + REC_POS))[3] = 0.0f;
+        } else {
+            int i;
+            for (i = 0; i < 4; i++)
+                dir[i] = so->pos[i] - ((float *)(eye + REC_POS))[i];
+            dist = SearchNormalize(dir);
+            ((float *)(self + REC_POS))[3] = SearchSees(so, axis, dir, dist) == SEARCH_SEEN ? 1.0f : 0.0f;
+        }
+    }
+}
 
 // CT3 0x018436a0
 // Every cell of the scene's seat table back to its home position, matched to the grid, then the frame.
@@ -1462,6 +1771,130 @@ void BuildMatrixTree(int scene, int mode, int pass)
         }
     }
 }
+// CT3 0x01850770
+// BuildMatrixTree(bank, 2, 0): the matrix tree without the view pass -- only what is dirty, a watch
+// part or a link part (and its subtree) is rebuilt; parts under a link part also get their view and
+// draw matrices (with the previous scale). A negative bank keeps this frame's matrices as the previous
+// ones. Read from the disassembly beside BuildMatrixTree's; its one difference: a watch part turns
+// only when its target's w is not 0 (0x01850af8), for every target kind.
+void BMT_20(u_char *partsHeader, int bank)
+{
+    alignas(16) float prevScale[4][4] = { { 1, 0, 0, 0 }, { 0, 1, 0, 0 }, { 0, 0, 1, 0 }, { 0, 0, 0, 1 } }; /* 0x01937660 */
+    short dirtyDepth = -1;
+    int linkDepth = BMT_NO_LINK;
+    u_char *linkRec = NULL;
+    int rebuild = 0;
+    int keep = bank < 0;
+    u_char *rec;
+
+    // callcheck: asFindModelParts, asViewMatrix2PosRUF (BmtWatchTarget makes them)
+    if (keep)
+        bank = -bank;
+    for (rec = partsHeader + PARTS_RECORDS; !PARTS_END(rec); rec += sizeof(MODEL_PARTS)) {
+        short depth = *(short *)(rec + REC_DEPTH);
+        float (*local)[4] = RM(rec, REC_LOCAL);
+        float (*world)[4] = RM(rec, REC_MATRIX);
+        if ((signed char)rec[REC_KIND] == PARTS_KIND_STATIC) {
+            if (rebuild)
+                BmtApply(RF(rec, REC_POS), PartsParentMatrix(bank, *(u_int *)(rec + REC_PARENT)), RF(rec, REC_LPOS));
+            continue;
+        }
+        gaMulMatrix(local, PartsParentMatrix(bank, *(u_int *)(rec + REC_PARENT)), RM(rec, REC_BASE));
+        if (rebuild && depth <= dirtyDepth)
+            rebuild = 0;
+        if (rec[REC_BITS] & REC_BIT_DIRTY) {
+            rec[REC_BITS] &= ~REC_BIT_DIRTY;
+            if (!rebuild) {
+                dirtyDepth = depth;
+                rebuild = 1;
+            }
+        }
+
+        if ((signed char)rec[REC_KIND] == PARTS_KIND_WATCH && !(*(u_int *)(rec + REC_FLAGS) & REC_FLAG_HOLD)) {
+            alignas(16) float target[4];
+            alignas(16) float m[4][4];
+            if (!rebuild) {
+                dirtyDepth = depth;
+                rebuild = 1;
+            }
+            if (BmtWatchTarget(partsHeader, rec, bank, target) && target[3] != 0.0f) {
+                asMakeWatchMeMatrixToPosition(m, local, target, rec[REC_WATCH_AXIS]);
+                memcpy(local, m, sizeof(m));
+            }
+        }
+
+        if ((signed char)rec[REC_KIND] == PARTS_KIND_LINK && !(*(u_int *)(rec + REC_FLAGS) & REC_FLAG_HOLD)) {
+            short lb = *(short *)(rec + REC_LINK_BANK);
+            if (!rebuild) {
+                dirtyDepth = depth;
+                rebuild = 1;
+            }
+            if (linkDepth == BMT_NO_LINK)
+                linkDepth = depth;
+            if (lb >= 0 && BankInfo[lb].state == BANK_STATE_LOADED) {
+                u_char *lrec;
+                if (*(u_short *)(rec + REC_LINK_PART) == 0)
+                    *(u_short *)(rec + REC_LINK_PART) =
+                        (u_short)asFindModelPartsID(pModelPartsHeader[lb], *(u_long *)(rec + REC_HASH));
+                if (*(u_short *)(rec + REC_LINK_KEEP) == 0)
+                    *(u_int *)(rec + REC_FLAGS) |= REC_FLAG_HOLD;
+                lrec = pModelPartsHeader[lb] + *(u_short *)(rec + REC_LINK_PART) * sizeof(MODEL_PARTS) + PARTS_RECORDS;
+                linkRec = lrec;
+                memcpy(rec + REC_BASE, lrec + REC_MATRIX_PREV, 0x40);
+                BmtApply(RM(rec, REC_BASE)[3], RM(lrec, REC_MATRIX_PREV), RF(lrec, REC_LPOS));
+                gaMulMatrix(local, PartsParentMatrix(bank, *(u_int *)(rec + REC_PARENT)), RM(rec, REC_BASE));
+            }
+        } else if (linkDepth < depth && linkRec != NULL) {
+            if (*RF(rec, REC_BLEND) == 1.0f)
+                gaMulMatrix(world, local, RM(rec, REC_OFFSET));
+            else
+                memcpy(world, local, 0x40);
+            prevScale[0][0] = *RF(rec, REC_PREV_SCALE_X);
+            prevScale[1][1] = *RF(rec, REC_PREV_SCALE_X + 0x10);
+            prevScale[2][2] = *RF(rec, REC_PREV_SCALE_X + 0x20);
+            gaMulMatrix(RM(rec, REC_VIEW_MATRIX), Cam[asCheckBankID(bank)].view, world);
+            gaMulMatrix(RM(rec, REC_DRAW_MATRIX), RM(rec, REC_VIEW_MATRIX), prevScale);
+            if ((signed char)rec[REC_KIND] == PARTS_KIND_DIRECTIONAL) {
+                int i;
+                for (i = 0; i < 4; i++)
+                    RF(rec, REC_LIGHT)[i] = world[1][i] * -1.0f;
+                RF(rec, REC_LIGHT)[3] = 1.0f;
+            } else if ((signed char)rec[REC_KIND] == PARTS_KIND_OMNI) {
+                BmtApply(RF(rec, REC_LIGHT), world, RF(linkRec, REC_LPOS));
+                RF(rec, REC_LIGHT)[3] = *RF(rec, REC_LIGHT_RANGE);
+            }
+        } else {
+            linkDepth = BMT_NO_LINK;
+        }
+
+        if (rebuild) {
+            rec[REC_BITS] |= REC_BIT_REBUILT;
+            if (*RF(rec, REC_BLEND) == 1.0f)
+                gaMulMatrix(world, local, RM(rec, REC_OFFSET));
+            else
+                memcpy(world, local, 0x40);
+            if ((signed char)rec[REC_KIND] != PARTS_KIND_NO_POS)
+                BmtApply(RF(rec, REC_POS), world, RF(rec, REC_LPOS));
+            if ((signed char)rec[REC_KIND] == PARTS_KIND_DIRECTIONAL) {
+                int i;
+                for (i = 0; i < 4; i++)
+                    RF(rec, REC_LIGHT)[i] = world[1][i] * -1.0f;
+                RF(rec, REC_LIGHT)[3] = 1.0f;
+            } else if ((signed char)rec[REC_KIND] == PARTS_KIND_OMNI) {
+                memcpy(rec + REC_LIGHT, rec + REC_POS, 0x10);
+                RF(rec, REC_LIGHT)[3] = *RF(rec, REC_LIGHT_RANGE);
+            }
+            if (keep) {
+                memcpy(rec + REC_MATRIX_PREV, world, 0x40);
+                *RF(rec, REC_PREV_SCALE_X) = RF(rec, REC_SCALE)[0];
+                *RF(rec, REC_PREV_SCALE_X + 0x10) = RF(rec, REC_SCALE)[1];
+                *RF(rec, REC_PREV_SCALE_X + 0x20) = RF(rec, REC_SCALE)[2];
+            }
+        }
+        if ((signed char)rec[REC_KIND] == PARTS_KIND_OMNI && !(*(u_int *)(rec + REC_FLAGS) & REC_FLAG_HOLD))
+            OmniRangeChange(rec);
+    }
+}
 #undef RF
 #undef RM
 
@@ -1475,24 +1908,6 @@ u_long asSceneAnimationStart(float speed, int a0, ALL_TABLE *tbl, int a2, int fr
     return {};
 }
 
-// stub of CT3 0x018437c0
-void asSeatArrange_ObjectMatchGlid(int row, int cell)
-{
-    ALYSSAPAN_STUB("asSeatArrange_ObjectMatchGlid", 0x018437c0);
-}
-
-// stub of CT3 0x01843270
-void asSeatArrange_FlameInit(int scene)
-{
-    ALYSSAPAN_STUB("asSeatArrange_FlameInit", 0x01843270);
-}
-
-// stub of CT3 0x0184ec20
-void Execute_ExecuteAnimationHistory(void)
-{
-    ALYSSAPAN_STUB("Execute_ExecuteAnimationHistory", 0x0184ec20);
-}
-
 // stub of CT3 0x018497d0
 void asMakeStraw(int bank, u_int straw, u_int partsHeader)
 {
@@ -1503,18 +1918,6 @@ void asMakeStraw(int bank, u_int straw, u_int partsHeader)
 void ExecuteAnimation(int bank, u_int anim, ALL_TABLE *tbl, int a2, int a3, int a4, int a5, int a6)
 {
     ALYSSAPAN_STUB("ExecuteAnimation", 0x0184a570);
-}
-
-// stub of CT3 0x01843950
-void asSearchObject(int scene)
-{
-    ALYSSAPAN_STUB("asSearchObject", 0x01843950);
-}
-
-// stub of CT3 0x01851150
-void asCopyDoubleBuffer(void)
-{
-    ALYSSAPAN_STUB("asCopyDoubleBuffer", 0x01851150);
 }
 
 // stub of CT3 0x01844df0
@@ -1599,14 +2002,78 @@ void asShadowStart(void)
     ALYSSAPAN_STUB("asShadowStart", 0x018471c0);
 }
 
-// stub of CT3 0x01850770
-void BMT_20(u_char *partsHeader, int bank)
-{
-    ALYSSAPAN_STUB("BMT_20", 0x01850770);
-}
+// ---- the double buffer (asCopyDoubleBuffer and its L2V, slice 5, 2026-11-10) ----
+//
+// Once a frame (main, after the draw) every part's view matrices (REC_DRAW_MATRIX, REC_VIEW_MATRIX)
+// become the matrices its ga draw object reads (REC_GA_MATRIX, REC_GA_MATRIX2). A scene bank whose
+// drawing has just been switched on, or a character that has just taken CHARACTER_FLAG_SHADOW, gets
+// the gNoDraw matrices instead: last frame's matrices are not drawn.
 
-// stub of CT3 0x018513b0
+#define REC_GA_MATRIX 0x100          /* float[4][4]: the ga draw object's first matrix (DRAW_OBJ_MATRIX) */
+#define REC_GA_MATRIX2 0x140            /* float[4][4]: its second (DRAW_OBJ_MATRIX2) */
+#define REC_GA_VIEW_HOLD 0x14c          /* float: REC_GA_MATRIX2 row 0 w = the copied REC_VIEW_HOLD;
+                                           != 0 leaves the part's ga matrices alone */
+#define L2V_COPY 0                      /* asCopyDoubleBufferL2V: the view matrices to the ga ones */
+#define L2V_NO_DRAW 1                   /* ... the ga ones cleared, gNoDraw as the first one's last row */
+
+// The symtab's local gNoDraw$117: the last row of a "nothing to draw" matrix (translation 1e8).
+alignas(16) static const float gNoDraw[4] = { 100000000.0f, 100000000.0f, 100000000.0f, 0.0f }; /* sdata 0x01937610 */
+
+// CT3 0x018513b0
+// Every part but a static one or one whose ga view hold is set: L2V_COPY copies REC_DRAW_MATRIX and
+// REC_VIEW_MATRIX to the ga matrices (lqc2 / sqc2); L2V_NO_DRAW zeroes both ga matrices but the first
+// one's last row, gNoDraw. Other modes do nothing.
 void asCopyDoubleBufferL2V(u_char *partsHeader, int mode)
 {
-    ALYSSAPAN_STUB("asCopyDoubleBufferL2V", 0x018513b0);
+    u_char *rec;
+    if (mode != L2V_COPY && mode != L2V_NO_DRAW)
+        return;
+    for (rec = PARTS_REC(partsHeader, 0); !PARTS_END(rec); rec += sizeof(MODEL_PARTS)) {
+        if ((signed char)rec[REC_KIND] == PARTS_KIND_STATIC || *(float *)(rec + REC_GA_VIEW_HOLD) != 0.0f)
+            continue;
+        if (mode == L2V_NO_DRAW) {
+            memset(rec + REC_GA_MATRIX, 0, 0x30);
+            memcpy(rec + REC_GA_MATRIX + 0x30, gNoDraw, sizeof(gNoDraw));
+            memset(rec + REC_GA_MATRIX2, 0, 0x40);
+        } else {
+            memcpy(rec + REC_GA_MATRIX, rec + REC_DRAW_MATRIX, 0x80);
+        }
+    }
+}
+
+// CT3 0x01851150
+// The scene banks (BANK_TYPE_SHADOW and BANK_TYPE_0) that are drawn or BANK_FLAG_DRAW_FIRST, then
+// every character's bank; drawOnPrev / flagsPrev keep this frame's state for the next.
+void asCopyDoubleBuffer(void)
+{
+    int bank;
+    int c;
+    for (bank = 0; bank < BANK_MAX; bank++) {
+        BANK_INFO *bi = &BankInfo[bank];
+        if (bi->state != BANK_STATE_LOADED)
+            continue;
+        if ((bi->drawOn == DRAW_BANK_ON || (bi->flags & BANK_FLAG_DRAW_FIRST))
+            && (bi->type == BANK_TYPE_SHADOW || bi->type == BANK_TYPE_0)
+            && All_table_TBL[bank] != NULL) { /* PORT: the ROM reads the table unchecked */
+            u_char *hdr = BANK_PTR(u_char *, bank, All_table_TBL[bank]->partsHeader);
+            if (bi->drawOnPrev == 0 && bi->drawOn == DRAW_BANK_ON)
+                asCopyDoubleBufferL2V(hdr, L2V_NO_DRAW);
+            else
+                asCopyDoubleBufferL2V(hdr, L2V_COPY);
+        }
+        bi->drawOnPrev = bi->drawOn;
+        bank += bi->groupCount - 1;     /* state is BANK_STATE_LOADED (> 0): skip the group */
+    }
+    for (c = 0; c < CHARACTER_MAX; c++) {
+        CHARACTER *chr = &Character[c];
+        short b = chr->bank;
+        if (b >= 0 && All_table_TBL[b] != NULL) { /* PORT: the same check */
+            u_char *hdr = BANK_PTR(u_char *, b, All_table_TBL[b]->partsHeader);
+            if (!(chr->flagsPrev & CHARACTER_FLAG_SHADOW) && (chr->flags & CHARACTER_FLAG_SHADOW))
+                asCopyDoubleBufferL2V(hdr, L2V_NO_DRAW);
+            else
+                asCopyDoubleBufferL2V(hdr, L2V_COPY);
+        }
+        chr->flagsPrev = chr->flags;
+    }
 }

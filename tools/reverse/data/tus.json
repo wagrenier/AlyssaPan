@@ -444,7 +444,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 121..121, 39 functions keyed by their statics, 22 unkeyed; file name from the names"
   },
   "game/ahRelocateSunPs2ObjectArry.c": {
-   "notes": "LinkMatrixTree.c is queued first: the record +0x8c parent word is 0 until LinkMatrixTree fills it, and PartsParentMatrix reads 0 as matUnit meanwhile (temporary PORT line, remove with LinkMatrixTree; it must store MATUNIT_EE or BankEeAddr). Next in this TU: BMT_20 (0x848), asMakeStraw, ExecuteAnimation, Execute_ExecuteAnimationHistory. Smoke run back to the main.c ActressMP NULL crash; shot black. Open items cj..cm.",
+   "notes": "Next in this TU: asMakeStraw (0xcdc, VU0 and quaternions, read from the disassembly, a slice of its own), then ExecuteAnimation (0x16bc); both are reached every frame. New stubs: ahCos, ahAcos, asMakeRotMatrixByQuartanion, gaInnerProductXYZ. Smoke run unchanged: shot black, crash at main.c:2106 (ActressMP NULL, the character shape load in fileio.c). Open items cr..cv.",
    "ranges": [
     [
      "0183e280",
@@ -471,6 +471,11 @@
      "date": "2026-11-10 04:24",
      "status": "partial",
      "summary": "slice 4: BuildMatrixTree from the disassembly (look-at, link, light parts; parent words stay EE addresses), behaviour start / stop, asShadowDrawing_Fin, asDrawShadowVolumeLoop, asGetForceMatrixOperationFlag, asMirrorPlaneCalc, polygon flag reverse; absi written early"
+    },
+    {
+     "date": "2026-11-10 05:03",
+     "status": "partial",
+     "summary": "slice 5: the double buffer (asCopyDoubleBuffer, asCopyDoubleBufferL2V, gNoDraw), BMT_20, Execute_ExecuteAnimationHistory (EAS_RECORD host layout, FrameCounter, AbsSignI32 early), asSearchObject (SEARCH_OBJ), asSeatArrange_FlameInit and _ObjectMatchGlid, asCheckAnimationExecutable_Character, asShadowDrawing_Enable and _SetTransOrderBW"
     }
    ],
    "status": "partial",

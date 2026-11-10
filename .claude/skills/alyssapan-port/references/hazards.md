@@ -7,6 +7,10 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-10, ahRelocateSunPs2ObjectArry.c slice 5) **A blanket text replace over a TU file hits the
+  relocator**: replacing `t + 0x10` by a field name in new code also rewrote three `R(t + 0x10)` lines of
+  ahRelocateFileObject. Scope replacements to the new block (or check `git diff` for `-` lines that are
+  not stubs). The section-heading `CT3 0x` hazard below bit again too.
 - (2026-11-10, ahRelocateSunPs2ObjectArry.c slice 4) **callcheck misses calls made before a function's
   `alignas(16) float m[4][4] = { {...} }` locals end**: BuildMatrixTree's BMT_01 / BMT_20 calls were
   reported missing (and `alignas`, `float` as extra calls); a `// callcheck:` line covers them. Also: a

@@ -437,6 +437,31 @@ whose bytes 2..3 (home) are copied to 4..5 and 6..7 at init. Model part records 
 non-kind-1 record's position (+0xf0) to +0x2f0 and, unless record +0x34c is set, builds record +0x340 =
 view * matrix (+0x180) and +0x300 = that * diag(record +0x2c0 xyz).
 
+## Double buffer, seats, searching parts, game/ahRelocateSunPs2ObjectArry.c (2026-11-10, slice 5)
+
+- **The double buffer** (`asCopyDoubleBuffer`, main after the draw): each part record's view matrices
+  (+0x300 draw, +0x340 view; 0x80 bytes) are copied to the matrices its ga draw object reads (+0x100,
+  +0x140), skipping static parts (kind 1) and parts whose copied view hold (+0x14c, row 0 w of +0x140)
+  is set. A scene bank whose `drawOn` has just become 1 (BANK_INFO +0x80 `drawOnPrev`), or a character
+  that has just taken CHARACTER_FLAG_SHADOW (CHARACTER +0x8c `flagsPrev`), gets mode 1 instead: both ga
+  matrices zeroed but +0x130 = `gNoDraw$117` (1e8, 1e8, 1e8, 0) -- last frame's matrices never draw.
+- **BMT_20** is BuildMatrixTree(bank, 2, 0) unrolled: no view pass except under a link part; the one
+  difference from BuildMatrixTree's own loop: a watch part turns only when its target's w != 0.
+- **Seats** (ALL_TABLE +0xdc): a row's +0 grid of bytes (+0xa width, +0xc size in 16-byte units, +8
+  the row's part); a cell's +0 part, +4/+5 grid place, +6/+7 second place, +0xc == 1 uses both.
+  `asSeatArrange_FlameInit` keeps grid bits 0..1 and marks the 4 x 4 squares under each cell with bit 2
+  (row 0's grid and width for every row); `asSeatArrange_ObjectMatchGlid` puts a cell's part at the
+  row part's position + x axis * (x + 1.5) * 25 + z axis * (y + 1.5) * 25 (REC_BASE row 3).
+- **Searching parts** (ALL_TABLE +0xd8, `SEARCH_OBJ` 0x50 bytes): a part (+0xc) of an owner character
+  (+0xe) follows the nearest target (this bank's parts, other characters' parts by hash) seen from the
+  owner's eye part (hash +0x10) inside a cone about eye -> rest part (hash +0x18; +0x22 half angle) and
+  a range (+0x20); else it goes back to the rest part. Straight at +0x28 per 5 ticks, or (+0x24 != 0)
+  turning about the eye by at most +0x26 a frame. The part's w is 1 while it sees its goal.
+- **The animation history** (`lpEAS`, `iEASidx`): Execute_ExecuteAnimationHistory plays each record's
+  animation with the parts header +0x20 / +0x24 (|sign|, sign) and +0x28 (step) set around it, and for an
+  all-ones animation copies each attached part's parent word into ALL_TABLE.ctrl's first list (+0, count
+  +0xc, 0x20-byte entries: +8 parent, +0xe part). `FrameCounter` (0x0194494c) counts its calls.
+
 ## The matrix tree set-up and the game clock, game/LinkMatrixTree.c (2026-11-10)
 
 - **InitMatrixTree(header)** (scene_init, data_load_set, asJointParts_byMatrix): for each record

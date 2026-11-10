@@ -35,3 +35,10 @@ void gaSetLight(void *lightWork, float (*view)[4])
 {
     ALYSSAPAN_STUB("gaSetLight", 0x018a8258);
 }
+
+// stub of CT3 0x018a7780
+float gaInnerProductXYZ(float *a, float *b)
+{
+    ALYSSAPAN_STUB("gaInnerProductXYZ", 0x018a7780);
+    return {};
+}

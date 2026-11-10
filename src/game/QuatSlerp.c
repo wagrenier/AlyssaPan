@@ -270,8 +270,44 @@ int absi(int v)
     return v < 0 ? -v : v;
 }
 
+// CT3 0x0185e390
+// Written early (2026-11-10, ahRelocateSunPs2ObjectArry.c slice 5): Execute_ExecuteAnimationHistory calls it.
+void AbsSignI32(int v, int *abs, int *sign)
+{
+    if (v < 0) {
+        *abs = -v;
+        *sign = -1;
+    } else if (v > 0) {
+        *abs = v;
+        *sign = 1;
+    } else {
+        *abs = 0;
+        *sign = 0;
+    }
+}
+
 // stub of CT3 0x0185d4d0
 void asMakeWatchMeMatrixToPosition(float (*out)[4], float (*m)[4], float *target, int axis)
 {
     ALYSSAPAN_STUB("asMakeWatchMeMatrixToPosition", 0x0185d4d0);
+}
+
+// stub of CT3 0x01851dc0
+int ahAcos(float c)
+{
+    ALYSSAPAN_STUB("ahAcos", 0x01851dc0);
+    return {};
+}
+
+// stub of CT3 0x01851d60
+float ahCos(int angle)
+{
+    ALYSSAPAN_STUB("ahCos", 0x01851d60);
+    return {};
+}
+
+// stub of CT3 0x0185ddf0
+void asMakeRotMatrixByQuartanion(float (*m)[4], float *axis, int angle)
+{
+    ALYSSAPAN_STUB("asMakeRotMatrixByQuartanion", 0x0185ddf0);
 }

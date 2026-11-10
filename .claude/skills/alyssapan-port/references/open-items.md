@@ -328,6 +328,23 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    DIRECTIONAL / WATCH / NO_POS / LINK, WATCH_*) come from this one function; REC_FLAG_HOLD is the same
    bit as PARTS_FLAG_FOG -- one of the two names is wrong; asShadowDrawing_CheckTransMode's modes
    (SHADOW_TRANS_*) are named from asDrawShadowVolumeLoop's calls only.
+   **Slice 5 (partial, 2026-11-10):** asCopyDoubleBuffer / asCopyDoubleBufferL2V (BANK_INFO.drawOnPrev,
+   CHARACTER.flagsPrev, gNoDraw), BMT_20, Execute_ExecuteAnimationHistory (EAS_RECORD, FrameCounter;
+   AbsSignI32 written early in QuatSlerp.c), asSearchObject (SEARCH_OBJ, ALL_TABLE.search),
+   asSeatArrange_FlameInit / _ObjectMatchGlid, asCheckAnimationExecutable_Character,
+   asShadowDrawing_Enable / _SetTransOrderBW (architecture.md "Double buffer, seats, searching parts").
+   ahCos, ahAcos, asMakeRotMatrixByQuartanion (QuatSlerp.c) and gaInnerProductXYZ (gaInit3dlib.c) are
+   new stubs. **Next in this TU: asMakeStraw (0xcdc, VU0 + quaternions: read it from the disassembly,
+   a slice of its own), then ExecuteAnimation (0x16bc)** -- both reached every frame. Open: (cr)
+   **decided (Claude's call)**: EAS_RECORD is host layout {anim, tbl, sign, step, bank} -- the ROM's are
+   0x10 bytes; the history adder (not found yet: whoever _SunAllocs lpEAS) must write these and set
+   iEASidx; (cs) the parts header +0x20 / +0x24 / +0x28 (PARTS_HDR_ANIM_*), ALL_TABLE.ctrl's first list
+   (OBJ_CTRL_ATTACH_*), SEARCH_OBJ's fields, the seat grid's bits and SEAT_* are named from one use each;
+   (ct) asSearchObject's "nothing seen" flag is set once per call and never cleared (the ROM's), so one
+   blind part makes every later part of the bank w 0 -- kept; (cu) asCopyDoubleBuffer / asSearchObject
+   / asSeatArrange_* read All_table_TBL and the eye parts unchecked in the ROM: the host skips a NULL
+   (PORT lines); (cv) CHARACTER_FLAG_SHADOW is used as "in use" by asSearchObject and the double buffer,
+   with (ax): rename it when the character TU reads the bit.
    (bw) Extract is untested against a known image: the first scene_init that runs on relocated data is
    its test (a wrong decode shows as garbage tables); a harness decoding one CT3X file from CT3PACK.DAT
    beside the ROM's (eerun.py) would prove it sooner.

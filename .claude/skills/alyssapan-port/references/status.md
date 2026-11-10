@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-10 04:33 at commit `9f0d2f4` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-10 05:03 at commit `14ba206` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,14 +30,14 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **319**; stubs: **239**
+- reconstructed CT3 functions: **330**; stubs: **236**
 
 | file | reconstructed | stubs |
 |---|---|---|
 | `src/ga/gaBGT_DrawObject.c` | 0 | 2 |
 | `src/ga/gaDma.c` | 16 | 0 |
 | `src/ga/gaDmaSync_VIF1.c` | 0 | 3 |
-| `src/ga/gaInit3dlib.c` | 0 | 5 |
+| `src/ga/gaInit3dlib.c` | 0 | 6 |
 | `src/ga/gaInitDrawObject.c` | 24 | 0 |
 | `src/ga/gaInitInterrupt.c` | 3 | 0 |
 | `src/ga/gaInitMeter.c` | 6 | 0 |
@@ -53,9 +53,9 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/CpDivideEECom.c` | 0 | 1 |
 | `src/game/IOPGetFileSize.c` | 0 | 3 |
 | `src/game/LinkMatrixTree.c` | 4 | 0 |
-| `src/game/QuatSlerp.c` | 1 | 42 |
+| `src/game/QuatSlerp.c` | 2 | 45 |
 | `src/game/SdMasterVolumeSetSE.c` | 0 | 34 |
-| `src/game/ahRelocateSunPs2ObjectArry.c` | 32 | 23 |
+| `src/game/ahRelocateSunPs2ObjectArry.c` | 42 | 16 |
 | `src/game/ahalloc.c` | 7 | 0 |
 | `src/game/asEyeForcusUP2CamMat.c` | 0 | 9 |
 | `src/game/asMothPause.c` | 0 | 1 |
@@ -80,7 +80,7 @@ Least-named game-code regions (64 KB blocks):
 - 65 TUs: todo 49, partial 3, verify 13, done 3
 - next: **game/ahRelocateSunPs2ObjectArry.c** (pinned in the queue)
 - pinned queue: game/ahRelocateSunPs2ObjectArry.c, game/fileio.c
-- partial: `game/ahRelocateSunPs2ObjectArry.c` 32/93 -- LinkMatrixTree.c is queued first: the record +0x8c parent word is 0 until LinkMatrixTree fills it, and PartsParentMatrix reads 0 as matUnit meanwhile (temporary
+- partial: `game/ahRelocateSunPs2ObjectArry.c` 42/93 -- Next in this TU: asMakeStraw (0xcdc, VU0 and quaternions, read from the disassembly, a slice of its own), then ExecuteAnimation (0x16bc); both are reached every
 - partial: `game/fileio.c` 33/40 -- Written: FSMltLoadProc (steps FSMLT_*), ReserveBank, Extract; FQUE +0 is dir. The first global bank now loads and the run crashes in scene_init (main.c) reading
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaInitDrawObject.c` 24/24 -- No ROM caller for the texture three (the game uses its sun* copies in QuatSlerp.c): complete, nothing on screen can show them. Shot black as before: packets go 
@@ -98,6 +98,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-10 05:03 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 5: the double buffer (asCopyDoubleBuffer, asCopyDoubleBufferL2V, gNoDraw), BMT_20, Execute_ExecuteAnimationHistory (EAS_RECORD host layout, FrameCounter, 
 - 2026-11-10 04:33 `game/LinkMatrixTree.c` verify: all 4 functions: InitMatrixTree, LinkMatrixTree (parent words MATUNIT_EE or BankEeAddr, decision h), ahTimeInit, ahTimeMaintenance; tick globals moved here; Par
 - 2026-11-10 04:24 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 4: BuildMatrixTree from the disassembly (look-at, link, light parts; parent words stay EE addresses), behaviour start / stop, asShadowDrawing_Fin, asDrawS
 - 2026-11-10 03:56 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 3: seek bars (asSeekBarInitializeForX, asSeekBarFreeForX, asSeekBarAnimation), asSeatArrange_Init, BMT_01, ExecuteAnimationHistory_Free; ALL_TABLE +0xc0 /
@@ -105,19 +106,18 @@ Recent sessions:
 - 2026-11-10 03:12 `game/ct3_types.h` done: ALL_TABLE, DRAW_OBJ_ENTRY, TEX_INFO, PARTICLE_ENTRY, PARTICLE2_ENTRY in EE layout; pointer words u_int read through BANK_PTR in main.c, Character_Init.c, sound.
 - 2026-11-10 02:55 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 1: the file relocator -- ahRelocateFileObject (0x3b80 bytes), ahRelocateBehavior, ahRelocateSunPs2ObjectArry; words stay EE addresses relocated to BankIma
 - 2026-11-10 02:34 `game/fileio.c` partial: slice 2: the bank loader - FSMltLoadProc, ReserveBank, Extract (the CT3X unpacker)
-- 2026-11-10 02:21 `game/fileio.c` partial: slice 1: the bank queue and table, the FSLoad queue, the file server (32 of 40)
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
+| `game/QuatSlerp.c` | partial | 2/45/177 | 50.3 | 234 | 17 |
 | `game/ssGrpPortalCheck.c` | todo | 0/11/59 | 26.4 | 225 | 10 |
-| `game/QuatSlerp.c` | partial | 1/42/177 | 50.3 | 212 | 16 |
 | `game/SdMasterVolumeSetSE.c` | todo | 0/34/61 | 22.9 | 134 | 9 |
 | `game/Clipping_Portal.c` | todo | 0/33/73 | 44.8 | 130 | 14 |
 | `game/ssSetTexUVforCubeMap.c` | todo | 0/30/96 | 35.3 | 79 | 8 |
 | `game/wideXcmd_DebugPrint.c` | todo | 0/13/109 | 40.6 | 76 | 11 |
-| `game/ahRelocateSunPs2ObjectArry.c` | partial | 32/23/93 | 76.0 | 73 | 8 |
+| `ga/gaInit3dlib.c` | todo | 0/6/25 | 3.6 | 52 | 4 |
 | `game/asEyeForcusUP2CamMat.c` | todo | 0/9/30 | 23.6 | 52 | 5 |
-| `ga/gaInit3dlib.c` | todo | 0/5/25 | 3.6 | 42 | 4 |
+| `game/ahRelocateSunPs2ObjectArry.c` | partial | 42/16/93 | 76.0 | 37 | 2 |
 | `ga/gaDmaSync_VIF1.c` | todo | 0/3/5 | 0.5 | 35 | 3 |
 | `game/tiAvoidObject.c` | todo | 0/6/82 | 30.5 | 26 | 4 |
 | `game/fileio.c` | partial | 33/4/40 | 23.3 | 23 | 2 |
@@ -132,19 +132,20 @@ Recent sessions:
 | `018d9560` | ssTrigRemoveEvent | 30 | sym | stub | game/ssGrpPortalCheck.c |
 | `018d1600` | SdSetEffect | 27 | sym | stub | game/SdMasterVolumeSetSE.c |
 | `018d9430` | ssTrigGetVariable | 18 | sym | stub | game/ssGrpPortalCheck.c |
-| `0185e360` | asCheckBankID | 16 | sym | stub | game/QuatSlerp.c |
-| `0185e150` | asFindModelPartsID | 13 | sym | stub | game/QuatSlerp.c |
+| `0185e360` | asCheckBankID | 18 | sym | stub | game/QuatSlerp.c |
+| `018a7900` | gaMulMatrix | 17 | sym | stub | ga/gaInit3dlib.c |
+| `0185e150` | asFindModelPartsID | 14 | sym | stub | game/QuatSlerp.c |
 | `018a17f8` | gaBGT_DmaSendN_fromSPR_VIF1 | 12 | sym | stub | ga/gaDmaSync_VIF1.c |
 | `01886690` | asChangeViewMatrix_forTheBank | 12 | sym | stub | game/asEyeForcusUP2CamMat.c |
 | `0185e580` | ahGetHash | 12 | sym | stub | game/QuatSlerp.c |
-| `018a7900` | gaMulMatrix | 11 | sym | stub | ga/gaInit3dlib.c |
 | `018cd190` | SdSetParamSE | 9 | sym | stub | game/SdMasterVolumeSetSE.c |
+| `0185e100` | asFindModelParts | 9 | sym | stub | game/QuatSlerp.c |
 | `0188ced0` | tiDrawShadingOff | 9 | sym | stub | game/Clipping_Portal.c |
 | `01893cf0` | ExportDrawToTex | 8 | sym | stub | game/Clipping_Portal.c |
 | `01858c90` | XcmdScreenFilter | 8 | sym | stub | game/QuatSlerp.c |
 | `018ce0d0` | SdVolumeSQ | 7 | sym | stub | game/SdMasterVolumeSetSE.c |
+| `0185e380` | asCheckBankType | 7 | sym | stub | game/QuatSlerp.c |
 | `018a7db8` | gaSet3dlibStruct | 7 | sym | stub | ga/gaInit3dlib.c |
-| `0185e380` | asCheckBankType | 6 | sym | stub | game/QuatSlerp.c |
 | `01854560` | tnInit3dlibWork | 6 | sym | stub | game/QuatSlerp.c |
 | `018590b0` | sunBGT_LoadGSTexClutData_VIF1 | 6 | sym | stub | game/QuatSlerp.c |
 | `01859520` | sunBGT_ExecTBufferData_VIF1 | 6 | sym | stub | game/QuatSlerp.c |
@@ -159,11 +160,10 @@ Recent sessions:
 | `01854d60` | MonsterAIUpdate | 4 | sym | stub | game/QuatSlerp.c |
 | `018a1778` | gaDmaSendN_VIF1 | 4 | sym | stub | ga/gaDmaSync_VIF1.c |
 | `018a1740` | gaDmaSync_VIF1 | 4 | sym | stub | ga/gaDmaSync_VIF1.c |
-| `0185e100` | asFindModelParts | 4 | sym | stub | game/QuatSlerp.c |
+| `018a7538` | gaSearchNearLight4 | 4 | sym | stub | ga/gaSearchNearLight4.c |
+| `018a7780` | gaInnerProductXYZ | 4 | sym | stub | ga/gaInit3dlib.c |
 | `01847660` | asShadowDrawing_CheckTransMode | 4 | sym | stub | game/ahRelocateSunPs2ObjectArry.c |
 | `01896a90` | ssPartMotionBlurInsertObjToDrawTable | 4 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `01889cd0` | Clipping_Portal | 4 | sym | stub | game/Clipping_Portal.c |
 | `01858f20` | OneMaxObjectDrawZOnly | 4 | sym | stub | game/QuatSlerp.c |
-| `018a3d20` | gaBGT_DrawObject_NoClippingCheck2 | 4 | sym | stub | ga/gaBGT_DrawObject.c |
-| `018db340` | asXcmd_AddForLockToTargChara | 3 | sym | stub | game/asXcmd.c |
 
