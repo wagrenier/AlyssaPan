@@ -111,9 +111,91 @@ static_assert(offsetof(MC_SAVE_RECORD, id) == 0x10, "MC_SAVE_RECORD.id");
 #define MC_HEADER_FILE_MASK 0xfu
 #define MC_HEADER_UID_MASK 0xfffffff0u
 
+// The header (mc_header, 0x80 bytes after the master record): the system data every save carries -- the
+// extras unlocked, the events seen, the screen position, the key map and the sound / vibration options.
+// mc_save_set fills it, system_data_load_set reads it back (slice 3, 2026-11-10). Card bytes: EE layout.
+#define MC_SKIP_EVENT_COUNT 20          /* SkipEventFlag's bytes */
+#define MC_KEY_MAP_COUNT 35             /* KEY_MAP's first 35 actions (0x23) */
+typedef struct MC_HEADER {
+    int id;                             /* 0x00: MC_HEADER_ID */
+    u_int uidFile;                      /* 0x04: AA_UidCount << 8 | the last file (MC_HEADER_FILE_MASK) */
+    u_int omake;                        /* 0x08: OMAKE_FLAG's OMAKE_1 / OMAKE_2 */
+    u_char skipEvent[MC_SKIP_EVENT_COUNT]; /* 0x0c: SkipEventFlag, OR-ed back in on a load */
+    u_long display;                     /* 0x20: ga_disp.display (the screen position) */
+    u_short keyMap[MC_KEY_MAP_COUNT];   /* 0x28: KEY_MAP[0..34] */
+    u_char stereo;                      /* 0x6e: SOUND_STEREO_MONAURAL_BUFF */
+    u_char bgmVolume;                   /* 0x6f: BGM_MASTER_VOLUME_BUFF */
+    u_char seVolume;                    /* 0x70: SE_MASTER_VOLUME_BUFF */
+    u_char vibration;                   /* 0x71: fVibration */
+    u_char pad72[0x80 - 0x72];
+} MC_HEADER;
+static_assert(sizeof(MC_HEADER) == 0x80, "MC_HEADER");
+static_assert(offsetof(MC_HEADER, skipEvent) == 0x0c, "MC_HEADER.skipEvent");
+static_assert(offsetof(MC_HEADER, display) == 0x20, "MC_HEADER.display");
+static_assert(offsetof(MC_HEADER, keyMap) == 0x28, "MC_HEADER.keyMap");
+static_assert(offsetof(MC_HEADER, stereo) == 0x6e, "MC_HEADER.stereo");
+static_assert(offsetof(MC_HEADER, vibration) == 0x71, "MC_HEADER.vibration");
+#define MC_HEADER_UID_SHIFT 8           /* mc_save_set: uid = AA_UidCount << 8 (the ROM's shift) */
+
+// KEY_MAP[19..20] take KEY_MAP[54..55] after a load (system_data_load_set; read from the disassembly,
+// the meaning of the pairs is the key-config TU's).
+#define KEY_MAP_LOAD_DST 0x13
+#define KEY_MAP_LOAD_SRC 0x36
+
+// system_data_load_set's modes.
+#define SYSTEM_LOAD_FILE_ID 0           /* only mcFile_ID from the header */
+#define SYSTEM_LOAD_ALL 1               /* the options, key map, screen position, then the unlocks */
+#define SYSTEM_LOAD_UNLOCKS 2           /* only OMAKE_1 and the skip-event flags (OR-ed in) */
+
+// Trigger events and variables the system data drives (main.c's system_init sets the same numbers).
+#define TRIG_EVENT_OMAKE_1 0xa7         /* OMAKE_FLAG's OMAKE_1 (set by the game-end save) */
+#define TRIG_EVENT_MONAURAL 0xa8        /* registered while SOUND_STEREO_MONAURAL_BUFF != 0 */
+#define TRIG_EVENT_OMAKE_2 0xc5         /* OMAKE_FLAG != 0 after a full load */
+#define TRIG_VAR_BGM_VOLUME 0x4e
+#define TRIG_VAR_SE_VOLUME 0x4f
+
 // A save image's word at +0xc710: non-zero once the image holds a save (the save flow asks before
 // writing over it). Named from MemorycardUpdate's use only.
 #define MC_DATA_USED 0xc710
+#define MC_DATA_C714 0xc714             /* a word the game-end save clears (unread so far) */
+#define MC_DATA_EVENTS 0xc72c           /* the image's event bits (McRegisterEvent: bit e & 7 of byte e >> 3) */
+#define MC_EVENT_GAME_END 0x9d          /* McRegisterEvent'd by the game-end save */
+
+// mc_save_set(alt != 0): the game-end save's image, read from the disc into gHeapSound.
+#define MC_GAME_END_SIZE 0x10e0f
+#define MC_GAME_END_ALIGN 0x10
+#define MC_OPEN_WRITE 2                 /* sceMcOpen mode (SCE_WRONLY) */
+#define MC_OPEN_CREATE 0x203            /* sceMcOpen mode (SCE_CREAT | SCE_RDWR) */
+
+// mc_save_new: the icon files copied from data/mc_icon/ (view, copy, delete), each read into gHeapJunc.
+#define MC_ICON_FILES 3
+#define MC_ICON_PAD 0x7ff               /* added to the file's length for the allocation */
+#define MC_ICON_ALIGN 0x40
+#define MC_ICON_TRANS_RATE 0x60         /* icon.sys TransRate */
+
+// mc_save_new's steps (mc_save_new_num; the ROM's numbers, 3, 4 and 8 unused).
+#define MC_NEW_CHDIR 0
+#define MC_NEW_MKDIR 1
+#define MC_NEW_ICONS 2
+#define MC_NEW_LOAD_ICON 5
+#define MC_NEW_OPEN_ICON 6
+#define MC_NEW_WRITE_ICON 7
+#define MC_NEW_CLOSE_ICON 9
+#define MC_NEW_OPEN_SAVE 10
+#define MC_NEW_WRITE_SAVE 11
+#define MC_NEW_WRITE_TAIL 12
+#define MC_NEW_CLOSE_SAVE 13
+#define MC_NEW_OPEN_ICONSYS 0x14
+#define MC_NEW_BUILD_ICONSYS 0x15
+#define MC_NEW_WRITE_ICONSYS 0x16
+#define MC_NEW_CLOSE_ICONSYS 0x17
+
+extern int mc_bgcolor[4][4];            /* data 0x019399f0: icon.sys BgColor */
+extern float mc_lightdir[3][4];         /* data 0x01939a30 */
+extern float mc_lightcol[3][4];         /* data 0x01939a60 */
+extern float mc_ambient[4];             /* data 0x01939a90 */
+
+extern u_char continue_backup[MC_DATA_SIZE]; /* bss 0x01a31450: the image ContinueBackupSet keeps */
 
 // mc_check4's answer: sceMcGetInfo's refusal - 200, or sceMcSync's result. MemorycardUpdate treats
 // -1..-80 as the card gone (sceMcRes*), anything else as go on.
@@ -147,6 +229,12 @@ void SceneLightSet(int scene);                                                  
 void CharLightSet(int chara);                                                            // CT3 0x018b49f0
 int MemorycardAutoLoadFormatCheck(void);                                                 // CT3 0x018b5cc0
 void MemorycardAutoLoadInsertedCheck3(void);                                             // CT3 0x018b5d00
+void MemorycardAutoLoadInsertedCheck2(void);                                             // CT3 0x018b5d40
+void ContinueBackupSet(void);                                                            // CT3 0x018b5e70
+void mc_save_set(int alt);                                                               // CT3 0x018b9a80
+void McRegisterEvent(u_int event);                                                       // CT3 0x018b9e90
+void data_save_set(u_char *data);                                                        // CT3 0x018b9ee0
+int mc_check2(void);                                                                     // CT3 0x018bb350
 int mc_Getinfo_count(int file);                                                          // CT3 0x018b6020
 void MemorycardUpdate(void);                                                             // CT3 0x018b6080
 void mc_check_always2(int clearError);                                                   // CT3 0x018b7870

@@ -76,6 +76,7 @@ u_char SE_MASTER_VOLUME_BUFF;                   /* sbss 0x0193f9e4 */
 u_char LOAD_SLOT_NUM;                           /* sbss 0x0193f9e0 */
 u_char TITLE_SELECT_NUM;                        /* sbss 0x0193f9d8 */
 u_char TITLE_CANCEL_FLAG;                       /* sbss 0x0193f9d4 */
+u_char fVibration = 1;                          /* data 0x01939c80: the pad vibrates (option) */
 /* sdata 0x0193b9a0 */
 u_short KEY_MAP[105] = {
     0x0001, 0x0002, 0x0004, 0x0008, 0x0010, 0x0020, 0x0040, 0x0080, 0x0100, 0x0200, 0x0400, 0x0800,

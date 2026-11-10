@@ -24,3 +24,17 @@ void IopLoadModules(const char *elfPath)
 {
     ALYSSAPAN_STUB("IopLoadModules", 0x0189f2f0);
 }
+
+// stub of CT3 0x0189ed80
+int FlLoad(const char *dir, const char *name, void *buff)
+{
+    ALYSSAPAN_STUB("FlLoad", 0x0189ed80);
+    return {};
+}
+
+// stub of CT3 0x0189ef10
+int FlGetLen(const char *dir, const char *name, int mode)
+{
+    ALYSSAPAN_STUB("FlGetLen", 0x0189ef10);
+    return {};
+}

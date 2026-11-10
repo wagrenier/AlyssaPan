@@ -64,6 +64,7 @@ extern u_char SE_MASTER_VOLUME_BUFF;            /* sbss 0x0193f9e4 */
 extern u_char LOAD_SLOT_NUM;                    /* sbss 0x0193f9e0 */
 extern u_char TITLE_SELECT_NUM;                 /* sbss 0x0193f9d8 */
 extern u_char TITLE_CANCEL_FLAG;                /* sbss 0x0193f9d4 */
+extern u_char fVibration;                       /* data 0x01939c80: the pad vibrates (option) */
 extern u_short KEY_MAP[105];                    /* sdata 0x0193b9a0: button bits by action */
 extern char Backup_Filename[255];               /* sbss 0x019404e0 */
 extern u_char MoviePlayCheck;                   /* sbss 0x0194238c */

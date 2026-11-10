@@ -7,3 +7,5 @@
 void ArtoolDebugOpen(void);                                                              // CT3 0x0189e180
 void IopLoadModules(const char *elfPath);                                                // CT3 0x0189f2f0
 int FlInit(void);                                                                        // CT3 0x0189f160
+int FlLoad(const char *dir, const char *name, void *buff);                               // CT3 0x0189ed80
+int FlGetLen(const char *dir, const char *name, int mode);                               // CT3 0x0189ef10

@@ -2,6 +2,8 @@
 // card (CT3 0x018b3a60..0x018bb610, the symtab's local chunk 105). Slice 1 reconstructed 2026-11-09:
 // Character_All_Init, IOPInit, McInit, the work buffer (mc_alloc / mc_free / mc_save_data_init) and the
 // card-present checks (mc_check, mc_check_always, MemorycardAutoLoadInsertedCheck3).
+// Slice 2 (2026-11-10): MemorycardUpdate's flows and the format checks. Slice 3 (2026-11-10): the save
+// path (mc_save_new, mc_save_normal, mc_save_set) and the system data (system_data_load_set, MC_HEADER).
 //
 // The file name is the tool's (the first keyed function's); the memory card code that fills most of the
 // object (MemorycardUpdate, mc_load_new, mc_save_*, the icon "data/mc_icon/", "/BASLUS-20633") is still to
@@ -19,6 +21,7 @@
 #include "game/ahRelocateSunPs2ObjectArry.h"
 #include "game/ahalloc.h"
 #include "game/fileio.h"
+#include "game/main.h"
 #include "game/movie.h"
 #include "game/sound.h"
 #include "game/unassigned_data.h"
@@ -1359,6 +1362,599 @@ void MemorycardUpdate(void)
     ga_main_timer = timer;
 }
 
+// ---- slice 3 (2026-11-10): the save path and the system data ----
+
+// mc_save_normal's state (.sbss, the symtab's statics).
+static int mc_save_normal_fd;             /* 0x0193ef8c */
+static int mc_save_normal_end_size;       /* 0x0193f030 */
+static int mc_save_normal_loop_count;     /* 0x0193f034 */
+static int mc_save_normal_loop_count_max; /* 0x0193f038 */
+static void *game_end_clear_buff;         /* 0x0193f040: the game-end image while mc_save_set copies it */
+
+u_char continue_backup[MC_DATA_SIZE];     /* bss 0x01a31450 */
+
+static const char s_mcIconDir[] = "data/mc_icon/";                       /* @3051 */
+static const char s_gameEndFile[] = "game_end.dat";                      /* @3052 */
+static const char s_gameEndError[] = "game_end.dat file open error!!\n"; /* @3053 */
+
+// mc_check_always2 polls once every MC_CHECK_ALWAYS2_PERIOD + 1 calls.
+#define MC_CHECK_ALWAYS2_PERIOD 2
+
+// CT3 0x018bb350: is the card in slot mcSlot_ID gone or not a PS2 card? Answers 1 when so. A refused
+// sceMcGetInfo answers 0 (no news); a failed sync falls back to mc_check's slow loop. A PS2 card is asked
+// twice more (the second answer is the one that counts; the ROM ignores the middle sync's result).
+int mc_check2(void)
+{
+    int result;
+    int type = 0;
+
+    if (sceMcGetInfo(mcSlot_ID, 0, &type, NULL, NULL) < 0) {
+        return 0;
+    }
+    sceMcSync(0, NULL, &result);
+    if (result < 0) {
+        return mc_check();
+    }
+    if (type == sceMcTypePS2) {
+        if (sceMcGetInfo(mcSlot_ID, 0, &type, NULL, NULL) < 0) {
+            return 0;
+        }
+        sceMcSync(0, NULL, &result);
+        if (type == sceMcTypePS2) {
+            return 0;
+        }
+    }
+    if (sceMcGetInfo(mcSlot_ID, 0, &type, NULL, NULL) < 0) {
+        return 0;
+    }
+    sceMcSync(0, NULL, &result);
+    return (type == sceMcTypePS2) ^ 1;
+}
+
+// CT3 0x018b7870: mc_check_always on mc_check2, every third call.
+void mc_check_always2(int clearError)
+{
+    fream_counter++;
+    if (fream_counter > MC_CHECK_ALWAYS2_PERIOD) {
+        fream_counter = 0;
+        if (mc_check2() == 0) {
+            if (clearError != 0) {
+                mcErr_ID = MC_ERR_NONE;
+            }
+        } else {
+            mcErr_ID = MC_ERR_NO_CARD;
+            mcMain_ID = 0;
+        }
+    }
+}
+
+// CT3 0x018b5d40: the auto-load's second insertion check: mark the slot when mc_check2 finds no card.
+void MemorycardAutoLoadInsertedCheck2(void)
+{
+    if (mc_check2() != 0) {
+        SlotErr[mcSlot_ID] = MC_SLOT_ERR_NO_CARD;
+    }
+}
+
+// CT3 0x018b6020: save image file's MC_DATA_USED word (0 for a file out of range or no work buffer).
+int mc_Getinfo_count(int file)
+{
+    if (file < 0 || file > MC_INFO_COUNT - 1) {
+        return 0;
+    }
+    if (alloc_flag == 0) {
+        return 0;
+    }
+    return *(const int *)(mc_databuff[file] + MC_DATA_USED);
+}
+
+// CT3 0x018b9e90: set event bit event in the image being saved (mcFile_ID).
+void McRegisterEvent(u_int event)
+{
+    u_char *bits = mc_databuff[mcFile_ID] + MC_DATA_EVENTS + ((int)event >> 3);
+
+    *bits |= (u_char)(1 << (event & 7));
+}
+
+// CT3 0x018b5e70: keep the game's state as a save image in continue_backup (the continue after a death).
+void ContinueBackupSet(void)
+{
+    data_save_set(continue_backup);
+}
+
+// CT3 0x018b9a80: fill the work buffer for a save into file mcFile_ID: the header (id, file, the extras,
+// the skip-event flags, the screen position, the key map and the options -- the sound options also go to
+// the trigger system), then the image: the game's state (data_save_set), or with alt the game-end image
+// from the disc (data/mc_icon/game_end.dat, OMAKE_1 set). Then the checksums, and the continue backup.
+void mc_save_set(int alt)
+{
+    MC_HEADER *header = (MC_HEADER *)mc_header;
+    int i;
+
+    header->id = MC_HEADER_ID;
+    save_count++;
+    header->uidFile &= ~MC_HEADER_FILE_MASK;
+    header->uidFile |= mcFile_ID;
+    if (alt != 0) {
+        OMAKE_FLAG |= OMAKE_1;
+        ssTrigRegisterEvent(TRIG_EVENT_OMAKE_1, 1, 0);
+    }
+    header->omake = OMAKE_FLAG;
+    for (i = 0; i < MC_SKIP_EVENT_COUNT; i++) {
+        header->skipEvent[i] = SkipEventFlag[i];
+    }
+    memcpy(&header->display, &ga_disp.display, sizeof(header->display));
+    for (i = 0; i < MC_KEY_MAP_COUNT; i++) {
+        header->keyMap[i] = KEY_MAP[i];
+    }
+    header->vibration = fVibration;
+    header->stereo = SOUND_STEREO_MONAURAL_BUFF;
+    header->bgmVolume = BGM_MASTER_VOLUME_BUFF;
+    header->seVolume = SE_MASTER_VOLUME_BUFF;
+    if (SOUND_STEREO_MONAURAL_BUFF == 0) {
+        ssTrigRemoveEvent(TRIG_EVENT_MONAURAL, 1, 0);
+    } else {
+        ssTrigRegisterEvent(TRIG_EVENT_MONAURAL, 1, 0);
+    }
+    ssTrigSetVariable(TRIG_VAR_BGM_VOLUME, BGM_MASTER_VOLUME_BUFF, 1, 0);
+    ssTrigSetVariable(TRIG_VAR_SE_VOLUME, SE_MASTER_VOLUME_BUFF, 1, 0);
+    /* The ROM keeps the low 4 bits and ORs the uid in shifted by 8 (not 4): kept. */
+    header->uidFile &= MC_HEADER_FILE_MASK;
+    header->uidFile |= AA_UidCount << MC_HEADER_UID_SHIFT;
+    if (alt == 0) {
+        data_save_set(mc_databuff[mcFile_ID]);
+    } else {
+        game_end_clear_buff = _SunAlloc(&gHeapSound, MC_GAME_END_SIZE, MC_GAME_END_ALIGN);
+        if (FlLoad(s_mcIconDir, s_gameEndFile, game_end_clear_buff) < 0) {
+            printf(s_gameEndError);
+            for (;;) {
+                /* the ROM hangs here */
+            }
+        }
+        memcpy(mc_databuff[mcFile_ID], game_end_clear_buff, MC_DATA_SIZE);
+        *(int *)(mc_databuff[mcFile_ID] + MC_DATA_USED) = 1;
+        *(int *)(mc_databuff[mcFile_ID] + MC_DATA_C714) = 0;
+        McRegisterEvent(MC_EVENT_GAME_END);
+        _SunFree(&gHeapSound, &game_end_clear_buff);
+    }
+    mc_make_checksum(1);
+    ContinueBackupSet();
+}
+
+// CT3 0x018b9790: write the work buffer (mc_save_set(alt) fills it after the open) over the save file
+// (mc_fname twice) on the card in slot mcSlot_ID: mc_load_new's steps with sceMcWrite. Runs until done,
+// one vblank after each refused call; answers MC_RESULT_OK or MC_RESULT_FAIL.
+int mc_save_normal(int alt)
+{
+    char path[0x40c];
+    int result;
+    int ret = MC_RESULT_OK;
+
+    mc_save_normal_fd = 0;
+    mc_save_normal_num = 0;
+    for (;;) {
+        switch (mc_save_normal_num) {
+        case 0:
+            mc_save_normal_fd = 0;
+            sprintf(path, s_pathFormat, mc_fname, mc_fname);
+            ret = MC_RESULT_BUSY;
+            if (sceMcOpen(mcSlot_ID, 0, path, MC_OPEN_WRITE) != 0) {
+                break;
+            }
+            mc_save_normal_num++;
+            sceMcSync(0, NULL, &mc_save_normal_fd);
+            ret = MC_RESULT_FAIL;
+            if (mc_save_normal_fd < 0) {
+                break;
+            }
+            /* fall through */
+        case 1:
+            mc_save_set(alt);
+            mc_save_normal_loop_count = 0;
+            mc_save_normal_loop_count_max = MC_LOAD_CHUNKS;
+            mc_save_normal_end_size = MC_LOAD_TAIL;
+            mc_save_normal_num++;
+            /* fall through */
+        case 2:
+            ret = MC_RESULT_OK;
+            for (; mc_save_normal_loop_count != mc_save_normal_loop_count_max; mc_save_normal_loop_count++) {
+                if (sceMcWrite(mc_save_normal_fd, mc_data_buff + mc_save_normal_loop_count * MC_LOAD_CHUNK,
+                               MC_LOAD_CHUNK) != 0) {
+                    ret = MC_RESULT_BUSY;
+                    break;
+                }
+                sceMcSync(0, NULL, &result);
+                if (result < 0) {
+                    ret = MC_RESULT_BUSY;
+                    mc_save_normal_num = MC_STEP_ERROR;
+                    break;
+                }
+            }
+            if (ret != MC_RESULT_OK) {
+                break;
+            }
+            mc_save_normal_num++;
+            /* fall through */
+        case 3:
+            ret = MC_RESULT_BUSY;
+            if (sceMcWrite(mc_save_normal_fd, mc_data_buff + mc_save_normal_loop_count * MC_LOAD_CHUNK,
+                           mc_save_normal_end_size) != 0) {
+                break;
+            }
+            sceMcSync(0, NULL, &result);
+            mc_save_normal_num++;
+            if (result < 0) {
+                mc_save_normal_num = MC_STEP_ERROR;
+                break;
+            }
+            /* fall through */
+        case 4:
+            ret = MC_RESULT_BUSY;
+            if (sceMcClose(mc_save_normal_fd) != 0) {
+                break;
+            }
+            mc_save_normal_num++;
+            sceMcSync(0, NULL, &result);
+            ret = MC_RESULT_FAIL;
+            if (result >= 0) {
+                mc_save_normal_num = 0;
+                ret = MC_RESULT_OK;
+            }
+            break;
+        case MC_STEP_ERROR:
+            ret = MC_RESULT_BUSY;
+            if (sceMcClose(mc_save_normal_fd) != 0) {
+                break;
+            }
+            sceMcSync(0, NULL, &result);
+            ret = MC_RESULT_FAIL;       /* the ROM tests the result and fails either way */
+            break;
+        }
+        if (ret == MC_RESULT_FAIL || ret == MC_RESULT_OK) {
+            mc_save_normal_num = 0;
+            return ret;
+        }
+        sceGsSyncV(0);
+    }
+}
+
+// CT3 0x018b8680: take the system data back from the header after a load. SYSTEM_LOAD_FILE_ID: only the
+// last file; SYSTEM_LOAD_ALL: the screen position, key map and options (pushed to the trigger system and
+// the sound driver), OMAKE_2, then as SYSTEM_LOAD_UNLOCKS: OMAKE_1 and the skip-event flags OR-ed in.
+void system_data_load_set(int mode)
+{
+    const MC_HEADER *header = (const MC_HEADER *)mc_header;
+    u_int omake1;
+    int i;
+
+    if (mode == SYSTEM_LOAD_FILE_ID) {
+        mcFile_ID = header->uidFile & MC_HEADER_FILE_MASK;
+        return;
+    }
+    if (mode != SYSTEM_LOAD_ALL && mode != SYSTEM_LOAD_UNLOCKS) {
+        return;
+    }
+    if (mode == SYSTEM_LOAD_ALL) {
+        memcpy(&ga_disp.display, &header->display, sizeof(header->display));
+        for (i = 0; i < MC_KEY_MAP_COUNT; i++) {
+            KEY_MAP[i] = header->keyMap[i];
+        }
+        KEY_MAP[KEY_MAP_LOAD_DST] = KEY_MAP[KEY_MAP_LOAD_SRC];
+        KEY_MAP[KEY_MAP_LOAD_DST + 1] = KEY_MAP[KEY_MAP_LOAD_SRC + 1];
+        fVibration = header->vibration;
+        SOUND_STEREO_MONAURAL_BUFF = header->stereo;
+        BGM_MASTER_VOLUME_BUFF = header->bgmVolume;
+        SE_MASTER_VOLUME_BUFF = header->seVolume;
+        if (SOUND_STEREO_MONAURAL_BUFF == 0) {
+            ssTrigRemoveEvent(TRIG_EVENT_MONAURAL, 1, 0);
+        } else {
+            ssTrigRegisterEvent(TRIG_EVENT_MONAURAL, 1, 0);
+        }
+        ssTrigSetVariable(TRIG_VAR_BGM_VOLUME, BGM_MASTER_VOLUME_BUFF, 1, 0);
+        ssTrigSetVariable(TRIG_VAR_SE_VOLUME, SE_MASTER_VOLUME_BUFF, 1, 0);
+        SSSetSoundMode(SOUND_MODE_STEREO);
+        SSSetSoundMode(SOUND_MODE_BGM_VOLUME);
+        SSSetSoundMode(SOUND_MODE_SE_VOLUME);
+        /* The ROM keeps only OMAKE_2 here (OMAKE_1 and OMAKE_BOOTED drop until the OR below). */
+        OMAKE_FLAG = (OMAKE_FLAG & OMAKE_2) | (header->omake & OMAKE_2);
+        if (OMAKE_FLAG == 0) {
+            ssTrigRemoveEvent(TRIG_EVENT_OMAKE_2, 1, 0);
+        } else {
+            ssTrigRegisterEvent(TRIG_EVENT_OMAKE_2, 1, 0);
+        }
+    }
+    omake1 = header->omake & OMAKE_1;
+    if ((OMAKE_FLAG & OMAKE_1) == 0 && omake1 == 0) {
+        OMAKE_FLAG |= omake1;
+        ssTrigRemoveEvent(TRIG_EVENT_OMAKE_1, 1, 0);
+    } else {
+        OMAKE_FLAG |= omake1;
+        ssTrigRegisterEvent(TRIG_EVENT_OMAKE_1, 1, 0);
+    }
+    for (i = 0; i < MC_SKIP_EVENT_COUNT; i++) {
+        SkipEventFlag[i] |= header->skipEvent[i];
+    }
+}
+
+// ---- mc_save_new: a new save directory, its icons, the save and icon.sys ----
+
+// icon.sys's colours and lights (.data 0x019399f0..0x01939aa0, the ROM's values).
+int mc_bgcolor[4][4] = {{42, 42, 42, 0}, {82, 75, 50, 0}, {82, 75, 50, 0}, {53, 40, 1, 0}};   /* 0x019399f0 */
+float mc_lightdir[3][4] = {{11.72f, 15.19f, 12.64f, 0.0f}, {-9.7f, -6.29f, 4.33f, 0.0f},    /* 0x01939a30 */
+                           {-7.88f, 7.49f, -7.55f, 0.0f}};
+float mc_lightcol[3][4] = {{50.0f / 255, 50.0f / 255, 50.0f / 255, 0.0f},                    /* 0x01939a60 */
+                           {61.0f / 255, 63.0f / 255, 111.0f / 255, 0.0f},
+                           {40.0f / 255, 48.0f / 255, 30.0f / 255, 0.0f}};
+float mc_ambient[4] = {100.0f / 255, 100.0f / 255, 100.0f / 255, 0.0f};                      /* 0x01939a90 */
+
+// mc_save_new's state (.sbss, the symtab's statics).
+static int mc_save_new_count;             /* 0x0193ef98: the icon file being written (0..2) */
+static int mc_save_new_num;               /* 0x0193ef9c: the step */
+static int mc_save_new_fd;                /* 0x0193ef94 */
+static int mc_save_new_size;              /* 0x0193efa0: the icon file's size */
+static int mc_save_new_end_size;          /* 0x0193efd0 */
+static int mc_save_new_loop_count;        /* 0x0193efd4 */
+static int mc_save_new_loop_count_max;    /* 0x0193efd8 */
+static void *mc_save_new_rwbuff;          /* 0x0193efdc: the icon file, from gHeapJunc */
+static int mc_save_new_len;               /* 0x0193efe0: strlen(mc_fname) in mc_save_new_icon_fname */
+static char mc_save_new_icon_fname[0x40]; /* 0x0193eff0 */
+
+// mc_save_new's constants (.data 0x01939b00..0x01939b8c, the function's locals' initialisers).
+static const char s_iconHead[4] = {'P', 'S', '2', 'D'};                /* @836 */
+// @837: "ＣｌｏｃｋＴｏｗｅｒ３" (Shift-JIS, full-width), the title the PS2 browser shows.
+static const char s_iconTitle[0x44] = {
+    '\x82', '\x62', '\x82', '\x8c', '\x82', '\x8f', '\x82', '\x83', '\x82', '\x8b', /* ＣｌｏｃｋＴ */
+    '\x82', '\x73', '\x82', '\x8f', '\x82', '\x97', '\x82', '\x85', '\x82', '\x92', /* ｏｗｅｒ   */
+    '\x82', '\x52',                                                                 /* ３          */
+};
+static const char s_iconDir[0x20] = "data/mc_icon/";                   /* @838 */
+// @839: the icons the browser shows -- FnameView, FnameCopy (the same file), FnameDel.
+static const char *const s_iconFiles[MC_ICON_FILES] = {"alyssas.ico", "alyssas.ico", "alyssad.ico"};
+static const char s_iconSysName[] = "/icon.sys";                       /* @2952 */
+
+// CT3 0x018b8eb0: make a new save on the card in slot mcSlot_ID: the directory mc_fname (made when
+// sceMcChdir says it is missing), the three icon files read from the disc (data/mc_icon/), the save file
+// (mc_save_set(alt), then mc_save_normal's chunked writes) and icon.sys. Steps as the ROM numbers them;
+// runs until done, one vblank after each refused call; answers MC_RESULT_OK or MC_RESULT_FAIL.
+int mc_save_new(int alt)
+{
+    char path[0x400];
+    sceMcIconSys icon;
+    int result;
+    int ret = MC_RESULT_OK;
+    size_t len;
+
+    mc_save_new_fd = 0;
+    mc_save_new_count = 0;
+    mc_save_new_num = 0;
+    mc_save_new_size = 0;
+    for (;;) {
+        switch (mc_save_new_num) {
+        case MC_NEW_CHDIR:
+            result = sceMcChdir(mcSlot_ID, 0, mc_fname, NULL);
+            ret = MC_RESULT_BUSY;
+            if (result != 0) {
+                break;
+            }
+            mc_save_new_num = MC_NEW_OPEN_SAVE;
+            sceMcSync(0, NULL, &result);
+            if (result == sceMcResNoEntry) {
+                mc_save_new_num = MC_NEW_MKDIR;
+            } else if (result < 0) {
+                ret = MC_RESULT_FAIL;
+            } else {
+                /* The directory exists: the ROM still writes the icons again (step 2, not 10). */
+                mc_save_new_num = MC_NEW_ICONS;
+            }
+            break;
+        case MC_NEW_MKDIR:
+            ret = MC_RESULT_BUSY;
+            if (sceMcMkdir(mcSlot_ID, 0, mc_fname) != 0) {
+                break;
+            }
+            mc_save_new_num++;
+            sceMcSync(0, NULL, &result);
+            ret = MC_RESULT_FAIL;
+            if (result < 0) {
+                break;
+            }
+            /* fall through */
+        case MC_NEW_ICONS:
+            strcpy(mc_save_new_icon_fname, mc_fname);
+            mc_save_new_len = (int)strlen(mc_save_new_icon_fname);
+            mc_save_new_count = 0;
+            mc_save_new_num = MC_NEW_LOAD_ICON;
+            /* fall through */
+        case MC_NEW_LOAD_ICON:
+            mc_save_new_size = FlGetLen(s_iconDir, s_iconFiles[mc_save_new_count], 1);
+            mc_save_new_rwbuff = _SunAlloc(&gHeapJunc, mc_save_new_size + MC_ICON_PAD, MC_ICON_ALIGN);
+            FlLoad(s_iconDir, s_iconFiles[mc_save_new_count], mc_save_new_rwbuff);
+            mc_save_new_icon_fname[mc_save_new_len] = '/';
+            strcpy(mc_save_new_icon_fname + mc_save_new_len + 1, s_iconFiles[mc_save_new_count]);
+            mc_save_new_num++;
+            /* fall through */
+        case MC_NEW_OPEN_ICON:
+            ret = MC_RESULT_BUSY;
+            if (sceMcOpen(mcSlot_ID, 0, mc_save_new_icon_fname, MC_OPEN_CREATE) != 0) {
+                break;
+            }
+            mc_save_new_num++;
+            sceMcSync(0, NULL, &mc_save_new_fd);
+            if (mc_save_new_fd < 0) {
+                _SunFree(&gHeapJunc, &mc_save_new_rwbuff);
+                ret = MC_RESULT_FAIL;
+                break;
+            }
+            /* fall through */
+        case MC_NEW_WRITE_ICON:
+            ret = MC_RESULT_BUSY;
+            if (sceMcWrite(mc_save_new_fd, mc_save_new_rwbuff, mc_save_new_size) != 0) {
+                break;
+            }
+            mc_save_new_num += 2;       /* the ROM skips step 8 */
+            sceMcSync(0, NULL, &result);
+            if (result < 0) {
+                _SunFree(&gHeapJunc, &mc_save_new_rwbuff);
+                mc_save_new_num = MC_STEP_ERROR;
+                break;
+            }
+            /* fall through */
+        case MC_NEW_CLOSE_ICON:
+            /* Freed before the close: a refused close frees again on the retry (null by then). */
+            _SunFree(&gHeapJunc, &mc_save_new_rwbuff);
+            ret = MC_RESULT_BUSY;
+            if (sceMcClose(mc_save_new_fd) != 0) {
+                break;
+            }
+            sceMcSync(0, NULL, &result);
+            ret = MC_RESULT_FAIL;
+            if (result < 0) {
+                break;
+            }
+            mc_save_new_count++;
+            if (mc_save_new_count < MC_ICON_FILES) {
+                ret = MC_RESULT_BUSY;
+                mc_save_new_icon_fname[mc_save_new_len] = '\0';
+                mc_save_new_num = MC_NEW_LOAD_ICON;
+                break;
+            }
+            mc_save_new_num++;
+            /* fall through */
+        case MC_NEW_OPEN_SAVE:
+            sprintf(path, s_pathFormat, mc_fname, mc_fname);
+            ret = MC_RESULT_BUSY;
+            if (sceMcOpen(mcSlot_ID, 0, path, MC_OPEN_CREATE) != 0) {
+                break;
+            }
+            sceMcSync(0, NULL, &mc_save_new_fd);
+            ret = MC_RESULT_FAIL;
+            if (mc_save_new_fd < 0) {
+                break;
+            }
+            mc_save_set(alt);
+            mc_save_new_loop_count = 0;
+            mc_save_new_loop_count_max = MC_LOAD_CHUNKS;
+            mc_save_new_end_size = MC_LOAD_TAIL;
+            mc_save_new_num++;
+            /* fall through */
+        case MC_NEW_WRITE_SAVE:
+            ret = MC_RESULT_OK;
+            for (; mc_save_new_loop_count != mc_save_new_loop_count_max; mc_save_new_loop_count++) {
+                if (sceMcWrite(mc_save_new_fd, mc_data_buff + mc_save_new_loop_count * MC_LOAD_CHUNK,
+                               MC_LOAD_CHUNK) != 0) {
+                    ret = MC_RESULT_BUSY;
+                    break;
+                }
+                sceMcSync(0, NULL, &result);
+                if (result < 0) {
+                    ret = MC_RESULT_BUSY;
+                    mc_save_new_num = MC_STEP_ERROR;
+                    break;
+                }
+            }
+            if (ret != MC_RESULT_OK) {
+                break;
+            }
+            mc_save_new_num++;
+            /* fall through */
+        case MC_NEW_WRITE_TAIL:
+            ret = MC_RESULT_BUSY;
+            if (sceMcWrite(mc_save_new_fd, mc_data_buff + mc_save_new_loop_count * MC_LOAD_CHUNK,
+                           mc_save_new_end_size) != 0) {
+                break;
+            }
+            sceMcSync(0, NULL, &result);
+            mc_save_new_num++;
+            if (result < 0) {
+                mc_save_new_num = MC_STEP_ERROR;
+                break;
+            }
+            /* fall through */
+        case MC_NEW_CLOSE_SAVE:
+            ret = MC_RESULT_BUSY;
+            if (sceMcClose(mc_save_new_fd) != 0) {
+                break;
+            }
+            sceMcSync(0, NULL, &result);
+            ret = MC_RESULT_FAIL;
+            if (result < 0) {
+                break;
+            }
+            mc_save_new_num = MC_NEW_OPEN_ICONSYS;
+            /* fall through */
+        case MC_NEW_OPEN_ICONSYS:
+            strcpy(mc_save_new_icon_fname, mc_fname);
+            mc_save_new_len = (int)strlen(mc_save_new_icon_fname);
+            strcpy(mc_save_new_icon_fname + mc_save_new_len, s_iconSysName);
+            ret = MC_RESULT_BUSY;
+            if (sceMcOpen(mcSlot_ID, 0, mc_save_new_icon_fname, MC_OPEN_CREATE) != 0) {
+                break;
+            }
+            sceMcSync(0, NULL, &mc_save_new_fd);
+            ret = MC_RESULT_FAIL;
+            if (mc_save_new_fd < 0) {
+                break;
+            }
+            mc_save_new_num++;
+            /* fall through */
+        case MC_NEW_BUILD_ICONSYS:
+            memset(&icon, 0, sizeof(icon));
+            memcpy(icon.Head, s_iconHead, sizeof(icon.Head));
+            len = strlen(s_iconTitle);
+            memcpy(icon.TitleName, s_iconTitle, len);
+            icon.TransRate = MC_ICON_TRANS_RATE;
+            icon.OffsLF = (unsigned short)len;  /* one line: the break is at the title's end */
+            memcpy(icon.BgColor, mc_bgcolor, sizeof(icon.BgColor));
+            memcpy(icon.LightDir, mc_lightdir, sizeof(icon.LightDir));
+            memcpy(icon.LightColor, mc_lightcol, sizeof(icon.LightColor));
+            memcpy(icon.Ambient, mc_ambient, sizeof(icon.Ambient));
+            memcpy(icon.FnameView, s_iconFiles[0], strlen(s_iconFiles[0]));
+            memcpy(icon.FnameCopy, s_iconFiles[1], strlen(s_iconFiles[1]));
+            memcpy(icon.FnameDel, s_iconFiles[2], strlen(s_iconFiles[2]));
+            mc_save_new_num++;
+            /* fall through */
+        case MC_NEW_WRITE_ICONSYS:
+            ret = MC_RESULT_BUSY;
+            if (sceMcWrite(mc_save_new_fd, &icon, sizeof(icon)) != 0) {
+                break;
+            }
+            mc_save_new_num++;
+            sceMcSync(0, NULL, &result);
+            if (result < 0) {
+                mc_save_new_num = MC_STEP_ERROR;
+                break;
+            }
+            /* fall through */
+        case MC_NEW_CLOSE_ICONSYS:
+            ret = MC_RESULT_BUSY;
+            if (sceMcClose(mc_save_new_fd) != 0) {
+                break;
+            }
+            mc_save_new_num++;
+            sceMcSync(0, NULL, &result);
+            ret = MC_RESULT_FAIL;
+            if (result >= 0) {
+                mc_save_new_num = 0;
+                ret = MC_RESULT_OK;
+            }
+            break;
+        case MC_STEP_ERROR:
+            ret = MC_RESULT_BUSY;
+            if (sceMcClose(mc_save_new_fd) != 0) {
+                break;
+            }
+            sceMcSync(0, NULL, &result);
+            ret = MC_RESULT_FAIL;       /* the ROM tests the result and fails either way */
+            break;
+        }
+        if (ret == MC_RESULT_FAIL || ret == MC_RESULT_OK) {
+            mc_save_new_num = 0;
+            return ret;
+        }
+        sceGsSyncV(0);
+    }
+}
+
 // ---- stubs (tools/reverse/stubgen.py) ----
 
 
@@ -1387,19 +1983,6 @@ void mc_save_system_init(void)
     ALYSSAPAN_STUB("mc_save_system_init", 0x018badd0);
 }
 
-// stub of CT3 0x018b6020
-int mc_Getinfo_count(int file)
-{
-    ALYSSAPAN_STUB("mc_Getinfo_count", 0x018b6020);
-    return {};
-}
-
-// stub of CT3 0x018b7870
-void mc_check_always2(int clearError)
-{
-    ALYSSAPAN_STUB("mc_check_always2", 0x018b7870);
-}
-
 // stub of CT3 0x018baac0
 int mc_free_area(void)
 {
@@ -1413,22 +1996,9 @@ void mc_load_set(void)
     ALYSSAPAN_STUB("mc_load_set", 0x018b7930);
 }
 
-// stub of CT3 0x018b8eb0
-int mc_save_new(int alt)
-{
-    ALYSSAPAN_STUB("mc_save_new", 0x018b8eb0);
-    return {};
-}
 
-// stub of CT3 0x018b9790
-int mc_save_normal(int alt)
+// stub of CT3 0x018b9ee0
+void data_save_set(u_char *data)
 {
-    ALYSSAPAN_STUB("mc_save_normal", 0x018b9790);
-    return {};
-}
-
-// stub of CT3 0x018b8680
-void system_data_load_set(int mode)
-{
-    ALYSSAPAN_STUB("system_data_load_set", 0x018b8680);
+    ALYSSAPAN_STUB("data_save_set", 0x018b9ee0);
 }

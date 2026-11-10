@@ -146,7 +146,21 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    SSPlaySE(MC_SE_ACCESS) calls whose a2 the ROM leaves unset pass 1 (every traceable site holds 1);
    (ao) TRIG_EVENT_LOAD_SLOT2 (0x0f), TRIG_EVENT_MC_LOADED (0x99), TRIG_EVENT_SAVE_ALT (0xa9) and
    MC_DATA_USED (save image +0xc710) are named from this use only; (ap) tiFade_Start(float) is declared
-   from the call (10.0f in f12); FadeEndTicks sits in lib/unassigned_data.cpp), game/ArtoolDebugOpen.c, game/main2.c,
+   from the call (10.0f in f12); FadeEndTicks sits in lib/unassigned_data.cpp), slice 3 (2026-11-10:
+   the save path -- mc_save_new, mc_save_normal, mc_save_set, McRegisterEvent, ContinueBackupSet
+   (0x01a31450 is the symtab's continue_backup) -- system_data_load_set, mc_check2, mc_check_always2,
+   mc_Getinfo_count, MemorycardAutoLoadInsertedCheck2; MC_HEADER (the 0x80-byte system data) in
+   Character_Init.h; left: SceneLightSet, CharLightSet, data_save_set, mc_load_set, mc_char_set,
+   mc_free_area, mc_check3, mc_save_system_init, ContinueBackupGet and the rest of the 19). Open: (aq)
+   mc_save_set ORs AA_UidCount << 8 into header word 1 (the readers mask 0xfffffff0, so their compares
+   stay consistent) while main bumps AA_UidCount by AA_UID_STEP 0x10: kept, the uid's units are
+   unclear until the menus run; (ar) system_data_load_set(1) keeps only OMAKE_2 before OR-ing OMAKE_1 back, dropping
+   OMAKE_BOOTED: the ROM's, kept; (as) KEY_MAP[19..20] = KEY_MAP[54..55] after a load (disassembly
+   0x018b8778): the key-config TU names the pairs; (at) TRIG_EVENT_OMAKE_1/_2, TRIG_EVENT_MONAURAL,
+   TRIG_VAR_*_VOLUME are named in Character_Init.h, main.c's system_init still uses the raw numbers;
+   (au) mc_save_new writes the icons again even when sceMcChdir finds the directory (step 2, not 10) and
+   frees the icon buffer before a close that may be refused: both the ROM's, kept; FlGetLen(dir, name,
+   mode) is declared from the call (mode 1)), game/ArtoolDebugOpen.c, game/main2.c,
    game/fileio.c.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a

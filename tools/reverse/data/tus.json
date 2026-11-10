@@ -309,7 +309,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 91..91, 8 functions keyed by their statics, 3 unkeyed; file name from the names"
   },
   "game/Character_Init.c": {
-   "notes": "Left: system_data_load_set, mc_load_set, mc_save_new, mc_save_normal, mc_free_area, mc_Getinfo_count, mc_check_always2, mc_check2/3, mc_save_system_init, data_save_set and ContinueBackupSet/Get, mc_char_set, SceneLightSet, CharLightSet. MemorycardUpdate is split into static mc_update_* flows (callcheck comment in its body); mcErr/mcAccess names are read from the flows only (open-items am-ap). Unset a2 on SE calls passes 1. Shot black as before (main2 is still a stub).",
+   "notes": "Left: SceneLightSet, CharLightSet (main.c calls both: next slice), data_save_set (stubbed, takes continue_backup or an image), mc_load_set, mc_char_set, mc_free_area, mc_check3, mc_save_system_init, ContinueBackupGet. FlLoad and FlGetLen are stubs in ArtoolDebugOpen.c, declared from the calls. open-items aq-au hold this slice's doubts (uid shift, OMAKE masks on load, KEY_MAP pair copy, trigger event names, mc_save_new's ROM quirks). Shot black as before (main2 is still a stub).",
    "ranges": [
     [
      "018b3a60",
@@ -326,6 +326,11 @@
      "date": "2026-11-10 00:15",
      "status": "partial",
      "summary": "slice 2: MemorycardUpdate (the four card flows: save menu, load menu, auto save, auto load), mc_save_init, mc_formatcheck, mc_formatcheck2, mc_check4, MemorycardAutoLoadFormatCheck"
+    },
+    {
+     "date": "2026-11-10 00:36",
+     "status": "partial",
+     "summary": "slice 3: the save path (mc_save_new with its icons and icon.sys, mc_save_normal, mc_save_set, McRegisterEvent, ContinueBackupSet), system_data_load_set with MC_HEADER, mc_check2, mc_check_always2, mc_Getinfo_count, MemorycardAutoLoadInsertedCheck2"
     }
    ],
    "status": "partial",
