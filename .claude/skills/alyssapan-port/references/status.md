@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-10 08:10 at commit `75b70d3` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-10 08:35 at commit `ec33336` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **414**; stubs: **236**
+- reconstructed CT3 functions: **420**; stubs: **234**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -55,7 +55,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/CpDivideEECom.c` | 0 | 1 |
 | `src/game/IOPGetFileSize.c` | 0 | 3 |
 | `src/game/LinkMatrixTree.c` | 4 | 0 |
-| `src/game/QuatSlerp.c` | 33 | 53 |
+| `src/game/QuatSlerp.c` | 33 | 54 |
 | `src/game/SdMasterVolumeSetSE.c` | 0 | 34 |
 | `src/game/ahRelocateSunPs2ObjectArry.c` | 93 | 0 |
 | `src/game/ahalloc.c` | 7 | 0 |
@@ -64,7 +64,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/asMothRouteSearch.c` | 0 | 2 |
 | `src/game/asUseArrow.c` | 0 | 2 |
 | `src/game/asXcmd.c` | 0 | 1 |
-| `src/game/fileio.c` | 33 | 4 |
+| `src/game/fileio.c` | 39 | 1 |
 | `src/game/hhXcmd_DressUp.c` | 0 | 1 |
 | `src/game/main.c` | 29 | 0 |
 | `src/game/main2.c` | 18 | 0 |
@@ -83,7 +83,7 @@ Least-named game-code regions (64 KB blocks):
 - 65 TUs: todo 48, partial 3, verify 14, done 3
 - next: **game/fileio.c** (pinned in the queue)
 - pinned queue: game/fileio.c
-- partial: `game/fileio.c` 33/40 -- Written: FSMltLoadProc (steps FSMLT_*), ReserveBank, Extract; FQUE +0 is dir. The first global bank now loads and the run crashes in scene_init (main.c) reading
+- partial: `game/fileio.c` 39/40 -- Left: Round2ChangeChar (0x878). Smoke run passes CharacterSort, still crashes at main.c:2106 (ActressMP NULL: asFindModelParts in QuatSlerp.c is a stub; asVecto
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaInitDrawObject.c` 24/24 -- No ROM caller for the texture three (the game uses its sun* copies in QuatSlerp.c): complete, nothing on screen can show them. Shot black as before: packets go 
 - verify: `ga/gaInitInterrupt.c` 3/3 -- GCC object; wait_vsync_state (data 0x0192e790), ga_main_timer, ga_down_timer defined here. gaWaitVSync takes no argument and returns the CSR FIELD bit; main.c c
@@ -101,6 +101,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-10 08:35 `game/fileio.c` partial: slice 3: the sorts (CharacterSort, objSort, objSortWithBlurIdx, SortAlphaObjects), SceneEndBankMovie, Round2ChangeSectInfo
 - 2026-11-10 08:10 `game/ahRelocateSunPs2ObjectArry.c` verify: slice 15: ExecuteAnimation's general body (any mix of play, replay and matOnly: time1c shift, key at this frame's ticks, pose write, replay set or blend, the EA
 - 2026-11-10 08:01 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 14: asCheckAnimationFlamePassing_S (time1c pass test, forward / backward / either, character motion behaviour), asShadowEnd (shadow buffer fold, then the 
 - 2026-11-10 07:41 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 13: asShadowPolygonPositions (casters to volume quads: lit-face edges and segment rings, plus or minus by the camera side of the light-edge plane, the ang
@@ -108,11 +109,10 @@ Recent sessions:
 - 2026-11-10 06:57 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 11: asBuildMirrorMatrixTree and _Back (mrr_ReverseMatrix then Cam[6].view2), asMirrorCulling (the mirror's four corners projected to the portal clip recta
 - 2026-11-10 06:31 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 10: asShadowDrawing_CheckTransMode (the shadow pass order, BID front and back, the ROM's shared index kept), asSceneAnimationStart (scene tracks by kind s
 - 2026-11-10 06:20 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 9: InterpolateAnimationKey and IAK_0 (play modes once / loop, forward and reverse, the slow-speed snap, the key search and the per-kind key write, ANIM_SU
-- 2026-11-10 05:54 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 8: ExecuteAnimation dispatch (play / replay / matOnly to EA_100 / EA_010 / EA_001, the general body a marked stub), EA_100 the per-frame scene pass (histo
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `game/QuatSlerp.c` | partial | 33/53/177 | 50.3 | 277 | 18 |
+| `game/QuatSlerp.c` | partial | 33/54/177 | 50.3 | 293 | 20 |
 | `game/ssGrpPortalCheck.c` | todo | 0/11/59 | 26.4 | 225 | 10 |
 | `game/SdMasterVolumeSetSE.c` | todo | 0/34/61 | 22.9 | 134 | 9 |
 | `game/Clipping_Portal.c` | todo | 0/33/73 | 44.8 | 130 | 14 |
@@ -122,8 +122,8 @@ Recent sessions:
 | `game/asEyeForcusUP2CamMat.c` | todo | 0/9/30 | 23.6 | 52 | 5 |
 | `ga/gaDmaSync_VIF1.c` | todo | 0/3/5 | 0.5 | 35 | 3 |
 | `game/tiAvoidObject.c` | todo | 0/6/82 | 30.5 | 26 | 4 |
-| `game/fileio.c` | partial | 33/4/40 | 23.3 | 23 | 2 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 22 | 0 |
+| `game/ssHitCheckAttackToScn.c` | todo | 0/3/37 | 32.0 | 18 | 3 |
 
 ## Frontier (called by reconstructed code, not written yet)
 
@@ -139,7 +139,7 @@ Recent sessions:
 | `018d9430` | ssTrigGetVariable | 18 | sym | stub | game/ssGrpPortalCheck.c |
 | `0185e360` | asCheckBankID | 18 | sym | stub | game/QuatSlerp.c |
 | `01851b10` | ConvertQuat2Matrix | 16 | sym | stub | game/Convert.c |
-| `0185e100` | asFindModelParts | 13 | sym | stub | game/QuatSlerp.c |
+| `0185e100` | asFindModelParts | 14 | sym | stub | game/QuatSlerp.c |
 | `018a17f8` | gaBGT_DmaSendN_fromSPR_VIF1 | 12 | sym | stub | ga/gaDmaSync_VIF1.c |
 | `01886690` | asChangeViewMatrix_forTheBank | 12 | sym | stub | game/asEyeForcusUP2CamMat.c |
 | `0185e580` | ahGetHash | 12 | sym | stub | game/QuatSlerp.c |
@@ -161,12 +161,12 @@ Recent sessions:
 | `018cc0f0` | SdStopSE | 6 | sym | stub | game/SdMasterVolumeSetSE.c |
 | `0185ddf0` | asMakeRotMatrixByQuartanion | 5 | sym | stub | game/QuatSlerp.c |
 | `01896920` | ssGetNumBlurDrawObjForScene | 5 | sym | stub | game/ssSetTexUVforCubeMap.c |
-| `018c23b0` | objSortWithBlurIdx | 5 | sym | stub | game/fileio.c |
-| `018c2880` | objSort | 5 | sym | stub | game/fileio.c |
 | `0188d3c0` | tiFade_Start | 4 | sym | stub | game/Clipping_Portal.c |
+| `0185ded0` | asVectorDistance | 4 | sym | stub | game/QuatSlerp.c |
 | `01854d60` | MonsterAIUpdate | 4 | sym | stub | game/QuatSlerp.c |
 | `018a1778` | gaDmaSendN_VIF1 | 4 | sym | stub | ga/gaDmaSync_VIF1.c |
 | `018a1740` | gaDmaSync_VIF1 | 4 | sym | stub | ga/gaDmaSync_VIF1.c |
 | `018a7538` | gaSearchNearLight4 | 4 | sym | stub | ga/gaSearchNearLight4.c |
 | `018a6d00` | gaMemCopy32 | 4 | sym | missing | ga/gaSinCos.c |
+| `0185c630` | asInterpolateZipFloat1_1_14X | 4 | sym | stub | game/QuatSlerp.c |
 

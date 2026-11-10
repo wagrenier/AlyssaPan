@@ -122,7 +122,10 @@ alignas(16) CAMERA Cam[CAMERA_MAX];             /* bss  0x01ae7c40 */
 u_char EffectBuffer_Use;                        /* sbss 0x0193f764 */
 u_char HQDOFCameraOffset = 30;                  /* sdata 0x01939c84 */
 u_char HQDOFOpacity = 30;                       /* sdata 0x01939c88 */
-short CharacterSortBuff[CHARACTER_MAX] = {-1};  /* sbss 0x01940170 */
+short CharacterSortBuff[CHARACTER_MAX + 1] = {-1}; /* sbss 0x01940170 (PORT: + 1) */
+PART_BLUR_OBJ *ALLpartBlurObj[PART_BLUR_MODES][BANK_MAX][PART_BLUR_MAX]; /* data 0x01a43800 */
+u_char NumPartBlurObj[PART_BLUR_MODES][BANK_MAX]; /* data 0x0193fa80 */
+PART_BLUR_OBJ *aftSortALLpartBlurObj[PART_BLUR_MAX + 1]; /* data 0x0193fb30 (PORT: + 1) */
 int DirectLightCharaCounter[CHARACTER_MAX];     /* sbss 0x019400e0 */
 short AI_flag[CHARACTER_MAX];                   /* sbss 0x0193fca0 */
 u_short CharDirectLightSet[CHARACTER_MAX][6];   /* sbss 0x0193ff30 */

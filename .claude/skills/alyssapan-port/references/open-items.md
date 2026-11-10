@@ -233,7 +233,7 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    (architecture.md "The bank loader"). **Slice 2 (2026-11-10): FSMltLoadProc, Extract, ReserveBank
    written; the first global bank loads (TrgGLBLSceneLoad) and the run now crashes in scene_init
    (main.c, reading (*tbl)->baseobjCount) -- THE BLOCKER, item 1 (bv).** Left in fileio.c:
-   SceneEndBankMovie, the sorts (CharacterSort, objSort*, SortAlphaObjects) and Round2Change*.
+   ~~SceneEndBankMovie, the sorts, Round2ChangeSectInfo~~ (slice 3, 2026-11-10); Round2ChangeChar.
    (bv) ~~ahRelocateFileObject~~ written 2026-11-10 (game/ahRelocateSunPs2ObjectArry.c slice 1, with
    ahRelocateBehavior and ahRelocateSunPs2ObjectArry; architecture.md "The file relocator"): the global
    bank now relocates without a fault, and scene_init faults one step later (main.c, reading
@@ -486,6 +486,22 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    (bw) Extract is untested against a known image: the first scene_init that runs on relocated data is
    its test (a wrong decode shows as garbage tables); a harness decoding one CT3X file from CT3PACK.DAT
    beside the ROM's (eerun.py) would prove it sooner.
+   **game/fileio.c slice 3 (partial, 2026-11-10):** the sorts (CharacterSort, objSort,
+   objSortWithBlurIdx, SortAlphaObjects: CAM2OBJ rows in pCam2objSort, a merge sort far to near that
+   is not stable -- on equal distances the second half's row goes first), SceneEndBankMovie (parks
+   banks at BANK_STATE_MOVIE_PARKED + i instead of clearing them), Round2ChangeSectInfo. Left:
+   Round2ChangeChar (0x878). The smoke run passes CharacterSort and still crashes at main.c:2106
+   (ActressMP NULL: asFindModelParts, QuatSlerp.c, is a stub that answers NULL; so is the new
+   asVectorDistance stub, which answers 0, so every sort keeps its input order). Open: (ek)
+   CharacterSort counts a character only with both CHARACTER_FLAG_REFRACTION and _SHADOW set: the two
+   bits are more likely 'exists' / 'drawn' than refraction / shadow -- rename them when their setter is
+   read; (el) PART_BLUR_OBJ (+0x110 listIndex, +0x114 sortedIndex), ALLpartBlurObj[2][86][48],
+   NumPartBlurObj[2][86] and aftSortALLpartBlurObj (PORT: 49 slots, the ROM writes [count]) sit in
+   lib/unassigned_data.cpp until the ss part-blur TU (ssSetTexUVforCubeMap.c) owns them; (em)
+   PARTS_FLAG_SORT_CENTER (0x4), DRAW_OBJ_CENTER (+0x10) and the record's +0x20 sort point
+   (REC_SORT_POINT, MODEL_PARTS +0x60) are named from the sorts only; CharacterSort and main.c's
+   actress light both read record +0x1c0 (REC_MATRIX_PREV) with the +0x20 point; (en) CharacterSort's
+   rows and CharacterSortBuff got one PORT row each (the ROM writes row / slot 35 when all 35 count).
    Open: (bq) BANK_INFO renamed from the loader's use: +0 `state` (was `count`; BANK_STATE_*, a group's
    later banks hold their place 2..n), +0x20 `drawOn` (was `loaded`: FSMltSetDrawBank's mode), +0x1c
    `image` (EE address), +0x24 `handle`; every user was updated. A bank's type is the FS_LOAD_* kind it

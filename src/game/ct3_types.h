@@ -395,6 +395,8 @@ static_assert(offsetof(MODEL_PARTS, pos) == 0x130, "MODEL_PARTS.pos");
 #define PARTS_FLAG_FOG 0x1              /* a fog volume: never drawn; the bank's fog part sets FOG_mode */
 #define PARTS_KIND_NO_DOF 9             /* MODEL_PARTS.kind: not drawn in the depth-of-field slices */
 #define PARTS_FLAG_ZONLY_FIRST 0x8      /* main_rtn: OneMaxObjectDrawZOnly runs before the part */
+#define PARTS_FLAG_SORT_CENTER 0x4      /* objSort measures the entry's DRAW_OBJ_CENTER through the part's
+                                           matrix, not the part's pos */
 
 // A bank's fog record (FogCtrlAddr[bank]): the fog part, the clear colour, and gaSetupFogCtrlData's
 // arguments for the bank's own objects (+0x10) and for characters lit in it (+0x28).
@@ -440,6 +442,7 @@ static_assert(sizeof(DRAW_OBJ_ENTRY) == 0x1c, "DRAW_OBJ_ENTRY");
 // The ga draw object's bytes main_rtn touches (gaBGT_DrawObject's TU owns the layout).
 #define DRAW_OBJ_FLAGS 0x00             /* u_char: DRAW_OBJ_FLAG_* */
 #define DRAW_OBJ_CLIP 0x02              /* u_char: gaObjectClippingCheck's answer */
+#define DRAW_OBJ_CENTER 0x10            /* float[4]: a point in the part's frame (objSort, PARTS_FLAG_SORT_CENTER) */
 #define DRAW_OBJ_LIGHT 0x30             /* float */
 #define DRAW_OBJ_POS 0x38               /* u_int: EE address of the object's position qword (BankEePtr) */
 #define DRAW_OBJ_ATTR 0x3c              /* int: MODEL_PARTS.attr */
@@ -528,6 +531,18 @@ static inline u_int BankEeAddr(int bank, const void *host)
 }
 
 #define PARTICLE_OBJ_SIZE 0x80          /* ParticleObject[bank][i]: one ga draw object per ring slot */
+
+// A part motion-blur object (ALLpartBlurObj[mode][bank][i]; the ss part-blur TU, ssSetTexUVforCubeMap.c,
+// owns it). layout: host -- only the two words objSortWithBlurIdx touches are named.
+typedef struct PART_BLUR_OBJ {
+    u_char pad000[0x110];
+    int listIndex;                      /* 0x110: its entry's index in the bank's objTrans list */
+    int sortedIndex;                    /* 0x114: objSortWithBlurIdx: its row in the sorted table */
+} PART_BLUR_OBJ;
+static_assert(offsetof(PART_BLUR_OBJ, listIndex) == 0x110, "PART_BLUR_OBJ.listIndex");
+
+#define PART_BLUR_MAX 48                /* ALLpartBlurObj's slots per bank (0xc0 bytes of EE words) */
+#define PART_BLUR_MODES 2               /* ALLpartBlurObj / NumPartBlurObj: [0] and [1] (main_rtn's mode 1) */
 
 #define OS_OBJ_TABLE_BYTES 2000         /* osTotalObjTable: one scene's sort table, 3 x 86 of them */
 

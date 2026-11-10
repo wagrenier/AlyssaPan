@@ -78,6 +78,7 @@ enum FSLOAD_PHASE {
 // (2..groupCount: SceneEndBank walks back to the head with it).
 #define BANK_STATE_FREE 0
 #define BANK_STATE_LOADED 1
+#define BANK_STATE_MOVIE_PARKED 1001  /* SceneEndBankMovie: + i for a parked group's i-th bank */
 #define BANK_STATE_LOADING (-1)         /* FSMltLoadStatus answers FS_STATUS_LOADING; a cancel of row 0 frees it */
 
 #define BANK_GLOBAL_MAX 6               /* banks 0..5: a global bank (FS_LOAD_GLBL) is only one of these */
@@ -98,7 +99,19 @@ enum FSLOAD_PHASE {
 #define FS_END_PENDING (-1)             /* still in the queue */
 #define FS_END_UNKNOWN (-2)             /* no bank holds the handle */
 
+// One row of the sorts' work arrays (pCam2objSort / pCam2objBuff, _SunAlloc'd from gHeapJunc for the
+// call and freed at its end). SortAlphaObjects orders the rows far to near (dist descending).
+typedef struct CAM2OBJ {
+    int index;                          /* 0x0: the row's place in the input list */
+    int id;                             /* 0x4: objSort: the entry's MODEL_PARTS index; CharacterSort: the
+                                           Character[] index */
+    float dist;                         /* 0x8: asVectorDistance from the camera */
+} CAM2OBJ;
+static_assert(sizeof(CAM2OBJ) == 0xc, "CAM2OBJ");
+
 // ---- globals ------------------------------------------------------------------------------------------
+extern CAM2OBJ *pCam2objSort;                    /* sdata 0x0193f73c: the rows being sorted */
+extern CAM2OBJ *pCam2objBuff;                    /* sdata 0x0193f738: SortAlphaObjects' merge buffer */
 extern FQUE FQue[FQUE_MAX];                      /* bss  0x01c833c0 */
 extern int Phase;                                /* sbss 0x01942b4c: FSMltLoadProc's step */
 extern int sErrCount;                            /* sbss 0x0193f774 */
@@ -109,7 +122,9 @@ extern u_char *gBankSlotArea;
 void CharacterSort(void);                                                                // CT3 0x018c2170
 void objSortWithBlurIdx(int scene, int count, void *table);                              // CT3 0x018c23b0
 void objSort(int scene, int count, void *table);                                         // CT3 0x018c2880
+void SortAlphaObjects(int n, CAM2OBJ *rows);                                             // CT3 0x018c2ad0
 void Round2ChangeChar(int round);                                                        // CT3 0x018c2df0
+void Round2ChangeSectInfo(char *dst, char *src);                                         // CT3 0x018c3670
 void DebugBankDisp(void);                                                                // CT3 0x018c3790
 void FSLoadProc(void);                                                                   // CT3 0x018c37a0
 void FSLoadCancelQue(int handle);                                                        // CT3 0x018c3a80
@@ -127,6 +142,7 @@ void FSMltLoadCancelIdxQue(int idx);                                            
 void FSMltLoadCancelQue(char *name);                                                     // CT3 0x018c4810
 int IsQueWaiting(int bank, char *name);                                                  // CT3 0x018c48a0
 int FsIsQueExisting(void);                                                               // CT3 0x018c4950
+void SceneEndBankMovie(int first, int count);                                            // CT3 0x018c5400
 void SceneEndBank(int first, int count);                                                 // CT3 0x018c5780
 int FSMltLoad(char *name, int kind, int bank, int count);                                // CT3 0x018c5cd0
 int FSMltInsertQuePriority(FQUE *req);                                                   // CT3 0x018c5f10

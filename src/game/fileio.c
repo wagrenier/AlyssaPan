@@ -6,13 +6,15 @@
 // Slice 1 reconstructed 2026-11-10 (27 functions): the queue (FSMltLoad, its priority insert, the cancels,
 // the status and wait functions), the bank table (FSMltInit, the finds, draw on / off, SceneEndBank), the
 // file server, FSFileType and fs_error. Slice 2 (2026-11-10): the bank loader itself (FSMltLoadProc,
-// ReserveBank, Extract: the 'CT3X' unpacker). Left: SceneEndBankMovie, the object sorts and the
-// second-round character swap (Round2Change*).
+// ReserveBank, Extract: the 'CT3X' unpacker). Slice 3 (2026-11-10): the sorts (CharacterSort, objSort,
+// objSortWithBlurIdx, SortAlphaObjects), SceneEndBankMovie, Round2ChangeSectInfo. Left: the
+// second-round character swap (Round2ChangeChar).
 
 #include "game/fileio.h"
 
 #include "common/alyssapan_stub.h"
 #include "game/ArtoolDebugOpen.h"
+#include "game/QuatSlerp.h"
 #include "game/Clipping_Portal.h"
 #include "game/SdMasterVolumeSetSE.h"
 #include "game/AlignedNum.h"
@@ -53,6 +55,8 @@ static const char s_srcFile[] = "fileio.c";     /* data 0x01936098: fs_error's f
 #define FS_LINE_MLT_HEAD 806                    /* FSMltLoadProc: the first sector */
 #define FS_LINE_MLT_REST 945                    /* FSMltLoadProc: a plain file's other sectors */
 #define FS_LINE_MLT_PACKED 968                  /* FSMltLoadProc: a packed file's next sectors */
+#define FS_LINE_ROUND2_DST 2729                 /* Round2ChangeSectInfo: dst not in the pack */
+#define FS_LINE_ROUND2_SRC 2734                 /* Round2ChangeSectInfo: src not in the pack */
 
 // ---- a bank file's first sector ------------------------------------------------------------------------
 // FSMltLoadProc reads sector 0 into Buf1stSector and looks at it as one of two headers. layout: ee.
@@ -115,6 +119,8 @@ enum CT3X_CODE {
 
 FQUE FQue[FQUE_MAX];                            /* bss  0x01c833c0 */
 int Phase;                                      /* sbss 0x01942b4c: FSMltLoadProc's step */
+CAM2OBJ *pCam2objSort;                          /* sdata 0x0193f73c */
+CAM2OBJ *pCam2objBuff;                          /* sdata 0x0193f738 */
 static int FH;                                  /* sbss 0x01942b50: FSMltLoadProc's open file (an Fl handle) */
 static int sPreRsects;                          /* sbss 0x01942b5c sPreRsects$914: FSLoadProc's sectors read */
 static int sPreLoadNowSects;                    /* sbss 0x01942b60: sectors already in buff */
@@ -146,6 +152,239 @@ int sErrCount;                                  /* sbss 0x0193f774 */
 // address in BankImage[] / BankImageEE[] (ct3_types.h BankEePtr, open-items.md 1 h).
 alignas(64) static u_char gBankSlotArea_host[BANK_SLOT_COUNT * BANK_SLOT_SIZE];
 u_char *gBankSlotArea = gBankSlotArea_host;
+
+// ---- the sorts ----------------------------------------------------------------------------------------
+// The draw lists' and the characters' far-to-near order for translucent drawing: each sort fills
+// pCam2objSort with one CAM2OBJ per item (its place, its id, its distance from the camera), merge-sorts
+// the rows (SortAlphaObjects) and writes the items back in that order.
+
+// The parts header record asFindModelParts answers (header + 0x40 + i * 0x380; see PARTS_REC).
+#define REC_SORT_POINT 0x20             /* float[4]: the point CharacterSort measures (MODEL_PARTS +0x60) */
+#define REC_MATRIX_PREV 0x1c0           /* float[4][4]: last frame's world matrix (MODEL_PARTS +0x200) */
+
+// CharacterSort's rows: the ROM allocates 0x1a4 bytes (35 rows) and writes a 36th row's id and dist
+// when every character counts. PORT: room for the 36th.
+#define CHARA_SORT_ROWS (CHARACTER_MAX + 1)
+
+// out = m applied to v (vmulax / vmadday / vmaddaz / vmaddw): m[0] v.x + m[1] v.y + m[2] v.z + m[3] v.w.
+static void SortPointApply(float out[4], const float m[4][4], const float v[4])
+{
+    int i;
+    for (i = 0; i < 4; i++)
+        out[i] = m[0][i] * v[0] + m[1][i] * v[1] + m[2][i] * v[2] + m[3][i] * v[3];
+}
+
+// CT3 0x018c2170
+// Character[]'s drawn characters (both CHARACTER_FLAG_REFRACTION and _SHADOW set, a bank) into
+// CharacterSortBuff, far to near: each measured from the camera at its bank's origin part
+// (PARTS_HASH_SOUND_ORIGIN), placed by that part's last-frame matrix. -1 ends the list.
+void CharacterSort(void)
+{
+    alignas(16) float cam[4];
+    alignas(16) float at[4];
+    short c;
+    int n = 0;
+
+    pCam2objSort = (CAM2OBJ *)_SunAlloc(&gHeapJunc, CHARA_SORT_ROWS * (int)sizeof(CAM2OBJ), 0x10);
+    pCam2objBuff = (CAM2OBJ *)_SunAlloc(&gHeapJunc, CHARA_SORT_ROWS * (int)sizeof(CAM2OBJ), 0x10);
+    CameraMatrix2CameraPos(cam);
+    for (c = 0; c < CHARACTER_MAX; c++) {
+        CHARACTER *ch = &Character[c];
+        u_char *rec;
+
+        if (!(ch->flags & CHARACTER_FLAG_REFRACTION) || !(ch->flags & CHARACTER_FLAG_SHADOW) || ch->bank < 0)
+            continue;
+        if (All_table_TBL[ch->bank] == NULL)    // PORT: the ROM reads a bank's table unchecked
+            continue;
+        rec = asFindModelParts(BANK_PTR(u_char *, ch->bank, All_table_TBL[ch->bank]->partsHeader),
+                               PARTS_HASH_SOUND_ORIGIN);
+        if (rec == NULL)                        // PORT: the ROM reads the answer unchecked
+            continue;
+        SortPointApply(at, (const float(*)[4])(rec + REC_MATRIX_PREV), (const float *)(rec + REC_SORT_POINT));
+        pCam2objSort[n].index = n;
+        pCam2objSort[n].id = c;
+        pCam2objSort[n].dist = asVectorDistance(cam, at);
+        n++;
+    }
+    pCam2objSort[n].id = 0;
+    pCam2objSort[n].dist = 0.0f;
+    if (n > 1)
+        SortAlphaObjects(n, pCam2objSort);
+    for (c = 0; c < n; c++)
+        CharacterSortBuff[c] = (short)pCam2objSort[c].id;
+    CharacterSortBuff[n] = -1;
+    _SunFree(&gHeapJunc, (void **)&pCam2objBuff);
+    _SunFree(&gHeapJunc, (void **)&pCam2objSort);
+}
+
+// CT3 0x018c23b0
+// objSort for a bank with part motion-blur objects (ALLpartBlurObj[1][scene]): the rows are measured at
+// the parts' pos only, and each blur object whose listIndex is a sorted entry's place in the objTrans
+// list gets that entry's row (sortedIndex) and joins aftSortALLpartBlurObj in sorted order. The slots
+// are cleared as they match (so an entry matches once) and restored at the end.
+void objSortWithBlurIdx(int scene, int count, void *table)
+{
+    u_int *out = (u_int *)table;
+    u_int *list = BANK_PTR(u_int *, scene, All_table_TBL[scene]->objTrans);
+    PART_BLUR_OBJ **slots = ALLpartBlurObj[1][scene];
+    PART_BLUR_OBJ *keep[PART_BLUR_MAX];
+    PART_BLUR_OBJ *cur = NULL;
+    u_int n, i, nBlur;
+    int k, idx, matched = 0, exhausted = 0, done = 0;
+
+    if (list[0] == 0) {
+        out[0] = 0;
+        return;
+    }
+    pCam2objSort = (CAM2OBJ *)_SunAlloc(&gHeapJunc, count * (int)sizeof(CAM2OBJ), 0x10);
+    pCam2objBuff = (CAM2OBJ *)_SunAlloc(&gHeapJunc, count * (int)sizeof(CAM2OBJ), 0x10);
+    n = (u_int)count - 1;
+    for (i = 0; i < n; i++) {
+        DRAW_OBJ_ENTRY *ent = BANK_PTR(DRAW_OBJ_ENTRY *, scene, list[i]);
+
+        pCam2objSort[i].index = (int)i;
+        pCam2objSort[i].id = ent->parts;
+        pCam2objSort[i].dist = asVectorDistance(CameraPos, ((MODEL_PARTS *)pModelPartsHeader[scene])[ent->parts].pos);
+    }
+    pCam2objSort[count - 1].id = 0;
+    pCam2objSort[count - 1].dist = 0.0f;
+    SortAlphaObjects((int)n, pCam2objSort);
+
+    nBlur = NumPartBlurObj[1][scene];
+    for (i = 0; i < nBlur; i++)
+        keep[i] = slots[i];
+    for (i = 0; i < n; i++) {
+        idx = pCam2objSort[i].index;
+        k = 0;
+        if (!exhausted) {                       // the first filled slot (the ROM reads slot 0 first)
+            done = 0;
+            while ((cur = slots[k]) == NULL) {
+                if (++k >= (int)nBlur) {
+                    exhausted = done = 1;
+                    break;
+                }
+            }
+        }
+        out[i] = list[idx];
+        while (!done && cur->listIndex < idx) { // on to the next filled slot
+            do {
+                if (++k >= (int)nBlur) {
+                    done = 1;
+                    break;
+                }
+                cur = slots[k];
+            } while (cur == NULL);
+        }
+        if (!done && cur->listIndex == idx) {
+            cur->sortedIndex = (int)i;
+            slots[k] = NULL;
+            aftSortALLpartBlurObj[matched++] = cur;
+        }
+    }
+    aftSortALLpartBlurObj[nBlur] = NULL;        // ROM: at the slot count, not the matched count
+    for (i = 0; i < nBlur; i++)
+        slots[i] = keep[i];
+    out[count - 1] = 0;
+    _SunFree(&gHeapJunc, (void **)&pCam2objBuff);
+    _SunFree(&gHeapJunc, (void **)&pCam2objSort);
+}
+
+// CT3 0x018c2880
+// A bank's translucent list (ALL_TABLE.objTrans, count - 1 entries and its 0) into table, far to near:
+// each entry measured from CameraPos at its part's pos, or, for a PARTS_FLAG_SORT_CENTER part, at its
+// draw object's DRAW_OBJ_CENTER placed by the part's matrix. table gets the entries' EE words, then 0.
+void objSort(int scene, int count, void *table)
+{
+    u_int *out = (u_int *)table;
+    u_int *list = BANK_PTR(u_int *, scene, All_table_TBL[scene]->objTrans);
+    alignas(16) float at[4];
+    u_int i;
+
+    if (list[0] == 0) {
+        out[0] = 0;
+        return;
+    }
+    pCam2objSort = (CAM2OBJ *)_SunAlloc(&gHeapJunc, count * (int)sizeof(CAM2OBJ), 0x10);
+    pCam2objBuff = (CAM2OBJ *)_SunAlloc(&gHeapJunc, count * (int)sizeof(CAM2OBJ), 0x10);
+    for (i = 0; i < (u_int)count - 1; i++) {
+        DRAW_OBJ_ENTRY *ent = BANK_PTR(DRAW_OBJ_ENTRY *, scene, list[i]);
+        MODEL_PARTS *parts = &((MODEL_PARTS *)pModelPartsHeader[scene])[ent->parts];
+
+        pCam2objSort[i].index = (int)i;
+        pCam2objSort[i].id = ent->parts;
+        if (parts->flags & PARTS_FLAG_SORT_CENTER) {
+            SortPointApply(at, parts->matrix, (const float *)(BANK_PTR(u_char *, scene, ent->obj) + DRAW_OBJ_CENTER));
+            pCam2objSort[i].dist = asVectorDistance(CameraPos, at);
+        } else {
+            pCam2objSort[i].dist = asVectorDistance(CameraPos, parts->pos);
+        }
+    }
+    pCam2objSort[count - 1].id = 0;
+    pCam2objSort[count - 1].dist = 0.0f;
+    SortAlphaObjects(count - 1, pCam2objSort);
+    for (i = 0; i < (u_int)count - 1; i++)
+        out[i] = list[pCam2objSort[i].index];
+    out[count - 1] = 0;
+    _SunFree(&gHeapJunc, (void **)&pCam2objBuff);
+    _SunFree(&gHeapJunc, (void **)&pCam2objSort);
+}
+
+// CT3 0x018c2ad0
+// Merge sort of n rows by dist, far to near: the halves sorted in place, the first copied to
+// pCam2objBuff, then merged back. Not stable: on equal distances the second half's row goes first.
+void SortAlphaObjects(int n, CAM2OBJ *rows)
+{
+    int half, i, j, k;
+
+    if (n < 2)
+        return;
+    half = n / 2;
+    SortAlphaObjects(half, rows);
+    SortAlphaObjects(n - half, rows + half);
+    for (i = 0; i < half; i++)
+        pCam2objBuff[i] = rows[i];
+    i = 0;
+    j = half;
+    k = 0;
+    while (i < half && j < n) {
+        if (rows[j].dist < pCam2objBuff[i].dist)
+            rows[k++] = pCam2objBuff[i++];
+        else
+            rows[k++] = rows[j++];
+    }
+    while (i < half)
+        rows[k++] = pCam2objBuff[i++];
+}
+
+// ---- the second round -----------------------------------------------------------------------------------
+
+// CT3 0x018c3670 -- the pack file dst is read from src's sectors from now on: gFlPackInfo[dst] takes
+// src's size, sector and sector count (the names stay). Both names are upper-cased first; a missing one
+// is reported and nothing changes.
+void Round2ChangeSectInfo(char *dst, char *src)
+{
+    char dstName[32];
+    char srcName[32];
+    int d, s;
+
+    strcpy(dstName, dst);
+    strcpy(srcName, src);
+    strupr(dstName);
+    strupr(srcName);
+    d = FlFindPacked(dstName);
+    if (d < 0) {
+        fs_error(s_srcFile, FS_LINE_ROUND2_DST, "2しゅうめCHAR", "%sがない", dstName); /* data 0x019360a8, 0x019360b8 */
+        return;
+    }
+    s = FlFindPacked(srcName);
+    if (s < 0) {
+        fs_error(s_srcFile, FS_LINE_ROUND2_SRC, "2しゅうめCHAR", "%sがない", srcName);
+        return;
+    }
+    gFlPackInfo[d].size = gFlPackInfo[s].size;
+    gFlPackInfo[d].sect = gFlPackInfo[s].sect;
+    gFlPackInfo[d].numSect = gFlPackInfo[s].numSect;
+}
 
 // ---- the file server ----------------------------------------------------------------------------------
 
@@ -499,6 +738,52 @@ static void fs_clear_group(int bank, int n)
         b->state = BANK_STATE_FREE;
         b->flags = 0;
         b->name[0] = '\0';
+    }
+}
+
+// CT3 0x018c5400 -- SceneEndBank for a movie (AA_DeleteSceneBank): the same range and the same
+// scene_end, but nothing is cleared for good. A scene or shape group's banks are parked -- the group's
+// i-th bank to BANK_STATE_MOVIE_PARKED + i, its name, group and draw state kept -- and a global bank's
+// memory goes back to the GLBL heap with the bank parked the same way. Behaviour banks stay loaded.
+void SceneEndBankMovie(int first, int count)
+{
+    int i, j;
+
+    if (first < 0 || count <= 0)
+        return;
+    if (BankInfo[first].state > BANK_STATE_LOADED) {
+        count += BankInfo[first].state - 1;
+        first = first - BankInfo[first].state + 1;
+    }
+    if (first + count > BANK_MAX)
+        count = BANK_MAX - first;
+    for (i = first; i < first + count; i++) {
+        BANK_INFO *b = &BankInfo[i];
+        int n;
+
+        if (b->state != BANK_STATE_LOADED)
+            continue;
+        n = b->groupCount;
+        if (b->type == BANK_TYPE_SHADOW || b->type == BANK_TYPE_2) {    /* FS_LOAD_SCENE / FS_LOAD_SHAPE */
+            if (b->flags & BANK_FLAG_SCENE_INIT)
+                scene_end(i);
+            for (j = 0; j < n; j++) {
+                BankInfo[i + j].state = BANK_STATE_MOVIE_PARKED + j;
+                BankInfo[i + j].flags &= ~BANK_FLAG_SCENE_INIT;
+            }
+        } else if (b->type == BANK_TYPE_0) {                          /* FS_LOAD_GLBL */
+            if (b->flags & BANK_FLAG_SCENE_INIT)
+                scene_end(i);
+            if (b->image != 0) {
+                // The ROM frees the EE address in BankInfo +0x1c; the host frees its image.
+                _SunFree(&gHeapGlobalScene, (void **)&BankImage[i]);
+                b->image = 0;
+                BankImageEE[i] = 0;
+            }
+            b->state = BANK_STATE_MOVIE_PARKED;
+            b->flags &= ~BANK_FLAG_SCENE_INIT;
+        }
+        i += n - 1;
     }
 }
 
@@ -1290,24 +1575,6 @@ void FSMltLoadProc(void)
 }
 
 // ---- stubs (tools/reverse/stubgen.py) ----
-
-// stub of CT3 0x018c2170
-void CharacterSort(void)
-{
-    ALYSSAPAN_STUB("CharacterSort", 0x018c2170);
-}
-
-// stub of CT3 0x018c2880
-void objSort(int scene, int count, void *table)
-{
-    ALYSSAPAN_STUB("objSort", 0x018c2880);
-}
-
-// stub of CT3 0x018c23b0
-void objSortWithBlurIdx(int scene, int count, void *table)
-{
-    ALYSSAPAN_STUB("objSortWithBlurIdx", 0x018c23b0);
-}
 
 // stub of CT3 0x018c2df0
 void Round2ChangeChar(int round)

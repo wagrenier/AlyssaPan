@@ -684,3 +684,10 @@ float asRadianByO(float *v, int axis)
     return {};
 }
 
+
+// stub of CT3 0x0185ded0
+float asVectorDistance(const float *a, const float *b)
+{
+    ALYSSAPAN_STUB("asVectorDistance", 0x0185ded0);
+    return {};
+}

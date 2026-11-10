@@ -61,6 +61,7 @@ int asCheckBankType(int bank);                                                  
 u_long ahGetHash(const char *name);                                                      // CT3 0x0185e580
 void CameraMatrix2CameraTrg3m(float *trg);                                              // CT3 0x0185a5e0
 void CameraMatrix2CameraPos(float *pos);                                                 // CT3 0x0185a650
+float asVectorDistance(const float *a, const float *b);                                  // CT3 0x0185ded0
 void tnInit3dlibWork(void *work, void *spr);                                            // CT3 0x01854560
 int OneMaxObjectDrawZOnly(int bank, int index);                                          // CT3 0x01858f20
 void sunBGT_LoadGSTexClutData_VIF1(void *tbuffer);                                      // CT3 0x018590b0

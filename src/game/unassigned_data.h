@@ -100,7 +100,12 @@ extern CAMERA Cam[CAMERA_MAX];                  /* bss  0x01ae7c40 */
 extern u_char EffectBuffer_Use;                 /* sbss 0x0193f764: the effect frame buffer is taken */
 extern u_char HQDOFCameraOffset;                /* sdata 0x01939c84: tenths: the HQ DOF eye jitter */
 extern u_char HQDOFOpacity;                     /* sdata 0x01939c88: percent: each HQ DOF sample's weight */
-extern short CharacterSortBuff[CHARACTER_MAX];  /* sbss 0x01940170 (70 bytes): Character indices, -1 ends */
+// PORT: one more than the ROM's 35 shorts: CharacterSort writes its -1 at [count], up to [35].
+extern short CharacterSortBuff[CHARACTER_MAX + 1]; /* sbss 0x01940170 (70 bytes): Character indices, -1 ends */
+extern PART_BLUR_OBJ *ALLpartBlurObj[PART_BLUR_MODES][BANK_MAX][PART_BLUR_MAX]; /* data 0x01a43800 */
+extern u_char NumPartBlurObj[PART_BLUR_MODES][BANK_MAX]; /* data 0x0193fa80: ALLpartBlurObj's slots in use */
+// PORT: one more than the ROM's 48: objSortWithBlurIdx ends the list at [NumPartBlurObj], up to [48].
+extern PART_BLUR_OBJ *aftSortALLpartBlurObj[PART_BLUR_MAX + 1]; /* data 0x0193fb30: matched, in sorted order */
 extern int DirectLightCharaCounter[CHARACTER_MAX]; /* sbss 0x019400e0 */
 extern short AI_flag[CHARACTER_MAX];            /* sbss 0x0193fca0 */
 extern u_short CharDirectLightSet[CHARACTER_MAX][6]; /* sbss 0x0193ff30 */

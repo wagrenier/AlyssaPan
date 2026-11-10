@@ -609,7 +609,7 @@
    "task": "Host task: ALL_TABLE and its lists in EE layout (open-items.md item 1 bv): ALL_TABLE fields to u_int words read through BankEePtr in main.c, Character_Init.c, sound.c, main2.c, fileio.c; ALLobject and LinkMatrixTree / asBuildMirrorMatrixTree lists as u_int EE words; DRAW_OBJ_ENTRY, TEX_INFO, PARTICLE_ENTRY, PARTICLE2_ENTRY to EE layout with u_int pointer words at the offsets ahRelocateFileObject relocates (architecture.md The file relocator). Done when scene_init runs past the global bank load."
   },
   "game/fileio.c": {
-   "notes": "Written: FSMltLoadProc (steps FSMLT_*), ReserveBank, Extract; FQUE +0 is dir. The first global bank now loads and the run crashes in scene_init (main.c) reading ALL_TABLE as host pointers from EE-layout bank data; ahRelocateFileObject is a stub. Blocker: open-items item 1 (bv), game/ahRelocateSunPs2ObjectArry.c queued first. Left here: SceneEndBankMovie, CharacterSort, objSort, objSortWithBlurIdx, SortAlphaObjects, Round2Change*. Extract untested against a known image (bw).",
+   "notes": "Left: Round2ChangeChar (0x878). Smoke run passes CharacterSort, still crashes at main.c:2106 (ActressMP NULL: asFindModelParts in QuatSlerp.c is a stub; asVectorDistance stub answers 0 so sorts keep input order). Open items (ek)-(en) in open-items.md.",
    "ranges": [
     [
      "018c2170",
@@ -626,6 +626,11 @@
      "date": "2026-11-10 02:34",
      "status": "partial",
      "summary": "slice 2: the bank loader - FSMltLoadProc, ReserveBank, Extract (the CT3X unpacker)"
+    },
+    {
+     "date": "2026-11-10 08:35",
+     "status": "partial",
+     "summary": "slice 3: the sorts (CharacterSort, objSort, objSortWithBlurIdx, SortAlphaObjects), SceneEndBankMovie, Round2ChangeSectInfo"
     }
    ],
    "status": "partial",
