@@ -47,3 +47,10 @@ void objSortWithBlurIdx(int scene, int count, void *table)
 {
     ALYSSAPAN_STUB("objSortWithBlurIdx", 0x018c23b0);
 }
+
+// stub of CT3 0x018c7ec0
+char * fs_error(const char *file, int line, const char *title, const char *fmt, ...)
+{
+    ALYSSAPAN_STUB("fs_error", 0x018c7ec0);
+    return {};
+}

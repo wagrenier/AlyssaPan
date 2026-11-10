@@ -7,6 +7,12 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-09, game/ahalloc.c) **A stubbed AlignedNum breaks every SunAlloc.** `_SunAlloc` sizes a
+  block as AlignedNum(size, align) + header; the stub answers 0, so each block would be a bare header and
+  the user's bytes would overwrite the next block. No smoke run reaches `_SunAlloc` yet; game/AlignedNum.c
+  is queued first so it is written before one does. Also: `SUN_BLOCK` pointers can sit at 4-aligned
+  addresses (pad blocks are header + 4 bytes): fine on x86-64, never copy blocks with aligned SSE moves.
+
 - (2026-11-09, ga/gaInitMeter.c) **Writes to `REG_RCNTn_MODE` went nowhere.** `eeregs.h` (from YamiPan) kept
   the timer modes as plain variables, so T1 kept counting H-blanks (the host default, FS2's mode) when CT3's
   gaInitMeter set BUSCLK / 256 (0x82): the frame meters would have read the wrong unit. Fix: `EeTimerMode`

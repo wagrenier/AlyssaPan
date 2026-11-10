@@ -1,6 +1,6 @@
 {
  "queue": [
-  "game/ahalloc.c",
+  "game/AlignedNum.c",
   "game/sound.c",
   "game/Character_Init.c",
   "game/ArtoolDebugOpen.c",
@@ -401,12 +401,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 69..69, 15 functions keyed by their statics, 77 unkeyed; file name from the names"
   },
   "game/ahalloc.c": {
+   "notes": "Host block header is 0x20 bytes (EE 0x10). SunAllocInit runs at boot; nothing calls _SunAlloc yet. AlignedNum is a stub answering 0, so game/AlignedNum.c is queued first. callcheck: fptodp is the float to double cast.",
    "ranges": [
     [
      "0183d9e0",
      "0183e280"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-09 22:22",
+     "status": "verify",
+     "summary": "SunAlloc block heaps: all 7 functions (init, alloc with alignment pads and splits, free with neighbour merges, border check, debug map)"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 67..67, 4 functions keyed by their statics, 3 unkeyed; source string ahalloc.c"
   },
   "game/asEyeForcusUP2CamMat.c": {

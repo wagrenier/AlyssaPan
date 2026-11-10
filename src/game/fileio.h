@@ -11,3 +11,4 @@ void FileSoundServer(void);                                                     
 void FS_work_init(void);                                                                 // CT3 0x018c7e00
 void objSortWithBlurIdx(int scene, int count, void *table);                              // CT3 0x018c23b0
 void objSort(int scene, int count, void *table);                                         // CT3 0x018c2880
+char *fs_error(const char *file, int line, const char *title, const char *fmt, ...);     // CT3 0x018c7ec0

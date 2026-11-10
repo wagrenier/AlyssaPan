@@ -277,6 +277,25 @@ the TU map's evidence.
   / 1 CLUT env / REF, 2 / 3 level env / REF, 0xf TEXFLUSH), `gaBGT_SetLoadGSEnv`'s 7 qwords (BITBLTBUF,
   TRXPOS, TRXREG, TRXDIR 0, IMAGE tag; returns the image's qwords by PSM), then a REF tag to the data.
 
+## SunAlloc, game/ahalloc.c (2026-11-09)
+
+- The game's heaps: `SUN_HEAP` (EE 0x34 bytes; +0 name, +4 area size, +8 first block, +0xc blocks in use,
+  +0x10 the search hint; +0x14..0x34 unread by ahalloc.c) over a fixed area. main's `system_init` makes
+  three: gHeapJunc (0x96000 at 0x01bce3c0), gHeapSound (0xe1000 at 0x01aed3c0), gHeapGlobalScene (3 MB at
+  EE 0x00400000). Callers use `_SunAlloc(heap, size, align)` / `_SunFree(heap, &ptr)` (34 and ~20 callers:
+  file loading, characters, particles, the memory card's saves, sound).
+- Blocks (EE header 0x10: tag = the size asked, 0 = free; whole size; prev; next) tile the area in address
+  order. `_SunAlloc` raises align to 4, needs AlignedNum(size, align) + header, first fit from the hint
+  (prev starts NULL even when the hint is not the first block). `SetToEmptyBlock` aligns by moving the
+  block up -- the pad joins the block below, or (no block below) the head becomes a free 0x14-byte pad
+  block -- and splits off any rest of 0x14 bytes or more. `_SunFree` merges with free neighbours by a
+  4-bit case (prev / prev used / next / next used); freeing the area's first block under a used one leaves
+  the hint above it (the ROM's), so that block is found again only after a free lowers the hint.
+- `SunAllocUsedBorderCheck` returns where the used part ends (the last block's user bytes if free, else the
+  area's end): movie.c and PicPaz.c use it to borrow the heap's tail. `CheckAllocNum0` is empty.
+- Host: `SUN_BLOCK` is 0x20 bytes (host pointers; still a multiple of 16, so sizes the game aligns keep
+  user data 16-aligned as on the EE); `SUN_BLOCK_MIN` = header + 4.
+
 ## Data (2026-11-09)
 
 - `DATA\CT3PACK.DAT` (the ELF names `DATA\CT3PACK.DAT;1` and `\DATA\CT3PACK.DAT;1` at 0x01934b90,
