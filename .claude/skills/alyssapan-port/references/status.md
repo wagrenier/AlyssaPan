@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-10 18:13 at commit `8cf6e76` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-10 18:35 at commit `71224ee` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **762**; stubs: **175**
+- reconstructed CT3 functions: **763**; stubs: **175**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -82,9 +82,9 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/ssGrpPortalCheck.c` | 0 | 11 |
 | `src/game/ssHitCheckAttackToScn.c` | 0 | 5 |
 | `src/game/ssSetTexUVforCubeMap.c` | 0 | 31 |
-| `src/game/tiAvoidObject.c` | 0 | 6 |
+| `src/game/tiAvoidObject.c` | 0 | 7 |
 | `src/game/tkXDTrg_GetSceneHash.c` | 0 | 3 |
-| `src/game/wideXcmd_DebugPrint.c` | 56 | 4 |
+| `src/game/wideXcmd_DebugPrint.c` | 57 | 3 |
 | `src/lib/unassigned_stubs.cpp` | 0 | 1 |
 
 ## Translation units (one session each: `tus.py`)
@@ -92,7 +92,7 @@ Least-named game-code regions (64 KB blocks):
 - 65 TUs: todo 41, partial 1, verify 23, done 3
 - next: **game/wideXcmd_DebugPrint.c** (pinned in the queue)
 - pinned queue: game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/asEyeForcusUP2CamMat.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c, game/ssGrpPortalCheck.c
-- partial: `game/wideXcmd_DebugPrint.c` 56/109 -- Next slice: asCheckCharacterHited (0x1dc4, the biggest left: take it alone or split it), then asCharacterMortionFunctionOperation (0x1578), asMotionAdderByNowMo
+- partial: `game/wideXcmd_DebugPrint.c` 57/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, the biggest left: alone or split), then asMotionAdderByNowMotion, asPlayerInputAnalyze, asChainLengthCh
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaDmaSync_VIF1.c` 5/5 -- Host: kicks leave CHCR.STR clear (the transfer is over), so the syncs return at once; the BGT send keeps the copy and the flip, the packet goes nowhere (draw mo
 - verify: `ga/gaInit3dlib.c` 25/25 -- 15 s smoke run: no fault, shot black (no host draw module). gaMulMatrix is dst = b * a (hazards.md). gaSetZRollMatrix now reaches gaSinCos: ga/gaSinCos.c is que
@@ -119,6 +119,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-10 18:34 `game/wideXcmd_DebugPrint.c` partial: slice 5: asCheckCharacterHited (the boss battle invulnerability vsBossMuteki / AfterPanicStartMuteki, the stage bosses scripted strikes, then Alyssa's hit table
 - 2026-11-10 18:13 `game/wideXcmd_DebugPrint.c` partial: slice 4: asCharacterAnimationExecute (the per-frame motion play, what follows a motion's end, root motion), asChangeAlyssaMortionByDamaging, asPIA1_KEY_TBL_HAIH
 - 2026-11-10 17:56 `game/wideXcmd_DebugPrint.c` partial: slice 3: asRequestExecute (the motion queue consumer, body and blend slots), asResetCharacterPosition, asCharacterForceMoveOperate, asCatWalkEventOperation (4 f
 - 2026-11-10 17:38 `game/wideXcmd_DebugPrint.c` partial: slice 2: positioning (asCharacterPositioning, as1CharacterPositioning, OnlyDeltaPos, the pause review, asResetCharacterRotation), the panic / barrier / lock sta
@@ -126,16 +127,15 @@ Recent sessions:
 - 2026-11-10 16:54 `game/movie.c` verify: slice 2: the playback (AA_movie, initAll, readMpeg, termAll); all 20 functions written
 - 2026-11-10 16:41 `game/movie.c` partial: slice 1: the movie front end, bank choice and memory map (16 of 20 functions); AA_movie, initAll, readMpeg, termAll left
 - 2026-11-10 16:09 `ga/gaPadInit.c` verify: reconstruct gaPadInit (scePadInit, both ports on pad_dma_buf0/1)
-- 2026-11-10 15:53 `game/SdMasterVolumeSetSE.c` verify: slice 6: SdLoadSQProc, the SQ loader and player (SD_SQ_LD_STEP, SD_SQ_REGISTER, SND_CMD_SQ_*); SD_SQ_LD fields named (effectType/effectDepth/spuAddr/iopSq/iopHd
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `game/ssGrpPortalCheck.c` | todo | 0/11/59 | 26.4 | 396 | 10 |
+| `game/ssGrpPortalCheck.c` | todo | 0/11/59 | 26.4 | 448 | 10 |
 | `game/Clipping_Portal.c` | todo | 0/34/73 | 44.8 | 160 | 18 |
 | `game/ssSetTexUVforCubeMap.c` | todo | 0/31/96 | 35.3 | 86 | 9 |
 | `game/CpDivideEECom.c` | todo | 0/10/18 | 3.3 | 80 | 10 |
 | `game/asEyeForcusUP2CamMat.c` | todo | 0/9/30 | 23.6 | 57 | 6 |
-| `game/tiAvoidObject.c` | todo | 0/6/82 | 30.5 | 26 | 4 |
+| `game/tiAvoidObject.c` | todo | 0/7/82 | 30.5 | 27 | 4 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/ssHitCheckAttackToScn.c` | todo | 0/5/37 | 32.0 | 22 | 3 |
 | `ga/gaBGT_DrawObject.c` | todo | 0/2/9 | 7.6 | 18 | 1 |
@@ -147,11 +147,11 @@ Recent sessions:
 
 | CT3 addr | name | call sites | provenance | state | inferred file |
 |---|---|---|---|---|---|
-| `018d9100` | ssTrigCheckEvent | 110 | sym | stub | game/ssGrpPortalCheck.c |
-| `018d9560` | ssTrigRemoveEvent | 105 | sym | stub | game/ssGrpPortalCheck.c |
-| `018d95e0` | ssTrigRegisterEvent | 59 | sym | stub | game/ssGrpPortalCheck.c |
-| `018d9470` | ssTrigSetVariable | 36 | sym | stub | game/ssGrpPortalCheck.c |
-| `018d9430` | ssTrigGetVariable | 30 | sym | stub | game/ssGrpPortalCheck.c |
+| `018d9100` | ssTrigCheckEvent | 146 | sym | stub | game/ssGrpPortalCheck.c |
+| `018d9560` | ssTrigRemoveEvent | 110 | sym | stub | game/ssGrpPortalCheck.c |
+| `018d95e0` | ssTrigRegisterEvent | 62 | sym | stub | game/ssGrpPortalCheck.c |
+| `018d9470` | ssTrigSetVariable | 42 | sym | stub | game/ssGrpPortalCheck.c |
+| `018d9430` | ssTrigGetVariable | 32 | sym | stub | game/ssGrpPortalCheck.c |
 | `01851b10` | ConvertQuat2Matrix | 17 | sym | stub | game/Convert.c |
 | `018d1e70` | CpGetEEIOPStatus | 14 | sym | stub | game/CpDivideEECom.c |
 | `01886690` | asChangeViewMatrix_forTheBank | 12 | sym | stub | game/asEyeForcusUP2CamMat.c |

@@ -12,3 +12,5 @@ void ssAI_MemSaveData(u_char *data);                                            
 void ssAI_MemLoadInit(u_char *data);                                                     // CT3 0x018662d0
 struct CHARACTER;
 void ssAI_BrainEnd(struct CHARACTER *chara, int brain);                                  // CT3 0x01865e20 (main2.c)
+// 1 while the character plays a door push or pull opening (ssAI_IsDoorPushOpenPlaying / _Pull).
+int ssAI_IsDoorOpenPlaying(struct CHARACTER *chr);                                       // CT3 0x01860d00

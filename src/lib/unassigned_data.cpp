@@ -294,6 +294,8 @@ int idCameraScene;                              /* sbss 0x01940e30 */
 int TransparentBodyTime;                        /* sbss 0x01940e48 */
 int KekkaiOn;                                   /* sbss 0x0193f9a4 */
 PANIC_INFO PanicInfoData;                       /* sbss 0x01940e50 */
+int vsBossMuteki;                               /* sbss 0x0194485c */
+int AfterPanicStartMuteki;                      /* sbss 0x01944860 */
 int GlobalCameraMode;                           /* sbss 0x0193cf08 */
 u_char act_small;                               /* sbss 0x0193f740 */
 u_char act_large;                               /* sbss 0x0193f744 */

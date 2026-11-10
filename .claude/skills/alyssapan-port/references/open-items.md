@@ -115,7 +115,19 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    (flags bit 0) are named from that one use; its turn lives in a static helper (TurnToDamage), so callcheck
    lists asRadianByVectors / gaSetRotMatrixY as missing from it: explained, not a gap; (ak) MOTION_HAIHAI
    (0x30) and its steps 0x31 / 0x32, PIA_KEY_H0A (key +0x0a) named from asPIA1_KEY_TBL_HAIHAI; it requests
-   for character 0 as the ROM does. **Next:**
+   for character 0 as the ROM does. Open from wideXcmd_DebugPrint.c slice 5 (2026-11-10,
+   asCheckCharacterHited): (al) ALL_TABLE +0x20 is now `hits` (HIT_TABLE: count +0x24, recs +0x28) and
+   HIT_REC (12 bytes: attacker EE word, attack, who, isObject, bank) is named from this reader only: the
+   collision TU that fills it (ssProcessHit's, probably) confirms it; (am2) **the attacker word's bank is a
+   guess**: HitAttackerKind resolves rec->attacker in Character[who].bank (its byte +0x1a2 is
+   HIT_KIND_PANIC 3 / HIT_KIND_NORMAL 4) -- if the writer stores an address in another bank, change the
+   helper; (an2) the attacker characters 2..6 / 32 are named HIT_CHARA_* after the SE bank each plays
+   (E_HAMMER, none, E_ONO, E_SMA, E_SWO, none); the object banks by their name word (E_93, E_14, E_95,
+   SCSR, E_97); CHARA_HIT_LANDED (+0x51c) and CHARA_BOSS_STRIKE (+0x4e0) from this use; the triggers
+   (0x95 MUTEKI, 0x46 / 0x50 BOSS_STRIKE / STRUCK, 0x52 BOSS_ACTION, 0x6f / 0x88 / 0xb0 NO_HIT) too;
+   (ao2) the ROM's dead test kept as a comment: the SWO / SMA flinch tests attack == 0x2b / 0x2c inside
+   the attack == 0x20 / 0x1e case, so that flinch never sounds; vsBossMuteki / AfterPanicStartMuteki live
+   in unassigned_data until their owner (the boss / panic TU) is written. **Next:**
    ~~`ga/gaInitInterrupt.c`~~ (verify, 2026-11-09: main's frame loops now), then in the order a smoke
    run reaches the stubs: `main2` (game/main2.c: title and scene set-up), `IOPInit` / `Character_All_Init`
    (Character_Init.c), `FS_work_init` / `FileSoundServer` (fileio.c), `SunAllocInit` (ahalloc.c), the ga

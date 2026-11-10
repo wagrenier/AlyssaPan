@@ -41,3 +41,10 @@ void ssAI_BrainEnd(struct CHARACTER *chara, int brain)
 {
     ALYSSAPAN_STUB("ssAI_BrainEnd", 0x01865e20);
 }
+
+// stub of CT3 0x01860d00
+int ssAI_IsDoorOpenPlaying(struct CHARACTER *chr)
+{
+    ALYSSAPAN_STUB("ssAI_IsDoorOpenPlaying", 0x01860d00);
+    return {};
+}

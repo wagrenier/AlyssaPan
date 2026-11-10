@@ -1022,7 +1022,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 140..140, 2 functions keyed by their statics, 6 unkeyed; file name from the names"
   },
   "game/wideXcmd_DebugPrint.c": {
-   "notes": "Next slice: asCheckCharacterHited (0x1dc4, the biggest left: take it alone or split it), then asCharacterMortionFunctionOperation (0x1578), asMotionAdderByNowMotion, asPlayerInputAnalyze, asChainLengthCheck, asPIA0_KEY_TBL_PULLED and the remaining key-table entries. callcheck flags Damaging's asRadianByVectors / gaSetRotMatrixY: they are in its static TurnToDamage helper (open-items 1 aj). The shot is black as before: nothing draws yet.",
+   "notes": "Next slice: asCharacterMortionFunctionOperation (0x1578, the biggest left: alone or split), then asMotionAdderByNowMotion, asPlayerInputAnalyze, asChainLengthCheck, asPIA0_KEY_TBL_PULLED, asWater_Run_Check, asPIA1_KEY_TBL_PRUN and the remaining key-table entries. callcheck flags Hited's SdRnd / SdReqPlaySE (inside its AlyssaScream helper) and Damaging's asRadianByVectors / gaSetRotMatrixY (TurnToDamage): explained. The attacker word's bank is a guess (open-items 1 am2). The shot is black as before: nothing draws yet.",
    "ranges": [
     [
      "018f3f60",
@@ -1049,6 +1049,11 @@
      "date": "2026-11-10 18:13",
      "status": "partial",
      "summary": "slice 4: asCharacterAnimationExecute (the per-frame motion play, what follows a motion's end, root motion), asChangeAlyssaMortionByDamaging, asPIA1_KEY_TBL_HAIHAI and ten empty key-table entries (13 functions)"
+    },
+    {
+     "date": "2026-11-10 18:34",
+     "status": "partial",
+     "summary": "slice 5: asCheckCharacterHited (the boss battle invulnerability vsBossMuteki / AfterPanicStartMuteki, the stage bosses scripted strikes, then Alyssa's hit table: per attacker character 2..6 / 32 and object bank E_93 / E_14 / E_95 / SCSR / E_97 the reaction, SE and her cry); ALL_TABLE.hits, HIT_TABLE / HIT_REC named; ssAI_IsDoorOpenPlaying stubbed (1 function)"
     }
    ],
    "status": "partial",

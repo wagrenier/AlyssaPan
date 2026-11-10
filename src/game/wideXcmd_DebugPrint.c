@@ -16,6 +16,8 @@
 // Slice 4 (2026-11-10): the per-frame motion play (asCharacterAnimationExecute: the slots, what follows
 // a motion's end, root motion), Alyssa's damage reaction (asChangeAlyssaMortionByDamaging) and eleven
 // small key-table entries (HAIHAI's step, PSITGO, PSIT, PSTAND, KAIDAN, DOOR, SITGONOUP, GOUP1M).
+// Slice 5 (2026-11-10): asCheckCharacterHited (the boss battle's invulnerability and scripted strikes,
+// then Alyssa's hit table: each attacker's reaction, SE and her cry).
 //
 // PORT: CHARACTER.w300[0] (CHARA_TARGET) is an EE address no written TU sets yet (Character_All_Init
 // clears it): CharaTarget answers none until its writer decides the host form (open-items.md 1 h).
@@ -35,6 +37,8 @@
 #include "game/main2.h"
 #include "game/sound.h"
 #include "game/ssGrpPortalCheck.h"
+#include "game/SdMasterVolumeSetSE.h"
+#include "game/tiAvoidObject.h"
 #include "game/unassigned_data.h"
 #include "ga/gaInit3dlib.h"
 #include "ga/gaSinCos.h"
@@ -1551,8 +1555,381 @@ void asPlayerInputAnalyze(CHARACTER *ch)
 }
 
 
-// stub of CT3 0x018fc2f0
+// ---- asCheckCharacterHited's helpers (the ROM inlines each at every use) --------------------------------
+
+// Her cry: one of three voices at random.
+static void AlyssaScream(void)
+{
+    SdReqPlaySE(PANIC_SE_JLS, (int)SdRnd() % ALYSSA_SCREAM_COUNT + ALYSSA_SCREAM_SE, ALYSSA_SCREAM_ARG);
+}
+
+// The attacker's HIT_KIND_* byte. PORT: rec->attacker is an EE word; the attacker belongs to Character[who]'s
+// bank (open-items.md 1 ap): resolved there, and a character without a bank answers 0 (no hit).
+static int HitAttackerKind(const HIT_REC *rec)
+{
+    int bank = Character[rec->who].bank;
+    const u_char *obj;
+    if (bank < 0)
+        return 0;
+    obj = BANK_PTR(const u_char *, bank, rec->attacker);
+    return obj != NULL ? obj[HIT_ATTACKER_KIND] : 0;
+}
+
+// Whether a character's blow hurts now: HIT_KIND_PANIC in a boss battle or a full panic, HIT_KIND_NORMAL
+// out of both (the ROM asks TRIG_EVENT_BOSS_BATTLE twice; it has no side effect).
+static int HitHurts(const HIT_REC *rec)
+{
+    int kind = HitAttackerKind(rec);
+    int boss = ssTrigCheckEvent(TRIG_EVENT_BOSS_BATTLE, 1, 0) != 0;
+    int panic = (PanicInfoData.mode & PANIC_MODE_FULL) != 0;
+    if (kind == HIT_KIND_PANIC && (boss || panic))
+        return 1;
+    return !panic && !boss && kind == HIT_KIND_NORMAL;
+}
+
+// Marks the attacker's blow as landed.
+static void HitLanded(int who)
+{
+    SetCharaInt(&Character[who], CHARA_HIT_LANDED, 1);
+}
+
+// The first four bytes of the bank's name as one word (HIT_BANK_*).
+static u_int BankName4(int bank)
+{
+    u_int w;
+    memcpy(&w, BankInfo[bank].name, sizeof(w));
+    return w;
+}
+
+// CT3 0x018fc2f0
 void asCheckCharacterHited(int chara)
 {
-    ALYSSAPAN_STUB("asCheckCharacterHited", 0x018fc2f0);
+    CHARACTER *ch = &Character[chara];
+    CHARACTER *alyssa = &Character[CHARA_ALYSSA];
+    short motion;
+    const ALL_TABLE *tbl;
+    const HIT_TABLE *hits;
+    const HIT_REC *recs;
+    const u_char *mrec;
+    int count, i, canFlinch, notStairs, kind;
+
+    if (ch->bank == -1)
+        return;
+    if (ssAI_IsDoorOpenPlaying(ch) != 0)
+        return;
+    motion = CharaShort(alyssa, CHARA_MOTION_SLOTS);
+    if (ssTrigCheckEvent(TRIG_EVENT_BOSS_BATTLE, 1, 0) == 0) {
+        if (chara == CHARA_ALYSSA) {
+            // Out of the boss battle: the invulnerability after a panic started, then the no-hit states.
+            vsBossMuteki = 0;
+            ssTrigRemoveEvent(TRIG_EVENT_MUTEKI, 1, 0);
+            if (AfterPanicStartMuteki > MUTEKI_MAX - 1)
+                AfterPanicStartMuteki = MUTEKI_MAX;
+            if (AfterPanicStartMuteki - gGlobalNextTicksInterval >= 0) {
+                AfterPanicStartMuteki -= gGlobalNextTicksInterval;
+                return;
+            }
+            AfterPanicStartMuteki = 0;
+            if (ssTrigCheckEvent(TRIG_EVENT_NO_HIT_6F, 1, 0) != 0 ||
+                ssTrigCheckEvent(TRIG_EVENT_NO_HIT_88, 1, 0) != 0 ||
+                ssTrigCheckEvent(TRIG_EVENT_PANIC_ON_8A, 1, 0) != 0 ||
+                ssTrigCheckEvent(TRIG_EVENT_PANIC_ON_4D, 1, 0) != 0 ||
+                ssTrigCheckEvent(TRIG_EVENT_PANIC_HIDING, 1, 0) != 0 ||
+                ssTrigCheckEvent(TRIG_EVENT_NO_HIT_B0, 1, 0) != 0 ||
+                ssTrigCheckEvent(TRIG_EVENT_PANIC_ON_257, 1, 0) != 0)
+                return;
+            if (motion == MOTION_NO_HIT)
+                return;
+            if ((alyssa->flags & CHARACTER_FLAG_NO_HIT) != 0)
+                return;
+        }
+    } else if (chara == CHARA_ALYSSA) {
+        // The boss battle: its invulnerability and the stage boss's scripted strike.
+        if (ssTrigCheckEvent(TRIG_EVENT_NO_HIT_B0, 1, 0) != 0)
+            return;
+        AfterPanicStartMuteki = 0;
+        mrec = MotionRecord(alyssa, motion);
+        if (mrec != NULL && mrec[MOTION_REC_B16] == MOTION_B16_NO_MUTEKI) {
+            ssTrigRemoveEvent(TRIG_EVENT_MUTEKI, 1, 0);
+        } else {
+            if (vsBossMuteki > MUTEKI_MAX - 1)
+                vsBossMuteki = MUTEKI_MAX;
+            vsBossMuteki -= gGlobalNextTicksInterval;
+            if (vsBossMuteki < 0) {
+                vsBossMuteki = 0;
+                ssTrigRemoveEvent(TRIG_EVENT_MUTEKI, 1, 0);
+            } else {
+                ssTrigRegisterEvent(TRIG_EVENT_MUTEKI, 1, 0);
+            }
+        }
+        switch (ssTrigGetVariable(TRIG_VAR_STAGE, 1, 0)) {
+        case 5:
+            if (ssTrigCheckEvent(TRIG_EVENT_BOSS_STRIKE, 1, 0) != 0) {
+                int action = ssTrigGetVariable(TRIG_VAR_BOSS_ACTION, 1, 0);
+                if ((action == BOSS_ACTION_4 || action == BOSS_ACTION_E) && motion != MOTION_BOSS5_STRUCK)
+                    asCharacterMortionChangeRequest(CHARA_ALYSSA, CHARA_MOTION_REQ_PLAY, MOTION_BOSS5_STRUCK);
+            }
+            break;
+        case 4:
+            if (ssTrigCheckEvent(TRIG_EVENT_BOSS_STRIKE, 1, 0) != 0) {
+                ssTrigRemoveEvent(TRIG_EVENT_BOSS_STRIKE, 1, 0);
+                mrec = MotionRecord(alyssa, motion);
+                if (mrec == NULL || mrec[MOTION_REC_KIND] != MOTION_KIND_STAIRS) {
+                    asChangeAlyssaMortionByHiting(
+                        (const float *)((const u_char *)&Character[HIT_CHARA_SWO] + CHARA_BOSS_STRIKE),
+                        ALYSSA_HIT_LETHAL);
+                    ssTrigRegisterEvent(TRIG_EVENT_BOSS_STRUCK, 1, 0);
+                    return;
+                }
+            }
+            break;
+        case 1:
+            if (ssTrigCheckEvent(TRIG_EVENT_BOSS_STRIKE, 1, 0) != 0) {
+                ssTrigRemoveEvent(TRIG_EVENT_BOSS_STRIKE, 1, 0);
+                mrec = MotionRecord(alyssa, motion);
+                kind = mrec != NULL ? mrec[MOTION_REC_KIND] : 0;
+                if (kind != MOTION_KIND_STAIRS2 && kind != MOTION_KIND_STAIRS) {
+                    asChangeAlyssaMortionByHiting(
+                        (const float *)((const u_char *)&Character[HIT_CHARA_HAMMER] + CHARA_BOSS_STRIKE),
+                        ALYSSA_HIT_LETHAL);
+                    ssTrigRegisterEvent(TRIG_EVENT_BOSS_STRUCK, 1, 0);
+                    return;
+                }
+            }
+            break;
+        default:                        /* 2, 3 and the rest: no scripted strike */
+            break;
+        }
+        if (ssTrigCheckEvent(TRIG_EVENT_MUTEKI, 1, 0) != 0)
+            return;
+    }
+
+    // The hit table (the ROM reads it before testing chara: no side effect).
+    if (chara != CHARA_ALYSSA || (tbl = All_table_TBL[ch->bank]) == NULL)
+        return;     // PORT: the ROM reads All_table_TBL[bank] whatever it holds
+    hits = BANK_PTR(const HIT_TABLE *, ch->bank, tbl->hits);
+    if (hits == NULL || (count = hits->count) <= 0)
+        return;
+    recs = BANK_PTR(const HIT_REC *, ch->bank, hits->recs);
+    mrec = MotionRecord(alyssa, motion);
+    kind = mrec != NULL ? mrec[MOTION_REC_KIND] : 0;
+    // On the stairs the weaker blows do nothing (canFlinch), kind 3 also the middle ones (notStairs).
+    canFlinch = kind != MOTION_KIND_STAIRS2 && kind != MOTION_KIND_STAIRS;
+    notStairs = kind != MOTION_KIND_STAIRS;
+
+    for (i = 0; i < count; i++) {
+        const HIT_REC *rec = &recs[i];
+        int who = rec->who;
+        int attack = rec->attack;
+        int landed = 0;
+
+        if (rec->isObject == 0) {
+            const float *pos;
+            if (who == HIT_CHARA_32) {
+                if (HitAttackerKind(rec) != HIT_KIND_PANIC)
+                    continue;
+            } else if (who >= HIT_CHARA_HAMMER && who <= HIT_CHARA_SWO) {
+                if (!HitHurts(rec))
+                    continue;
+            } else {
+                continue;
+            }
+            // The player's keys are stopped: the blow lands only once she has fallen in the boss battle.
+            if (ssTrigCheckEvent(TRIG_EVENT_PLAYER_STOP, 1, 0) != 0) {
+                if (ssTrigCheckEvent(TRIG_EVENT_BOSS_ALYS_DEAD, 1, 0) == 0)
+                    return;
+                HitLanded(who);
+                return;
+            }
+            pos = (const float *)&Character[who].pos;
+            switch (who) {
+            case HIT_CHARA_32:
+                if (attack == 0x1e || (attack == 0x1d && notStairs) || (attack == 8 && canFlinch)) {
+                    HitLanded(who);
+                    asChangeAlyssaMortionByDamaging(pos, DAMAGE_JITTER);
+                    AlyssaScream();
+                    landed = 1;
+                }
+                break;
+            case HIT_CHARA_SWO:
+            case HIT_CHARA_SMA: {
+                // The two share their shape: a damage blow, a middle set, a flinch and a weak flinch.
+                const char *se = who == HIT_CHARA_SWO ? "E_SWO" : "E_SMA";   /* @ 0x01937520 / 0x01937518 */
+                int heavy = who == HIT_CHARA_SWO ? 0x2e : 0x2f;
+                int flinch = who == HIT_CHARA_SWO ? 0x20 : 0x1e;
+                int weak = who == HIT_CHARA_SWO ? 0x2b : 0x2c;
+                int mid = who == HIT_CHARA_SWO ? (attack == 0x32 || attack == 0x31 || attack == 0x28)
+                                                : (attack == 0x33 || attack == 0x32 || attack == 0x29);
+                if (attack == heavy || (mid && notStairs)) {
+                    HitLanded(who);
+                    asChangeAlyssaMortionByDamaging(pos, DAMAGE_JITTER);
+                    SSPlaySE(se, HIT_SE_ID, 1);
+                    AlyssaScream();
+                    landed = 1;
+                } else if (attack == flinch) {
+                    if (notStairs) {
+                        HitLanded(who);
+                        asChangeAlyssaMortionByHiting(pos, ALYSSA_HIT_PULL);
+                        // The ROM tests attack == weak here, which cannot hold: no sound.
+                        landed = 1;
+                    }
+                } else if (attack == weak && canFlinch) {
+                    HitLanded(who);
+                    asChangeAlyssaMortionByHiting(pos, ALYSSA_HIT_LETHAL);
+                    SSPlaySE(se, HIT_SE_ID, 1);
+                    AlyssaScream();
+                    landed = 1;
+                }
+                break;
+            }
+            case HIT_CHARA_ONO:
+                if (attack == 0x33) {
+                    HitLanded(who);
+                    asChangeAlyssaMortionByDamaging(pos, DAMAGE_JITTER);
+                    AlyssaScream();
+                    landed = 1;
+                } else if (attack == 0x44 || attack == 0x37 || attack == 0x36 || attack == 0x2c) {
+                    if (notStairs) {
+                        HitLanded(who);
+                        asChangeAlyssaMortionByDamaging(pos, DAMAGE_JITTER);
+                        SSPlaySE("E_ONO", HIT_SE_ID, 1);                  /* @ 0x01937510 */
+                        AlyssaScream();
+                        landed = 1;
+                    }
+                } else if (attack == 0x20) {
+                    if (notStairs) {
+                        HitLanded(who);
+                        asChangeAlyssaMortionByHiting(pos, ALYSSA_HIT_PULL);
+                        landed = 1;
+                    }
+                } else if ((attack == 0x45 || attack == 0x30) && canFlinch) {
+                    HitLanded(who);
+                    asChangeAlyssaMortionByHiting(pos, ALYSSA_HIT_LETHAL);
+                    SSPlaySE("E_ONO", HIT_SE_ID, 1);
+                    AlyssaScream();
+                    landed = 1;
+                }
+                break;
+            case HIT_CHARA_RYUSAN:
+                if (attack == 0x2e) {
+                    HitLanded(who);
+                    asChangeAlyssaMortionByDamaging(pos, DAMAGE_JITTER);
+                    AlyssaScream();
+                    landed = 1;
+                } else if (attack == 0x31 || attack == 0x28) {
+                    if (notStairs) {
+                        HitLanded(who);
+                        asChangeAlyssaMortionByDamaging(pos, DAMAGE_JITTER);
+                        AlyssaScream();
+                        landed = 1;
+                    }
+                } else if (attack == 0x20) {
+                    if (notStairs) {
+                        HitLanded(who);
+                        asChangeAlyssaMortionByHiting(pos, ALYSSA_HIT_PULL);
+                        AlyssaScream();
+                        landed = 1;
+                    }
+                } else if (attack == 5 || attack == 0x3b || attack == 0x3a || attack == 0x1e || attack == 0x32) {
+                    if (canFlinch) {
+                        HitLanded(who);
+                        asChangeAlyssaMortionByHiting(pos, ALYSSA_HIT_LETHAL);
+                        AlyssaScream();
+                        landed = 1;
+                    }
+                } else if (attack == 0x2b) {
+                    // Out of the boss battle a flinch; in it, damage.
+                    if (ssTrigCheckEvent(TRIG_EVENT_BOSS_BATTLE, 1, 0) == 0) {
+                        if (canFlinch) {
+                            HitLanded(who);
+                            asChangeAlyssaMortionByHiting(pos, ALYSSA_HIT_LETHAL);
+                            AlyssaScream();
+                            landed = 1;
+                        }
+                    } else if (notStairs) {
+                        HitLanded(who);
+                        asChangeAlyssaMortionByDamaging(pos, DAMAGE_JITTER);
+                        AlyssaScream();
+                        landed = 1;
+                    }
+                }
+                break;
+            case HIT_CHARA_HAMMER:
+                if (attack == 0x5c || ((attack == 0x40 || attack == 0x61 || attack == 0x48 || attack == 0x1d) &&
+                                       notStairs)) {
+                    HitLanded(who);
+                    asChangeAlyssaMortionByDamaging(pos, DAMAGE_JITTER);
+                    SSPlaySE("E_HAMMER", HIT_SE_ID_HAMMER, 1);           /* @ 0x01937500 */
+                    AlyssaScream();
+                    landed = 1;
+                } else if (attack == 0x11) {
+                    if (notStairs) {
+                        HitLanded(who);
+                        asChangeAlyssaMortionByHiting(pos, ALYSSA_HIT_PULL);
+                        SSPlaySE("E_HAMMER", HIT_SE_ID_HAMMER, 1);
+                        AlyssaScream();
+                        landed = 1;
+                    }
+                } else if (attack == 0x27 && canFlinch) {
+                    HitLanded(who);
+                    asChangeAlyssaMortionByHiting(pos, ALYSSA_HIT_LETHAL);
+                    SSPlaySE("E_HAMMER", HIT_SE_ID_HAMMER, 1);
+                    AlyssaScream();
+                    landed = 1;
+                }
+                break;
+            }
+            if (landed)
+                break;      /* one character blow a frame */
+        } else {
+            // A part of an object bank: the bank's name says what it is. No break: every record counts.
+            int bank = rec->bank;
+            const MODEL_PARTS *parts = (const MODEL_PARTS *)pModelPartsHeader[bank];
+            const float *pos = parts != NULL ? parts[who].pos : NULL;
+            u_int name = BankName4(bank);
+            if (pos == NULL)
+                continue;   // PORT: the ROM reads the part whatever the header holds
+            if (name == HIT_BANK_E_93) {
+                if (attack == 0 && canFlinch) {
+                    asChangeAlyssaMortionByDamaging(pos, 0);
+                    ssTrigSetVariable(TRIG_VAR_HIT_ATTACK, attack, 1, 0);
+                    AlyssaScream();
+                }
+            } else if (name == HIT_BANK_E_14) {
+                if (attack == 2 || attack == 0) {
+                    HitLanded(HIT_CHARA_ONO);
+                    asChangeAlyssaMortionByDamaging(pos, 0);
+                    ssTrigSetVariable(TRIG_VAR_HIT_ATTACK, attack, 1, 0);
+                    SSPlaySE("E_ONO", HIT_SE_ID, 1);
+                    AlyssaScream();
+                } else if (attack == 1 && canFlinch) {
+                    HitLanded(HIT_CHARA_ONO);
+                    asChangeAlyssaMortionByHiting(pos, ALYSSA_HIT_LETHAL);
+                    ssTrigSetVariable(TRIG_VAR_HIT_ATTACK, attack, 1, 0);
+                    SSPlaySE("E_ONO", HIT_SE_ID, 1);
+                    AlyssaScream();
+                }
+            } else if (name == HIT_BANK_E_95) {
+                if (attack >= 0 && attack < 0x12 && notStairs) {
+                    asChangeAlyssaMortionByDamaging(pos, 0);
+                    ssTrigSetVariable(TRIG_VAR_HIT_ATTACK, attack, 1, 0);
+                    SSPlaySE("E_SMA", HIT_SE_ID, 1);
+                    AlyssaScream();
+                }
+            } else if (name == HIT_BANK_SCSR) {
+                if (attack > 0x11 && attack < 0x26) {
+                    asChangeAlyssaMortionByDamaging(pos, 0);
+                    ssTrigSetVariable(TRIG_VAR_HIT_ATTACK, attack, 1, 0);
+                    SSPlaySE("E_SMA", HIT_SE_ID, 1);
+                    AlyssaScream();
+                }
+            } else if (name == HIT_BANK_E_97) {
+                if (attack >= 0 && attack <= 4 && canFlinch) {
+                    asChangeAlyssaMortionByHirumi((const float *)&Character[HIT_CHARA_32].pos);
+                    ssTrigSetVariable(TRIG_VAR_HIT_ATTACK, attack, 1, 0);
+                    AlyssaScream();
+                }
+            }
+        }
+    }
 }

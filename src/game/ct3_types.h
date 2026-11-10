@@ -288,7 +288,9 @@ typedef struct ALL_TABLE {
     int baseobjCount;                   /* 0x14: scene_init -> BaseobjCount[bank] */
     u_int objOpaque;                    /* 0x18: list: GlobalDrawObject's first main_rtn list */
     u_int objTrans;                     /* 0x1c: list: main_rtn mode 1; scene_draw_init sorts it */
-    u_int pad20[2];
+    u_int hits;                         /* 0x20: HIT_TABLE, what touched the bank's character this frame
+                                           (asCheckCharacterHited reads Alyssa's) */
+    u_int pad24;
     u_int light;                        /* 0x28: SCENE_LIGHT, the bank's light table (charaScale) */
     u_int partsHeader;                  /* 0x2c: the MODEL_PARTS header (scene_init -> pModelPartsHeader;
                                            InitMatrixTree, asBuildMirrorMatrixTree / _Back) */

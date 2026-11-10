@@ -178,6 +178,65 @@
 #define RLC_SET 0                       /* asRapidLeverChangeOperate: start (once) and poll the mash */
 #define RLC_FREE 1                      /* drop it; 1 when one ran */
 
+// ---- asCheckCharacterHited (slice 5, 2026-11-10; names from this use) ----------------------------------
+// What touched a character this frame: ALL_TABLE.hits of its bank (EE words of that bank: BANK_PTR).
+// The writer (the collision TU) is not read yet: the record's fields are named from this reader.
+typedef struct HIT_TABLE {
+    u_char pad00[0x24];
+    int count;                          /* 0x24: records in recs */
+    u_int recs;                         /* 0x28: HIT_REC[count] (EE word of the bank) */
+} HIT_TABLE;
+typedef struct HIT_REC {
+    u_int attacker;                     /* 0x00: EE word: the attacking object (HIT_ATTACKER_KIND at +0x1a2) */
+    short attack;                       /* 0x04: the attack (a character's: its motion; an object's:
+                                           TRIG_VAR_HIT_ATTACK) */
+    short who;                          /* 0x08: the attacker's Character index, or its part in bank */
+    u_char isObject;                    /* 0x0a: 0 = a character, else a part of bank `bank` */
+    u_char bank;                        /* 0x0b: the object's bank (BankInfo index) */
+} HIT_REC;
+static_assert(sizeof(HIT_REC) == 0x0c, "HIT_REC");
+static_assert(offsetof(HIT_TABLE, recs) == 0x28, "HIT_TABLE.recs");
+#define HIT_ATTACKER_KIND 0x1a2         /* attacker: u_char, HIT_KIND_* */
+#define HIT_KIND_PANIC 3                /* hurts in a boss battle or while PANIC_MODE_FULL */
+#define HIT_KIND_NORMAL 4               /* hurts out of both */
+#define CHARA_HIT_LANDED 0x51c          /* CHARACTER: int, set to 1 when its blow reached Alyssa */
+#define CHARA_BOSS_STRIKE 0x4e0         /* CHARACTER: qword, the point a boss's scripted strike comes from */
+// The attackers (Character indices), named by the SE bank whose hit sound they play (sound.c's banks).
+#define HIT_CHARA_HAMMER 2              /* "E_HAMMER", SE 2 */
+#define HIT_CHARA_RYUSAN 3              /* no hit SE (E_RYUSAN's stage) */
+#define HIT_CHARA_ONO 4                 /* "E_ONO", SE 6 */
+#define HIT_CHARA_SMA 5                 /* "E_SMA", SE 6 */
+#define HIT_CHARA_SWO 6                 /* "E_SWO", SE 6 */
+#define HIT_CHARA_32 32                 /* hurts only as HIT_KIND_PANIC; no hit SE */
+#define HIT_SE_ID 6                     /* SSPlaySE's id of the attackers' hit sound ... */
+#define HIT_SE_ID_HAMMER 2              /* ... E_HAMMER's */
+#define ALYSSA_SCREAM_SE 6              /* SdReqPlaySE(PANIC_SE_JLS, 6..8, ALYSSA_SCREAM_ARG): her cry */
+#define ALYSSA_SCREAM_COUNT 3
+#define ALYSSA_SCREAM_ARG 10
+// The object attackers: the first four bytes of BankInfo[].name, compared as one word.
+#define HIT_BANK_E_93 0x33395f45u       /* "E_93" */
+#define HIT_BANK_E_14 0x34315f45u       /* "E_14" (lands as HIT_CHARA_ONO's) */
+#define HIT_BANK_E_95 0x35395f45u       /* "E_95" */
+#define HIT_BANK_SCSR 0x52534353u       /* "SCSR" */
+#define HIT_BANK_E_97 0x37395f45u       /* "E_97": the flinch from HIT_CHARA_32's position */
+#define TRIG_VAR_HIT_ATTACK 5           /* an object's hit stores its attack here */
+// The triggers (names from this use).
+#define TRIG_EVENT_MUTEKI 0x95          /* registered while vsBossMuteki runs: no hits */
+#define TRIG_EVENT_BOSS_STRIKE 0x46     /* a boss's scripted strike (stage 1 and 4: Hiting; 5: a motion) */
+#define TRIG_EVENT_BOSS_STRUCK 0x50     /* registered when that strike hit */
+#define TRIG_VAR_BOSS_ACTION 0x52       /* stage 5's strike needs it at 4 or 0x0e */
+#define BOSS_ACTION_4 4
+#define BOSS_ACTION_E 0x0e
+#define MOTION_BOSS5_STRUCK 0xe8        /* the motion stage 5's strike plays */
+#define TRIG_EVENT_NO_HIT_B0 0xb0       /* any of these set: no hits (with TRIG_EVENT_PANIC_HIDING and */
+#define TRIG_EVENT_NO_HIT_6F 0x6f       /* ... TRIG_EVENT_PANIC_ON_4D / _8A / _257) */
+#define TRIG_EVENT_NO_HIT_88 0x88
+#define MOTION_NO_HIT 0x89              /* slot 0 playing it: no hits */
+#define CHARACTER_FLAG_NO_HIT 0x10000000u /* Alyssa's flags: no hits */
+#define MUTEKI_MAX 450                  /* vsBossMuteki / AfterPanicStartMuteki clamp (ticks) */
+#define MOTION_REC_B16 0x16             /* motion record u_char: MOTION_B16_NO_MUTEKI ends vsBossMuteki */
+#define MOTION_B16_NO_MUTEKI 0x17
+
 #define CONTROLLER_TYPE_DEFAULT 2       /* ChrMoveControllerMode_init's controller_type */
 
 extern int MsgCnt;                      /* sbss 0x01944958: FrameCounter while TRIG_VAR_PANIC_OFF is set */
@@ -269,6 +328,9 @@ int asMonsterDistanceStack_inPanic(int mode, int *id, float *dist);             
 // Alyssa's lock state (low byte of mode: LOCKED_*; the high byte is kept with the state).
 int asAlyssaLockedByAnything(int mode);                                                  // CT3 0x018fbb50
 void asRequestExecute(CHARACTER *ch);                                                    // CT3 0x018fbc20
+// Alyssa's (chara 0) hits this frame: the boss battle's invulnerability and scripted strikes, then each
+// record of her bank's hit table: the reaction (Hiting / Damaging / Hirumi), the attacker's SE, her cry.
+// Other characters: nothing.
 void asCheckCharacterHited(int chara);                                                   // CT3 0x018fc2f0
 void asClearBehaviorChangeFlag(CHARACTER *ch);                                           // CT3 0x018fe0c0
 // Stops the character's motion slot (asSceneAnimationStop_S's call: chara, slot 0..5): queues the
