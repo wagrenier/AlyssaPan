@@ -1,6 +1,5 @@
 {
  "queue": [
-  "game/AlignedNum.c",
   "game/sound.c",
   "game/Character_Init.c",
   "game/ArtoolDebugOpen.c",
@@ -284,12 +283,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 112..112, 3 functions keyed by their statics, 7 unkeyed; file name from the names"
   },
   "game/AlignedNum.c": {
+   "notes": "WaitLoop is split in Ghidra: WaitLoop 0x0189f650 plus WaitLoop_body 0x0189f680 (game-inferred), one C function. The j at 0x0189f718 belongs to the next object (callcheck note). @377 is the empty module argument string. IopLoadModules (ArtoolDebugOpen.c), the only caller of IopLoadModule, is still a stub; AlignedNum is reached through _SunAlloc once loading runs. Shot black as before: nothing draws yet.",
    "ranges": [
     [
      "0189f620",
      "0189f718"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-09 22:29",
+     "status": "verify",
+     "summary": "AlignedNum, WaitLoop and IopLoadModule reconstructed (3 functions, the whole object)"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 97..97, 1 functions keyed by their statics, 3 unkeyed; file name from the names"
   },
   "game/ArtoolDebugOpen.c": {

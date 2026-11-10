@@ -90,7 +90,8 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    ~~ga/gaInitDrawObject.c~~ (verify 2026-11-09: all 24 functions; the texture three have no ROM caller),
    ~~ga/gaInitMeter.c~~ (verify 2026-11-09; renamed from game/: a GCC object, the ga library's last; T1 mode writes now reach the host timer),
    ~~game/ahalloc.c~~ (verify 2026-11-09: all 7 functions; SunAllocInit runs at boot, the rest waits for
-   a caller; its AlignedNum call made game/AlignedNum.c, queued first: its stub answers 0, hazards.md;
+   a caller; its AlignedNum call made ~~game/AlignedNum.c~~ (verify 2026-11-09: AlignedNum, WaitLoop,
+   IopLoadModule; IopLoadModules in ArtoolDebugOpen.c is its one caller, still a stub), hazards.md;
    open: (u) the heap's +0x14..0x34 is unread here -- whoever reads it names it; (v) the host block header
    is 0x20 bytes, so EE-sized areas hold slightly less: watch for _SunAlloc errors once loading runs),
    game/sound.c, game/Character_Init.c, game/ArtoolDebugOpen.c, game/main2.c,

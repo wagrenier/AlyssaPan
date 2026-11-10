@@ -88,6 +88,13 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
   is right; explain it in the notes, do not write the call. **A file-scope helper placed before the first
   annotated function is read by callcheck as that function** (the file header's `CT3 0x...` range
   counts as an annotation): write such helpers as macros or after an annotated function.
+- **A loop CodeWarrior pads with nops splits in Ghidra, and deleting the split half drops both**
+  (2026-11-09, game/AlignedNum.c). WaitLoop (0x0189f650, symtab size 0x44) is `b 0x0189f680` + ten nops,
+  and the loop head at 0x0189f680 branches back into the nops: Ghidra made WaitLoop 8 bytes and the head
+  `FUN_0189f680`. `delete_function` on 0x0189f680 also removed WaitLoop; `create_function` at 0x0189f650
+  does not follow the branch (8 bytes again), and `set_function` body needs scripts (disabled). Kept:
+  WaitLoop (game-symbol) + `WaitLoop_body` (game-inferred), both annotated above the one C function.
+  The `j` after IopLoadModule (0x0189f718) is the next object's stray stub again (the entry above).
 
 ## From the siblings (2026-11-09 digest of MioPan, ReiPan, RosePan, MikuPan)
 
