@@ -13,6 +13,9 @@
 // Slice 3 (2026-11-10): the motion request queue's consumer (asRequestExecute: slot 0 and the blend
 // slot 5), asResetCharacterPosition (the BasePoint's root through the motion's matrix), the ridden
 // part (asCharacterForceMoveOperate) and the cat walk's random events.
+// Slice 4 (2026-11-10): the per-frame motion play (asCharacterAnimationExecute: the slots, what follows
+// a motion's end, root motion), Alyssa's damage reaction (asChangeAlyssaMortionByDamaging) and eleven
+// small key-table entries (HAIHAI's step, PSITGO, PSIT, PSTAND, KAIDAN, DOOR, SITGONOUP, GOUP1M).
 //
 // PORT: CHARACTER.w300[0] (CHARA_TARGET) is an EE address no written TU sets yet (Character_All_Init
 // clears it): CharaTarget answers none until its writer decides the host form (open-items.md 1 h).
@@ -1228,6 +1231,305 @@ void asCharacterForceMoveOperate(CHARACTER *ch)
         ch->rot -= turn;
 }
 
+// ---- slice 4 (2026-11-10): the per-frame motion play, the small key-table entries ----
+
+// The slot's motion ended this frame: queue what follows it. A record whose MOTION_REC_NEXT_MODE is
+// >= 0 loops (stop, then `restart` the same motion); else its MOTION_REC_NEXT plays (-1: it just stops).
+// The blend slot stops with CHARA_MOTION_REQ_STOP_BLEND and restarts with _BLEND_ONLY; slot 0..4
+// stop with _STOP and restart with _RESTART, and a next motion comes as a plain _PLAY (no stop first).
+static void QueueAfterMotionEnd(CHARACTER *ch, int slot, short motion, const u_char *rec)
+{
+    short next = RecShort(rec, MOTION_REC_NEXT);
+    if (slot == CHARA_SLOT_BLEND) {
+        asCharacterMortionChangeRequest(ch->id, CHARA_MOTION_REQ_STOP_BLEND, motion);
+        if (RecShort(rec, MOTION_REC_NEXT_MODE) >= 0)
+            asCharacterMortionChangeRequest(ch->id, CHARA_MOTION_REQ_BLEND_ONLY, motion);
+        else if (next != -1)
+            asCharacterMortionChangeRequest(ch->id, CHARA_MOTION_REQ_BLEND_ONLY, next);
+        return;
+    }
+    if (RecShort(rec, MOTION_REC_NEXT_MODE) >= 0) {
+        asCharacterMortionChangeRequest(ch->id, CHARA_MOTION_REQ_STOP, motion);
+        asCharacterMortionChangeRequest(ch->id, CHARA_MOTION_REQ_RESTART, motion);
+    } else if (next == -1) {
+        asCharacterMortionChangeRequest(ch->id, CHARA_MOTION_REQ_STOP, motion);
+    } else {
+        asCharacterMortionChangeRequest(ch->id, CHARA_MOTION_REQ_PLAY, next);
+    }
+}
+
+// CT3 0x018f7430
+// Plays every slot's motion one frame (ExecuteAnimation's play pass, its fade through the parts
+// header's PARTS_HDR_ANIM_* words), queues what follows a motion that ended (CHARA_SLOT_ENDED and
+// the slot's CHARA_BEHAVIOR_CHANGE set), then carries the BasePoint's root: slot 0's matrix gives the
+// new root (CHARA_MOTION_ROOT) and base rot; with root motion on (CHARA_ROOT_MOVE * the record's
+// MOTION_REC_ROOT_MOVE), the root's move since last frame, turned by rot - base rot, moves pos and
+// rot (CHARA_MOVE_DELTA = the move), else CHARA_MOVE_DELTA = (0, 0, 0, 1). 1 when a motion ended.
+int asCharacterAnimationExecute(CHARACTER *ch)
+{
+    // _1845 (sdata 0x0193bc20): the identity ExecuteAnimation's matrix starts from; the slots share it.
+    alignas(16) float m[4][4] = {{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}};
+    int ended = 0, rootMove = 0, slot, k;
+    ALL_TABLE *tbl;
+    u_char *hdr;
+    const u_char *rec0;
+    if (ch->bank < 0 || (tbl = All_table_TBL[ch->bank]) == NULL)
+        return 0;   // PORT: the ROM reads All_table_TBL[bank] whatever it holds
+    hdr = BANK_PTR(u_char *, ch->bank, tbl->partsHeader);
+    // PORT: the ROM reads slot 0's record with a table whatever slot 0 holds (-1: the word before it).
+    rec0 = CharaShort(ch, CHARA_MOTION_SLOTS) != -1 ? MotionRecord(ch, CharaShort(ch, CHARA_MOTION_SLOTS)) : NULL;
+    if (rec0 != NULL)
+        rootMove = ((const u_char *)ch)[CHARA_ROOT_MOVE] * rec0[MOTION_REC_ROOT_MOVE];
+    for (slot = 0; slot < CHARA_BHV_SLOT_COUNT; slot++) {
+        short motion;
+        SetCharaByte(ch, CHARA_SLOT_ENDED + slot, 0);
+        motion = CharaShort(ch, CHARA_MOTION_SLOTS + slot * 2);
+        if (motion != -1) {
+            const u_char *rec = MotionRecord(ch, motion);
+            BEHAVIOR *bhv = rec != NULL ? asFindBehaviorByCharacter(ch->id, RecHash(rec)) : NULL;
+            int bank = bhv != NULL ? BankOfHostPtr(bhv) : -1;
+            u_int anim = bhv != NULL ? BankEeAddr(bank, bhv) : 0;
+            int abs = 0, sign = 0, done = 0, step;
+            AbsSignI32(CharaInt(ch, CHARA_SLOT_FADE + slot * 4), &abs, &sign);
+            step = CharaInt(ch, CHARA_SLOT_FADE_LEN + slot * 4);
+            if (hdr != NULL) {
+                memcpy(hdr + PARTS_HDR_ANIM_ABS, &abs, sizeof(abs));
+                memcpy(hdr + PARTS_HDR_ANIM_SIGN, &sign, sizeof(sign));
+                memcpy(hdr + PARTS_HDR_ANIM_STEP, &step, sizeof(step));
+            }
+            // PORT: no behaviour or no table on the host plays nothing (the ROM goes on with the word).
+            if (bhv != NULL && rec != NULL) {
+                int atKey = (((const u_char *)ch)[CHARA_BEHAVIOR_CHANGE + slot] & CHARA_SLOT_CHANGE_AT_KEY) != 0;
+                done = ExecuteAnimation(bank, anim, tbl, m, 1, 0, 0, atKey);
+            }
+            if (hdr != NULL) {
+                // the fade left back from the header (ExecuteAnimation counted it down)
+                memcpy(&abs, hdr + PARTS_HDR_ANIM_ABS, sizeof(abs));
+                memcpy(&sign, hdr + PARTS_HDR_ANIM_SIGN, sizeof(sign));
+                SetCharaInt(ch, CHARA_SLOT_FADE + slot * 4, abs * sign);
+                step = 0;
+                memcpy(hdr + PARTS_HDR_ANIM_STEP, &step, sizeof(step));
+            }
+            if (slot == CHARA_SLOT_BLEND && CharaInt(ch, CHARA_SLOT_FADE + CHARA_SLOT_BLEND * 4) == 0) {
+                // the crossfade is over: the blend slot's motion goes
+                asCharacterMortionChangeRequest(ch->id, CHARA_MOTION_REQ_STOP_BLEND, motion);
+            } else {
+                if (done == 1 && rec != NULL) {
+                    QueueAfterMotionEnd(ch, slot, motion, rec);
+                    ended = 1;
+                    SetCharaByte(ch, CHARA_SLOT_ENDED + slot, 1);
+                    SetCharaByte(ch, CHARA_BEHAVIOR_CHANGE + slot, CHARA_SLOT_CHANGE_START);
+                }
+                SetCharaInt(ch, CHARA_SLOT_TIME + slot * 4, bhv != NULL ? asGetBehaviorPlayingTicks(bank, anim) / 100 : 0);
+            }
+        }
+        if (slot == CHARA_SLOT_BODY && hdr != NULL) {
+            u_char *part;
+            memcpy((u_char *)ch + CHARA_ROOT_PREV, (u_char *)ch + CHARA_MOTION_ROOT, 16);
+            SetCharaInt(ch, CHARA_BASE_ROT_PREV, CharaInt(ch, CHARA_BASE_ROT));
+            part = asFindModelParts(hdr, PARTS_HASH_BASE_POINT);
+            if (part != NULL) {
+                // m[3][3]'s word holds ExecuteAnimation's done bytes; the VU0 product takes w = 1.0.
+                u_int doneBytes;
+                memcpy(&doneBytes, &m[3][3], sizeof(doneBytes));
+                m[3][3] = 1.0f;
+                if (EA_DONE_ROT_BYTES(doneBytes) != 0)
+                    SetCharaInt(ch, CHARA_BASE_ROT,
+                                (int)((u_int)(int)((-asRadianByO(m[1], ROTATE_AXIS_Y) * ROT_FULL_TURN) / 6.2831855f) & 0xffff));
+                if (doneBytes != 0) {
+                    float v[4], r[4];
+                    memcpy(v, part + PARTS_REC_ROOT_VEC, sizeof(v));
+                    for (k = 0; k < 4; k++)
+                        r[k] = m[0][k] * v[0] + m[1][k] * v[1] + m[2][k] * v[2] + m[3][k] * v[3];
+                    memcpy((u_char *)ch + CHARA_MOTION_ROOT, r, sizeof(r));
+                }
+                if (rootMove == 0) {
+                    const float vf0[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+                    memcpy((u_char *)ch + CHARA_MOVE_DELTA, vf0, sizeof(vf0));
+                } else {
+                    alignas(16) float rm[4][4];
+                    float root[4], prev[4], d[4], mv[4];
+                    float *pos = (float *)&ch->pos;
+                    gaSetRotMatrixY(rm, ch->rot - CharaInt(ch, CHARA_BASE_ROT));
+                    memcpy(root, (u_char *)ch + CHARA_MOTION_ROOT, sizeof(root));
+                    memcpy(prev, (u_char *)ch + CHARA_ROOT_PREV, sizeof(prev));
+                    for (k = 0; k < 4; k++)
+                        d[k] = root[k] - prev[k];
+                    for (k = 0; k < 4; k++)
+                        mv[k] = rm[0][k] * d[0] + rm[1][k] * d[1] + rm[2][k] * d[2] + rm[3][k] * d[3];
+                    for (k = 0; k < 4; k++)
+                        pos[k] += mv[k];
+                    ch->rot += CharaInt(ch, CHARA_BASE_ROT) - CharaInt(ch, CHARA_BASE_ROT_PREV);
+                    memcpy((u_char *)ch + CHARA_MOVE_DELTA, mv, sizeof(mv));
+                }
+            }
+        }
+    }
+    return ended;
+}
+
+// Damaging's turn: Alyssa's motion becomes `front` when the hit (from last frame's position) lies
+// within 90 degrees of her facing, else `back`, and she turns to face it (back: away from it). The
+// facing is row 2 of her Y rotation; the new rot is the hit's angle from +Z or -Z.
+static void TurnToDamage(CHARACTER *a, const float *hit, int front, int back, int vibrate, int jitter)
+{
+    const float *from = (const float *)a->posBefore;
+    alignas(16) float t[4], face[4], m[4][4];
+    u_int angle;
+    int k;
+    for (k = 0; k < 4; k++)
+        t[k] = hit[k] - from[k];
+    gaSetRotMatrixY(m, a->rot);
+    memcpy(face, m[2], sizeof(face));
+    angle = (u_int)asRadianByVectors(t, face, ROTATE_AXIS_Y) & 0xffff;
+    face[0] = face[1] = face[2] = 0.0f;
+    face[3] = 1.0f;
+    if (angle < 0x4000 || angle >= 0xc000) {
+        asCharacterMortionChangeRequest(CHARA_ALYSSA, CHARA_MOTION_REQ_PLAY, front);
+        face[2] = 1.0f;
+    } else {
+        asCharacterMortionChangeRequest(CHARA_ALYSSA, CHARA_MOTION_REQ_PLAY, back);
+        face[2] = -1.0f;
+    }
+    if (vibrate)
+        asDualShockVibrationOn_SuperLarge(ALYSSA_HIT_VIBRATE_TIME);
+    a->rot = asRadianByVectors(t, face, ROTATE_AXIS_Y) & 0xffff;
+    if (jitter)
+        a->rot += (FrameCounter & 1) != 0 ? DAMAGE_JITTER_ROT : -DAMAGE_JITTER_ROT;
+}
+
+// CT3 0x018f46e0
+// Alyssa damaged (the BALOWS boss' brain): in two motions a fixed follow-up (MOTION_DAMAGE_EF ->
+// _EF_NEXT, MOTION_DAMAGE_68 -> _68_NEXT); else a push of 10 away from the hit and, with no panic
+// barrier, targetState bit 0 clear and no boss battle, the damage motion (MOTION_DAMAGE_FRONT / _BACK,
+// a super-large vibration, the turn; flags' DAMAGE_JITTER: 1/8 turn either way by the frame's parity);
+// else Hiting's reactions: the boss battle's fatal motion, the flinch (barrier down, bit 0 set), or the
+// fatal blow (PlayerDamage unless TRIG_EVENT_NO_FATAL_HIT).
+void asChangeAlyssaMortionByDamaging(const float *hit, u_long flags)
+{
+    CHARACTER *a = &Character[CHARA_ALYSSA];
+    float *pos = (float *)a->pos;
+    float d[4], q;
+    int panicked, front, back, k;
+    short motion;
+    panicked = (PanicInfoData.mode & PANIC_MODE_FULL) != 0 ? (u_char)Kekkai_Check() : 0;
+    if (GlobalCameraMode != CAMERA_MODE_PLAY)
+        return;
+    motion = CharaShort(a, CHARA_MOTION_SLOTS);
+    if (motion == MOTION_DAMAGE_EF) {
+        asCharacterMortionChangeRequest(CHARA_ALYSSA, CHARA_MOTION_REQ_PLAY, MOTION_DAMAGE_EF_NEXT);
+        return;
+    }
+    if (motion == MOTION_DAMAGE_68) {
+        asCharacterMortionChangeRequest(CHARA_ALYSSA, CHARA_MOTION_REQ_PLAY, MOTION_DAMAGE_68_NEXT);
+        return;
+    }
+    // VU0: d = hit - pos, xyz normalised (vrsqrt of x + y + z squared), times 10, added to pos.
+    for (k = 0; k < 4; k++)
+        d[k] = hit[k] - pos[k];
+    q = 1.0f / sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+    for (k = 0; k < 3; k++)
+        d[k] *= q;
+    for (k = 0; k < 4; k++)
+        pos[k] += d[k] * ALYSSA_HIT_PUSH;
+    if (!panicked && (a->targetState & 1) == 0 && ssTrigCheckEvent(TRIG_EVENT_BOSS_BATTLE, 1, 0) == 0) {
+        if (motion != MOTION_DAMAGE_BACK && motion != MOTION_DAMAGE_FRONT)
+            TurnToDamage(a, hit, MOTION_DAMAGE_FRONT, MOTION_DAMAGE_BACK, 1, (flags & DAMAGE_JITTER) != 0);
+        return;
+    }
+    if (ssTrigCheckEvent(TRIG_EVENT_BOSS_BATTLE, 1, 0) != 0) {
+        back = MOTION_FATAL_BACK;
+        front = MOTION_FATAL_FRONT;
+        asDualShockVibrationOn_SuperLarge(ALYSSA_HIT_VIBRATE_TIME);
+    } else if (!panicked && (a->targetState & 1) != 0) {
+        back = MOTION_FLINCH_BACK;
+        front = MOTION_FLINCH_FRONT;
+        asDualShockVibrationOn_Midium(ALYSSA_HIT_VIBRATE_TIME);
+    } else {
+        back = MOTION_FATAL_BACK;
+        front = MOTION_FATAL_FRONT;
+        asDualShockVibrationOn_SuperLarge(ALYSSA_HIT_VIBRATE_TIME);
+        if (ssTrigCheckEvent(TRIG_EVENT_NO_FATAL_HIT, 1, 0) == 0)
+            PlayerDamage(ALYSSA_FATAL_DAMAGE);
+    }
+    if (motion != back && motion != front)
+        TurnToDamage(a, hit, front, back, 0, 0);
+}
+
+// CT3 0x018f7fa0
+// Crawling (HAIHAI): with the key's PIA_KEY_H0A at 1 in the crawl motion, a step: the second motion
+// while PIA_KEY_H0C is set, else the first.
+void asPIA1_KEY_TBL_HAIHAI(CHARACTER *ch, u_char *key)
+{
+    short h0a, h0c;
+    memcpy(&h0a, key + PIA_KEY_H0A, sizeof(h0a));
+    memcpy(&h0c, key + PIA_KEY_H0C, sizeof(h0c));
+    if (h0a == 1 && CharaShort(ch, CHARA_MOTION_SLOTS) == MOTION_HAIHAI)
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, h0c == 0 ? MOTION_HAIHAI_STEP : MOTION_HAIHAI_STEP2);
+}
+
+// CT3 0x018f8710
+void asPIA1_KEY_TBL_PSITGO(void)
+{
+}
+
+// CT3 0x018f8720
+int asPIA0_KEY_TBL_PSITGO(CHARACTER *ch)
+{
+    (void)ch;
+    return 1;
+}
+
+// CT3 0x018f8730
+void asPIA1_KEY_TBL_PSIT(void)
+{
+}
+
+// CT3 0x018f8740
+int asPIA0_KEY_TBL_PSIT(CHARACTER *ch)
+{
+    (void)ch;
+    return 1;
+}
+
+// CT3 0x018f8850
+int asPIA0_KEY_TBL_PSTAND(CHARACTER *ch)
+{
+    (void)ch;
+    return 1;
+}
+
+// CT3 0x018f8fb0
+int asPIA0_KEY_TBL_KAIDAN(CHARACTER *ch)
+{
+    (void)ch;
+    return 1;
+}
+
+// CT3 0x018f8fc0
+void asPIA1_KEY_TBL_DOOR(void)
+{
+}
+
+// CT3 0x018f8fd0
+int asPIA0_KEY_TBL_DOOR(CHARACTER *ch)
+{
+    (void)ch;
+    return 0;
+}
+
+// CT3 0x018f96b0
+int asPIA0_KEY_TBL_SITGONOUP(CHARACTER *ch)
+{
+    (void)ch;
+    return 1;
+}
+
+// CT3 0x018f9730
+void asPIA1_KEY_TBL_GOUP1M(void)
+{
+}
+
 // ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x018f55d0
@@ -1240,13 +1542,6 @@ void asCharacterMortionFunctionOperation(CHARACTER *ch)
 void asMotionAdderByNowMotion(CHARACTER *ch)
 {
     ALYSSAPAN_STUB("asMotionAdderByNowMotion", 0x018f6b50);
-}
-
-// stub of CT3 0x018f7430
-int asCharacterAnimationExecute(CHARACTER *ch)
-{
-    ALYSSAPAN_STUB("asCharacterAnimationExecute", 0x018f7430);
-    return {};
 }
 
 // stub of CT3 0x018f79f0

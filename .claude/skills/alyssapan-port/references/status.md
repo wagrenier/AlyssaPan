@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-10 17:56 at commit `6a09b2b` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-10 18:13 at commit `8cf6e76` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **749**; stubs: **176**
+- reconstructed CT3 functions: **762**; stubs: **175**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -84,7 +84,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/ssSetTexUVforCubeMap.c` | 0 | 31 |
 | `src/game/tiAvoidObject.c` | 0 | 6 |
 | `src/game/tkXDTrg_GetSceneHash.c` | 0 | 3 |
-| `src/game/wideXcmd_DebugPrint.c` | 43 | 5 |
+| `src/game/wideXcmd_DebugPrint.c` | 56 | 4 |
 | `src/lib/unassigned_stubs.cpp` | 0 | 1 |
 
 ## Translation units (one session each: `tus.py`)
@@ -92,7 +92,7 @@ Least-named game-code regions (64 KB blocks):
 - 65 TUs: todo 41, partial 1, verify 23, done 3
 - next: **game/wideXcmd_DebugPrint.c** (pinned in the queue)
 - pinned queue: game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/asEyeForcusUP2CamMat.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c, game/ssGrpPortalCheck.c
-- partial: `game/wideXcmd_DebugPrint.c` 43/109 -- Next slice: asCharacterAnimationExecute (0x5b8) and asMotionAdderByNowMotion read the slot arrays now named CHARA_SLOT_* (fade, fade length, prev, playable, tim
+- partial: `game/wideXcmd_DebugPrint.c` 56/109 -- Next slice: asCheckCharacterHited (0x1dc4, the biggest left: take it alone or split it), then asCharacterMortionFunctionOperation (0x1578), asMotionAdderByNowMo
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaDmaSync_VIF1.c` 5/5 -- Host: kicks leave CHCR.STR clear (the transfer is over), so the syncs return at once; the BGT send keeps the copy and the flip, the packet goes nowhere (draw mo
 - verify: `ga/gaInit3dlib.c` 25/25 -- 15 s smoke run: no fault, shot black (no host draw module). gaMulMatrix is dst = b * a (hazards.md). gaSetZRollMatrix now reaches gaSinCos: ga/gaSinCos.c is que
@@ -119,6 +119,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-10 18:13 `game/wideXcmd_DebugPrint.c` partial: slice 4: asCharacterAnimationExecute (the per-frame motion play, what follows a motion's end, root motion), asChangeAlyssaMortionByDamaging, asPIA1_KEY_TBL_HAIH
 - 2026-11-10 17:56 `game/wideXcmd_DebugPrint.c` partial: slice 3: asRequestExecute (the motion queue consumer, body and blend slots), asResetCharacterPosition, asCharacterForceMoveOperate, asCatWalkEventOperation (4 f
 - 2026-11-10 17:38 `game/wideXcmd_DebugPrint.c` partial: slice 2: positioning (asCharacterPositioning, as1CharacterPositioning, OnlyDeltaPos, the pause review, asResetCharacterRotation), the panic / barrier / lock sta
 - 2026-11-10 17:17 `game/wideXcmd_DebugPrint.c` partial: slice 1: asCharacterOperate, the vibration helpers, Alyssa's hit reactions (Hiting, Hirumi), the key enable, the motion request queue, asClearBehaviorChangeFlag
@@ -126,11 +127,10 @@ Recent sessions:
 - 2026-11-10 16:41 `game/movie.c` partial: slice 1: the movie front end, bank choice and memory map (16 of 20 functions); AA_movie, initAll, readMpeg, termAll left
 - 2026-11-10 16:09 `ga/gaPadInit.c` verify: reconstruct gaPadInit (scePadInit, both ports on pad_dma_buf0/1)
 - 2026-11-10 15:53 `game/SdMasterVolumeSetSE.c` verify: slice 6: SdLoadSQProc, the SQ loader and player (SD_SQ_LD_STEP, SD_SQ_REGISTER, SND_CMD_SQ_*); SD_SQ_LD fields named (effectType/effectDepth/spuAddr/iopSq/iopHd
-- 2026-11-10 15:35 `game/SdMasterVolumeSetSE.c` partial: slice 5: SdPlayADSProc (the stream player, SD_ADS_PHASE), IopLoadCapcomSound (the driver boot: FSS_Thread runs from boot now), SdSetParamSESDT, SdFindLoadSEInfo
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `game/ssGrpPortalCheck.c` | todo | 0/11/59 | 26.4 | 393 | 10 |
+| `game/ssGrpPortalCheck.c` | todo | 0/11/59 | 26.4 | 396 | 10 |
 | `game/Clipping_Portal.c` | todo | 0/34/73 | 44.8 | 160 | 18 |
 | `game/ssSetTexUVforCubeMap.c` | todo | 0/31/96 | 35.3 | 86 | 9 |
 | `game/CpDivideEECom.c` | todo | 0/10/18 | 3.3 | 80 | 10 |
@@ -147,7 +147,7 @@ Recent sessions:
 
 | CT3 addr | name | call sites | provenance | state | inferred file |
 |---|---|---|---|---|---|
-| `018d9100` | ssTrigCheckEvent | 107 | sym | stub | game/ssGrpPortalCheck.c |
+| `018d9100` | ssTrigCheckEvent | 110 | sym | stub | game/ssGrpPortalCheck.c |
 | `018d9560` | ssTrigRemoveEvent | 105 | sym | stub | game/ssGrpPortalCheck.c |
 | `018d95e0` | ssTrigRegisterEvent | 59 | sym | stub | game/ssGrpPortalCheck.c |
 | `018d9470` | ssTrigSetVariable | 36 | sym | stub | game/ssGrpPortalCheck.c |

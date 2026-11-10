@@ -104,7 +104,18 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    needs CharaTarget (CHARA_TARGET's EE object, its +0x198 part index): it returns early on the host
    until the target's writer decides the host form (with ac); asRequestExecute's slot-0 start clears
    keyTicks (+0x520) and Alyssa's slot-4 starts need hp (+0x524) != 0: both read as the struct names
-   them, which fits hp being the current value (161's doubt). **Next:**
+   them, which fits hp being the current value (161's doubt). Open from wideXcmd_DebugPrint.c slice 4
+   (2026-11-10): (ai) asCharacterAnimationExecute confirms (ag) for fade (the parts header's
+   PARTS_HDR_ANIM_ABS * _SIGN round trip), fade length (PARTS_HDR_ANIM_STEP while it plays) and time
+   (playing ticks / 100); new from it: CHARA_SLOT_ENDED (0x3a4), CHARA_ROOT_PREV (0x310), CHARA_BASE_ROT_PREV
+   (0x330), CHARA_ROOT_MOVE (0x358, 1 at init) * MOTION_REC_ROOT_MOVE (record +0x1a) = root motion on,
+   CHARA_SLOT_CHANGE_AT_KEY (change bit 2: atKey); the ROM reads slot 0's record even when slot 0 is -1
+   (the record before the table): the port reads none (root motion off then); (aj) asChangeAlyssaMortionByDamaging's
+   motions (0xda / 0xdb the damage pair, 0xef -> 0x65 and 0x68 -> 0x6e fixed follow-ups) and DAMAGE_JITTER
+   (flags bit 0) are named from that one use; its turn lives in a static helper (TurnToDamage), so callcheck
+   lists asRadianByVectors / gaSetRotMatrixY as missing from it: explained, not a gap; (ak) MOTION_HAIHAI
+   (0x30) and its steps 0x31 / 0x32, PIA_KEY_H0A (key +0x0a) named from asPIA1_KEY_TBL_HAIHAI; it requests
+   for character 0 as the ROM does. **Next:**
    ~~`ga/gaInitInterrupt.c`~~ (verify, 2026-11-09: main's frame loops now), then in the order a smoke
    run reaches the stubs: `main2` (game/main2.c: title and scene set-up), `IOPInit` / `Character_All_Init`
    (Character_Init.c), `FS_work_init` / `FileSoundServer` (fileio.c), `SunAllocInit` (ahalloc.c), the ga

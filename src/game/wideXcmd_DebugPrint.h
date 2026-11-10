@@ -33,6 +33,10 @@
 #define MOTION_REC_RUN 0x1f             /* u_char: MOTION_RUN_FAST makes asPIA0_KEY_TBL_PRUN answer 2 */
 #define MOTION_RUN_FAST 2
 #define PIA_KEY_H0C 0x0c                /* asPIA0_KEY_TBL_HAIHAI's second argument: short set to 1 */
+#define PIA_KEY_H0A 0x0a                /* short: asPIA1_KEY_TBL_HAIHAI steps while it is 1 */
+#define MOTION_HAIHAI 0x30              /* motion index: crawling (asPIA1_KEY_TBL_HAIHAI's gate; names from this use) */
+#define MOTION_HAIHAI_STEP 0x31         /* ... its step with PIA_KEY_H0C clear */
+#define MOTION_HAIHAI_STEP2 0x32        /* ... with PIA_KEY_H0C set */
 
 // ---- the motion request queue (CHARA_MOTION_QUEUE / _MODE, ahRelocateSunPs2ObjectArry.h) ---------------
 #define CHARA_MOTION_REQ_PLAY 0         /* asCharacterMortionChangeRequestHash's mode */
@@ -64,6 +68,15 @@
 #define MOTION_FATAL_BACK 0x67
 #define MOTION_FLINCH2_FRONT 0xd5      /* the flinch while targetState bit 0 is clear */
 #define MOTION_FLINCH2_BACK 0xd6
+// asChangeAlyssaMortionByDamaging (slice 4, 2026-11-10; names from this use):
+#define MOTION_DAMAGE_FRONT 0xda       /* the damage motion: barrier down, targetState bit 0 clear */
+#define MOTION_DAMAGE_BACK 0xdb
+#define MOTION_DAMAGE_EF 0xef          /* in this motion, damage plays MOTION_DAMAGE_EF_NEXT instead */
+#define MOTION_DAMAGE_EF_NEXT 0x65
+#define MOTION_DAMAGE_68 0x68          /* in this motion, damage plays MOTION_DAMAGE_68_NEXT instead */
+#define MOTION_DAMAGE_68_NEXT 0x6e
+#define DAMAGE_JITTER 1u               /* flags: the turn is off by DAMAGE_JITTER_ROT, + on odd FrameCounter */
+#define DAMAGE_JITTER_ROT 0x2000
 
 // ---- asInitPlayerBehaviorControler's fields (CHARACTER, the behaviour block 0x310..0x51c) -------------
 #define CHARA_BHV_Q310 0x310            /* two qwords: 0 at init */
@@ -102,6 +115,13 @@
 #define CHARA_SLOT_TIME CHARA_BHV_W458  /* int[6]: the slot's time (mode 5 carries slot 0's to the blend slot) */
 #define CHARA_SLOT_CHANGE_START 1       /* CHARA_BEHAVIOR_CHANGE: the slot's motion started */
 #define CHARA_SLOT_CHANGE_RESUME 3      /* ... resumed where it stood (CHARA_MOTION_REQ_RESUME) */
+#define CHARA_SLOT_CHANGE_AT_KEY 2      /* bit: asCharacterAnimationExecute plays the slot at its key (atKey) */
+// asCharacterAnimationExecute (slice 4, 2026-11-10):
+#define CHARA_SLOT_ENDED CHARA_BHV_B3A4 /* u_char[6]: 1 the frame the slot's motion ended */
+#define CHARA_ROOT_PREV CHARA_BHV_Q310  /* qword: last frame's CHARA_MOTION_ROOT */
+#define CHARA_BASE_ROT_PREV 0x330       /* int: last frame's CHARA_BASE_ROT */
+#define CHARA_ROOT_MOVE 0x358           /* u_char (CHARA_BHV_BYTES[4], 1 at init): root motion on, times ... */
+#define MOTION_REC_ROOT_MOVE 0x1a       /* u_char: ... the slot 0 record's: the root's move moves the character */
 #define CHARA_MOTION_GROUP 0x359        /* s_char (CHARA_BHV_BYTES[5]): slot 0's record MOTION_REC_GROUP, -1 none */
 #define CHARA_BHV_W51C 0x51c            /* int: cleared when a record of MOTION_REC_KIND2_RESET starts */
 #define CHARA_MOTION_ROOT 0x320         /* qword: the BasePoint's root vector through the motion's matrix
@@ -211,6 +231,8 @@ void as1CharacterPositioning(CHARACTER *chr);                                   
 // into CHARA_MOTION_ROOT and, when the matrix turns, CHARA_BASE_ROT from it (the parts turned by the change).
 void asResetCharacterPosition(CHARACTER *ch);                                            // CT3 0x018f7210
 void asResetCharacterRotation(int unused, u_char *recs, int rot);                        // CT3 0x018f73b0
+// Every slot's motion one frame; queues what follows a motion that ended; moves the character by the
+// BasePoint root's move when root motion is on. 1 when a motion ended this frame.
 int asCharacterAnimationExecute(CHARACTER *ch);                                          // CT3 0x018f7430
 void asPlayerInputAnalyze(CHARACTER *ch);                                                // CT3 0x018f79f0
 void asCharacterAutoAiming(CHARACTER *ch);                                               // CT3 0x018f7cd0
@@ -223,6 +245,20 @@ void asPIA1_KEY_TBL_PMOVEEND(void);                                             
 int asPIA0_KEY_TBL_PMOVEEND(CHARACTER *ch);                                              // CT3 0x018f8620
 // 2 when the current motion's record is a fast run (MOTION_RUN_FAST), else 1.
 int asPIA0_KEY_TBL_PRUN(CHARACTER *ch);                                                  // CT3 0x018f86d0
+// Alyssa damaged at `hit` (a qword); flags DAMAGE_JITTER.
+void asChangeAlyssaMortionByDamaging(const float *hit, u_long flags);                    // CT3 0x018f46e0
+// Crawling: a step while the key's PIA_KEY_H0A is 1 in MOTION_HAIHAI (PIA_KEY_H0C picks which).
+void asPIA1_KEY_TBL_HAIHAI(CHARACTER *ch, u_char *key);                                  // CT3 0x018f7fa0
+void asPIA1_KEY_TBL_PSITGO(void);                                                        // CT3 0x018f8710
+int asPIA0_KEY_TBL_PSITGO(CHARACTER *ch);                                                // CT3 0x018f8720
+void asPIA1_KEY_TBL_PSIT(void);                                                          // CT3 0x018f8730
+int asPIA0_KEY_TBL_PSIT(CHARACTER *ch);                                                  // CT3 0x018f8740
+int asPIA0_KEY_TBL_PSTAND(CHARACTER *ch);                                                // CT3 0x018f8850
+int asPIA0_KEY_TBL_KAIDAN(CHARACTER *ch);                                                // CT3 0x018f8fb0
+void asPIA1_KEY_TBL_DOOR(void);                                                          // CT3 0x018f8fc0
+int asPIA0_KEY_TBL_DOOR(CHARACTER *ch);                                                  // CT3 0x018f8fd0
+int asPIA0_KEY_TBL_SITGONOUP(CHARACTER *ch);                                             // CT3 0x018f96b0
+void asPIA1_KEY_TBL_GOUP1M(void);                                                        // CT3 0x018f9730
 // The lever mash (ControllerClattering*): RLC_SET starts one with the four settings (< 0: default) and
 // answers its state (> 0: over, forgotten); RLC_FREE drops it.
 // The cat walk's random events: CATWALK_RESET / _TICK (the time on by this frame's ticks) / _CHECK (1

@@ -1022,7 +1022,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 140..140, 2 functions keyed by their statics, 6 unkeyed; file name from the names"
   },
   "game/wideXcmd_DebugPrint.c": {
-   "notes": "Next slice: asCharacterAnimationExecute (0x5b8) and asMotionAdderByNowMotion read the slot arrays now named CHARA_SLOT_* (fade, fade length, prev, playable, time; slot 5 the blend slot): confirm the names there; then asCharacterMortionFunctionOperation (0x1578), asPlayerInputAnalyze, asCheckCharacterHited, asChainLengthCheck, asPIA0_KEY_TBL_PULLED. asCharacterForceMoveOperate returns early on the host until CharaTarget has a host form (open-items 1 ah). The shot is black as before: nothing draws yet.",
+   "notes": "Next slice: asCheckCharacterHited (0x1dc4, the biggest left: take it alone or split it), then asCharacterMortionFunctionOperation (0x1578), asMotionAdderByNowMotion, asPlayerInputAnalyze, asChainLengthCheck, asPIA0_KEY_TBL_PULLED and the remaining key-table entries. callcheck flags Damaging's asRadianByVectors / gaSetRotMatrixY: they are in its static TurnToDamage helper (open-items 1 aj). The shot is black as before: nothing draws yet.",
    "ranges": [
     [
      "018f3f60",
@@ -1044,6 +1044,11 @@
      "date": "2026-11-10 17:56",
      "status": "partial",
      "summary": "slice 3: asRequestExecute (the motion queue consumer, body and blend slots), asResetCharacterPosition, asCharacterForceMoveOperate, asCatWalkEventOperation (4 functions); behaviour host form settled (BankOfHostPtr exported)"
+    },
+    {
+     "date": "2026-11-10 18:13",
+     "status": "partial",
+     "summary": "slice 4: asCharacterAnimationExecute (the per-frame motion play, what follows a motion's end, root motion), asChangeAlyssaMortionByDamaging, asPIA1_KEY_TBL_HAIHAI and ten empty key-table entries (13 functions)"
     }
    ],
    "status": "partial",
