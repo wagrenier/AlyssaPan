@@ -181,3 +181,9 @@ void asForceOperateAnimation_Character(int chara, int mode)
 {
     ALYSSAPAN_STUB("asForceOperateAnimation_Character", 0x018423c0);
 }
+
+// stub of CT3 0x0183e710
+void ahRelocateFileObject(u_char *image, int persona)
+{
+    ALYSSAPAN_STUB("ahRelocateFileObject", 0x0183e710);
+}

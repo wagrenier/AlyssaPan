@@ -5,8 +5,9 @@
 // queue for whole files into the caller's buffer. The source string "fileio.c" is fs_error's file argument.
 // Slice 1 reconstructed 2026-11-10 (27 functions): the queue (FSMltLoad, its priority insert, the cancels,
 // the status and wait functions), the bank table (FSMltInit, the finds, draw on / off, SceneEndBank), the
-// file server, FSFileType and fs_error. Left: the loaders (FSMltLoadProc, Extract, FSLoad*, ReserveBank,
-// SceneEndBankMovie), the object sorts and the second-round character swap (Round2Change*).
+// file server, FSFileType and fs_error. Slice 2 (2026-11-10): the bank loader itself (FSMltLoadProc,
+// ReserveBank, Extract: the 'CT3X' unpacker). Left: SceneEndBankMovie, the object sorts and the
+// second-round character swap (Round2Change*).
 
 #include "game/fileio.h"
 
@@ -14,6 +15,8 @@
 #include "game/ArtoolDebugOpen.h"
 #include "game/Clipping_Portal.h"
 #include "game/SdMasterVolumeSetSE.h"
+#include "game/AlignedNum.h"
+#include "game/ahRelocateSunPs2ObjectArry.h"
 #include "game/ahalloc.h"
 #include "game/ct3_types.h"
 #include "game/main.h"
@@ -43,6 +46,72 @@ static const char s_srcFile[] = "fileio.c";     /* data 0x01936098: fs_error's f
 #define FS_LINE_FSLOAD_SIZE 2495                /* FSLoadProc */
 #define FS_LINE_FSLOAD_OPEN 2509                /* FSLoadProc */
 #define FS_LINE_FSLOAD_READ 2537                /* FSLoadProc */
+#define FS_LINE_RESERVE_GROUP 1588              /* ReserveBank: the bank is inside a drawn group */
+#define FS_LINE_RESERVE_BANK 1604               /* ReserveBank: a drawn bank in the range */
+#define FS_LINE_DECODE 563                      /* Extract */
+#define FS_LINE_MLT_OPEN 793                    /* FSMltLoadProc */
+#define FS_LINE_MLT_HEAD 806                    /* FSMltLoadProc: the first sector */
+#define FS_LINE_MLT_REST 945                    /* FSMltLoadProc: a plain file's other sectors */
+#define FS_LINE_MLT_PACKED 968                  /* FSMltLoadProc: a packed file's next sectors */
+
+// ---- a bank file's first sector ------------------------------------------------------------------------
+// FSMltLoadProc reads sector 0 into Buf1stSector and looks at it as one of two headers. layout: ee.
+#define FILE_MAGIC_CT3X 0x43543358u             /* 'CT3X' (bytes "X3TC"): a packed file, FILE_HEAD_CT3X */
+#define FILE_MAGIC_BHVR 0x52564842u             /* "BHVR": a behaviour file; its checksum starts at 0x40 */
+#define FILE_SUM_MARK 0x77777777u               /* the file carries a byte sum of its body */
+
+// A plain file: its first 0x80 bytes (the image keeps them; the ALL_TABLE follows at +0x80).
+typedef struct FILE_HEAD {
+    u_int size;                         /* 0x00: the file's bytes */
+    u_int magic;                        /* 0x04: FILE_MAGIC_BHVR or anything else */
+    u_char pad08[0x16];
+    short bank;                         /* 0x1e: the bank it belongs in (a request without one takes it) */
+    short count;                        /* 0x20: its banks */
+    u_char pad22[2];
+    u_int bhvrSumMark;                  /* 0x24: BHVR: FILE_SUM_MARK = sum checked */
+    u_int bhvrSum;                      /* 0x28: BHVR: the bytes from 0x40 on, summed */
+    u_char pad2c[0x18];
+    u_int sumMark;                      /* 0x44: others: FILE_SUM_MARK = sum checked */
+    u_int sum;                          /* 0x48: others: the bytes from 0x80 on, summed */
+} FILE_HEAD;
+static_assert(offsetof(FILE_HEAD, bank) == 0x1e, "FILE_HEAD.bank");
+static_assert(offsetof(FILE_HEAD, bhvrSum) == 0x28, "FILE_HEAD.bhvrSum");
+static_assert(offsetof(FILE_HEAD, sum) == 0x48, "FILE_HEAD.sum");
+
+// A packed file ('CT3X', pCT3H = Buf1stSector): the whole first sector is the decoder's header, the
+// packed bytes start at sector 1 (Extract).
+#define CT3X_WORDS 246                          /* codes 10..255 */
+#define CT3X_CODE_WORD0 10
+typedef struct FILE_HEAD_CT3X {
+    u_int size;                         /* 0x000: the packed file's bytes (sector 0 included) */
+    u_int magic;                        /* 0x004: FILE_MAGIC_CT3X */
+    u_int unpacked;                     /* 0x008: the image's bytes */
+    u_char escape;                      /* 0x00c: the byte that starts a code */
+    u_char pad0d[0xb];
+    u_int words[CT3X_WORDS];            /* 0x018: code n >= 10 writes words[n - 10] */
+    u_int byteWords[256];               /* 0x3f0: code 9, byte b writes byteWords[b] */
+    short bank;                         /* 0x7f0 */
+    short count;                        /* 0x7f2 */
+    u_char pad7f4[0xc];
+} FILE_HEAD_CT3X;
+static_assert(sizeof(FILE_HEAD_CT3X) == FL_SECTOR_SIZE, "FILE_HEAD_CT3X");
+static_assert(offsetof(FILE_HEAD_CT3X, words) == 0x18, "FILE_HEAD_CT3X.words");
+static_assert(offsetof(FILE_HEAD_CT3X, byteWords) == 0x3f0, "FILE_HEAD_CT3X.byteWords");
+static_assert(offsetof(FILE_HEAD_CT3X, bank) == 0x7f0, "FILE_HEAD_CT3X.bank");
+
+// Extract's codes (the byte after the escape).
+enum CT3X_CODE {
+    CT3X_ESCAPE = 0,                    /* the escape byte itself */
+    CT3X_FILL8 = 1,                     /* n, byte: n bytes */
+    CT3X_FILL16 = 2,                    /* n, short: n shorts */
+    CT3X_FILL32 = 3,                    /* n, word: n words */
+    CT3X_DELTA = 4,                     /* d: the previous word + (signed) d */
+    CT3X_BYTE_WORD = 9,                 /* b: byteWords[b] */
+};
+#define CT3X_TMP_MAX 12                         /* ExtBufTmp: the longest code (7) fits */
+
+#define FS_PACKED_READ_SECTS 60                 /* ExtBuf: a packed file is read 60 sectors at a time */
+#define FS_IMAGE_ALIGN 0x40                     /* a global bank's image in the GLBL heap */
 
 FQUE FQue[FQUE_MAX];                            /* bss  0x01c833c0 */
 int Phase;                                      /* sbss 0x01942b4c: FSMltLoadProc's step */
@@ -57,6 +126,19 @@ static int sPreLoadHandleCounter;               /* sbss 0x01942b74 */
 static FSLOAD_REQ sPreLoad[FSLOAD_MAX];         /* sbss 0x01942b80 */
 alignas(64) static u_char BufLastSector[0x800]; /* bss  0x01c643c0: the last sector, read whole */
 static char OpenFile[56];                       /* sbss 0x01942d10: the name FSMltLoadProc has open */
+static int LoadNowSects;                        /* sbss 0x01942b54: FSMltLoadProc's sectors read */
+static int LoadTotalSects;                      /* sbss 0x01942b58: the file's sectors */
+static int sRsect;                              /* sbss 0x01942cd0 sRsect$252: the packed read's sectors */
+static u_char ExtBufTmp[CT3X_TMP_MAX];          /* sbss 0x01942d00: a code split across two reads */
+static int ExtBufTmpIdx;                        /* sbss: its bytes */
+static u_char *ExtWrPtr;                        /* sbss 0x01942d0c: where Extract writes next (host pointer) */
+// ExtBuf: the packed file's reads; Buf1stSector right behind it in the ROM (bss 0x01c82bc0), and so
+// what Extract peeks at past a full ExtBuf. PORT: the two stay one array.
+alignas(64) static u_char ExtBufArea[FS_PACKED_READ_SECTS * FL_SECTOR_SIZE + FL_SECTOR_SIZE]; /* bss 0x01c64bc0 */
+static u_char *const ExtBuf = ExtBufArea;
+static u_char *const Buf1stSector = ExtBufArea + FS_PACKED_READ_SECTS * FL_SECTOR_SIZE;
+#define pCT3H ((const FILE_HEAD_CT3X *)Buf1stSector)    /* sdata 0x01939e90: = &Buf1stSector */
+#define pFileHead ((const FILE_HEAD *)Buf1stSector)
 int sErrCount;                                  /* sbss 0x0193f774 */
 
 // PORT: the slots' memory. The ROM's banks 6..85 are EE RAM from gGlobalBankArea + 0x10000 (EE 0x00410000)
@@ -398,7 +480,7 @@ void FSMltSetDrawBank(int bank, char *name, int mode)
     if (bank < 0) {
         if (mode != 0)
             fs_error(s_srcFile, FS_LINE_DRAWON, "SET BANK DRAWON ERROR!!",      /* data 0x019361c0 */
-                     "DRAWONしようとしたけど\n%sがBANKにそんざいしない", name);   /* data 0x019361e0 */
+                     "DRAWONã—ã‚ˆã†ã¨ã—ãŸã‘ã©\n%sãŒBANKã«ãã‚“ã–ã„ã—ãªã„", name);   /* data 0x019361e0 */
         return;
     }
     fs_set_group_draw(bank, mode);
@@ -577,7 +659,7 @@ int FSMltLoadEndWaitFile(int bank, char *name)
             }
             if (i >= FQUE_MAX) {
                 fs_error(s_srcFile, FS_LINE_WAIT_NAME, "load end wait error!!",   /* data 0x01936130 */
-                         "%s が LOAD されてないのに\nLOAD まちしようとした", name); /* data 0x01936150 */
+                         "%s ãŒ LOAD ã•ã‚Œã¦ãªã„ã®ã«\nLOAD ã¾ã¡ã—ã‚ˆã†ã¨ã—ãŸ", name); /* data 0x01936150 */
                 return 0;
             }
             fs_wait_frame();
@@ -608,7 +690,7 @@ int FSMltLoadEndWaitFile(int bank, char *name)
     }
     if (name != NULL) {
         fs_error(s_srcFile, FS_LINE_WAIT_BANK, "load end wait error!!",          /* data 0x01936130 */
-                 "%s が BANK %d に LOAD されてないのに\nLOAD まちしようとした", name, bank); /* data 0x01936180 */
+                 "%s ãŒ BANK %d ã« LOAD ã•ã‚Œã¦ãªã„ã®ã«\nLOAD ã¾ã¡ã—ã‚ˆã†ã¨ã—ãŸ", name, bank); /* data 0x01936180 */
         return 0;
     }
     ga_main_timer = timer;
@@ -740,7 +822,7 @@ int FSMltLoad(char *name, int kind, int bank, int count)
             }
         }
     }
-    memset(req.work, 0, sizeof(req.work));      /* PORT: the ROM leaves its stack here */
+    memset(req.dir, 0, sizeof(req.dir));        /* PORT: the ROM leaves its stack here (FSMltLoadProc fills it) */
     strcpy(req.name, name);
     req.bank = bank;
     req.count = count;
@@ -776,6 +858,437 @@ char *FSFileType(int kind, char *dir)
     return strcpy(dir, "DATA/SCENE/");
 }
 
+// ---- the loader ---------------------------------------------------------------------------------------
+
+// Empties one group's rows, its handle too (ReserveBank, FSMltLoadProc's error step).
+static void fs_free_group(int bank, int n)
+{
+    int i;
+
+    for (i = 0; i < n; i++) {
+        BANK_INFO *b = &BankInfo[bank + i];
+
+        b->handle = 0;
+        b->drawOn = 0;
+        b->groupCount = 0;
+        b->state = BANK_STATE_FREE;
+        b->name[0] = '\0';
+        b->flags = 0;
+    }
+}
+
+// ReserveBank's complaint about a drawn bank it is about to take: ends its scene and empties its group.
+static void fs_reserve_drawn(int bank, int line, const char *name, int first, int count)
+{
+    char title[64];
+
+    // callcheck: sprintf (PORT: snprintf)
+    snprintf(title, sizeof(title), "%s BANK%d-%d DRAW ON", BankInfo[bank].name, bank,  /* data _1725 */
+             bank + BankInfo[bank].groupCount - 1);
+    fs_error(s_srcFile, line, title, "ãªã®ã« %s BANK%d-%d\nã‚’LOADã—ã‚ˆã†ã¨ã—ãŸ",      /* data 0x01936230 */
+             name, first, first + count - 1);
+    if (BankInfo[bank].flags & BANK_FLAG_SCENE_INIT)
+        scene_end(bank);
+    fs_clear_group(bank, BankInfo[bank].groupCount);
+}
+
+// CT3 0x018c49a0 -- takes banks [first, first + count) for name: every group overlapping them is emptied
+// (a drawn one is an error, its scene ended), then the banks are marked loading: state -(place), the
+// group count left from each (count - place + 1), the name, kind and handle. The emptied groups' rows
+// are re-read after the drawn-group clear, which zeroed their count: that second clear then does nothing.
+static void ReserveBank(const char *name, int first, int count, int kind, int handle)
+{
+    int i;
+
+    // callcheck: fs_error, scene_end, sprintf, strcpy (the drawn-bank complaint: fs_reserve_drawn)
+    if (first < 0 || count <= 0)
+        return;
+    if (first != 0 && BankInfo[first].state > BANK_STATE_LOADED) {
+        int head = first - (BankInfo[first].state - 1);
+
+        if (head >= 0) {
+            if (BankInfo[head].drawOn != 0)
+                fs_reserve_drawn(head, FS_LINE_RESERVE_GROUP, name, first, count);
+            fs_free_group(head, BankInfo[head].groupCount);
+        }
+    }
+    for (i = first; i < first + count; i++) {
+        if (BankInfo[i].state == BANK_STATE_FREE)
+            continue;
+        if (BankInfo[i].drawOn != 0)
+            fs_reserve_drawn(i, FS_LINE_RESERVE_BANK, name, first, count);
+        fs_free_group(i, BankInfo[i].groupCount);
+        i += BankInfo[i].groupCount - 1;        /* 0 once emptied: the bank is looked at again, free */
+    }
+    for (i = 0; i < count; i++) {
+        BANK_INFO *b = &BankInfo[first + i];
+
+        b->state = -(i + 1);
+        b->groupCount = count - i;
+        strcpy(b->name, name);
+        b->type = kind;
+        b->drawOn = 0;
+        b->handle = handle;
+    }
+}
+
+// Stores the bytes of an unfinished code for the next call (Extract): answers how many.
+static int ct3x_keep(const u_char *src, const u_char *end, u_char **out, u_char *wr)
+{
+    ExtBufTmpIdx = 0;
+    for (; src < end; src++)
+        ExtBufTmp[ExtBufTmpIdx++] = *src;
+    *out = wr;
+    return ExtBufTmpIdx;
+}
+
+// CT3 0x018c74b0 -- unpacks [src, end) of a 'CT3X' file to *out (advanced): bytes are copied, the header's
+// escape byte starts a code (CT3X_CODE). A code cut by the read's end is kept in ExtBufTmp (the answer is
+// its length) and finished first by the next call, through a recursive call on ExtBufTmp. The ROM reads the
+// code byte before checking it is inside [src, end): past a full ExtBuf that is Buf1stSector's first byte.
+int Extract(const u_char *hdr, const u_char *src, const u_char *end, u_char **out)
+{
+    const FILE_HEAD_CT3X *h = (const FILE_HEAD_CT3X *)hdr;
+    u_char *wr = *out;
+
+    if (ExtBufTmpIdx != 0) {
+        int len = 2;
+
+        // callcheck: memcpy
+        memcpy(ExtBufTmp + ExtBufTmpIdx, src, CT3X_TMP_MAX - ExtBufTmpIdx);
+        switch (ExtBufTmp[1]) {
+        case CT3X_ESCAPE:
+            break;
+        case CT3X_FILL8:
+            len = 4;
+            break;
+        case CT3X_FILL16:
+            len = 5;
+            break;
+        case CT3X_FILL32:
+            len = 7;
+            break;
+        case CT3X_DELTA:
+        case CT3X_BYTE_WORD:
+            len = 3;
+            break;
+        case 5: case 6: case 7: case 8:
+            fs_error(s_srcFile, FS_LINE_DECODE, "decode error!!", "");          /* data 0x01936318 */
+            break;
+        default:
+            len = 2;
+            break;
+        }
+        src += len - ExtBufTmpIdx;
+        ExtBufTmpIdx = 0;
+        Extract(hdr, ExtBufTmp, ExtBufTmp + len, &wr);
+    }
+    while (src < end) {
+        const u_char *p = src;
+        u_int n, k;
+
+        if (*p != h->escape) {
+            *wr++ = *p;
+            src = p + 1;
+            continue;
+        }
+        switch (p[1]) {
+        case CT3X_ESCAPE:
+            if (end <= p + 1)
+                return ct3x_keep(p, end, out, wr);
+            *wr++ = h->escape;
+            src = p + 2;
+            break;
+        case CT3X_FILL8:
+            if (end <= p + 3)
+                return ct3x_keep(p, end, out, wr);
+            n = p[2];
+            for (k = 0; k < n; k++)
+                *wr++ = p[3];
+            src = p + 4;
+            break;
+        case CT3X_FILL16:
+            if (end <= p + 4)
+                return ct3x_keep(p, end, out, wr);
+            n = p[2];
+            for (k = 0; k < n; k++, wr += 2)
+                memcpy(wr, p + 3, 2);
+            src = p + 5;
+            break;
+        case CT3X_FILL32:
+            if (end <= p + 6)
+                return ct3x_keep(p, end, out, wr);
+            n = p[2];
+            for (k = 0; k < n; k++, wr += 4)
+                memcpy(wr, p + 3, 4);
+            src = p + 7;
+            break;
+        case CT3X_DELTA: {
+            int prev;
+
+            if (end <= p + 2)
+                return ct3x_keep(p, end, out, wr);
+            memcpy(&prev, wr - 4, 4);
+            prev += (s_char)p[2];
+            memcpy(wr, &prev, 4);
+            wr += 4;
+            src = p + 3;
+            break;
+        }
+        case 5: case 6: case 7: case 8:
+            src = p + 2;                        /* the ROM skips them silently here */
+            break;
+        case CT3X_BYTE_WORD:
+            if (end <= p + 2)
+                return ct3x_keep(p, end, out, wr);
+            memcpy(wr, &h->byteWords[p[2]], 4);
+            wr += 4;
+            src = p + 3;
+            break;
+        default:
+            if (end <= p + 1)
+                return ct3x_keep(p, end, out, wr);
+            memcpy(wr, &h->words[p[1] - CT3X_CODE_WORD0], 4);
+            wr += 4;
+            src = p + 2;
+            break;
+        }
+    }
+    *out = wr;
+    ExtBufTmpIdx = 0;
+    return 0;
+}
+
+// The byte sum of [p, p + n) (FSMltLoadProc's check).
+static int fs_byte_sum(const u_char *p, u_int n)
+{
+    int sum = 0;
+    u_int i;
+
+    for (i = 0; i < n; i++)
+        sum += p[i];
+    return sum;
+}
+
+// PORT: a global bank's image from the GLBL heap, with the EE address it would have had.
+static void fs_alloc_global_image(int bank, int size)
+{
+    BankImage[bank] = (u_char *)_SunAlloc(&gHeapGlobalScene, AlignedNum(size, FL_SECTOR_SIZE), FS_IMAGE_ALIGN);
+    BankInfo[bank].image = BankImage[bank]
+        ? GLOBAL_BANK_AREA_EE + (u_int)(BankImage[bank] - gGlobalBankArea) : 0;
+    BankImageEE[bank] = BankInfo[bank].image;
+}
+
+// FSMltLoadProc's FSMLT_FIND step: is FQue[0] already in its bank (loaded or loading)? Then the bank
+// takes the new handle.
+static int fs_mlt_already_there(void)
+{
+    int i, k;
+
+    for (i = 0; i < BANK_MAX; i++) {
+        if (BankInfo[i].state != BANK_STATE_LOADED && BankInfo[i].state != BANK_STATE_LOADING)
+            continue;
+        if (strcmp(BankInfo[i].name, FQue[0].name) == 0 && FQue[0].bank != -1 && i == FQue[0].bank) {
+            for (k = 0; k < FQue[0].count; k++)
+                BankInfo[i + k].handle = FQue[0].handle;
+            return 1;
+        }
+        i += BankInfo[i].groupCount - 1;
+    }
+    return 0;
+}
+
+// FSMltLoadProc's FSMLT_CHECK step: the loaded file's set-up -- the byte sum (a mismatch reads it again
+// from sector 0), relocation, the group's places, and for a scene / shape / global bank its ALL_TABLE,
+// scene_init and matrix tree (and for a scene or global bank its sound effects). Answers 0 to read again.
+static int fs_mlt_setup(void)
+{
+    const int bank = FQue[0].bank;
+    BANK_INFO *b;
+    int i;
+
+    if (pFileHead->magic == FILE_MAGIC_BHVR) {
+        if (pFileHead->bhvrSumMark == FILE_SUM_MARK
+            && fs_byte_sum(BankImage[bank] + 0x40, pFileHead->size - 0x40) != (int)pFileHead->bhvrSum) {
+            Phase = FSMLT_READ_HEAD;            /* the ROM keeps the image (a global one leaks) */
+            return 0;
+        }
+    } else if (pFileHead->sumMark == FILE_SUM_MARK
+               && fs_byte_sum(BankImage[bank] + 0x80, pFileHead->size - 0x80) != (int)pFileHead->sum) {
+        if (FQue[0].kind == FS_LOAD_GLBL && BankInfo[bank].image != 0) {
+            _SunFree(&gHeapGlobalScene, (void **)&BankImage[bank]);
+            BankInfo[bank].image = 0;
+            BankImageEE[bank] = 0;
+        }
+        Phase = FSMLT_READ_HEAD;
+        return 0;
+    }
+    FlReqClose(FH);
+    FH = 0;
+    OpenFile[0] = '\0';
+    ahRelocateFileObject(BankImage[bank], FQue[0].kind == FS_LOAD_SHAPE || FQue[0].kind == FS_LOAD_BEHAVIOR);
+    for (i = 0; i < FQue[0].count; i++)
+        BankInfo[bank + i].state = i + 1;
+    b = &BankInfo[bank];
+    if (b->type != FS_LOAD_BEHAVIOR) {
+        All_table_TBL[bank] = (ALL_TABLE *)(BankImage[bank] + BANK_ALL_TABLE_OFFSET);
+        scene_init(bank);
+        for (i = 0; i < FQue[0].count; i++)
+            BankInfo[bank + i].flags |= BANK_FLAG_SCENE_INIT;
+        if (b->type == FS_LOAD_SCENE)
+            sFirstCheck = 0;
+        BuildMatrixTree(bank, 1, 1);
+        if (b->type == FS_LOAD_GLBL || b->type == FS_LOAD_SCENE)
+            SSLoadSEfromLoadPoint(BankImage[bank]);
+    }
+    return 1;
+}
+
+// CT3 0x018c6290 -- once a frame: one step of loading FQue[0] into its banks (FSMLT_PHASE, in Phase).
+// The file is opened from FSFileType's directory, its first sector read and looked at: a 'CT3X' file is
+// unpacked through ExtBuf 60 sectors at a time, a plain one read straight into the image. A request
+// without a bank or count takes the file's. Loaded, the bank is set up (fs_mlt_setup) and the queue moves
+// up. An open error is retried every frame; a read error starts the file over (FSMLT_ERROR).
+void FSMltLoadProc(void)
+{
+    // callcheck: FlIsExecute, FlReqClose, FlReqOpen, FlReqRead, Extract, SceneEndBank, ReserveBank, strcmp, strcpy, strcat, AlignedNum, _SunAlloc, _SunFree, memcpy, ahRelocateFileObject, scene_init, BuildMatrixTree, SSLoadSEfromLoadPoint, printf, fs_error
+    FQUE *q = &FQue[0];
+    u_int size;
+
+    switch (Phase) {
+    case FSMLT_ERROR:
+        printf("LOAD RETRY %s\n", q->name);                                 /* data 0x01936308 */
+        if (FH != 0)
+            FlReqClose(FH);
+        FH = 0;
+        fs_free_group(q->bank, q->count);       /* bank >= 0: only the steps after HEAD_WAIT fail here */
+        Phase = FSMLT_START;
+        return;
+    case FSMLT_IDLE:
+        if (q->name[0] == '\0')
+            return;
+        if (fs_mlt_already_there()) {
+            Phase = FSMLT_DONE;
+            return;
+        }
+        Phase = FSMLT_START;
+        /* fall through */
+    case FSMLT_START:
+        SceneEndBank(q->bank, q->count);
+        ReserveBank(q->name, q->bank, q->count, q->kind, q->handle);
+        FSFileType(q->kind, q->dir);
+        strcpy(OpenFile, q->dir);
+        strcat(OpenFile, q->name);
+        Phase = FSMLT_OPEN;
+        return;
+    case FSMLT_OPEN:
+        FH = FlReqOpen(q->dir, q->name);
+        if (FH == 0) {
+            fs_error(s_srcFile, FS_LINE_MLT_OPEN, "file open error !!", "err%d %s", 0, OpenFile); /* data 0x019362b0 */
+            return;
+        }
+        Phase = FSMLT_READ_HEAD;
+        return;
+    case FSMLT_READ_HEAD:
+        if (FlReqRead(FH, Buf1stSector, 0, 1) != 0) {
+            fs_error(s_srcFile, FS_LINE_MLT_HEAD, "file read error !!", "%s", OpenFile); /* data 0x019362e0 */
+            return;
+        }
+        Phase = FSMLT_HEAD_WAIT;
+        return;
+    case FSMLT_HEAD_WAIT: {
+        const int packed = pFileHead->magic == FILE_MAGIC_CT3X;
+        const int fileBank = packed ? pCT3H->bank : pFileHead->bank;
+        const int fileCount = packed ? pCT3H->count : pFileHead->count;
+
+        if (FlIsExecute(FH) != 0)
+            return;
+        if (q->bank < 0 || q->count < 1) {
+            if (q->bank < 0)
+                q->bank = fileBank;
+            if (q->count != fileCount)
+                q->count = fileCount;
+            SceneEndBank(q->bank, q->count);
+            ReserveBank(q->name, q->bank, q->count, q->kind, q->handle);
+        }
+        if (q->kind == FS_LOAD_GLBL)
+            fs_alloc_global_image(q->bank, packed ? (int)pCT3H->unpacked : (int)pFileHead->size);
+        if (packed) {
+            ExtWrPtr = BankImage[q->bank];
+            ExtBufTmpIdx = 0;
+        } else {
+            memcpy(BankImage[q->bank], Buf1stSector, FL_SECTOR_SIZE);
+        }
+        size = pFileHead->size;
+        LoadNowSects = 1;
+        LoadTotalSects = (int)(((size & (FL_SECTOR_SIZE - 1)) ? size + FL_SECTOR_SIZE : size) / FL_SECTOR_SIZE);
+        Phase = size <= FL_SECTOR_SIZE ? FSMLT_CHECK : FSMLT_READ_REST;
+        return;
+    }
+    case FSMLT_READ_REST:
+        if (pFileHead->magic != FILE_MAGIC_CT3X) {
+            if (FlReqRead(FH, BankImage[q->bank] + FL_SECTOR_SIZE, -1, LoadTotalSects - LoadNowSects) != 0) {
+                fs_error(s_srcFile, FS_LINE_MLT_REST, "READ ERROR !!", "%s", OpenFile); /* data 0x019362f8 */
+                Phase = FSMLT_ERROR;
+                return;
+            }
+            Phase = FSMLT_REST_WAIT;
+            return;
+        }
+        Phase = FSMLT_READ_PACKED;
+        /* fall through */
+    case FSMLT_READ_PACKED:
+        sRsect = LoadTotalSects - LoadNowSects;
+        if (sRsect > FS_PACKED_READ_SECTS)
+            sRsect = FS_PACKED_READ_SECTS;
+        if (FlReqRead(FH, ExtBuf, -1, sRsect) != 0) {
+            fs_error(s_srcFile, FS_LINE_MLT_PACKED, "READ ERROR !!", "%s", OpenFile);
+            Phase = FSMLT_ERROR;
+            return;
+        }
+        Phase = FSMLT_PACKED_WAIT;
+        return;
+    case FSMLT_REST_WAIT:
+        if (FlIsExecute(FH) == 0)
+            Phase = FSMLT_CHECK;
+        return;
+    case FSMLT_PACKED_WAIT:
+        if (FlIsExecute(FH) != 0)
+            return;
+        LoadNowSects += sRsect;
+        if (LoadNowSects < LoadTotalSects) {
+            Extract(Buf1stSector, ExtBuf, ExtBuf + FS_PACKED_READ_SECTS * FL_SECTOR_SIZE, &ExtWrPtr);
+            Phase = FSMLT_READ_PACKED;
+            return;
+        }
+        // The last read ends at the file's last byte. ROM: a size that is a whole number of sectors
+        // drops the last sector here (hazards.md "AlyssaPan", 2026-11-10).
+        Extract(Buf1stSector, ExtBuf,
+                ExtBuf + (pFileHead->size & (FL_SECTOR_SIZE - 1)) + (sRsect - 1) * FL_SECTOR_SIZE, &ExtWrPtr);
+        {
+            short bank = (short)q->bank;
+
+            memcpy(BankImage[q->bank] + offsetof(FILE_HEAD, bank), &bank, 2);
+            memcpy(BankImage[q->bank] + offsetof(FILE_HEAD, count), &pCT3H->count, 2);
+        }
+        Phase = FSMLT_CHECK;
+        return;
+    case FSMLT_CHECK:
+        if (!fs_mlt_setup())
+            return;
+        break;
+    case FSMLT_CHECKED:
+    case FSMLT_DONE:
+        break;
+    default:
+        return;
+    }
+    // FSMLT_CHECK -> CHECKED -> DONE in one call in the ROM: the rows move up.
+    memmove(&FQue[0], &FQue[1], (FQUE_MAX - 1) * sizeof(FQUE));             /* ROM: memcpy */
+    FQue[FQUE_MAX - 1].name[0] = '\0';
+    Phase = FSMLT_IDLE;
+}
+
 // ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x018c2170
@@ -802,8 +1315,3 @@ void Round2ChangeChar(int round)
     ALYSSAPAN_STUB("Round2ChangeChar", 0x018c2df0);
 }
 
-// stub of CT3 0x018c6290
-void FSMltLoadProc(void)
-{
-    ALYSSAPAN_STUB("FSMltLoadProc", 0x018c6290);
-}

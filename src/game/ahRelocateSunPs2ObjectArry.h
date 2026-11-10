@@ -18,6 +18,9 @@ void ExecuteAnimationHistory_init(void);                                        
 void asCopyDoubleBuffer(void);                                                           // CT3 0x01851150
 void ExecuteAnimationHistory_Free(void);                                                 // CT3 0x0184eed0
 void BuildMatrixTree(int scene, int a1, int a2);                                         // CT3 0x0184fd30
+// FSMltLoadProc's call: (image, the file is a shape or behaviour file). PORT: the host image; the EE
+// address its words are relocated to is BankImageEE[] of the bank holding it.
+void ahRelocateFileObject(u_char *image, int persona);
 void asDrawShadowVolumeLoop(void);                                                       // CT3 0x018443c0
 void asBuildMirrorMatrixTreeBack(void *tree);                                            // CT3 0x0184f120
 void asBuildMirrorMatrixTree(void *tree);                                                // CT3 0x0184f220

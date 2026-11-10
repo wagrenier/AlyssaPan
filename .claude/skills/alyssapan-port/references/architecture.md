@@ -359,6 +359,23 @@ queued, the old bank undrawn and ended, the new one loaded, then drawn at the sa
   all but the last sector straight into the caller's buffer and the last one into BufLastSector
   (0x01c643c0), copying only the file's bytes.
 - **FileSoundServer**, once a frame: FlProc, FSMltLoadProc, FSLoadProc, SdProc, SSProc.
+- **FSMltLoadProc** (slice 2, 2026-11-10; steps FSMLT_* in fileio.h, the ROM's numbers 0..12, 0x14): a
+  request already in its bank (loaded or loading, same name and bank) only takes the new handle. Else
+  SceneEndBank + ReserveBank (the banks become state -(place), groupCount = count - place + 1), the path
+  FQUE.dir (FSFileType) + name, open (retried each frame), sector 0 into Buf1stSector (0x01c82bc0). A
+  request without bank / count takes the file's (plain +0x1e / +0x20, packed +0x7f0 / +0x7f2). A global
+  bank's image comes from the GLBL heap (AlignedNum(size, 0x800), align 0x40). Plain files are read
+  straight into the image; **packed files** (+4 = 'CT3X' 0x43543358; pCT3H 0x01939e90 = &Buf1stSector;
+  +8 unpacked size, +0xc escape byte, +0x18 246 words for codes 10..255, +0x3f0 256 words for code 9)
+  are read 60 sectors at a time into ExtBuf (0x01c64bc0, right before Buf1stSector) and unpacked by
+  **Extract**: escape 0 = the escape byte, 1 n b = n bytes, 2 n s = n shorts, 3 n w = n words, 4 d =
+  previous word + (signed) d, 9 b = byteWords[b], n >= 10 = words[n - 10]; 5..8 are errors; a code cut
+  by a read's end waits in ExtBufTmp (12 bytes). The unpacked image gets bank / count at +0x1e / +0x20.
+  Done: an optional byte sum (+0x24 / +0x28 for "BHVR" files from +0x40; +0x44 / +0x48 for others from
+  +0x80; marker 0x77777777) -- a mismatch reads the file again; then ahRelocateFileObject(image, shape or
+  behaviour), states 1..n, and for any kind but behaviour: All_table_TBL[bank] = image + 0x80,
+  scene_init, flags |= 1, (scene) sFirstCheck = 0, BuildMatrixTree(bank, 1, 1), (global / scene)
+  SSLoadSEfromLoadPoint(image). A read error ("LOAD RETRY %s") frees the banks and starts over.
 
 ## The IOP side (2026-11-09)
 

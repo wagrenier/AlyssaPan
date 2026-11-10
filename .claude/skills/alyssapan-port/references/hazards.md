@@ -7,6 +7,14 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-10, game/fileio.c slice 2) **FSMltLoadProc's last packed read ends a sector short when the
+  packed size is a whole number of sectors**: the end is ExtBuf + (size & 0x7ff) + (sRsect - 1) * 0x800.
+  Kept as the ROM has it (the disc's files presumably never hit it); suspect it first if an unpacked bank
+  is short. **Extract reads the code byte before checking it is inside the read**: past a full ExtBuf that
+  is Buf1stSector's first byte, so the host keeps ExtBuf and Buf1stSector one array (ExtBufArea).
+- (2026-11-10, game/fileio.c slice 2) **The first bank load crashes scene_init** (main.c, (*tbl)->
+  baseobjCount): ALL_TABLE is host layout but All_table_TBL[bank] points at EE-layout bank data, and
+  ahRelocateFileObject is a stub. Not a fileio.c bug: open-items.md item 1 (bv).
 - (2026-11-10, game/fileio.c) **A field named from its readers can be the wrong field.** BANK_INFO +0
   was `count` and +0x20 `loaded` from main.c's reads; the loader shows +0 is the load state (1 loaded,
   -1 loading, a group member's place) and +0x20 FSMltSetDrawBank's draw flag. Name a struct's fields

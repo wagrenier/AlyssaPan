@@ -18,7 +18,7 @@
 // empty row (a global bank's request goes before the first non-global one: FSMltInsertQuePriority).
 // layout: ee (the rows move as whole 0x40-byte records).
 typedef struct FQUE {
-    u_char work[0x10];                  /* 0x00: not set by FSMltLoad (its stack's garbage); FSMltLoadProc's? */
+    char dir[0x10];                     /* 0x00: FSFileType's directory (FSMltLoadProc fills it) */
     char name[0x20];                    /* 0x10: the file ("A000.ANM"); "" = an empty row */
     int kind;                           /* 0x30: FS_LOAD_* (main2.h) = the bank's BANK_INFO.type */
     int bank;                           /* 0x34: the first bank asked for */
@@ -30,6 +30,23 @@ static_assert(offsetof(FQUE, name) == 0x10, "FQUE.name");
 static_assert(offsetof(FQUE, kind) == 0x30, "FQUE.kind");
 static_assert(offsetof(FQUE, bank) == 0x34, "FQUE.bank");
 static_assert(offsetof(FQUE, handle) == 0x3c, "FQUE.handle");
+
+// FSMltLoadProc's steps (Phase), the ROM's numbers.
+enum FSMLT_PHASE {
+    FSMLT_IDLE = 0,                     /* row 0 asked for: already in its bank -> DONE, else START */
+    FSMLT_START = 1,                    /* free and reserve the banks, the path */
+    FSMLT_OPEN = 2,                     /* FlReqOpen, retried every frame */
+    FSMLT_READ_HEAD = 3,                /* sector 0 into Buf1stSector */
+    FSMLT_HEAD_WAIT = 4,                /* bank / count from the file, the image, the sector count */
+    FSMLT_READ_REST = 5,                /* a plain file's other sectors straight into the image */
+    FSMLT_REST_WAIT = 6,
+    FSMLT_READ_PACKED = 7,              /* a packed file: up to 60 sectors into ExtBuf */
+    FSMLT_PACKED_WAIT = 8,              /* Extract them; more -> READ_PACKED */
+    FSMLT_CHECK = 10,                   /* byte sum, relocation, set-up; then the rows move up */
+    FSMLT_CHECKED = 11,
+    FSMLT_DONE = 12,                    /* the rows move up */
+    FSMLT_ERROR = 0x14,                 /* a read failed: close, free the banks, START again */
+};
 
 // ---- the whole-file queue (FSLoad) --------------------------------------------------------------------
 #define FSLOAD_MAX 6                    /* sPreLoad[]: 336 bytes = 6 rows of 0x38 */
@@ -117,6 +134,7 @@ void FSMltLoadCancelAll(void);                                                  
 void FSMltLoadEndWaitAll(void);                                                          // CT3 0x018c60a0
 void FSMltInit(void);                                                                    // CT3 0x018c6100
 void FSMltLoadProc(void);                                                                // CT3 0x018c6290
+int Extract(const u_char *hdr, const u_char *src, const u_char *end, u_char **out);      // CT3 0x018c74b0
 char *FSFileType(int kind, char *dir);                                                   // CT3 0x018c7cb0
 int IsMltLoading(void);                                                                  // CT3 0x018c7d70
 void FileSoundServer_DontMltLoad(void);                                                  // CT3 0x018c7d80

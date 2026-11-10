@@ -230,9 +230,22 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    _End / _EndWaitFile / _EndWaitAll), the bank table (FSMltInit / FSInit / FS_work_init, the finds,
    FSMltSetDrawBank, SceneEndBank), the whole-file queue (sPreLoad[6]: FSLoad, FSLoadEnd, FSLoadEndWait,
    FSLoadCancelQue, FSLoadProc), FileSoundServer(_DontMltLoad), FSFileType, fs_error, DebugBankDisp
-   (architecture.md "The bank loader"). **Left, the next slice: FSMltLoadProc (0x1220 bytes, the
-   blocker: no bank loads, the shot stays black), Extract (its decoder), ReserveBank,
-   SceneEndBankMovie**, then the sorts (CharacterSort, objSort*, SortAlphaObjects) and Round2Change*.
+   (architecture.md "The bank loader"). **Slice 2 (2026-11-10): FSMltLoadProc, Extract, ReserveBank
+   written; the first global bank loads (TrgGLBLSceneLoad) and the run now crashes in scene_init
+   (main.c, reading (*tbl)->baseobjCount) -- THE BLOCKER, item 1 (bv).** Left in fileio.c:
+   SceneEndBankMovie, the sorts (CharacterSort, objSort*, SortAlphaObjects) and Round2Change*.
+   (bv) **Next: ahRelocateFileObject (game/ahRelocateSunPs2ObjectArry.c, CT3 0x0183e710, a stub) and
+   ALL_TABLE in EE layout ((f) settled by (h)'s rule, Claude's call 2026-11-10, the user may overrule):
+   the bank image keeps the EE layout, so All_table_TBL[bank] = image + 0x80 must be read as u_int words
+   through BankEePtr; ALL_TABLE's pointer fields become u_int and every reader (main.c, Character_Init.c,
+   sound.c) goes through BankEePtr; the lists (objOpaque / objTrans / objAfter / particles*) are arrays of
+   EE words, and DRAW_OBJ_ENTRY / TEX_INFO ((i), layout host) must follow. ahRelocateFileObject(image,
+   persona) was declared host-side as (u_char *image, int persona): it relocates to the EE address
+   BankImageEE[] of the bank holding the image (fileio.c fills it before the call; a global bank's EE
+   address is GLOBAL_BANK_AREA_EE + its offset in gGlobalBankArea).** Queued at the top (tus.py queue).
+   (bw) Extract is untested against a known image: the first scene_init that runs on relocated data is
+   its test (a wrong decode shows as garbage tables); a harness decoding one CT3X file from CT3PACK.DAT
+   beside the ROM's (eerun.py) would prove it sooner.
    Open: (bq) BANK_INFO renamed from the loader's use: +0 `state` (was `count`; BANK_STATE_*, a group's
    later banks hold their place 2..n), +0x20 `drawOn` (was `loaded`: FSMltSetDrawBank's mode), +0x1c
    `image` (EE address), +0x24 `handle`; every user was updated. A bank's type is the FS_LOAD_* kind it
@@ -243,9 +256,8 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    FSMltLoadProc / ReserveBank say how the ROM keeps them apart; the host gives the slots their own 20 MB
    (gBankSlotArea) and fills BankImage / BankImageEE for them; global banks get theirs when
    FSMltLoadProc allocates them (BankImage[i] from _SunAlloc, which SceneEndBank now frees); (bs)
-   FQUE.work (+0x00..0x0f) is never written by FSMltLoad (stack garbage in the ROM, zeroed on the host):
-   FSMltLoadProc's session names it if it reads it; (bt) BANK_FLAG_SCENE_INIT (flags bit 0: SceneEndBank
-   calls scene_end) is named from that one use -- scene_init probably sets it; (bu) FSMltLoadStatus's
+   settled 2026-11-10: FQUE +0x00 is `dir` (FSMltLoadProc fills it with FSFileType, opens dir + name); (bt) BANK_FLAG_SCENE_INIT (flags bit 0: SceneEndBank
+   calls scene_end) -- settled: FSMltLoadProc sets it on the group right after scene_init; (bu) FSMltLoadStatus's
    answers: main2.c reads "non-zero" as "still loading", but FS_STATUS_LOADED (1) is non-zero too, so
    main2's waits also run for loaded files (harmless: FSMltLoadEndWaitFile returns at once).
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like

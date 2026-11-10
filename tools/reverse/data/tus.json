@@ -1,5 +1,6 @@
 {
  "queue": [
+  "game/ahRelocateSunPs2ObjectArry.c",
   "game/fileio.c"
  ],
  "settings": {
@@ -524,7 +525,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 111..111, 2 functions keyed by their statics, 0 unkeyed; file name from the names"
   },
   "game/fileio.c": {
-   "notes": "Written: FSMltLoad and its queue (FQue), status, wait and cancel functions, FSMltInit, FSInit, FS_work_init, FSMltFindBank(Handle), FSMltSetDrawBank, SceneEndBank, FSLoad, FSLoadEnd, FSLoadEndWait, FSLoadCancelQue, FSLoadProc, FileSoundServer(_DontMltLoad), FSFileType, fs_error. BANK_INFO fields renamed from the loader (state, image, drawOn, handle). Next slice: FSMltLoadProc, Extract, ReserveBank, SceneEndBankMovie (no bank loads until then: the shot is black), then the sorts and Round2Change. open-items.md item 1 (bq)-(bu).",
+   "notes": "Written: FSMltLoadProc (steps FSMLT_*), ReserveBank, Extract; FQUE +0 is dir. The first global bank now loads and the run crashes in scene_init (main.c) reading ALL_TABLE as host pointers from EE-layout bank data; ahRelocateFileObject is a stub. Blocker: open-items item 1 (bv), game/ahRelocateSunPs2ObjectArry.c queued first. Left here: SceneEndBankMovie, CharacterSort, objSort, objSortWithBlurIdx, SortAlphaObjects, Round2Change*. Extract untested against a known image (bw).",
    "ranges": [
     [
      "018c2170",
@@ -536,6 +537,11 @@
      "date": "2026-11-10 02:21",
      "status": "partial",
      "summary": "slice 1: the bank queue and table, the FSLoad queue, the file server (32 of 40)"
+    },
+    {
+     "date": "2026-11-10 02:34",
+     "status": "partial",
+     "summary": "slice 2: the bank loader - FSMltLoadProc, ReserveBank, Extract (the CT3X unpacker)"
     }
    ],
    "status": "partial",
