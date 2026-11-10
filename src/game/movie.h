@@ -1,7 +1,7 @@
 // game/movie.h -- CT3 game/movie.c: the movie player's front end (SCE's ezmpegstr main.c grown into the
 // game: AA_OpenMovie names the movie and its caption file, PlayMovie -> AA_StartMovie frees 20 banks for
 // the decoder and plays it through AA_movie). Slice 1 2026-11-10: the front end, the bank choice and the
-// memory map; AA_movie, initAll, readMpeg and termAll (the playback) are slice 2.
+// memory map; slice 2 (same day): AA_movie, initAll, readMpeg and termAll, the playback.
 #pragma once
 
 #include "sdk/scetypes.h"

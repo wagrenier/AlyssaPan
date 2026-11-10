@@ -1,6 +1,6 @@
 // game/movie.c -- CT3 0x018bda90..0x018bf9d0: the movie player (SCE's ezmpegstr main.c, AA_-prefixed and
-// grown into the game). Slice 1 reconstructed 2026-11-10 (16 of the symtab's 20 functions; 0x018bf05c is
-// AA_ToSmall's loop test, which Ghidra splits off as a thunk target).
+// grown into the game). All 20 of the symtab's functions reconstructed (slices 1 and 2, 2026-11-10; 0x018bf05c
+// is AA_ToSmall's loop test, which Ghidra splits off as a thunk target).
 //
 // A scene script calls AA_OpenMovie(movie, caption, skip) (the names, and the caption file read from
 // data/caption/ to EE 0x200000), then AA_PlayMovieReady; main's frame loop calls AA_MovieProc, which runs
@@ -8,35 +8,69 @@
 // the decoder's six memory blocks (AA_MovieUseBank; AA_AutoBank_Seelect drops scene banks to make room),
 // resets the GS for a 512 x 448 movie frame and plays data/movie1..3/<name> through AA_movie.
 //
-// Slice 2 (to come): AA_movie, initAll, readMpeg, termAll -- the decode loop (threads, IPU, the DMA end
-// handler). On the host that loop drives sdk/libmpeg (FFmpeg) and draws through the movie seam.
+// Slice 2 (2026-11-10): AA_movie, initAll, readMpeg, termAll -- the decode loop, kept in the ROM's shape:
+// the host EE kernel runs the decoder thread (AA_videoDecMain) and the vblank handler, sdk/libmpeg
+// (FFmpeg behind sceMpegDemuxPssRing / sceMpegGetPicture) decodes, and the picture reaches the screen
+// through AA_GetDataWord.c's display code (its TU decides the host draw: no GIF transfer-end interrupt
+// fires on the host, AddDmacHandler registers nothing).
 //
 // PORT: the bank memory words (*AA_MovieUseBank[].work, AA_mpegWork, ...) stay EE addresses (BankInfo's
 // `image`; open-items.md item 1 (h)); the caption file is read to a host block, AA_MojiImage.
 
 #include "game/movie.h"
 
-#include "common/alyssapan_stub.h"
 #include "game/AA_GetDataWord.h"
+#include "game/AA_cpuCycles.h"
 #include "game/ArtoolDebugOpen.h"
 #include "game/Character_Init.h"
 #include "game/Clipping_Portal.h"
 #include "game/QuatSlerp.h"
 #include "game/ahalloc.h"
+#include "game/copy2area.h"
 #include "game/ct3_types.h"
 #include "game/fileio.h"
+#include "game/main.h"
 #include "game/sound.h"
 #include "game/ssGrpPortalCheck.h"
 #include "game/unassigned_data.h"
+#include "ga/pad_button_read.h"
 #include "sdk/eekernel.h"
 #include "sdk/libdma.h"
+#include "sdk/eeregs.h"
 #include "sdk/libgraph.h"
+#include "sdk/libmpeg.h"
 #include "sdk/sdremote.h"
 
 #include <stdio.h>
 #include <string.h>
 
 #define AA_DBUFF_CLEAR 1                /* sceGsSetDefDBuff's clear argument: clear each frame */
+
+// initAll's decoder set-up (the ROM's literals).
+#define AA_D_CTRL_DMAE_RELE 3           /* D_CTRL |= DMAE | RELE */
+#define AA_D_STAT_CIS2 4                /* D_STAT: clear channel 2's (GIF) interrupt status */
+#define AA_MPEG_WORK_SIZE 0x121768      /* AA_videoDecCreate's work: in the 8 "MPEG decode Work" banks */
+#define AA_VIBUF_TAGS 0x100             /* the video stream's DMA tags (AA_viBufTag, 0x1010 bytes) */
+#define AA_TIMESTAMPS 0x200             /* the video's time stamps (AA_timeStamp) */
+#define AA_AUD_TIMESTAMPS 0x40          /* the audio's EE and IOP time stamps */
+#define AA_VIDEO_STACK_SIZE 0x20000     /* the decoder thread's stack, as CreateThread is told */
+#define AA_MOJI_FB_OFFSET 0x1e4000      /* AA_MoiveMojiFB: the captions' buffer inside the decode work */
+
+// readMpeg's stream loop.
+#define AA_READ_UNIT 0x10000            /* bytes read per turn, when the ring has that much free */
+#define AA_DEMUX_TAIL 4                 /* the loop ends with this many bytes (or fewer) left to demux */
+#define AA_SKIP_MIN_FRAMES 0x10         /* decoded frames before the pad may skip */
+#define AA_AUDIO_START_DELAY 0xb9533b   /* EE cycles (~41 ms) between the first picture and the audio */
+#define KEY_MAP_MOVIE_SKIP 11           /* KEY_MAP[11] (+0x16): main.c's KEY_MAP_SKIP */
+#define KEY_MAP_MOVIE_STOP 20           /* KEY_MAP[20] (+0x28): the second button that stops a skippable movie */
+
+// AA_movie's ending.
+#define AA_FADE_FRAMES 0x3c             /* the fade-out's frames; AA_FadeInCount's too */
+#define AA_DISP_TAG_SIZE 0x400          /* AA_DISP_TAG: 0x100 words of 0xffffffff */
+#define AA_DISP_TAG_ALIGN 0x80
+#define AA_TI_FADE_FROM_BLACK 4         /* tiFade_Start's type after a fade to black (FADE_TYPE_MC_LOAD) */
+#define AA_TI_FADE_FROM_WHITE 5         /*   and after a fade to white */
+#define AA_FILE_OPEN_ERROR_LINE 0x4b5   /* __LINE__ in the ROM's movie.c (1205) */
 
 // ---- data ---------------------------------------------------------------------------------------------
 int AA_isWithAudio = 1;                                     /* sdata 0x01939be0 */
@@ -80,7 +114,7 @@ int AA_videoDecTh;                                          /* sbss 0x0193f52c *
 int AA_CdDvd_trial_Ct;                                      /* sbss 0x0193f530 */
 int AA_FadeOutEnable;                                       /* sbss 0x0193f534 */
 u_int *AA_FadePackAdr;                                      /* sbss 0x0193f538 */
-static int AA_MovieAbortFlag;                               /* sbss 0x0193f53c (readMpeg: slice 2) */
+static int AA_MovieAbortFlag;                               /* sbss 0x0193f53c: readMpeg skipped the movie */
 static u_int AA_MovieStopOkFlag;                            /* sbss 0x0193f540: AA_MOVIE_SKIP_OK */
 u_int *AA_DISP_TAG;                                         /* sbss 0x0193f544 */
 int AA_MovieRedyFlag;                                       /* sbss 0x0193f548 */
@@ -112,6 +146,12 @@ static const char s_movie2[] = "%sdata/movie2/%s";                             /
 static const char s_movie3[] = "%sdata/movie3/%s";                             /* @1168 0x019354d0 */
 static const char s_openMpegFile[] = "Open Mpeg File \"%s\" \"%s\",%d\n";       /* @1199 0x019354f0 */
 static const char s_captionDir[] = "data/caption/";                            /* @1200 0x01935510 */
+static const char s_useMovieMemoryBank[] = "Use Movie Memory Bank \n";          /* @1079 0x01935410 */
+static const char s_bankRange[] = "\t%02d-%02d(%d) ";                           /* @1080 0x01935430 */
+static const char s_bankState[] = "%d ";                                        /* @1081 0x01935440 */
+static const char s_newLine[] = "\n";                                           /* @1082 0x01935448 */
+static const char s_fileOpenError[] = "File Open Error!! \n\n  %s \n\n      %s line:%d"; /* @1083 0x01935450 */
+static const char s_movieC[] = "movie.c";                                         /* @1084 0x01935480 */
 
 // The candidate list AA_AutoBank_Seelect sorts: loaded scene groups it may drop (12 bytes a row).
 typedef struct AA_BANK_CANDIDATE {
@@ -360,7 +400,66 @@ int ErrMessage(const char *message)
     return printf(s_errMessage, message);
 }
 
-// CT3 0x018be7b0: the audio is ready to start (always, without audio). readMpeg's (slice 2).
+// CT3 0x018be530: undo initAll (and stop AA_defaultTh, which CT3 never creates: the kernel refuses id 0).
+static void termAll(void)
+{
+    AA_readBufDelete(&AA_readBuf);
+    AA_voBufDelete(&voBuf);
+    TerminateThread(AA_videoDecTh);
+    DeleteThread(AA_videoDecTh);
+    TerminateThread(AA_defaultTh);
+    DeleteThread(AA_defaultTh);
+    DisableDmac(DMAC_GIF);
+    RemoveDmacHandler(DMAC_GIF, AA_videoDec.hid_endimage);
+    DisableIntc(INTC_VBLANK_S);
+    RemoveIntcHandler(INTC_VBLANK_S, AA_videoDec.hid_vblank);
+    AA_videoDecDelete(&AA_videoDec);
+    if (AA_isWithAudio != 0)
+        AA_audioDecDelete(&AA_audioDec);
+    AA_strFileClose(&AA_infile);
+}
+
+// CT3 0x018be5d0: set the decoder up for `name`: the read ring, libmpeg, the video and audio decoders (the
+// video stream to AA_videoCallback, the PCM stream to AA_pcmCallback, both through the read ring), the
+// picture queue, the decoder thread; open the file (retrying every vsync until it opens) and hook the
+// vblank and the GIF transfer end.
+static void initAll(const char *name)
+{
+    ThreadParam th = {};
+
+    REG_DMAC_CTRL = REG_DMAC_CTRL | AA_D_CTRL_DMAE_RELE;
+    *D_STAT = AA_D_STAT_CIS2;
+    AA_MovieAbortFlag = 0;
+    AA_readBufCreate(&AA_readBuf);
+    sceMpegInit();
+    AA_videoDecCreate(&AA_videoDec, AA_mpegWork, AA_MPEG_WORK_SIZE, AA_viBufData, AA_viBufTag, AA_VIBUF_TAGS,
+                      AA_timeStamp, AA_TIMESTAMPS);
+    if (AA_isWithAudio != 0)
+        audioDecCreate(&AA_audioDec, AA_audioBuff, AA_AUDIOBUFF_SIZE, AA_IOP_AUDIO_BUFF, AA_audEETimeStamp,
+                       AA_AUD_TIMESTAMPS, AA_audIOPTimeStamp, AA_AUD_TIMESTAMPS);
+    AA_videoDecSetStream(&AA_videoDec, sceMpegStrM2V, 0, AA_videoCallback, &AA_readBuf);
+    if (AA_isWithAudio != 0)
+        AA_videoDecSetStream(&AA_videoDec, sceMpegStrPCM, 0, AA_pcmCallback, &AA_readBuf);
+    AA_voBufCreate(&voBuf, AA_voBufData, AA_voBufTag, AA_VOBUF_COUNT);  // PORT: the ROM passes the uncached alias
+                                                                       // 0x2193f700 (UncAddr)
+    th.entry = AA_videoDecMain;
+    th.stack = AA_videoDecStack;
+    th.stackSize = AA_VIDEO_STACK_SIZE;  // the ROM's 0x20000, though AA_MemoryMapSet allocates 0x10800
+    th.gpReg = NULL;                     // the ROM passes &_gp
+    th.initPriority = AA_THREAD_PRIORITY;
+    th.option = 0;
+    AA_videoDecTh = CreateThread(&th);
+    StartThread(AA_videoDecTh, &AA_videoDec);
+    AA_CdDvd_trial_Ct = 0xff;
+    while (AA_strFileOpen(&AA_infile, name) == 0)
+        sceGsSyncV(0);
+    AA_videoDec.hid_vblank = AddIntcHandler(INTC_VBLANK_S, AA_vblankHandler, 0);
+    EnableIntc(INTC_VBLANK_S);
+    AA_videoDec.hid_endimage = AddDmacHandler(DMAC_GIF, AA_handler_endimage, 0);
+    EnableDmac(DMAC_GIF);
+}
+
+// CT3 0x018be7b0: the audio is ready to start (always, without audio). readMpeg's.
 static int isAudioOK(void)
 {
     if (AA_isWithAudio != 0)
@@ -374,14 +473,192 @@ void AA_switchThread(void)
     RotateThreadReadyQueue(AA_THREAD_PRIORITY);
 }
 
-// CT3 0x018beba0: play `name` (slice 2). Answers controller_val.
+// CT3 0x018be7f0: stream the file through the decoder (ezmpegstr's readMpeg, with CT3's pad skip). Each
+// turn: read the pad; past 15 decoded frames the skip buttons may abort the movie; read 64 KB into the ring
+// when that much is free; let the decoder thread run; demux what the ring holds; feed the IOP. The picture
+// starts once both picture buffers are full, the audio is preset and AA_WaitCount ran out: the display
+// first, the audio ~41 ms later. Ends at the file's last 4 bytes or when the decoder ends, then flushes.
+static int readMpeg(VideoDec *vd, ReadBuf *rb, StrFile *file)
+{
+    int started = 0;
+    int demuxRest = file->size;
+    int readRest = demuxRest;
+    u_char *put, *get;
+    u_int trg, t0;
+    int n;
+
+    while (demuxRest > AA_DEMUX_TAIL && AA_videoDecGetState(vd) != VD_STATE_END) {
+        if (controller_mode == CONTROLLER_MODE_100)
+            gaPadRead(pad, 1);
+        else
+            gaPadRead(pad, 0);
+        pad_cnt_button[0] = pad[0].cnt;
+        pad_trg_button[0] = pad[0].trg;
+        pad_key_button[0] = pad[0].key;
+        pad_cnt_button[1] = pad[1].cnt;
+        pad_trg_button[1] = pad[1].trg;
+        pad_key_button[1] = pad[1].key;
+        trg = pad_trg_button[0];
+        if (vd->mpeg.frameCount >= AA_SKIP_MIN_FRAMES) {
+            if (ssTrigCheckEvent(TRIG_EVENT_MOVIE_END_62, 1, 0) == 0) {
+                if (AA_MovieStopOkFlag == AA_MOVIE_SKIP_OK && AA_MovieAbortFlag == 0
+                    && ((trg & KEY_MAP[KEY_MAP_MOVIE_STOP]) != 0 || (trg & KEY_MAP[KEY_MAP_MOVIE_SKIP]) != 0)) {
+                    AA_MovieAbortFlag = 1;
+                    AA_videoDecAbort(&AA_videoDec);
+                    ssTrigRegisterEvent(TRIG_EVENT_MOVIE_SKIPPED, 1, 0);
+                }
+                if (DEMO_SKIP_SET != 0 && AA_MovieAbortFlag == 0 && (trg & KEY_MAP[KEY_MAP_MOVIE_SKIP]) != 0) {
+                    AA_MovieAbortFlag = 1;
+                    AA_videoDecAbort(&AA_videoDec);
+                    ssTrigRegisterEvent(TRIG_EVENT_MOVIE_SKIPPED, 1, 0);
+                }
+            } else if (DEMO_SKIP_FLAG == 0 && AA_MovieAbortFlag == 0 && (trg & KEY_MAP[KEY_MAP_MOVIE_SKIP]) != 0) {
+                AA_MovieAbortFlag = 1;
+                AA_videoDecAbort(&AA_videoDec);
+                ssTrigRegisterEvent(TRIG_EVENT_MOVIE_SKIPPED, 1, 0);
+            }
+        }
+
+        n = AA_readBufBeginPut(rb, &put);
+        if (readRest > 0 && n >= AA_READ_UNIT) {
+            n = AA_strFileRead(file, put, AA_READ_UNIT);
+            AA_readBufEndPut(rb, n);
+            readRest -= n;
+        }
+        AA_switchThread();
+        n = AA_readBufBeginGet(rb, &get);
+        if (n > 0) {
+            n = sceMpegDemuxPssRing(&vd->mpeg, get, n, rb->data, rb->size);
+            AA_readBufEndGet(rb, n);
+            demuxRest -= n;
+        }
+        AA_proceedAudio();
+
+        if (!started && AA_voBufIsFull(&voBuf) != 0 && isAudioOK() != 0 && AA_WaitCount < 1) {
+            AA_startDisplay(1);
+            if (AA_isWithAudio != 0) {
+                t0 = AA_cpuCycles();
+                while (AA_cpuCycles() - t0 < AA_AUDIO_START_DELAY)
+                    ;
+                AA_audioDecStart(&AA_audioDec);
+            }
+            started = 1;
+        }
+    }
+
+    while (AA_videoDecFlush(vd) == 0)
+        AA_switchThread();
+    while (AA_videoDecIsFlushed(vd) == 0 && AA_videoDecGetState(vd) != VD_STATE_END)
+        AA_switchThread();
+    if (AA_isWithAudio != 0)
+        AA_audioDecReset(&AA_audioDec);
+    return 1;
+}
+
+// CT3 0x018beba0: play `name`. Waits for the file system, takes the decoder's memory (0 when it cannot),
+// logs the movie banks, plays the stream; then puts up a tag block of 0xff words (AA_ReTagSet), fades the
+// last picture out over 60 frames (unless AA_MvFedeOutCut) to black or white (AA_MvOutWhite), clears
+// the GS to that colour and takes everything down. A file that never opened skips the playback and
+// resets the system (the error message is built but never shown). Answers controller_val.
 static int AA_movie(const char *name)
 {
-    (void)name;
-    (void)isAudioOK;
-    (void)AA_MovieAbortFlag;
-    ALYSSAPAN_STUB("AA_movie", 0x018beba0);
-    return 0;
+    char message[0x100];
+    int row, i, step, level;
+
+    AA_FadeOutEnable = 0;
+    AA_DISP_TAG = NULL;
+    while (IsFSLoading() != 0 || IsMltLoading() != 0)
+        AA_WaitFrame();
+    AA_SOUND_MODE = SOUND_STEREO_MONAURAL_BUFF;
+    if (AA_MemoryMapSet() != 0)
+        return 0;
+
+    printf(s_useMovieMemoryBank);
+    for (row = 0; row < AA_MOVIE_WORKS; row++) {
+        printf(s_bankRange, AA_MovieUseBank[row].bank, AA_MovieUseBank[row].bank + AA_MovieUseBank[row].count - 1,
+               AA_MovieUseBank[row].count);
+        for (i = 0; i < AA_MovieUseBank[row].count; i++)
+            printf(s_bankState, BankInfo[AA_MovieUseBank[row].bank + i].state);
+        printf(s_newLine);
+    }
+    printf(s_newLine);
+
+    initAll(name);
+    if (AA_MvInWhite != AA_MV_BLACK)
+        AA_FadeInCount = AA_FADE_FRAMES;
+    else
+        AA_FadeInCount = 0;
+    if (AA_mpegWork != 0)
+        AA_MoiveMojiFB = AA_mpegWork + AA_MOJI_FB_OFFSET;
+    else
+        AA_MoiveMojiFB = 0;
+    AA_test_RamInit();
+    AA_CleanMojiBuffer();
+    if (AA_infile.openError == 0)
+        readMpeg(&AA_videoDec, &AA_readBuf, &AA_infile);
+    AA_endDisplay();
+
+    AA_DISP_TAG = (u_int *)_SunAlloc(&gHeapSound, AA_DISP_TAG_SIZE, AA_DISP_TAG_ALIGN);
+    if (AA_DISP_TAG != NULL && AA_infile.openError == 0) {
+        for (i = 0; i < AA_DISP_TAG_SIZE / (int)sizeof(u_int); i++)
+            AA_DISP_TAG[i] = 0xffffffff;
+        FlushCache(0);
+        AA_ReTagSet(AA_DISP_TAG);
+        FlushCache(0);
+        sceGsSyncV(0);
+        AA_isCountVblank = 1;
+        if (AA_MvFedeOutCut == 0) {
+            AA_FadeOutEnable = 1;
+            if (AA_MvOutWhite == AA_MV_BLACK) {
+                // The fade packet's alpha from 0x80 down to 1 (RGB 0).
+                for (i = 0, step = 0; i < AA_FADE_FRAMES; i++, step += 0x80) {
+                    level = 0x80 - step / AA_FADE_FRAMES;
+                    if (level < 1)
+                        level = 1;
+                    *AA_FadePackAdr = (u_int)level << 24;
+                    FlushCache(0);
+                    sceGsSyncV(0);
+                }
+                if (AA_MvFedeOut2Md == AA_MV_FADE2_TI_FADE)
+                    tiFade_Start(0.0f, AA_TI_FADE_FROM_BLACK);
+            } else {
+                // Grey from 1 up to 0xfb, alpha 0x80.
+                for (i = 0, step = 0; i < AA_FADE_FRAMES; i++, step += 0x100) {
+                    level = step / AA_FADE_FRAMES;
+                    if (level < 1)
+                        level = 1;
+                    *AA_FadePackAdr = (u_int)level;
+                    *AA_FadePackAdr |= (u_int)level << 8;
+                    *AA_FadePackAdr |= (u_int)level << 16;
+                    *AA_FadePackAdr |= 0x80000000u;
+                    FlushCache(0);
+                    sceGsSyncV(0);
+                }
+                if (AA_MvFedeOut2Md == AA_MV_FADE2_TI_FADE)
+                    tiFade_Start(0.0f, AA_TI_FADE_FROM_WHITE);
+            }
+        }
+        if (AA_MvOutWhite == AA_MV_WHITE)
+            AA_clearGsMem(0xff, 0xff, 0xff, AA_RESET_WIDTH, AA_RESET_HEIGHT);
+        else
+            AA_clearGsMem(0, 0, 0, AA_RESET_WIDTH, AA_RESET_HEIGHT);
+        AA_isCountVblank = 0;
+        AA_FadeOutEnable = 0;
+        AA_MvFedeOutCut = 0;
+    }
+
+    termAll();
+    if (AA_DISP_TAG != NULL) {
+        _SunFree(&gHeapSound, (void **)&AA_DISP_TAG);
+        AA_DISP_TAG = NULL;
+    }
+    if (AA_infile.openError != 0) {
+        SystemReReset();
+        sprintf(message, s_fileOpenError, name, s_movieC, AA_FILE_OPEN_ERROR_LINE);
+    }
+    AA_MemoryMapFree();
+    PlayMovieReturnLoad();
+    return controller_val;
 }
 
 // CT3 0x018bf030: lower-case `s` in place (A..Z only).

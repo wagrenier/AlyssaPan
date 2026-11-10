@@ -377,6 +377,16 @@ the TU map's evidence.
   VARIABLE.INF, ALYSSAS.ICO / ALYSSAD.ICO (the card icons), GAME_END.DAT, 0MH0.BIN; the last ARTG_P25.IMG.
   The files' own formats are not read yet. Whether its pictures are TIM2 is open.
 - `DATA\MOVIE1..3`: movies (`movie.c`; "pts buffer overflow" at 0x01935520 says MPEG timestamps: PSS).
+  The player is SCE's ezmpegstr sample, AA_-prefixed (movie.c slice 2, 2026-11-10): initAll creates the
+  decoder thread (`AA_videoDecMain`, priority 3; readMpeg's `AA_switchThread` rotates that queue), hooks
+  the vblank (`AA_vblankHandler`) and the GIF transfer end (`AA_handler_endimage`), and registers
+  `AA_videoCallback` (M2V) and `AA_pcmCallback` (PCM) on the read ring; readMpeg reads 64 KB a turn,
+  demuxes with `sceMpegDemuxPssRing`, lets the pad skip after 16 decoded frames (KEY_MAP[20] or [11] with
+  AA_MovieStopOkFlag; [11] alone with DEMO_SKIP_SET, or, with event 0x62 registered, while DEMO_SKIP_FLAG
+  is 0) and starts the audio ~41 ms (0xb9533b cycles) after the first picture. VideoDec starts with the
+  sceMpeg (+8 frameCount) and keeps the two handler ids at +0xd0 / +0xd4; StrFile +4 is the size, +0x34
+  CT3's give-up flag (AA_movie then resets the system: "File Open Error!!"). The host keeps this shape:
+  the EE kernel runs the thread and the vblank handler, sdk/libmpeg decodes with FFmpeg.
 - `game_end.dat` (0x01935308): a file the game opens by name.
 
 ## The file layer, game/ArtoolDebugOpen.c (2026-11-10)

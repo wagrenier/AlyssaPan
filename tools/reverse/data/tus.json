@@ -1,6 +1,5 @@
 {
  "queue": [
-  "game/movie.c",
   "game/wideXcmd_DebugPrint.c",
   "game/tkXDTrg_GetSceneHash.c",
   "game/asUseArrow.c",
@@ -873,7 +872,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 104..104, 14 functions keyed by their statics, 4 unkeyed; file name from the names"
   },
   "game/movie.c": {
-   "notes": "Object is SCE ezmpegstr main.c and owns sbss 0x0193f0d4..0x0193f704. Slice 2 decides the host playback path first (libmpeg plus the movie seam). Captions read to the host block AA_MojiImage (PORT). AA_MovieWorkClean row-index bug kept. callcheck missing calls are the factored helpers AA_WaitFrame and AA_GlobalHeapBanks. Shot black as before: no movie in a smoke run. open-items (gj)-(go).",
+   "notes": "Playback kept in the ROM shape: host EE kernel runs the decoder thread and vblank handler, sdk/libmpeg decodes, the picture goes through AA_GetDataWord.c display code. Neighbour prototypes declared from the call sites and stubbed (AA_videoCallback, AA_mpegTS, AA_SoundMonoSoart, AA_GetDataWord, AA_cpuCycles, copy2area). A run that reaches AA_movie hangs on those stubs (strFileOpen, videoDecFlush, cpuCycles): hazards.md. Shot black as before: no smoke run plays a movie. open-items (gp)-(gv).",
    "ranges": [
     [
      "018bda90",
@@ -885,9 +884,14 @@
      "date": "2026-11-10 16:41",
      "status": "partial",
      "summary": "slice 1: the movie front end, bank choice and memory map (16 of 20 functions); AA_movie, initAll, readMpeg, termAll left"
+    },
+    {
+     "date": "2026-11-10 16:54",
+     "status": "verify",
+     "summary": "slice 2: the playback (AA_movie, initAll, readMpeg, termAll); all 20 functions written"
     }
    ],
-   "status": "partial",
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 109..109, 15 functions keyed by their statics, 6 unkeyed; source string movie.c"
   },
   "game/sound.c": {

@@ -7,6 +7,15 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-10, movie.c slice 2) **A run that reaches AA_movie hangs on its stubs**: initAll retries
+  `AA_strFileOpen` every vsync until it answers non-zero (the stub answers 0), readMpeg waits for
+  `AA_videoDecFlush` (stub 0) and busy-waits ~41 ms on `AA_cpuCycles` (stub 0: forever), and the fade-out
+  writes through `AA_FadePackAdr` (NULL until AA_GetDataWord.c / AA_mpegTS.c set it). Before a smoke run
+  plays a movie, write AA_videoCallback.c (strfile / readbuf), AA_mpegTS.c, AA_cpuCycles.c (a host cycle
+  count at 294.912 MHz) and AA_GetDataWord.c, or the run stops at the movie with no stub line to say why.
+- (2026-11-10) **Python heredocs in Bash eat one level of backslashes**: `"\\n"` inside a `<<'EOF'`
+  Python script wrote a real newline into movie.c's strings. C strings with escapes go in with Edit.
+
 - (2026-11-10, movie.c slice 1) **Never delete a "FUN_" that a CW loop jumps into**: CodeWarrior lays a
   while loop out as `b test; body; test: ...`, so Ghidra makes the function a thunk (body 8 bytes) onto a
   FUN_ at the loop test (AA_ToSmall -> FUN_018bf05c). Deleting that FUN_ with `delete_function` deleted

@@ -2,6 +2,7 @@
 // declares them (game/main.c first, 2026-11-09). Initialised data carries the ELF's bytes (read from
 // SLUS_206.33 at the address given); everything else is .sbss / .bss, zero. Each moves to its TU.
 #include "game/unassigned_data.h"
+#include "game/AA_GetDataWord.h"
 #include "game/SdMasterVolumeSetSE.h"
 #include "game/CpDivideEECom.h"
 #include "game/IOPGetFileSize.h"
@@ -75,6 +76,7 @@ int mcFile_ID;                                  /* sbss 0x0193f9fc */
 int mcErr_ID;                                   /* sbss 0x0193f9f8 */
 int mcAccess_ID;                                /* sbss 0x0193f9f4 */
 char SkipEventFlag[20];                         /* sbss 0x01941170 */
+int AA_isCountVblank;                            /* sbss 0x0193f0bc: game/AA_GetDataWord.c's */
 u_char SOUND_STEREO_MONAURAL_BUFF;              /* sbss 0x0193f9ec */
 u_char BGM_MASTER_VOLUME_BUFF;                  /* sbss 0x0193f9e8 */
 u_char SE_MASTER_VOLUME_BUFF;                   /* sbss 0x0193f9e4 */

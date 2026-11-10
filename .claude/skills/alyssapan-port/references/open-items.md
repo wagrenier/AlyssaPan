@@ -743,6 +743,22 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    (the movie's GS reset: no host meaning until slice 2 picks the draw path); (go) callcheck lists FlProc /
    FileSoundServer / SunAllocUsedBorderCheck as missing: the port factors the ROM's inlined frame wait and
    heap-bank count into AA_WaitFrame / AA_GlobalHeapBanks.
+   **game/movie.c slice 2 (2026-11-10): AA_movie, initAll, readMpeg, termAll -- all 20 functions written
+   (verify: no smoke run plays a movie).** Claude's call (2026-11-10): the playback keeps the ROM's shape
+   (the host EE kernel runs the decoder thread and the vblank handler; sdk/libmpeg is the decoder; the
+   picture reaches the screen through AA_GetDataWord.c's display code, whose TU picks the host draw).
+   The neighbours' prototypes are now declared from movie.c's calls (AA_videoCallback.h, AA_mpegTS.h,
+   AA_SoundMonoSoart.h, AA_GetDataWord.h, new AA_cpuCycles.h and copy2area.h) and stubbed. Open: (gp) a
+   run that reaches AA_movie hangs on those stubs (hazards.md): the movie TUs come before any smoke run
+   that plays a movie; (gq) VideoDec.hid_endimage / hid_vblank, StrFile.size / openError and ReadBuf.size
+   are named from movie.c's use, after ezmpegstr: their owners confirm; (gr) the host's AddDmacHandler
+   registers nothing, so AA_handler_endimage never runs: AA_GetDataWord.c decides what replaces the GIF
+   transfer end; (gs) initAll tells CreateThread 0x20000 bytes of stack where AA_MemoryMapSet allocated
+   0x10800 (ROM quirk, harmless on the host, whose threads have their own stacks); (gt) KEY_MAP[20]
+   (KEY_MAP_MOVIE_STOP) and tiFade_Start types 4 / 5 after the fade to black / white are named from this
+   use; (gu) AA_isCountVblank (sbss 0x0193f0bc) is defined in lib/unassigned_data.cpp until
+   AA_GetDataWord.c takes it; (gv) the smoke run left work/shots/last.png empty (0 bytes) while the
+   numbered shots are fine: worth a look in build.py's shot writer.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
    class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~

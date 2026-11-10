@@ -15,4 +15,10 @@ static_assert(sizeof(AudioDec) == 0x7c, "AudioDec");
 void Ass_StopIopDataTrans(void);                                                         // CT3 0x018bb7c0
 int AA_audioDecSendToIOP(AudioDec *ad);                                                  // CT3 0x018bbeb0
 int AA_audioDecIsPreset(AudioDec *ad);                                                   // CT3 0x018bc130
+int AA_audioDecStart(AudioDec *ad);                                                      // CT3 0x018bc3b0
+int AA_audioDecReset(AudioDec *ad);                                                      // CT3 0x018bc360
+int AA_audioDecDelete(AudioDec *ad);                                                     // CT3 0x018bc4d0
+// CT3's eight-argument create (ezmpegstr's plus the EE / IOP time-stamp rings): initAll's call.
+int audioDecCreate(AudioDec *ad, void *buff, int buffSize, int iopBuffSize, void *eeTimeStamp,
+                   int eeTimeStamps, void *iopTimeStamp, int iopTimeStamps);             // CT3 0x018bc4e0
 int audioDecInit(AudioDec *ad, int iopBuffSize);                                         // CT3 0x018bc620

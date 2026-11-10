@@ -92,6 +92,7 @@ constexpr int INVALIDATE_CACHE = INVALID_DCACHE | INVALIDATE_ICACHE;
 
 constexpr int INTC_VBLANK_S = 2;
 constexpr int INTC_VBLANK_E = 3;
+constexpr int DMAC_GIF = 2;   // the GIF channel (the movie's image-transfer end handler)
 
 using AlyssaPanDebugHandler = void (*)(u_int stat, u_int cause, u_int epc, u_int bva, u_int bpa, u_long128 *gpr);
 using DmacHandler = int (*)(int channel);
@@ -109,6 +110,8 @@ int EnableIntc(int cause);
 int DisableIntc(int cause);
 int iDisableIntc(int cause);
 int EnableDmac(int channel);
+int DisableDmac(int channel);
+int RemoveDmacHandler(int channel, int handlerId);
 void ExitHandler();
 
 // Interrupt disable / enable: the ROM always pairs them, so they nest.

@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-10 16:41 at commit `02cd139` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-10 16:54 at commit `f3f4bb2` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **702**; stubs: **152**
+- reconstructed CT3 functions: **706**; stubs: **186**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -48,9 +48,11 @@ Least-named game-code regions (64 KB blocks):
 | `src/ga/gaVifInit.c` | 6 | 0 |
 | `src/ga/pad_button_read.c` | 0 | 1 |
 | `src/ga/wait.c` | 0 | 2 |
-| `src/game/AA_GetDataWord.c` | 0 | 2 |
-| `src/game/AA_SoundMonoSoart.c` | 0 | 3 |
-| `src/game/AA_videoCallback.c` | 0 | 1 |
+| `src/game/AA_GetDataWord.c` | 0 | 8 |
+| `src/game/AA_SoundMonoSoart.c` | 0 | 8 |
+| `src/game/AA_cpuCycles.c` | 0 | 1 |
+| `src/game/AA_mpegTS.c` | 0 | 12 |
+| `src/game/AA_videoCallback.c` | 0 | 11 |
 | `src/game/AlignedNum.c` | 4 | 0 |
 | `src/game/ArtoolDebugOpen.c` | 15 | 0 |
 | `src/game/Character_Init.c` | 48 | 1 |
@@ -68,11 +70,12 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/asMothRouteSearch.c` | 0 | 2 |
 | `src/game/asUseArrow.c` | 0 | 2 |
 | `src/game/asXcmd.c` | 0 | 1 |
+| `src/game/copy2area.c` | 0 | 1 |
 | `src/game/fileio.c` | 40 | 0 |
 | `src/game/hhXcmd_DressUp.c` | 0 | 1 |
 | `src/game/main.c` | 29 | 0 |
 | `src/game/main2.c` | 18 | 0 |
-| `src/game/movie.c` | 16 | 1 |
+| `src/game/movie.c` | 20 | 0 |
 | `src/game/sound.c` | 73 | 0 |
 | `src/game/ssCalcInversMatrix2.c` | 0 | 1 |
 | `src/game/ssGrpPortalCheck.c` | 0 | 11 |
@@ -85,10 +88,9 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 42, partial 1, verify 22, done 3
-- next: **game/movie.c** (pinned in the queue)
-- pinned queue: game/movie.c, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/asEyeForcusUP2CamMat.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c, game/ssGrpPortalCheck.c
-- partial: `game/movie.c` 16/21 -- Object is SCE ezmpegstr main.c and owns sbss 0x0193f0d4..0x0193f704. Slice 2 decides the host playback path first (libmpeg plus the movie seam). Captions read t
+- 65 TUs: todo 42, verify 23, done 3
+- next: **game/wideXcmd_DebugPrint.c** (pinned in the queue)
+- pinned queue: game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/asEyeForcusUP2CamMat.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c, game/ssGrpPortalCheck.c
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaDmaSync_VIF1.c` 5/5 -- Host: kicks leave CHCR.STR clear (the transfer is over), so the syncs return at once; the BGT send keeps the copy and the flip, the packet goes nowhere (draw mo
 - verify: `ga/gaInit3dlib.c` 25/25 -- 15 s smoke run: no fault, shot black (no host draw module). gaMulMatrix is dst = b * a (hazards.md). gaSetZRollMatrix now reaches gaSinCos: ga/gaSinCos.c is que
@@ -110,10 +112,12 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/fileio.c` 40/40 -- All 40 functions written. Round2ChangeChar keeps the ROM order of its 150 Round2ChangeSectInfo pairs as three tables; round values named from the file names onl
 - verify: `game/main.c` 29/29 -- Smoke run: build green, layoutcheck OK, callcheck: main_rtn_Particle2 matches the ROM (extra BankEePtr only); AllDrawObject / GlobalDrawObject / DrawObjectRefra
 - verify: `game/main2.c` 18/18 -- Smoke run leaves main2 and runs the frame loop with no crash; the shot stays black because FSMltLoad (fileio.c) is a stub so no bank loads. PORT BankReady skips
+- verify: `game/movie.c` 20/21 -- Playback kept in the ROM shape: host EE kernel runs the decoder thread and vblank handler, sdk/libmpeg decodes, the picture goes through AA_GetDataWord.c displa
 - verify: `game/sound.c` 69/69 -- All 69 written. SSLoadSEfromLoadPoint takes the bank image (BankInfo +0x1c); All_table_TBL[bank] is image + 0x80, so the old +0xd4 record is ALL_TABLE.sound, wo
 
 Recent sessions:
 
+- 2026-11-10 16:54 `game/movie.c` verify: slice 2: the playback (AA_movie, initAll, readMpeg, termAll); all 20 functions written
 - 2026-11-10 16:41 `game/movie.c` partial: slice 1: the movie front end, bank choice and memory map (16 of 20 functions); AA_movie, initAll, readMpeg, termAll left
 - 2026-11-10 16:09 `ga/gaPadInit.c` verify: reconstruct gaPadInit (scePadInit, both ports on pad_dma_buf0/1)
 - 2026-11-10 15:53 `game/SdMasterVolumeSetSE.c` verify: slice 6: SdLoadSQProc, the SQ loader and player (SD_SQ_LD_STEP, SD_SQ_REGISTER, SND_CMD_SQ_*); SD_SQ_LD fields named (effectType/effectDepth/spuAddr/iopSq/iopHd
@@ -121,12 +125,11 @@ Recent sessions:
 - 2026-11-10 15:14 `game/SdMasterVolumeSetSE.c` partial: slice 4: the SE stops (SdStopSEAll, SdStopSESDT, SdStopSEAllSp1, SdStopSESp1, SdStopSESp1ByHandle), SdReqPlaySESp1, IsPlaySEReady, SdLoadSEEndWaitAll, SdLoadSQE
 - 2026-11-10 14:54 `game/SdMasterVolumeSetSE.c` partial: slice 3: SdReqLoadSE, FindSEFile, FindSEFile_JLS_SPU2, SdReqLoadSECancel, SdPurgeSE and the SE play side (SdReqPlaySE, SdSetParamSE, NextPlaySE, SdPlaySE, SdSup
 - 2026-11-10 14:36 `game/SdMasterVolumeSetSE.c` partial: slice 2: SdProc, the SE bank loader (SdLoadSEProc and its steps, NextLoadSE), SdVolumeSetSQ, SdMasterVolumeSetSQ; FL_PACK_INFO.partSize; host IOP heap and sceSd
-- 2026-11-10 14:15 `game/SdMasterVolumeSetSE.c` partial: slice 1: the FSS command ring and thread (FIFO, FSS_Thread, _Init, _Sync), SE master and stream volumes, reverb, SE stop and lookup, load-end wait, SdAlloc, SdF
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `game/ssGrpPortalCheck.c` | todo | 0/11/59 | 26.4 | 378 | 10 |
-| `game/Clipping_Portal.c` | todo | 0/34/73 | 44.8 | 154 | 18 |
+| `game/ssGrpPortalCheck.c` | todo | 0/11/59 | 26.4 | 382 | 10 |
+| `game/Clipping_Portal.c` | todo | 0/34/73 | 44.8 | 156 | 18 |
 | `game/wideXcmd_DebugPrint.c` | todo | 0/17/109 | 40.6 | 91 | 12 |
 | `game/ssSetTexUVforCubeMap.c` | todo | 0/31/96 | 35.3 | 86 | 9 |
 | `game/CpDivideEECom.c` | todo | 0/10/18 | 3.3 | 80 | 10 |
@@ -135,16 +138,16 @@ Recent sessions:
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/ssHitCheckAttackToScn.c` | todo | 0/5/37 | 32.0 | 22 | 3 |
 | `ga/gaBGT_DrawObject.c` | todo | 0/2/9 | 7.6 | 18 | 1 |
-| `game/tkXDTrg_GetSceneHash.c` | todo | 0/3/50 | 21.0 | 14 | 2 |
-| `ga/gaObjectClippingCheck.c` | todo | 0/1/1 | 0.2 | 12 | 1 |
+| `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
+| `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 
 ## Frontier (called by reconstructed code, not written yet)
 
 | CT3 addr | name | call sites | provenance | state | inferred file |
 |---|---|---|---|---|---|
 | `018d9560` | ssTrigRemoveEvent | 105 | sym | stub | game/ssGrpPortalCheck.c |
-| `018d9100` | ssTrigCheckEvent | 99 | sym | stub | game/ssGrpPortalCheck.c |
-| `018d95e0` | ssTrigRegisterEvent | 56 | sym | stub | game/ssGrpPortalCheck.c |
+| `018d9100` | ssTrigCheckEvent | 100 | sym | stub | game/ssGrpPortalCheck.c |
+| `018d95e0` | ssTrigRegisterEvent | 59 | sym | stub | game/ssGrpPortalCheck.c |
 | `018d9470` | ssTrigSetVariable | 36 | sym | stub | game/ssGrpPortalCheck.c |
 | `018d9430` | ssTrigGetVariable | 26 | sym | stub | game/ssGrpPortalCheck.c |
 | `01851b10` | ConvertQuat2Matrix | 17 | sym | stub | game/Convert.c |
@@ -154,17 +157,19 @@ Recent sessions:
 | `018a3150` | gaBGT_DrawObject | 8 | sym | stub | ga/gaBGT_DrawObject.c |
 | `01893cf0` | ExportDrawToTex | 8 | sym | stub | game/Clipping_Portal.c |
 | `018a3078` | gaObjectClippingCheck | 7 | sym | stub | ga/gaObjectClippingCheck.c |
+| `0188d3c0` | tiFade_Start | 6 | sym | stub | game/Clipping_Portal.c |
 | `018518d0` | ConvertMatrix2Quat | 6 | sym | stub | game/Convert.c |
 | `018d1fa0` | CpSifDmaTransEEToIOP | 6 | sym | stub | game/CpDivideEECom.c |
 | `01896920` | ssGetNumBlurDrawObjForScene | 5 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `018a3d20` | gaBGT_DrawObject_NoClippingCheck2 | 5 | sym | stub | ga/gaBGT_DrawObject.c |
 | `0188cdc0` | tiVibrationOff | 5 | sym | stub | game/Clipping_Portal.c |
-| `0188d3c0` | tiFade_Start | 4 | sym | stub | game/Clipping_Portal.c |
+| `018bd830` | AA_clearGsMem | 4 | sym | stub | game/AA_GetDataWord.c |
 | `01883ca0` | asMothPause | 4 | sym | stub | game/asMothPause.c |
 | `018a7538` | gaSearchNearLight4 | 4 | sym | stub | ga/gaSearchNearLight4.c |
 | `018f4fc0` | asCharacterOperate | 4 | sym | stub | game/wideXcmd_DebugPrint.c |
 | `01896a90` | ssPartMotionBlurInsertObjToDrawTable | 4 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `01889cd0` | Clipping_Portal | 4 | sym | stub | game/Clipping_Portal.c |
+| `018a0b40` | gaPadRead | 4 | sym | stub | ga/pad_button_read.c |
 | `018db340` | asXcmd_AddForLockToTargChara | 3 | sym | stub | game/asXcmd.c |
 | `018870c0` | camera_init0 | 3 | sym | stub | game/asEyeForcusUP2CamMat.c |
 | `01886dc0` | CamChange_S | 3 | sym | stub | game/asEyeForcusUP2CamMat.c |
@@ -175,11 +180,9 @@ Recent sessions:
 | `0188cd70` | tiVibrationTimer | 3 | sym | stub | game/Clipping_Portal.c |
 | `018fb940` | asMonsterDistanceStack_inPanic | 3 | sym | stub | game/wideXcmd_DebugPrint.c |
 | `018a8690` | gaDMAStopMessage_VIF1 | 3 | sym | stub | ga/wait.c |
+| `018c1ce0` | AA_videoDecAbort | 3 | sym | stub | game/AA_mpegTS.c |
 | `018666c0` | asInitArrowInfo | 2 | sym | stub | game/asUseArrow.c |
 | `01882c10` | asInitMothInfo | 2 | sym | stub | game/asMothRouteSearch.c |
-| `018bd830` | AA_clearGsMem | 2 | sym | stub | game/AA_GetDataWord.c |
 | `018fe1f0` | asCharacterMortionStopRequest | 2 | sym | stub | game/wideXcmd_DebugPrint.c |
 | `018f4bd0` | asCharacterPositionReviewInPausing | 2 | sym | stub | game/wideXcmd_DebugPrint.c |
-| `0189dec0` | ssBGT_ZBufferClear | 2 | sym | stub | game/ssSetTexUVforCubeMap.c |
-| `018eda60` | SceneDoorFlagClear | 2 | sym | stub | game/tkXDTrg_GetSceneHash.c |
 

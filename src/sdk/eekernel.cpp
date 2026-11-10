@@ -93,6 +93,8 @@ void InitThread() {} // the main thread is the host's
 int SetDebugHandler(int, AlyssaPanDebugHandler) { return 0; }
 int AddDmacHandler(int, DmacHandler, int) { return 0; } // no bus errors on the host
 int EnableDmac(int) { return 0; }
+int DisableDmac(int) { return 0; }
+int RemoveDmacHandler(int, int) { return 0; } // AddDmacHandler registered nothing
 void ExitHandler() {}
 
 int AddIntcHandler(int cause, IntcHandler handler, int next)
