@@ -33,6 +33,8 @@ static_assert(offsetof(CHARACTER, pos) == 0x0c0, "CHARACTER.pos");
 static_assert(offsetof(CHARACTER, rotBefore) == 0x0e8, "CHARACTER.rotBefore");
 
 #define CHARACTER_MAX 35                /* 0x23: Character[], AI_flag[], DirectLightCharaCounter[] */
+#define CHARACTER_FLAG_REFRACTION 0x80000000u /* DrawObjectRefraction: with _SHADOW, the character's bank
+                                             is drawn in the refraction pass (name from that use) */
 #define CHARACTER_FLAG_SHADOW 0x40000000u /* main: the character's bank casts a shadow polygon */
 
 // One loaded bank of BankInfo[86] (0x01aea360, 0x90 bytes each). A bank heading a group of banks has
@@ -85,17 +87,21 @@ static_assert(offsetof(ALL_TABLE, partsPos) == 0x10, "ALL_TABLE.partsPos");
 // One model part of a bank's parts header (pModelPartsHeader[bank], 0x380 bytes each). main_rtn reads
 // two fields; the rest belongs to the TU that loads the header.
 typedef struct MODEL_PARTS {
-    u_char pad000[0x44];
+    u_char pad000[0x42];
+    u_char kind;                        /* 0x42: PARTS_KIND_NO_DOF: main_rtn_DOF skips the part */
+    u_char pad043;
     int attr;                           /* 0x44: copied into the part's draw object (+0x3c) every draw */
     u_char pad048[8];
     u_int flags;                        /* 0x50: PARTS_FLAG_* */
     u_char pad054[0x32c];
 } MODEL_PARTS;
 static_assert(sizeof(MODEL_PARTS) == 0x380, "MODEL_PARTS");
+static_assert(offsetof(MODEL_PARTS, kind) == 0x42, "MODEL_PARTS.kind");
 static_assert(offsetof(MODEL_PARTS, attr) == 0x44, "MODEL_PARTS.attr");
 static_assert(offsetof(MODEL_PARTS, flags) == 0x50, "MODEL_PARTS.flags");
 
 #define PARTS_FLAG_FOG 0x1              /* a fog volume: never drawn; the bank's fog part sets FOG_mode */
+#define PARTS_KIND_NO_DOF 9             /* MODEL_PARTS.kind: not drawn in the depth-of-field slices */
 #define PARTS_FLAG_ZONLY_FIRST 0x8      /* main_rtn: OneMaxObjectDrawZOnly runs before the part */
 
 // A bank's fog record (FogCtrlAddr[bank]): the fog part, the clear colour, and gaSetupFogCtrlData's
@@ -129,7 +135,8 @@ typedef struct DRAW_OBJ_ENTRY {
     int drawCtrlId;                     /* EE 0x04: non-zero: the draw control to switch to */
     TEX_INFO *tex;                      /* EE 0x08 */
     int parts;                          /* EE 0x0c: MODEL_PARTS index */
-    int pad10;
+    int dofMode;                        /* EE 0x10: ssDOF_ClipObjectFromZRange's mode (< 2: test the
+                                           object's depth against the slice) */
     void *tbuffer;                      /* EE 0x14: the texture's upload packet */
     void *drawCtrl;                     /* EE 0x18: GA_DRAWCTRL_DATA */
 } DRAW_OBJ_ENTRY;

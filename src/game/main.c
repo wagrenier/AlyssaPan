@@ -80,6 +80,8 @@ int gArgc;                                      /* sbss 0x01942b44 */
 #define MAIN_RTN_PASS_SORT 0
 #define MAIN_RTN_PASS_SORT2 4
 #define MAIN_RTN_NO_CLIP 0x8000
+#define ALL_DRAW_DOF_FIRST 2                    /* AllDrawObject / main_rtn_DOF: the farthest DOF slice clip-checks */
+#define ALL_DRAW_DOF_NEXT 3                     /* the nearer slices reuse the stored clip byte */
 #define MAIN_RTN_CLIP_FAR 50000.0f              /* gaSet3dlibStruct's far clip */
 #define BANK_NAME_MENU "MENU.BIN"               /* @2324: bank 0 is the menu -> every texture restarts the BGT ring */
 
@@ -642,6 +644,193 @@ void main_rtn(int bank, int mode, int chara, u_int flags, int charaIndex, void *
             obj[DRAW_OBJ_CLIP] = (u_char)clip;
             gaBGT_DrawObject(obj, drawobj_attr);
         }
+    }
+    *lastTex = texNow;
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// The refraction pass: each loaded bank of BANK_TYPE_SHADOW past the scene banks (6..85, a group's
+// banks skipped after its head), then the bank of each character flagged REFRACTION and SHADOW, as
+// characters: its "after" list (main_rtn_DOF in the DOF slices, main_rtn otherwise) and its
+// after-particles. The first non-empty list exports the frame to the refraction texture once.
+// RefractionDrawBank is one bank of it (the ROM has this body twice, inlined in both loops).
+
+static void RefractionDrawBank(int bank, int chara, int mode, int charaIndex, int *exported, void **lastTex)
+{
+    ALL_TABLE *tbl = All_table_TBL[bank];
+
+    ALLobject[bank] = tbl->objAfter;
+    if (!*exported && *ALLobject[bank] != NULL) {
+        ExportDrawToTex();
+        *exported = 1;
+    }
+    if (mode == ALL_DRAW_DOF_FIRST || mode == ALL_DRAW_DOF_NEXT)
+        main_rtn_DOF(bank, 0, chara, mode, charaIndex, lastTex);
+    else
+        main_rtn(bank, 0, chara, (u_int)mode, charaIndex, lastTex);
+    if (!*exported && *tbl->particles2After != NULL) {
+        ExportDrawToTex();
+        *exported = 1;
+    }
+    main_rtn_Particle2(bank, chara, 1, lastTex);
+}
+
+// CT3 0x01836f30
+
+void DrawObjectRefraction(int mode)
+{
+    void *lastTex = NULL;
+    int exported = 0;
+    int i;
+    short c;
+
+    for (i = BANK_SCENE_MAX; i < BANK_MAX; i++) {
+        if (BankInfo[i].loaded != 0 && BankInfo[i].type == BANK_TYPE_SHADOW)
+            RefractionDrawBank(i, 0, mode, 0, &exported, &lastTex);
+        if (BankInfo[i].groupCount != 0)
+            i += BankInfo[i].groupCount - 1;
+    }
+    for (c = 0; c < CHARACTER_MAX; c++) {
+        if ((Character[c].flags & CHARACTER_FLAG_REFRACTION) && (Character[c].flags & CHARACTER_FLAG_SHADOW)
+            && Character[c].bank >= 0)
+            RefractionDrawBank(Character[c].bank, 1, mode, c, &exported, &lastTex);
+    }
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// main_rtn for one depth-of-field slice (pass ALL_DRAW_DOF_FIRST / _NEXT): the same list, sort, fog
+// and per-part texture / light / draw control as main_rtn, but no camera position update, parts of
+// PARTS_KIND_NO_DOF skipped, the clip check run only in the first (farthest) slice and its byte kept
+// for the nearer ones, and each part drawn only when ssDOF_ClipObjectFromZRange puts it in the slice.
+// CT3 0x01837d90
+
+void main_rtn_DOF(int bank, int mode, int chara, int pass, int charaIndex, void **lastTex)
+{
+    short lightBank = -1;
+    float lightFrames = 0.0f;
+    int count;
+    int blur;
+    u_char *table;
+    FOG_INFO *fog;
+    TEX_INFO *texNow;
+    u_int *timNow = NULL;
+    int ctrlNow = -1;
+    int zonlyParts = -1;
+    int i;
+
+    if (chara == 1) {
+        lightBank = Character[charaIndex].lightBank;
+        lightFrames = (float)DirectLightCharaCounter[charaIndex];
+    }
+    if (asCheckBankType(bank) == 0)
+        asChangeViewMatrix_forTheBank(asCheckBankID(bank));
+    count = get_draw_obj(bank);
+    if (count == 1)
+        return;
+
+    blur = ssGetNumBlurDrawObjForScene(bank, mode);
+    texNow = (TEX_INFO *)*lastTex;
+    table = osTotalObjTable[mode][bank];
+    if (mode != 0 && count != 0) {
+        if (blur == 0)
+            objSort(bank, count, table);
+        else
+            objSortWithBlurIdx(bank, count, table);
+        ALLobject[bank] = (void **)table;
+    }
+    if (blur != 0) {
+        ssPartMotionBlurInsertObjToDrawTable(bank, table, ALLobject[bank], count, mode);
+        ALLobject[bank] = (void **)table;
+    }
+
+    if (chara == 0) {
+        fog = (FOG_INFO *)FogCtrlAddr[bank];
+        gaSetupFogCtrlData(&fogctrl[bank], fog->fog[0], fog->fog[1], fog->fog[2],
+                           fog->fogArg[0], fog->fogArg[1], fog->fogArg[2]);
+    } else {
+        fog = (FOG_INFO *)FogCtrlAddr[idCurrentScene];
+        gaSetupFogCtrlData(&fogctrl[bank], fog->charaFog[0], fog->charaFog[1], fog->charaFog[2],
+                           fog->charaFogArg[0], fog->charaFogArg[1], fog->charaFogArg[2]);
+    }
+    gaSet3dlibStruct(MAIN_RTN_CLIP_FAR, ga3dlibwork, &drawbuffer_0, &fogctrl[bank], screen_0);
+    if (Clipping_System == 1)
+        Clipping_Portal(ga3dlibwork, screen_0);
+    tnInit3dlibWork(ga3dlibwork, SPR_3DLIB_WORK);
+    gaBGT_ExecFogCtrlData_VIF1(&fogctrl[bank]);
+
+    {
+        int fogBank = chara == 0 ? bank : idCurrentScene;
+        MODEL_PARTS *fogParts = (MODEL_PARTS *)pModelPartsHeader[fogBank];
+
+        if (fogParts[((FOG_INFO *)FogCtrlAddr[fogBank])->parts].flags & PARTS_FLAG_FOG)
+            FOG_mode = 1;
+    }
+
+    for (i = 0; ALLobject[bank][i] != NULL; i++) {
+        DRAW_OBJ_ENTRY *ent = (DRAW_OBJ_ENTRY *)ALLobject[bank][i];
+        u_char *obj = ent->obj;
+        TEX_INFO *tex = ent->tex;
+        MODEL_PARTS *parts = &((MODEL_PARTS *)pModelPartsHeader[bank])[ent->parts];
+
+        if (parts->flags & PARTS_FLAG_FOG)
+            continue;
+        if (!(All_table_TBL[bank]->partsPos[ent->parts][3] > PARTS_POS_HIDDEN_W))
+            continue;
+        if (parts->kind == PARTS_KIND_NO_DOF)
+            continue;
+        if ((parts->flags & PARTS_FLAG_ZONLY_FIRST) && zonlyParts != ent->parts) {
+            zonlyParts = OneMaxObjectDrawZOnly(bank, i);
+            ctrlNow = -1;
+        }
+        if (pass == ALL_DRAW_DOF_FIRST)
+            obj[DRAW_OBJ_CLIP] = (u_char)gaObjectClippingCheck(obj);
+        if ((s_char)obj[DRAW_OBJ_CLIP] < 0)
+            continue;
+
+        if (texNow != tex && tex != NULL && tex->tim != timNow && tex->tim != NULL) {
+            sunSetupTBufferData(ent->tbuffer, tex->tim, tex->tbuf[0], tex->tbuf[1], tex->tbuf[2],
+                                tex->tbuf[3], tex->tbuf[4], tex->tbuf[5]);
+            sunBGT_LoadGSTexClutData_VIF1(ent->tbuffer);
+        }
+        if (ssDOF_ClipObjectFromZRange(obj, (u_int)ent->dofMode) == 0)
+            continue;
+        if (ctrlNow != ent->drawCtrlId && ent->drawCtrlId != 0) {
+            gaBGT_ExecDrawCtrlData_VIF1((GA_DRAWCTRL_DATA *)ent->drawCtrl);
+            ctrlNow = ent->drawCtrlId;
+        }
+        *(int *)(obj + DRAW_OBJ_ATTR) = parts->attr;
+        if (tex != NULL) {
+            float *light = (float *)(obj + DRAW_OBJ_LIGHT);
+
+            if (chara == 0) {
+                if (tex->kind == TEX_KIND_LIGHT)
+                    *light = All_table_TBL[bank]->partsLight[ent->parts];
+            } else if (tex->kind == TEX_KIND_LIGHT && lightBank != -1 && BankInfo[lightBank].loaded == 1) {
+                float target = All_table_TBL[lightBank]->light[2] * All_table_TBL[bank]->partsLight[ent->parts];
+
+                if (lightFrames == 0.0f)
+                    *light = target;
+                else
+                    *light = *light + (target - *light) / lightFrames;
+            }
+        }
+
+        drawobj_attr = 0;
+        if (texNow != tex && tex != NULL) {
+            if (tex->tim != timNow && tex->tim != NULL) {
+                if (tex->tim[0] <= TEX_SMALL_MAX && tex->tim[1] <= TEX_SMALL_MAX) {
+                    gaBGT_End();
+                    gaBGT_Start(bgt_ringbuffer, BGT_RINGBUFFER_SIZE);
+                }
+                timNow = tex->tim;
+            }
+            sunBGT_ExecTBufferData_VIF1(ent->tbuffer);
+            texNow = tex;
+        }
+        if (obj[DRAW_OBJ_CLIP] == 0 && !(obj[DRAW_OBJ_FLAGS] & DRAW_OBJ_FLAG_CLIP))
+            gaBGT_DrawObject_NoClippingCheck2(obj, drawobj_attr);
+        else
+            gaBGT_DrawObject(obj, drawobj_attr);
     }
     *lastTex = texNow;
 }
@@ -1354,12 +1543,6 @@ int main(int argc, char **argv)
 void AllDrawObject(int mode)
 {
     ALYSSAPAN_STUB("AllDrawObject", 0x018362b0);
-}
-
-// stub of CT3 0x01836f30
-void DrawObjectRefraction(int mode)
-{
-    ALYSSAPAN_STUB("DrawObjectRefraction", 0x01836f30);
 }
 
 // stub of CT3 0x01835d40

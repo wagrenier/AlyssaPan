@@ -41,9 +41,15 @@ questions. Resolve items here when they are settled (move them to "Done" with th
      only the root's 2 files (the path table is root-only: item 3). Then the queue.
 1. **`main`'s TU first** -- **partial (2026-11-09):** slice 1 written (main, the boot and init functions,
    ControllerMain, tiItemInit, scene_end, the small draw passes; 15 functions); slice 2 (2026-11-09):
-   `GlobalDrawObject`, `scene_draw_init`, `system_end`, `get_draw_obj`; slice 3 (2026-11-09): `main_rtn`, `main_rtn_Particle`. Left in main.c:
-   `AllDrawObject`, `DrawObjectRefraction`, `ssHQDOF_DrawAllObject`, `main_rtn_Particle2`,
-   `main_rtn_DOF` / `_GHOST` / `_GHOST_DOF`, `scene_init` (stubs in main.c). Open from slice 2: (f) `ALL_TABLE` (All_table_TBL's records, ct3_types.h) is
+   `GlobalDrawObject`, `scene_draw_init`, `system_end`, `get_draw_obj`; slice 3 (2026-11-09): `main_rtn`, `main_rtn_Particle`; slice 4 (2026-11-09):
+   `DrawObjectRefraction`, `main_rtn_DOF`. Left in main.c:
+   `AllDrawObject`, `ssHQDOF_DrawAllObject`, `main_rtn_Particle2`,
+   `main_rtn_GHOST` / `_GHOST_DOF`, `scene_init` (stubs in main.c). Open from slice 4: (j) `BANK_TYPE_SHADOW`
+   (type 1) is also the type DrawObjectRefraction draws among banks 6..85: the name may be too narrow;
+   the bank loader TU names the type; (k) `CHARACTER_FLAG_REFRACTION` (0x80000000) is named from that one
+   use; (l) `MODEL_PARTS.kind` (+0x42) == 9 skips a part in the DOF slices (`PARTS_KIND_NO_DOF`), other
+   values unread; (m) `DRAW_OBJ_ENTRY.dofMode` (+0x10) is ssDOF_ClipObjectFromZRange's mode (< 2 tests
+   the object's view Z against DOF_NearClip / DOF_FarClip; >= 2 draws only when the near clip is -10000). Open from slice 2: (f) `ALL_TABLE` (All_table_TBL's records, ct3_types.h) is
    `layout: host` with pointer fields at EE 0x10..0x7c; the file TU decides whether the bank's relocated
    words become host pointers or stay `u_int` EE addresses; (g) settled by slice 3: `main_rtn(bank, mode, chara, flags, charaIndex, lastTex)` -- chara != 0 is the
    character pass (scene fog +0x28, Character[].lightBank's light), flags' low 15 bits the pass (0 and 4

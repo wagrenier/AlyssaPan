@@ -447,7 +447,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 132..132, 4 functions keyed by their statics, 18 unkeyed; file name from the names"
   },
   "game/main.c": {
-   "notes": "Smoke run: build green, layoutcheck OK, both new functions pass callcheck (GlobalDrawObject's flag is its static helper GlobalDrawBank); screenshot black, main2 is still a stub so no bank loads and main_rtn never draws. main_rtn_Particle2 left as a stub: it writes through a pointer at the draw object's +0x38 that overlaps +0x3c on a 64-bit host (open-items item 1 (h)); the bank loader TU must decide EE-layout draw objects with u_int addresses. Left in main.c: main_rtn_Particle2, main_rtn_DOF / GHOST / GHOST_DOF, AllDrawObject, DrawObjectRefraction, ssHQDOF_DrawAllObject, scene_init. screen_0 is a fixed 512x448 viewport the 3D TU must widen.",
+   "notes": "Smoke run: build green, layoutcheck OK; screenshot black, main2 is still a stub so no bank loads and no draw pass runs. callcheck flags DrawObjectRefraction like GlobalDrawObject: its calls live in the static helper RefractionDrawBank (the ROM inlines the body in both loops). ssDOF_ClipObjectFromZRange declared and stubbed. Left in main.c: AllDrawObject (reached stub, next), ssHQDOF_DrawAllObject, main_rtn_Particle2 (blocked, open-items 1 h), main_rtn_GHOST / GHOST_DOF, scene_init. Doubts j..m in open-items item 1.",
    "ranges": [
     [
      "01834440",
@@ -469,6 +469,11 @@
      "date": "2026-11-09 18:58",
      "status": "partial",
      "summary": "main.c slice 3: main_rtn (the bank list draw: sort, fog, 3dlib set-up, per-part texture / draw-ctrl / light / clip) and main_rtn_Particle (particle rings); DRAW_OBJ_ENTRY, TEX_INFO, MODEL_PARTS, FOG_INFO, PARTICLE_ENTRY / STATE, CHARACTER.lightBank; fogctrl, screen_0, FOG_mode, drawobj_attr, ParticleObject"
+    },
+    {
+     "date": "2026-11-09 19:11",
+     "status": "partial",
+     "summary": "main.c slice 4: DrawObjectRefraction (the refraction pass over type-1 banks 6..85 and refracting characters) and main_rtn_DOF (main_rtn for one depth-of-field slice); MODEL_PARTS.kind, DRAW_OBJ_ENTRY.dofMode, CHARACTER_FLAG_REFRACTION"
     }
    ],
    "status": "partial",

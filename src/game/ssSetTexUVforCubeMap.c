@@ -156,3 +156,10 @@ void ssPartMotionBlurInsertObjToDrawTable(int bank, void *table, void **list, in
 {
     ALYSSAPAN_STUB("ssPartMotionBlurInsertObjToDrawTable", 0x01896a90);
 }
+
+// stub of CT3 0x0189da90
+int ssDOF_ClipObjectFromZRange(u_char *obj, u_int mode)
+{
+    ALYSSAPAN_STUB("ssDOF_ClipObjectFromZRange", 0x0189da90);
+    return {};
+}
