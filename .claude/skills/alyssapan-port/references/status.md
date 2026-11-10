@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-09 22:53 at commit `0f0dc3a` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-09 23:18 at commit `6f09b49` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **136**; stubs: **219**
+- reconstructed CT3 functions: **167**; stubs: **229**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -49,8 +49,8 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/Character_Init.c` | 0 | 5 |
 | `src/game/Clipping_Portal.c` | 0 | 31 |
 | `src/game/LinkMatrixTree.c` | 0 | 4 |
-| `src/game/QuatSlerp.c` | 0 | 31 |
-| `src/game/SdMasterVolumeSetSE.c` | 0 | 21 |
+| `src/game/QuatSlerp.c` | 0 | 33 |
+| `src/game/SdMasterVolumeSetSE.c` | 0 | 29 |
 | `src/game/ahRelocateSunPs2ObjectArry.c` | 0 | 28 |
 | `src/game/ahalloc.c` | 7 | 0 |
 | `src/game/asEyeForcusUP2CamMat.c` | 0 | 7 |
@@ -63,7 +63,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/main.c` | 29 | 0 |
 | `src/game/main2.c` | 0 | 5 |
 | `src/game/movie.c` | 0 | 1 |
-| `src/game/sound.c` | 41 | 0 |
+| `src/game/sound.c` | 72 | 0 |
 | `src/game/ssGrpPortalCheck.c` | 0 | 11 |
 | `src/game/ssHitCheckAttackToScn.c` | 0 | 3 |
 | `src/game/ssSetTexUVforCubeMap.c` | 0 | 30 |
@@ -76,7 +76,7 @@ Least-named game-code regions (64 KB blocks):
 - 65 TUs: todo 56, partial 1, verify 8, done 2
 - next: **game/sound.c** (pinned in the queue)
 - pinned queue: game/sound.c, game/Character_Init.c, game/ArtoolDebugOpen.c, game/main2.c, game/fileio.c
-- partial: `game/sound.c` 39/69 -- Sound_system_init runs at boot and asks SdReqLoadSE for C_0000, T_0000, E_HAMMER, Z_REI; every Sd call is a stub (game/SdMasterVolumeSetSE.c is the next sound b
+- partial: `game/sound.c` 68/69 -- 68 of 69 written; only SSLoadSEfromLoadPoint is left: it reads fileio.c's load-point record (+0xd4, up to 5 rows of 0xc bytes, name pointer first), write it wit
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaInitDrawObject.c` 24/24 -- No ROM caller for the texture three (the game uses its sun* copies in QuatSlerp.c): complete, nothing on screen can show them. Shot black as before: packets go 
 - verify: `ga/gaInitInterrupt.c` 3/3 -- GCC object; wait_vsync_state (data 0x0192e790), ga_main_timer, ga_down_timer defined here. gaWaitVSync takes no argument and returns the CSR FIELD bit; main.c c
@@ -88,6 +88,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-09 23:18 `game/sound.c` partial: slice 2: 30 functions - SSProc, SSBGMProc and Branch1..5BGMProc (scene codes, chase BGM, T_BREAK), sound objects and trigger actions, positional SEs, volume sav
 - 2026-11-09 22:53 `game/sound.c` partial: slice 1: 38 of 69 functions - boot and end, SE and SQ entry points, the stage SQ rules (Branch1..5 SSPlaySQ/SSStopSQ), movie and demo mute, angle helpers; gFile
 - 2026-11-09 22:29 `game/AlignedNum.c` verify: AlignedNum, WaitLoop and IopLoadModule reconstructed (3 functions, the whole object)
 - 2026-11-09 22:22 `game/ahalloc.c` verify: SunAlloc block heaps: all 7 functions (init, alloc with alignment pads and splits, free with neighbour merges, border check, debug map)
@@ -95,20 +96,19 @@ Recent sessions:
 - 2026-11-09 21:53 `ga/gaInitDrawObject.c` verify: slice 2: the texture three -- gaSetupTBufferData (TEX0, CLAMP, MIPTBP1/2, TEXFLUSH and the upload record, GA_TEX_DESC / GA_TBUFFER_DATA), gaBGT_SetLoadGSEnv (BI
 - 2026-11-09 21:42 `ga/gaInitDrawObject.c` partial: slice 1: 21 of 24 functions -- the ga packet builders (gsinit, dbuffer with its 14 values, drawctrl with GA_DRAWCTRL_ARGS fields named, fogctrl), the scratchpad
 - 2026-11-09 21:11 `ga/gaVifInit.c` verify: gaVifInit, gaVUSync_VU0, gaVifcodeFlush_VIF1, gaVifcodeFlushe_VIF1, gaVIFSync_VIF0, gaVIFSync_VIF1 and the 18 vifcode qwords of .data 0x0192e640..0x0192e790 rec
-- 2026-11-09 20:50 `ga/gaDma.c` verify: ga DMA wrappers: all 16 functions; host scratchpad buffer, libdma SPR transfers, D_CTRL and D_ENABLEW registers
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `game/QuatSlerp.c` | todo | 0/31/177 | 50.3 | 152 | 14 |
+| `game/QuatSlerp.c` | todo | 0/33/177 | 50.3 | 155 | 14 |
+| `game/ssGrpPortalCheck.c` | todo | 0/11/59 | 26.4 | 147 | 7 |
+| `game/SdMasterVolumeSetSE.c` | todo | 0/29/61 | 22.9 | 117 | 7 |
 | `game/Clipping_Portal.c` | todo | 0/31/73 | 44.8 | 113 | 12 |
-| `game/ssGrpPortalCheck.c` | todo | 0/11/59 | 26.4 | 94 | 7 |
 | `game/ahRelocateSunPs2ObjectArry.c` | todo | 0/28/93 | 76.0 | 82 | 9 |
 | `game/wideXcmd_DebugPrint.c` | todo | 0/12/109 | 40.6 | 80 | 12 |
 | `game/ssSetTexUVforCubeMap.c` | todo | 0/30/96 | 35.3 | 64 | 5 |
-| `game/SdMasterVolumeSetSE.c` | todo | 0/21/61 | 22.9 | 58 | 7 |
 | `game/asEyeForcusUP2CamMat.c` | todo | 0/7/30 | 23.6 | 39 | 4 |
-| `ga/gaDmaSync_VIF1.c` | todo | 0/3/5 | 0.5 | 35 | 3 |
 | `game/fileio.c` | todo | 0/8/40 | 23.3 | 35 | 3 |
+| `ga/gaDmaSync_VIF1.c` | todo | 0/3/5 | 0.5 | 35 | 3 |
 | `game/Character_Init.c` | todo | 0/5/49 | 30.6 | 25 | 3 |
 | `game/main2.c` | todo | 0/5/18 | 6.2 | 21 | 3 |
 
@@ -116,22 +116,27 @@ Recent sessions:
 
 | CT3 addr | name | call sites | provenance | state | inferred file |
 |---|---|---|---|---|---|
-| `018d9470` | ssTrigSetVariable | 19 | sym | stub | game/ssGrpPortalCheck.c |
-| `018d9100` | ssTrigCheckEvent | 15 | sym | stub | game/ssGrpPortalCheck.c |
+| `018d9100` | ssTrigCheckEvent | 53 | sym | stub | game/ssGrpPortalCheck.c |
+| `018d1600` | SdSetEffect | 27 | sym | stub | game/SdMasterVolumeSetSE.c |
+| `018d9470` | ssTrigSetVariable | 21 | sym | stub | game/ssGrpPortalCheck.c |
+| `018d9430` | ssTrigGetVariable | 17 | sym | stub | game/ssGrpPortalCheck.c |
 | `01886690` | asChangeViewMatrix_forTheBank | 12 | sym | stub | game/asEyeForcusUP2CamMat.c |
 | `018a17f8` | gaBGT_DmaSendN_fromSPR_VIF1 | 12 | sym | stub | ga/gaDmaSync_VIF1.c |
 | `0185e360` | asCheckBankID | 11 | sym | stub | game/QuatSlerp.c |
+| `018cd190` | SdSetParamSE | 9 | sym | stub | game/SdMasterVolumeSetSE.c |
 | `018d95e0` | ssTrigRegisterEvent | 9 | sym | stub | game/ssGrpPortalCheck.c |
 | `0188ced0` | tiDrawShadingOff | 9 | sym | stub | game/Clipping_Portal.c |
 | `01893cf0` | ExportDrawToTex | 8 | sym | stub | game/Clipping_Portal.c |
 | `01858c90` | XcmdScreenFilter | 8 | sym | stub | game/QuatSlerp.c |
 | `018a7db8` | gaSet3dlibStruct | 7 | sym | stub | ga/gaInit3dlib.c |
+| `018ce0d0` | SdVolumeSQ | 7 | sym | stub | game/SdMasterVolumeSetSE.c |
 | `0185e380` | asCheckBankType | 6 | sym | stub | game/QuatSlerp.c |
 | `01854560` | tnInit3dlibWork | 6 | sym | stub | game/QuatSlerp.c |
 | `018a3078` | gaObjectClippingCheck | 6 | sym | stub | ga/gaObjectClippingCheck.c |
 | `018590b0` | sunBGT_LoadGSTexClutData_VIF1 | 6 | sym | stub | game/QuatSlerp.c |
 | `01859520` | sunBGT_ExecTBufferData_VIF1 | 6 | sym | stub | game/QuatSlerp.c |
 | `018a3150` | gaBGT_DrawObject | 6 | sym | stub | ga/gaBGT_DrawObject.c |
+| `018cc0f0` | SdStopSE | 6 | sym | stub | game/SdMasterVolumeSetSE.c |
 | `018d9560` | ssTrigRemoveEvent | 6 | sym | stub | game/ssGrpPortalCheck.c |
 | `01896920` | ssGetNumBlurDrawObjForScene | 5 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `018c23b0` | objSortWithBlurIdx | 5 | sym | stub | game/fileio.c |
@@ -143,17 +148,12 @@ Recent sessions:
 | `018a3d20` | gaBGT_DrawObject_NoClippingCheck2 | 4 | sym | stub | ga/gaBGT_DrawObject.c |
 | `018a1778` | gaDmaSendN_VIF1 | 4 | sym | stub | ga/gaDmaSync_VIF1.c |
 | `018a1740` | gaDmaSync_VIF1 | 4 | sym | stub | ga/gaDmaSync_VIF1.c |
-| `018d9430` | ssTrigGetVariable | 4 | sym | stub | game/ssGrpPortalCheck.c |
 | `018c7ec0` | fs_error | 4 | sym | stub | game/fileio.c |
+| `0185e150` | asFindModelPartsID | 4 | sym | stub | game/QuatSlerp.c |
 | `018db340` | asXcmd_AddForLockToTargChara | 3 | sym | stub | game/asXcmd.c |
+| `018ccde0` | SdFindPlaySE | 3 | sym | stub | game/SdMasterVolumeSetSE.c |
 | `018b4480` | SceneLightSet | 3 | sym | stub | game/Character_Init.c |
 | `0188df70` | tiDrawLensFlares | 3 | sym | stub | game/Clipping_Portal.c |
 | `01853620` | PanicFilter | 3 | sym | stub | game/QuatSlerp.c |
 | `018fb940` | asMonsterDistanceStack_inPanic | 3 | sym | stub | game/wideXcmd_DebugPrint.c |
-| `0188cdc0` | tiVibrationOff | 3 | sym | stub | game/Clipping_Portal.c |
-| `018b49f0` | CharLightSet | 3 | sym | stub | game/Character_Init.c |
-| `018f4fc0` | asCharacterOperate | 3 | sym | stub | game/wideXcmd_DebugPrint.c |
-| `0185e580` | ahGetHash | 3 | sym | stub | game/QuatSlerp.c |
-| `0185e150` | asFindModelPartsID | 3 | sym | stub | game/QuatSlerp.c |
-| `018fe370` | asSetCharacterKeyEnable | 3 | sym | stub | game/wideXcmd_DebugPrint.c |
 

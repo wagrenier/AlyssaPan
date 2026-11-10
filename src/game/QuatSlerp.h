@@ -22,10 +22,12 @@ void asWarpObjectBody(int a0, int a1);                                          
 void WarpObjectUpdate(void);                                                             // CT3 0x0185bd50
 void WarpObjectUpdateInit(void);                                                         // CT3 0x0185bf80
 void asWarpSceneObject(void *table, int maxId, float *pos);                              // CT3 0x0185c100
-int asFindModelPartsID(u_char *header, u_int hash);                                      // CT3 0x0185e150
+int asFindModelPartsID(u_char *header, u_long hash);                                     // CT3 0x0185e150
 int asCheckBankID(int bank);                                                             // CT3 0x0185e360
 int asCheckBankType(int bank);                                                           // CT3 0x0185e380
-u_int ahGetHash(const char *name);                                                       // CT3 0x0185e580
+u_long ahGetHash(const char *name);                                                      // CT3 0x0185e580
+void CameraMatrix2CameraTrg3m(float *trg);                                              // CT3 0x0185a5e0
+void CameraMatrix2CameraPos(float *pos);                                                 // CT3 0x0185a650
 void tnInit3dlibWork(void *work, void *spr);                                            // CT3 0x01854560
 int OneMaxObjectDrawZOnly(int bank, int index);                                          // CT3 0x01858f20
 void sunBGT_LoadGSTexClutData_VIF1(void *tbuffer);                                      // CT3 0x018590b0

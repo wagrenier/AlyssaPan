@@ -583,7 +583,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 109..109, 15 functions keyed by their statics, 6 unkeyed; source string movie.c"
   },
   "game/sound.c": {
-   "notes": "Sound_system_init runs at boot and asks SdReqLoadSE for C_0000, T_0000, E_HAMMER, Z_REI; every Sd call is a stub (game/SdMasterVolumeSetSE.c is the next sound blocker). Still stubs here: Branch1..5BGMProc, SSGetPositional and SetPositionalParam_* (Sd play records), SSAct*, SSFindSoundObj, SSAutoStartSoundRoomIn, SSLoadSEfromLoadPoint, SSSave/ReturnVolumeMidi (gSQLd), and 12 functions past the slice. SSStopSQ takes no stop when the stage is not 1..5 (the ROM reads an unset s0). Screenshot black as before: nothing draws yet, sound is not on the drawing path.",
+   "notes": "68 of 69 written; only SSLoadSEfromLoadPoint is left: it reads fileio.c's load-point record (+0xd4, up to 5 rows of 0xc bytes, name pointer first), write it with fileio.c. Callers of the slice (SSProc, SceneSELoad, BranchSELoad, the SSAct trigger actions) are in unwritten TUs, so no smoke run reaches them yet. Open-items (aa)..(ae): the SD_SE callback word vs host function pointers (Sd driver TU decides), trigger event names from sound.c only, ahGetHash and asFindModelPartsID now take a 64-bit hash, ALL_TABLE.sound at EE 0x54. Screenshot black as before: sound is not on the drawing path.",
    "ranges": [
     [
      "018c7fb0",
@@ -595,6 +595,11 @@
      "date": "2026-11-09 22:53",
      "status": "partial",
      "summary": "slice 1: 38 of 69 functions - boot and end, SE and SQ entry points, the stage SQ rules (Branch1..5 SSPlaySQ/SSStopSQ), movie and demo mute, angle helpers; gFileSE and gFileSQ tables; sdk/newlib strupr"
+    },
+    {
+     "date": "2026-11-09 23:18",
+     "status": "partial",
+     "summary": "slice 2: 30 functions - SSProc, SSBGMProc and Branch1..5BGMProc (scene codes, chase BGM, T_BREAK), sound objects and trigger actions, positional SEs, volume save and restore, SSPlayADS, SSPlaySESp1, SceneSELoad, BranchSELoad; Sd driver records (gSdSE, gSELd, gSQLd, gPlaySESp1, gPlayADS) typed"
     }
    ],
    "status": "partial",

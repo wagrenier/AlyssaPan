@@ -109,7 +109,7 @@ void ssMenuUpdate(int mode)
 }
 
 // stub of CT3 0x0185e580
-u_int ahGetHash(const char *name)
+u_long ahGetHash(const char *name)
 {
     ALYSSAPAN_STUB("ahGetHash", 0x0185e580);
     return {};
@@ -123,7 +123,7 @@ int asCheckBankID(int bank)
 }
 
 // stub of CT3 0x0185e150
-int asFindModelPartsID(u_char *header, u_int hash)
+int asFindModelPartsID(u_char *header, u_long hash)
 {
     ALYSSAPAN_STUB("asFindModelPartsID", 0x0185e150);
     return {};
@@ -195,4 +195,16 @@ void TexFileSetInit(int scene)
 void EventSoundEnd(void)
 {
     ALYSSAPAN_STUB("EventSoundEnd", 0x018532a0);
+}
+
+// stub of CT3 0x0185a650
+void CameraMatrix2CameraPos(float *pos)
+{
+    ALYSSAPAN_STUB("CameraMatrix2CameraPos", 0x0185a650);
+}
+
+// stub of CT3 0x0185a5e0
+void CameraMatrix2CameraTrg3m(float *trg)
+{
+    ALYSSAPAN_STUB("CameraMatrix2CameraTrg3m", 0x0185a5e0);
 }

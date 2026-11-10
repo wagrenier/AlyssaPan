@@ -104,6 +104,7 @@ typedef struct ALL_TABLE {
     float *light;                       /* EE 0x28: [2] (+8) scales a character's lit parts (main_rtn) */
     u_char *partsHeader;                /* EE 0x2c: the MODEL_PARTS header (scene_init -> pModelPartsHeader;
                                            InitMatrixTree, asBuildMirrorMatrixTree / _Back) */
+    struct SOUND_OBJ_TABLE *sound;      /* EE 0x54: the scene's sound objects (sound.c's SSFindSoundObj) */
     void **particles;                   /* EE 0x58: main_rtn_Particle's list */
     void **objAfter;                    /* EE 0x60: after the particles; non-empty -> ExportDrawToTex */
     float *partsLight;                  /* EE 0x70: per model part: TEX_KIND_LIGHT parts' DRAW_OBJ_LIGHT */
@@ -113,6 +114,25 @@ typedef struct ALL_TABLE {
     void *behavior;                     /* EE 0xbc: scene_init -> pBehaviorHeader[bank] */
 } ALL_TABLE;
 static_assert(offsetof(ALL_TABLE, partsPos) == 0x10, "ALL_TABLE.partsPos");
+
+// A bank's sound objects (ALL_TABLE.sound): the sources the trigger actions and room-in start play.
+// layout: ee -- bank data; objs is a relocated word (BankEePtr, open-items.md item 1 h).
+typedef struct SOUND_OBJ_TABLE {
+    int unk00;                          /* 0x00 */
+    u_int objs;                         /* 0x04: EE address of SOUND_OBJ[], ended by id 0 */
+} SOUND_OBJ_TABLE;
+static_assert(sizeof(SOUND_OBJ_TABLE) == 0x8, "SOUND_OBJ_TABLE");
+static_assert(offsetof(SOUND_OBJ_TABLE, objs) == 0x4, "SOUND_OBJ_TABLE.objs");
+typedef struct SOUND_OBJ {              /* 0x28 bytes */
+    int id;                             /* 0x00: the trigger tables' sound object id; 0 ends the list */
+    int seNo;                           /* 0x04: the C_0000 SE it plays */
+    int autoStart;                      /* 0x08: != 0: plays when the room is entered */
+    u_char pad0c[0x18];
+    int positional;                     /* 0x24: != 0: SetPositionalParam_Alys pans it every frame */
+} SOUND_OBJ;
+static_assert(sizeof(SOUND_OBJ) == 0x28, "SOUND_OBJ");
+static_assert(offsetof(SOUND_OBJ, positional) == 0x24, "SOUND_OBJ.positional");
+#define SOUND_OBJ_MAX 1000              /* SSAutoStartSoundRoomIn's scan bound */
 
 #define PARTS_POS_HIDDEN_W -255.0f      /* ALL_TABLE.partsPos[i][3] at or below: the part is not drawn */
 
@@ -125,12 +145,15 @@ typedef struct MODEL_PARTS {
     int attr;                           /* 0x44: copied into the part's draw object (+0x3c) every draw */
     u_char pad048[8];
     u_int flags;                        /* 0x50: PARTS_FLAG_* */
-    u_char pad054[0x32c];
+    u_char pad054[0xdc];
+    float pos[4];                       /* 0x130: the part's position (SSGetPositional: a sound source) */
+    u_char pad140[0x240];
 } MODEL_PARTS;
 static_assert(sizeof(MODEL_PARTS) == 0x380, "MODEL_PARTS");
 static_assert(offsetof(MODEL_PARTS, kind) == 0x42, "MODEL_PARTS.kind");
 static_assert(offsetof(MODEL_PARTS, attr) == 0x44, "MODEL_PARTS.attr");
 static_assert(offsetof(MODEL_PARTS, flags) == 0x50, "MODEL_PARTS.flags");
+static_assert(offsetof(MODEL_PARTS, pos) == 0x130, "MODEL_PARTS.pos");
 
 #define PARTS_FLAG_FOG 0x1              /* a fog volume: never drawn; the bank's fog part sets FOG_mode */
 #define PARTS_KIND_NO_DOF 9             /* MODEL_PARTS.kind: not drawn in the depth-of-field slices */

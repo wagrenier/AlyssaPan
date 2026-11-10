@@ -102,7 +102,20 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    SdPlaySQ arguments named sdArg2 / sdArg5 / sdArg6 until that TU reads them; (y) TRIG_VAR_STAGE (0x1d),
    TRIG_EVENT_SE_MUTE (0xb7), the stage-1 SQ events 0x3b1 / 0x3ba / 0x3bd / 0x3bf and STAGE_BGM_* are
    named from sound.c's use only; (z) gBfoScene / gNowScene / gStereo / gMasterVol* / gPlaySESp1 sit in
-   lib/unassigned_data.cpp until their owner, with the ROM's initial values),
+   lib/unassigned_data.cpp until their owner, with the ROM's initial values), slice 2 (2026-11-09: 68 of 69 -- SSProc /
+   SSBGMProc / Branch1..5BGMProc, the sound objects and trigger actions, positional SEs, volume save and
+   restore, SSPlayADS, SSPlaySESp1, SceneSELoad / BranchSELoad; left: SSLoadSEfromLoadPoint, which reads
+   fileio.c's load-point record +0xd4 (a pointer to up to 5 rows of 0xc bytes, name pointer first): write
+   it with fileio.c's TU. Open: (aa) `SD_SE.callback` (+0x50) is an EE code word in a 0x54-byte record,
+   but SdSetParamSE / SdReqPlaySESp1 now receive host function pointers (SetPositionalParam_*): the Sd
+   driver TU decides the host form (a table index, or a host-layout record); (ab) the trigger events and
+   variables SSBGMProc / BranchNBGMProc use (0x9a boss battle, 0x49 Alyssa falls, 0x51, 0x96, 0xc9 / 0xd4
+   chase, 0x53 / 0x54 T_BREAK, 0x26 piano volume, 0x58 quiet, the stage rooms' events) are named from
+   sound.c's use only; (ac) `ahGetHash` / `asFindModelPartsID` now take a 64-bit hash (u_long): the ROM
+   compares 0x3161c34c2 and 0x74dda77d0cbcf0c2, so main.c's Omni lookups pass 64-bit hashes too -- confirm
+   when QuatSlerp.c's hash functions are written; (ad) `ALL_TABLE.sound` (EE 0x54) is a host pointer like
+   its neighbours, its `objs` an EE word read with BankEePtr (decision h); (ae) `ADS_FILE.loop` is named
+   from the table's pattern only),
    game/Character_Init.c, game/ArtoolDebugOpen.c, game/main2.c,
    game/fileio.c.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like

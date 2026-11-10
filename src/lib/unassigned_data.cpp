@@ -2,6 +2,7 @@
 // declares them (game/main.c first, 2026-11-09). Initialised data carries the ELF's bytes (read from
 // SLUS_206.33 at the address given); everything else is .sbss / .bss, zero. Each moves to its TU.
 #include "game/unassigned_data.h"
+#include "game/SdMasterVolumeSetSE.h"
 
 #include <string.h>
 
@@ -92,6 +93,7 @@ u_char MoviePlayCheck;                          /* sbss 0x0194238c */
 u_char MovieEndCheck;                           /* sbss 0x01942388 */
 int ControlDisableflag;                         /* sbss 0x01944830 */
 int TexFileSysInitStop;                         /* sbss 0x01941694 */
+int Player_BankID;                              /* sbss 0x01941698 */
 int anim_play_slow = 100;                       /* sdata 0x01937600 */
 
 BANK_INFO BankInfo[BANK_MAX];                   /* bss  0x01aea360 */
@@ -127,6 +129,7 @@ int PlayerPanicMode;                            /* sbss 0x019401c0 */
 int MonsterHpDispCounter;                       /* sbss 0x019401bc */
 int MonsterHpDispCharID;                        /* sbss 0x019401b8 */
 u_char *pBossInfo;                              /* sbss 0x0193f78c */
+int MC_NOW_LOADING;                             /* sbss 0x0193f9dc */
 char sFirstCheck = 1;                           /* sdata 0x01939c8c */
 int save_count;                                 /* sbss 0x0193fa20 */
 int msg_num;                                    /* sbss 0x0193fa14 */
@@ -282,4 +285,8 @@ int gStereo = 1;                                /* sdata 0x0193a4dc */
 int gMasterVolSE = 0xff;                          /* sdata 0x0193a4e0 */
 int gMasterVolSQ = 0xff;                          /* sdata 0x0193a4e4 */
 int gMasterVolADS = 0xff;                         /* sdata 0x0193a4e8 */
-u_char gPlaySESp1[0x104];                       /* bss  0x019436d0 */
+PLAY_SE_SP1 gPlaySESp1[PLAY_SE_SP1_COUNT];      /* bss  0x019436d0 (SdMasterVolumeSetSE.c) */
+SD_SQ_LD gSQLd[SD_SQ_LD_COUNT];                 /* bss  0x01943340 (SdMasterVolumeSetSE.c) */
+char gPlayADS[0x90];                            /* bss  0x019437f0 (SdMasterVolumeSetSE.c) */
+SD_SE gSdSE[SD_SE_COUNT];                       /* bss  0x01c848c0 (SdMasterVolumeSetSE.c) */
+SD_SE_LD gSELd[SD_SE_LD_COUNT];                 /* bss  0x01c85400 (SdMasterVolumeSetSE.c) */

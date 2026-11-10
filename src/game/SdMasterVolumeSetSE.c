@@ -134,3 +134,56 @@ void SdVolumeSQ(const char *name, int vol, int a2)
 {
     ALYSSAPAN_STUB("SdVolumeSQ", 0x018ce0d0);
 }
+
+// stub of CT3 0x018cde40
+void SdPlayStream(const char *name, int vol, int a2, int loop)
+{
+    ALYSSAPAN_STUB("SdPlayStream", 0x018cde40);
+}
+
+// stub of CT3 0x018cd190
+int SdSetParamSE(int handle, u_int mask, ...)
+{
+    ALYSSAPAN_STUB("SdSetParamSE", 0x018cd190);
+    return {};
+}
+
+// stub of CT3 0x018cc0f0
+void SdStopSE(int handle)
+{
+    ALYSSAPAN_STUB("SdStopSE", 0x018cc0f0);
+}
+
+// stub of CT3 0x018cc2a0
+int SdStopSESp1(int jls, int a1, int a2)
+{
+    ALYSSAPAN_STUB("SdStopSESp1", 0x018cc2a0);
+    return {};
+}
+
+// stub of CT3 0x018ccde0
+SD_SE * SdFindPlaySE(int handle)
+{
+    ALYSSAPAN_STUB("SdFindPlaySE", 0x018ccde0);
+    return {};
+}
+
+// stub of CT3 0x018cc220
+void SdStopSESp1ByHandle(int handle)
+{
+    ALYSSAPAN_STUB("SdStopSESp1ByHandle", 0x018cc220);
+}
+
+// stub of CT3 0x018ce310
+void SdStopSQAll(int fade)
+{
+    ALYSSAPAN_STUB("SdStopSQAll", 0x018ce310);
+}
+
+// stub of CT3 0x018cc350
+int SdReqPlaySESp1(int jls, int a1, int a2, int a3, int a4, int a5, int a6, void (*update)(int handle), int a7,
+                   int a8)
+{
+    ALYSSAPAN_STUB("SdReqPlaySESp1", 0x018cc350);
+    return {};
+}

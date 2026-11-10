@@ -70,6 +70,7 @@ extern u_char MoviePlayCheck;                   /* sbss 0x0194238c */
 extern u_char MovieEndCheck;                    /* sbss 0x01942388 */
 extern int ControlDisableflag;                  /* sbss 0x01944830 */
 extern int TexFileSysInitStop;                  /* sbss 0x01941694 */
+extern int Player_BankID;                       /* sbss 0x01941698: the player character's Character[] index */
 extern int anim_play_slow;                      /* sdata 0x01937600: 100 */
 
 // ---- scenes and banks --------------------------------------------------------------------------------
@@ -107,6 +108,7 @@ extern int PlayerPanicMode;                     /* sbss 0x019401c0 */
 extern int MonsterHpDispCounter;                /* sbss 0x019401bc */
 extern int MonsterHpDispCharID;                 /* sbss 0x019401b8 */
 extern u_char *pBossInfo;                       /* sbss 0x0193f78c: byte +0x91 = Alyssa's own light belt */
+extern int MC_NOW_LOADING;                      /* sbss 0x0193f9dc: != 0 while the memory card loads (SSBGMProc pauses the chase BGM rule) */
 extern char sFirstCheck;                        /* sdata 0x01939c8c */
 extern int save_count;                          /* sbss 0x0193fa20 */
 extern int msg_num;                             /* sbss 0x0193fa14 */
@@ -163,4 +165,4 @@ extern int gStereo;                             /* sdata 0x0193a4dc: 1 = stereo 
 extern int gMasterVolSE;                        /* sdata 0x0193a4e0: 0..255 */
 extern int gMasterVolSQ;                        /* sdata 0x0193a4e4: 0..255 */
 extern int gMasterVolADS;                       /* sdata 0x0193a4e8: 0..255 */
-extern u_char gPlaySESp1[0x104];                /* bss  0x019436d0: the Sd driver's special-SE state */
+// gPlaySESp1, gSQLd, gSdSE, gSELd: declared in game/SdMasterVolumeSetSE.h (their owner), defined in lib/unassigned_data.cpp.

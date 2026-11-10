@@ -347,3 +347,25 @@ the stub `gameMain` (`main`, CT3 0x01839d10) in `src/lib/unassigned_stubs.cpp`.
   restart it after a movie; a chase BGM (`gPlayingChaseBGM`) blocks them.
 - The option menu's 0..20 volume buffers become the driver's 0..255 in SSSetSoundMode.
 
+- (slice 2) **Scene codes are room names.** `gNowScene` / `gBfoScene` hold the current bank's file name's
+  first four letters as a little-endian word ("5A02" = 0x32304135; boot sets "Nxxx" / "Bxxx"). SSBGMProc
+  reads it each frame from `BankInfo[idCurrentScene].name` when that bank is a loaded single bank past
+  bank 5; a change runs the stage's BranchNBGMProc once with sceneChange 1 (start / stop BGM, reverb via
+  `SdSetEffect(1, 3, depth)` or dry `SdSetEffect(1, 0, 0)`), otherwise it runs per frame with 0.
+- (slice 2) **The chase BGM** (TUISEKI on stages 1-2, TUISEKI2 on 3-4) plays while trigger event 0xc9 or
+  0xd4 holds and stops 15 frames after (`gChaseStopDelay`), the stage BGM coming back; trigger variable
+  0x4d == 1 keeps it off. Variable 0x58 (SSProc) turns music down (1: to 0x28, 2: silent) and SEs off.
+  The boss battle (event 0x9a) runs a T_BREAK.ADS countdown (0x294 / 900 frames) into 22.ADS (23.ADS on
+  stage 5). Stage enemy SE banks (BranchSELoad): 1 E_HAMMER, 2 E_RYUSAN, 3 E_ONO, 4 E_SWO, 5 E_BAL.
+- (slice 2) **The Sd driver's records** sound.c reads (SdMasterVolumeSetSE.h, EE layout): `gSdSE`
+  (0x01c848c0, 34 x 0x54: one playing SE, its fields set through `SdSetParamSE(handle, mask, ...)`, whose
+  mask bits each take the next argument -- 0x80000000 vol +0x34, 0x40000000 pan +0x38, 0x20000000 +0x30,
+  0x10000000 posVol +0x3c, 0x100000 posMode +0x1c, 0x80000 objId +0x20, 0x40000 bank +0x24, 0x20000 name
+  +0x40, 0x10000 callback +0x50), `gSELd` (0x01c85400, 10 x 0x1c0 bank loads: name +0x3c, slot +0x78),
+  `gSQLd` (0x01943340, 2 x 0x1c0 SQ players: name +0x38, start volume +0x9c, flags +0xa0, target volume
+  +0xac), `gPlaySESp1` (0x019436d0, 5 x 0x34 special SEs), `gPlayADS` (0x019437f0, the stream's name first).
+- (slice 2) **Positional SEs.** A bank's sound objects (`ALL_TABLE.sound`, EE 0x54 -> `SOUND_OBJ_TABLE`,
+  objs at +4: 0x28-byte `SOUND_OBJ` {id, seNo, autoStart, ..., positional +0x24}) start on room entry; a
+  positional one gets `SetPositionalParam_Alys` as its per-frame callback: the source is model part objId
+  of the bank (`MODEL_PARTS.pos`, +0x130), heard from the player's `posBefore` (or the camera), volume
+  0x7f minus 3 per 55 units, pan 0..0x7f from the angle to the camera's view.

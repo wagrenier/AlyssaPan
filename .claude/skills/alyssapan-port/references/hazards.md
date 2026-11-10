@@ -7,6 +7,21 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-09, game/sound.c slice 2) **CodeWarrior passes leftover registers as arguments.** Where the
+  source's call has fewer arguments than the callee reads (old-style C, no prototype), the callee gets
+  whatever the register holds: the decompiler then shows the call short (`SSStopSQ(name)`) or with a stray
+  value (`SdStopSEAll(0x9a)`). Read the listing: in sound.c the register mostly held a constant the code
+  had just compared with (a1 = 1 -> `SSStopSQ(name, 1)`, `SSSaveVolumeMidi(0, 1)`), once a value just
+  read (`SSPlaySQ("PIANO", ssTrigGetVariable(0x26))`), once a field loaded for a compare (t0 = SD_SE
+  +0x30 as SdSetParamSE's fifth argument). Write the value the register holds, and say so in a comment.
+- (2026-11-09, game/sound.c slice 2) **Ghidra inlined a tail jump.** `SSActLoadBankSE` (8 bytes: `j
+  SSLoadSE`, a1 = 0) decompiled as SSLoadSE's whole body; callcheck caught it (missing SSLoadSE). An
+  8-byte function is a tail call: check the size before copying the decompiler's body.
+- (2026-11-09, game/sound.c slice 2) **One counter for two loops.** `SSReturnVolumeSE_CheckLoopSE` scans
+  gSELd and sLoopSE with the same variable (s0): when the first loaded bank in the slot is not in sLoopSE,
+  the inner scan leaves it at 12 and the outer one ends too (answer 0, later slots unread). The port keeps
+  the ROM's behaviour.
+
 - (2026-11-09, game/ahalloc.c) **A stubbed AlignedNum breaks every SunAlloc.** `_SunAlloc` sizes a
   block as AlignedNum(size, align) + header; the stub answers 0, so each block would be a bare header and
   the user's bytes would overwrite the next block. No smoke run reaches `_SunAlloc` yet; game/AlignedNum.c
