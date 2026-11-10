@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-10 08:01 at commit `cd60432` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-10 08:10 at commit `75b70d3` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **414**; stubs: **237**
+- reconstructed CT3 functions: **414**; stubs: **236**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -80,10 +80,9 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 48, partial 4, verify 13, done 3
-- next: **game/ahRelocateSunPs2ObjectArry.c** (pinned in the queue)
-- pinned queue: game/ahRelocateSunPs2ObjectArry.c, game/fileio.c
-- partial: `game/ahRelocateSunPs2ObjectArry.c` 93/93 -- Left in the TU: the general body of ExecuteAnimation (marked stub; no caller reaches it yet). Shot still black, crash unchanged at main.c:2106 (ActressMP NULL).
+- 65 TUs: todo 48, partial 3, verify 14, done 3
+- next: **game/fileio.c** (pinned in the queue)
+- pinned queue: game/fileio.c
 - partial: `game/fileio.c` 33/40 -- Written: FSMltLoadProc (steps FSMLT_*), ReserveBank, Extract; FQUE +0 is dir. The first global bank now loads and the run crashes in scene_init (main.c) reading
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaInitDrawObject.c` 24/24 -- No ROM caller for the texture three (the game uses its sun* copies in QuatSlerp.c): complete, nothing on screen can show them. Shot black as before: packets go 
@@ -94,6 +93,7 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/ArtoolDebugOpen.c` 15/15 -- Smoke run: FlInit prints no error, so the pack directory loads and sceCdSearchFile finds the pack; no run reads a file yet (main2 and fileio.c are stubs), the s
 - verify: `game/Character_Init.c` 48/49 -- All 49 functions written; nothing on screen reaches the card yet (main2 is a stub), shot black as before. The save image layout is in architecture.md (The save 
 - verify: `game/LinkMatrixTree.c` 4/4 -- Code complete, nothing on screen shows it yet: the smoke run still crashes at main.c 2106 (ActressMP NULL, the known blocker) and the shot stays black. LinkMatr
+- verify: `game/ahRelocateSunPs2ObjectArry.c` 93/93 -- All 93 functions written; nothing reaches the general body yet (the two written callers pass one flag each; asCharacterAnimationExecute and asResetCharacterPosi
 - verify: `game/ahalloc.c` 7/7 -- Host block header is 0x20 bytes (EE 0x10). SunAllocInit runs at boot; nothing calls _SunAlloc yet. AlignedNum is a stub answering 0, so game/AlignedNum.c is que
 - verify: `game/main.c` 29/29 -- Smoke run: build green, layoutcheck OK, callcheck: main_rtn_Particle2 matches the ROM (extra BankEePtr only); AllDrawObject / GlobalDrawObject / DrawObjectRefra
 - verify: `game/main2.c` 18/18 -- Smoke run leaves main2 and runs the frame loop with no crash; the shot stays black because FSMltLoad (fileio.c) is a stub so no bank loads. PORT BankReady skips
@@ -101,6 +101,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-10 08:10 `game/ahRelocateSunPs2ObjectArry.c` verify: slice 15: ExecuteAnimation's general body (any mix of play, replay and matOnly: time1c shift, key at this frame's ticks, pose write, replay set or blend, the EA
 - 2026-11-10 08:01 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 14: asCheckAnimationFlamePassing_S (time1c pass test, forward / backward / either, character motion behaviour), asShadowEnd (shadow buffer fold, then the 
 - 2026-11-10 07:41 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 13: asShadowPolygonPositions (casters to volume quads: lit-face edges and segment rings, plus or minus by the camera side of the light-edge plane, the ang
 - 2026-11-10 07:12 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 12: asMakeMirrorMatrixByPlane (mrr_ReverseMatrix from the mirror plane: RY, RX, the Y flip, the plane offset row), asSceneAnimationStop_S and asCheckAnima
@@ -108,7 +109,6 @@ Recent sessions:
 - 2026-11-10 06:31 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 10: asShadowDrawing_CheckTransMode (the shadow pass order, BID front and back, the ROM's shared index kept), asSceneAnimationStart (scene tracks by kind s
 - 2026-11-10 06:20 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 9: InterpolateAnimationKey and IAK_0 (play modes once / loop, forward and reverse, the slow-speed snap, the key search and the per-kind key write, ANIM_SU
 - 2026-11-10 05:54 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 8: ExecuteAnimation dispatch (play / replay / matOnly to EA_100 / EA_010 / EA_001, the general body a marked stub), EA_100 the per-frame scene pass (histo
-- 2026-11-10 05:34 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 7: asStartAnimation, asDecInterpolateTicks, asGetBehaviorPlayingTicks, asBehaviorActEndAnimation, asForceOperateMirroring_Character, asBuildDOFMatrixTree 
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|

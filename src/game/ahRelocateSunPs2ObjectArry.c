@@ -2405,10 +2405,11 @@ static int IsPoseTrack(int kind)
         || kind == TRACK_KIND_POS || kind == TRACK_KIND_ROT;
 }
 
-// Rows 0..2 at rows: the key's quaternion (ticks 0), or the slerp from the rows' own by w.
-static void PoseRotKey(float *rows, const short *key, int ticks, float *w)
+// Rows 0..2 at rows: the key's quaternion (ticks 0), or the slerp from the rows' own by w. q is the
+// caller's scratch vector (the ROM's one stack slot, which ExecuteAnimation's replay kinds read on).
+static void PoseRotKey(float *rows, const short *key, int ticks, float *w, float *q)
 {
-    alignas(16) float q[4], q0[4], qs[4];
+    alignas(16) float q0[4], qs[4];
     alignas(16) float m[4][4];
     asZipQuat2Quat(q, key);
     if (ticks == 0) {
@@ -2424,10 +2425,10 @@ static void PoseRotKey(float *rows, const short *key, int ticks, float *w)
     memcpy(rows, m, 0x30);
 }
 
-// A position key (TRACK_KEY_RAW: a float[4] at keys + 0x10) into dst, or blended in by w.
-static void PosePosKey(float *dst, const BEHAVIOR_TRACK *tr, const u_char *keys, int ticks, float *w)
+// A position key (TRACK_KEY_RAW: a float[4] at keys + 0x10) into dst, or blended in by w (v: the
+// caller's scratch vector, as PoseRotKey's q).
+static void PosePosKey(float *dst, const BEHAVIOR_TRACK *tr, const u_char *keys, int ticks, float *w, float *v)
 {
-    alignas(16) float v[4];
     if (tr->length & TRACK_KEY_RAW) {
         if (ticks == 0)
             memcpy(dst, keys + 0x10, 0x10);
@@ -2441,6 +2442,69 @@ static void PosePosKey(float *dst, const BEHAVIOR_TRACK *tr, const u_char *keys,
     }
 }
 
+// A running pose track's key (where InterpolateAnimationKey left it) into its group's part: set when
+// the parts header's ticks are 0, else blended by w; the part is marked PARTS_ANIM_DIRTY. Other kinds
+// are left alone. tmp: the caller's scratch vector (PosePosKey).
+static void PoseTrack(int bank, u_char *part, const BEHAVIOR_TRACK *tr, int ticks, float *w, float *tmp)
+{
+    const u_char *keys = BANK_PTR(const u_char *, bank, tr->keys); /* read after the call, as the ROM */
+    switch (tr->kind) {
+    case TRACK_KIND_VECTOR: {
+        float *dst = (float *)(part + PARTS_ANIM_VECTOR);
+        if (ticks == 0) {
+            asZipVECTOR2VECTOR_XYZ1(dst, (const short *)(keys + 8));
+        } else {
+            asZipVECTOR2VECTOR_XYZ1(tmp, (const short *)(keys + 8));
+            asInterpolateVector(dst, dst, tmp, w);
+        }
+        break;
+    }
+    case TRACK_KIND_BASE_POS:
+    case TRACK_KIND_POS:
+        PosePosKey((float *)(part + (tr->kind == TRACK_KIND_POS ? PARTS_ANIM_POS : PARTS_ANIM_BASE_POS)),
+                   tr, keys, ticks, w, tmp);
+        break;
+    case TRACK_KIND_BASE_ROT:
+    case TRACK_KIND_ROT:
+        PoseRotKey((float *)(part + (tr->kind == TRACK_KIND_ROT ? PARTS_ANIM_ROT : PARTS_ANIM_BASE_ROT)),
+                   (const short *)(keys + 8), ticks, w, tmp);
+        break;
+    default:
+        return;
+    }
+    part[PARTS_ANIM_FLAGS] |= PARTS_ANIM_DIRTY;
+}
+
+// The EA_001_PART_HASH part's track at its key 0, as EA_001 builds it: BASE_POS row 3 of base (done
+// byte 3), POS row 3 of local (1), BASE_ROT rows 0..2 of base (2), ROT rows 0..2 of local (0).
+static void MatKey(int bank, BEHAVIOR_TRACK *tr, float (*base)[4], float (*local)[4], u_char *done, float *tmp)
+{
+    const u_char *keys;
+    int slot;
+    float *dst = NULL;
+    switch (tr->kind) {
+    case TRACK_KIND_BASE_POS: slot = 3; dst = base[3]; break;
+    case TRACK_KIND_POS: slot = 1; dst = local[3]; break;
+    case TRACK_KIND_BASE_ROT: slot = 2; break;
+    case TRACK_KIND_ROT: slot = 0; break;
+    default: return;
+    }
+    InterpolateAnimationKey(tr, 0);
+    keys = BANK_PTR(const u_char *, bank, tr->keys);
+    if (dst != NULL) {
+        if (tr->length & TRACK_KEY_RAW)
+            memcpy(dst, keys + 0x10, 0x10);
+        else
+            asZipTrans2Trans_XYZ1(dst, (const short *)(keys + 8), TRACK_KEY_SHIFT(tr->length));
+    } else {
+        alignas(16) float rot[4][4];
+        asZipQuat2Quat(tmp, (const short *)(keys + 8));
+        ConvertQuat2Matrix(rot, tmp);
+        memcpy(slot == 2 ? base : local, rot, 0x30);
+    }
+    done[slot] = 1;
+}
+
 // CT3 0x0184d1a0
 // Every running track of the behaviour takes its key at this frame's ticks (anim_play_slow *
 // gGlobalNextTicksInterval * playRate / 100; atKey: where it stands) and, for a pose kind, puts it in
@@ -2449,7 +2513,8 @@ static void PosePosKey(float *dst, const BEHAVIOR_TRACK *tr, const u_char *keys,
 // does (every done byte set). Every track's time1c shifts up and takes time / 100. The call is
 // recorded for the history first; the ticks are counted down after. 1 when no track runs on.
 // PORT: (bank, anim) for the behaviour's EE word.
-// callcheck: ConvertMatrix2Quat, QuatSlerp (in PoseRotKey)
+// callcheck: ConvertMatrix2Quat, QuatSlerp, ConvertQuat2Matrix, asInterpolateVector, asZipQuat2Quat,
+// callcheck: asZipTrans2Trans_XYZ1, asZipVECTOR2VECTOR_XYZ1 (in PoseTrack, PoseRotKey, PosePosKey, MatKey)
 int EA_100(int bank, u_int anim, ALL_TABLE *tbl, float (*mat)[4], int atKey)
 {
     BEHAVIOR *bhv = BANK_PTR(BEHAVIOR *, bank, anim);
@@ -2460,6 +2525,7 @@ int EA_100(int bank, u_int anim, ALL_TABLE *tbl, float (*mat)[4], int atKey)
     alignas(16) float local[4][4] = { { 1, 0, 0, 0 }, { 0, 1, 0, 0 }, { 0, 0, 1, 0 }, { 0, 0, 0, 1 } };
     alignas(16) float base[4][4] = { { 1, 0, 0, 0 }, { 0, 1, 0, 0 }, { 0, 0, 1, 0 }, { 0, 0, 0, 1 } };
     alignas(16) float w[4] = { 0, 0, 0, 0 };
+    alignas(16) float tmp[4] = { 0, 0, 0, 0 };
     u_char done[4] = { 0, 0, 0, 0 };
     u_int elapsed = 0;
     int running = 0;
@@ -2478,7 +2544,6 @@ int EA_100(int bank, u_int anim, ALL_TABLE *tbl, float (*mat)[4], int atKey)
             if (tr->playing == TRACK_PLAYING) {
                 int pose = IsPoseTrack(tr->kind);
                 int end = InterpolateAnimationKey(tr, atKey ? 0 : (int)elapsed);
-                const u_char *keys;
                 if (hdr[0] == ANIM_CTRL_HOLD) {
                     running = 1;
                     if (end != 0) {
@@ -2492,62 +2557,9 @@ int EA_100(int bank, u_int anim, ALL_TABLE *tbl, float (*mat)[4], int atKey)
                 } else {
                     tr->playing = pose ? 0 : TRACK_ACT_END;
                 }
-                keys = BANK_PTR(const u_char *, bank, tr->keys); /* read after the call, as the ROM */
-                switch (tr->kind) {
-                case TRACK_KIND_VECTOR: {
-                    alignas(16) float v[4];
-                    float *dst = (float *)(part + PARTS_ANIM_VECTOR);
-                    if (ticks == 0) {
-                        asZipVECTOR2VECTOR_XYZ1(dst, (const short *)(keys + 8));
-                    } else {
-                        asZipVECTOR2VECTOR_XYZ1(v, (const short *)(keys + 8));
-                        asInterpolateVector(dst, dst, v, w);
-                    }
-                    part[PARTS_ANIM_FLAGS] |= PARTS_ANIM_DIRTY;
-                    break;
-                }
-                case TRACK_KIND_BASE_POS:
-                case TRACK_KIND_POS:
-                    PosePosKey((float *)(part + (tr->kind == TRACK_KIND_POS ? PARTS_ANIM_POS : PARTS_ANIM_BASE_POS)),
-                               tr, keys, ticks, w);
-                    part[PARTS_ANIM_FLAGS] |= PARTS_ANIM_DIRTY;
-                    break;
-                case TRACK_KIND_BASE_ROT:
-                case TRACK_KIND_ROT:
-                    PoseRotKey((float *)(part + (tr->kind == TRACK_KIND_ROT ? PARTS_ANIM_ROT : PARTS_ANIM_BASE_ROT)),
-                               (const short *)(keys + 8), ticks, w);
-                    part[PARTS_ANIM_FLAGS] |= PARTS_ANIM_DIRTY;
-                    break;
-                default:
-                    break;
-                }
-                if (mat != NULL && ((MODEL_PARTS *)part)->hash == EA_001_PART_HASH) {
-                    int slot = -1;
-                    float *dst = NULL;
-                    switch (tr->kind) {
-                    case TRACK_KIND_BASE_POS: slot = 3; dst = base[3]; break;
-                    case TRACK_KIND_POS: slot = 1; dst = local[3]; break;
-                    case TRACK_KIND_BASE_ROT: slot = 2; break;
-                    case TRACK_KIND_ROT: slot = 0; break;
-                    default: break;
-                    }
-                    if (slot >= 0) {
-                        InterpolateAnimationKey(tr, 0);
-                        keys = BANK_PTR(const u_char *, bank, tr->keys);
-                        if (dst != NULL) {
-                            if (tr->length & TRACK_KEY_RAW)
-                                memcpy(dst, keys + 0x10, 0x10);
-                            else
-                                asZipTrans2Trans_XYZ1(dst, (const short *)(keys + 8), TRACK_KEY_SHIFT(tr->length));
-                        } else {
-                            alignas(16) float q[4], rot[4][4];
-                            asZipQuat2Quat(q, (const short *)(keys + 8));
-                            ConvertQuat2Matrix(rot, q);
-                            memcpy(slot == 2 ? base : local, rot, 0x30);
-                        }
-                        done[slot] = 1;
-                    }
-                }
+                PoseTrack(bank, part, tr, ticks, w, tmp);
+                if (mat != NULL && ((MODEL_PARTS *)part)->hash == EA_001_PART_HASH)
+                    MatKey(bank, tr, base, local, done, tmp);
             }
             tr->time1c = (int)((u_int)tr->time1c << 16) + ((tr->time / TRACK_TIME_SCALE) & 0xffff);
         }
@@ -2564,10 +2576,27 @@ int EA_100(int bank, u_int anim, ALL_TABLE *tbl, float (*mat)[4], int atKey)
     return 1;
 }
 
+static int IsReplayKind(int kind);
+static void ReplayTrack(int bank, const ALL_TABLE *tbl, u_char *part, BEHAVIOR_TRACK *tr, int set,
+                        float *w, float *held);
+
 // CT3 0x0184a570
 // The pass by the flags: play alone EA_100, replay alone EA_010, matOnly alone EA_001; any other mix
-// runs the general body (the three passes in one; not reached by the callers written so far).
-// PORT: (bank, anim) for the behaviour's EE word; mat a host pointer.
+// runs the general body, the three passes in one per track: with play, every track's time1c shifts and
+// a running track takes its key at this frame's ticks (atKey: where it stands) and, a pose kind, puts
+// it in its part (EA_100); with replay, a running or ending replay kind is set or blended into what it
+// animates (EA_010); with mat, the EA_001_PART_HASH part's keys build base * local (matOnly: weights at
+// 0 ticks, no pose write). Without replay and matOnly the ticks are counted down and 1 is returned
+// when no track runs on (the behaviour's act ended for HOLD / ONCE); else 0.
+// PORT: (bank, anim) for the behaviour's EE word; mat a host pointer. The scratch vector `tmp` is the
+// ROM's one stack slot shared by the pose and replay kinds (EA_010's `held`).
+// callcheck: EA_100, EA_010, EA_001 (the dispatch above)
+// callcheck: ConvertMatrix2Quat, QuatSlerp, ConvertQuat2Matrix, asZipQuat2Quat, asZipTrans2Trans_XYZ1 (in PoseTrack, MatKey)
+// callcheck: asContInterpolateGA_VECTORZipNormal_XYZ0, asContInterpolateGA_VECTORZipTrans_XYZ1,
+// callcheck: asContInterpolateGA_VECTORZipTrans_XYZ1_nw, asContInterpolateVector, asContInterpolateVector_nw,
+// callcheck: asContZipNormal2Normal_XYZ0, asContZipTrans2Trans_XYZ1, asContZipTrans2Trans_XYZ1_nw,
+// callcheck: asInterpolateNumber, asInterpolateVector, asInterpolateZipFloat1_1_14X, asMemCopy128c,
+// callcheck: asMemCopy128c_nw, asZipFloat0_7_9X2Float, asZipVECTOR2VECTOR_XYZ1 (in ReplayTrack)
 int ExecuteAnimation(int bank, u_int anim, ALL_TABLE *tbl, float (*mat)[4], int play, int replay,
                      int matOnly, int atKey)
 {
@@ -2580,8 +2609,80 @@ int ExecuteAnimation(int bank, u_int anim, ALL_TABLE *tbl, float (*mat)[4], int 
         return EA_010(bank, anim, tbl);
     if (play == 0 && replay == 0 && matOnly == 1)
         return EA_001(BANK_PTR(void *, bank, anim), tbl, mat);
-    ALYSSAPAN_STUB("ExecuteAnimation (the general body)", 0x0184a688);
-    return 0;
+    {
+        BEHAVIOR *bhv = BANK_PTR(BEHAVIOR *, bank, anim);
+        u_char *hdr = BANK_PTR(u_char *, bank, tbl->partsHeader);
+        int ticks = *(int *)(hdr + PARTS_HDR_ANIM_ABS);
+        int dir = *(int *)(hdr + PARTS_HDR_ANIM_SIGN);
+        int total = *(int *)(hdr + PARTS_HDR_ANIM_STEP);
+        alignas(16) float local[4][4] = { { 1, 0, 0, 0 }, { 0, 1, 0, 0 }, { 0, 0, 1, 0 }, { 0, 0, 0, 1 } };
+        alignas(16) float base[4][4] = { { 1, 0, 0, 0 }, { 0, 1, 0, 0 }, { 0, 0, 1, 0 }, { 0, 0, 0, 1 } };
+        alignas(16) float w[4] = { 0, 0, 0, 0 };
+        alignas(16) float tmp[4] = { 0, 0, 0, 0 };
+        u_char done[4] = { 0, 0, 0, 0 };
+        u_int elapsed = 0;
+        int running = 0;
+        int g, t;
+        if (play != 0 && replay == 0 && matOnly == 0)   /* never true here: kept as the ROM has it */
+            SetExecuteAnimationHistory(bank, anim, tbl, ticks, dir, total);
+        for (g = 0; g < bhv->groupCount; g++) {
+            const BEHAVIOR_GROUP *grp = &bhv->groups[g];
+            u_char *part = hdr + grp->part * (int)sizeof(MODEL_PARTS);
+            BEHAVIOR_TRACK *tr;
+            if (grp->tracks == 0)
+                continue;
+            tr = BehaviorTracks(bank, bhv, g);
+            for (t = grp->trackCount; t > 0; t--, tr++) {
+                int pose = IsPoseTrack(tr->kind);
+                int doReplay = IsReplayKind(tr->kind) && replay != 0;
+                if (play != 0 || matOnly != 0) {
+                    elapsed = matOnly != 0
+                        ? 0u
+                        : (u_int)anim_play_slow * (u_int)gGlobalNextTicksInterval * tr->playRate / 100;
+                    AnimWeights(w, ticks, elapsed, total, dir);
+                }
+                if (play != 0)
+                    tr->time1c = (int)((u_int)tr->time1c << 16) + ((tr->time / TRACK_TIME_SCALE) & 0xffff);
+                if (!(tr->playing == TRACK_PLAYING || (tr->playing == TRACK_ACT_END && doReplay)))
+                    continue;
+                if (matOnly == 0) {
+                    if (play != 0) {
+                        int end = InterpolateAnimationKey(tr, atKey ? 0 : (int)elapsed);
+                        if (hdr[0] == ANIM_CTRL_HOLD) {
+                            running = 1;
+                            if (end != 0) {
+                                if (tr->flags & TRACK_FLAG_STARTED)
+                                    asStartAnimation(tr);
+                                else
+                                    tr->playing = pose ? 0 : TRACK_ACT_END;
+                            }
+                        } else if (end == 0) {
+                            running++;
+                        } else {
+                            tr->playing = pose ? 0 : TRACK_ACT_END;
+                        }
+                        PoseTrack(bank, part, tr, ticks, w, tmp);
+                    }
+                    if (doReplay)
+                        ReplayTrack(bank, tbl, part, tr, ticks == 0 || tr->playing == TRACK_ACT_END, w, tmp);
+                }
+                if (mat != NULL && ((MODEL_PARTS *)part)->hash == EA_001_PART_HASH)
+                    MatKey(bank, tr, base, local, done, tmp);
+            }
+        }
+        if (mat != NULL) {
+            gaMulMatrix(mat, base, local);
+            memcpy(&mat[3][3], done, 4);    /* ROM: sw of the done word into the matrix's +0x3c */
+        }
+        if (matOnly != 0 || replay != 0)
+            return 0;
+        asDecInterpolateTicks(hdr, (int)elapsed);
+        if (running != 0)
+            return 0;
+        if (hdr[0] == ANIM_CTRL_HOLD || hdr[0] == ANIM_CTRL_ONCE)
+            asBehaviorActEndAnimation(bhv);
+        return 1;
+    }
 }
 
 // CT3 0x018427f0
@@ -5094,6 +5195,221 @@ static int IsReplayKind(int kind)
     return 0;
 }
 
+// A replay-kind track's key (where it stands) into what it animates: set, or blended by w (the
+// kinds below; the pose kinds are left alone). A COPY track's key word goes to its group's objects
+// either way. An ending (TRACK_ACT_END) track of these kinds stops (playing 0). held: the caller's
+// scratch vector, kept across the tracks as the ROM's one stack slot (EA_010's comment).
+static void ReplayTrack(int bank, const ALL_TABLE *tbl, u_char *part, BEHAVIOR_TRACK *tr, int set,
+                        float *w, float *held)
+{
+    const u_char *keys = BANK_PTR(const u_char *, bank, tr->keys);
+    if (set) {
+        /* set */
+        switch (tr->kind) {
+        case TRACK_KIND_FLOAT0_7_9:
+            asZipFloat0_7_9X2Float((float *)(part + PARTS_ANIM_VECTOR), (const u_short *)(keys + 8));
+            break;
+        case TRACK_KIND_UV: {
+            int first, count, i;
+            short group;
+            memcpy(&held[0], keys + 8, 8);
+            memcpy(&group, keys + 0x1c, sizeof(group));
+            ObjGroup(bank, tbl, group, &first, &count);
+            for (i = 0; i < count; i++)
+                memcpy(ObjOpaqueObject(bank, tbl, ObjGroupIndex(bank, tbl, first + i)) + GA_OBJ_UV_OFFSET,
+                       held, 8);
+            break;
+        }
+        case TRACK_KIND_NORMAL: {
+            const ANIM_SUBKEY *sub = (const ANIM_SUBKEY *)keys;
+            int n = (int)(tr->length & TRACK_KEY_STRIDE);
+            if (n != 0) {
+                do {
+                    u_char *obj = ObjOpaqueObject(bank, tbl, sub->obj);
+                    asContZipNormal2Normal_XYZ0((float *)(ObjWord(bank, obj, GA_OBJ_NORMALS) + 0x10),
+                                                BANK_PTR(const short *, bank, sub->data), sub->count);
+                    n -= sub->size;
+                    sub++;
+                } while (n > 0);
+            }
+            break;
+        }
+        case TRACK_KIND_VERTEX: {
+            const ANIM_SUBKEY *sub = (const ANIM_SUBKEY *)keys;
+            u_int len = tr->length;
+            int n = (int)(len & TRACK_KEY_STRIDE);
+            if (n != 0) {
+                do {
+                    u_char *obj = ObjOpaqueObject(bank, tbl, sub->obj);
+                    float *dst = (float *)ObjWord(bank, obj, GA_OBJ_POSITIONS);
+                    const void *src = BankEePtr(bank, sub->data);
+                    if (len & TRACK_KEY_RAW) {
+                        if (len & TRACK_KEY_SPARSE)
+                            asMemCopy128c_nw(0.0f, dst, src, sub->count);
+                        else
+                            asMemCopy128c(dst, src, (u_int)sub->count);
+                    } else if (len & TRACK_KEY_SPARSE) {
+                        asContZipTrans2Trans_XYZ1_nw(dst, (const short *)src, sub->count,
+                                                     TRACK_KEY_SHIFT(len), ANIM_SKIP_SHORT);
+                    } else {
+                        asContZipTrans2Trans_XYZ1(dst, (const short *)src, sub->count, TRACK_KEY_SHIFT(len));
+                    }
+                    n -= sub->size;
+                    sub++;
+                } while (n > 0);
+            }
+            break;
+        }
+        case TRACK_KIND_SUB_NUMBER: {
+            const ANIM_SUBKEY *sub = (const ANIM_SUBKEY *)keys;
+            int n;
+            for (n = (int)tr->length; n > 0; n -= sub->size, sub++) {
+                u_char *colors = ObjWord(bank, ObjOpaqueObject(bank, tbl, sub->obj), GA_OBJ_COLORS);
+                const signed char *pct = BANK_PTR(const signed char *, bank, sub->data);
+                int i;
+                for (i = 0; i < sub->count; i++) {
+                    short a = (short)(sub->number * pct[i] / 100);
+                    if (a > SUB_NUMBER_MAX)
+                        a = SUB_NUMBER_MAX;
+                    colors[GA_OBJ_COLOR_ALPHA(i)] = (u_char)a;
+                }
+            }
+            break;
+        }
+        case TRACK_KIND_NUMBER:
+            memcpy(part + PARTS_ANIM_NUMBER, keys + 8, 2);
+            break;
+        case TRACK_KIND_FLOAT1_1_14:
+            memcpy(part + PARTS_ANIM_FLOAT1_1_14, keys + 8, 2);
+            break;
+        case TRACK_KIND_VECTOR_XYZ:
+            asZipVECTOR2VECTOR_XYZ1((float *)(part + PARTS_ANIM_VECTOR_XYZ), (const short *)(keys + 8));
+            break;
+        default:
+            break;
+        }
+    } else {
+        /* blend */
+        switch (tr->kind) {
+        case TRACK_KIND_FLOAT0_7_9:
+            asZipFloat0_7_9X2Float(held, (const u_short *)(keys + 8));
+            asInterpolateVector((float *)(part + PARTS_ANIM_VECTOR), (float *)(part + PARTS_ANIM_VECTOR), held, w);
+            break;
+        case TRACK_KIND_UV: {
+            int first, count, i;
+            short group;
+            memcpy(&held[0], keys + 8, 8);
+            memcpy(&group, keys + 0x1c, sizeof(group));
+            ObjGroup(bank, tbl, group, &first, &count);
+            for (i = 0; i < count; i++) {
+                u_char *obj = ObjOpaqueObject(bank, tbl, ObjGroupIndex(bank, tbl, first + i));
+                alignas(16) float cur[4] = { 0, 0, 0, 0 }, out[4];
+                memcpy(cur, obj + GA_OBJ_UV_OFFSET, 8);
+                asInterpolateVector(out, cur, held, w);
+                memcpy(obj + GA_OBJ_UV_OFFSET, out, 8);
+            }
+            break;
+        }
+        case TRACK_KIND_NORMAL: {
+            const ANIM_SUBKEY *sub = (const ANIM_SUBKEY *)keys;
+            int n;
+            for (n = (int)tr->length; n > 0; n -= sub->size, sub++) {
+                u_char *obj = ObjOpaqueObject(bank, tbl, sub->obj);
+                float *dst = (float *)(ObjWord(bank, obj, GA_OBJ_NORMALS) + 0x10);
+                asContInterpolateGA_VECTORZipNormal_XYZ0(dst, dst, BANK_PTR(const short *, bank, sub->data), w,
+                                                         sub->count);
+            }
+            break;
+        }
+        case TRACK_KIND_VERTEX: {
+            const ANIM_SUBKEY *sub = (const ANIM_SUBKEY *)keys;
+            u_int len = tr->length;
+            int n = (int)(len & TRACK_KEY_STRIDE);
+            if (n != 0) {
+                do {
+                    u_char *obj = ObjOpaqueObject(bank, tbl, sub->obj);
+                    float *dst = (float *)ObjWord(bank, obj, GA_OBJ_POSITIONS);
+                    const void *src = BankEePtr(bank, sub->data);
+                    if (len & TRACK_KEY_RAW) {
+                        if (len & TRACK_KEY_SPARSE)
+                            asContInterpolateVector_nw(0.0f, dst, dst, (const float *)src, w, sub->count);
+                        else
+                            asContInterpolateVector(dst, dst, (const float *)src, w, sub->count);
+                    } else if (len & TRACK_KEY_SPARSE) {
+                        asContInterpolateGA_VECTORZipTrans_XYZ1_nw(dst, dst, (const short *)src, w, sub->count,
+                                                                   TRACK_KEY_SHIFT(len), ANIM_SKIP_SHORT);
+                    } else {
+                        asContInterpolateGA_VECTORZipTrans_XYZ1(dst, dst, (const short *)src, w, sub->count,
+                                                                TRACK_KEY_SHIFT(len));
+                    }
+                    n -= sub->size;
+                    sub++;
+                } while (n > 0);
+            }
+            break;
+        }
+        case TRACK_KIND_SUB_NUMBER: {
+            const ANIM_SUBKEY *sub = (const ANIM_SUBKEY *)keys;
+            int n;
+            for (n = (int)tr->length; n > 0; n -= sub->size, sub++) {
+                u_char *colors = ObjWord(bank, ObjOpaqueObject(bank, tbl, sub->obj), GA_OBJ_COLORS);
+                const signed char *pct = BANK_PTR(const signed char *, bank, sub->data);
+                int i;
+                for (i = 0; i < sub->count; i++) {
+                    short a = (short)(sub->number * pct[i] / 100);
+                    if (a > SUB_NUMBER_MAX)
+                        a = SUB_NUMBER_MAX;
+                    colors[GA_OBJ_COLOR_ALPHA(i)] = (u_char)(int)asInterpolateNumber(
+                        (float)(signed char)colors[GA_OBJ_COLOR_ALPHA(i)], (float)a, w);
+                }
+            }
+            break;
+        }
+        case TRACK_KIND_NUMBER: {
+            short cur, key;
+            memcpy(&cur, part + PARTS_ANIM_NUMBER, 2);
+            memcpy(&key, keys + 8, 2);
+            cur = (short)(int)asInterpolateNumber((float)cur, (float)key, w);
+            memcpy(part + PARTS_ANIM_NUMBER, &cur, 2);
+            break;
+        }
+        case TRACK_KIND_FLOAT1_1_14:
+            asInterpolateZipFloat1_1_14X((short *)(part + PARTS_ANIM_FLOAT1_1_14),
+                                         (const short *)(part + PARTS_ANIM_FLOAT1_1_14),
+                                         (const short *)(keys + 8), w);
+            break;
+        case TRACK_KIND_VECTOR_XYZ:
+            asZipVECTOR2VECTOR_XYZ1(held, (const short *)(keys + 8));
+            asInterpolateVector((float *)(part + PARTS_ANIM_VECTOR_XYZ),
+                                (float *)(part + PARTS_ANIM_VECTOR_XYZ), held, w);
+            break;
+        default:
+            break;
+        }
+    }
+    if (tr->kind == TRACK_KIND_COPY) {
+        // set either way: the word copyWords[key +8] to each object of group key +0xa
+        u_short which, group;
+        u_int word;
+        int first, count, i;
+        memcpy(&which, keys + 8, 2);
+        memcpy(&group, keys + 0xa, 2);
+        word = BANK_PTR(const u_int *, bank, tbl->copyWords)[which];
+        {
+            const u_short *pair = BANK_PTR(const u_short *, bank, tbl->objGroups) + group * 2;
+            first = pair[0];
+            count = pair[1];
+        }
+        for (i = 0; i < count; i++) {
+            const u_int *list = BANK_PTR(const u_int *, bank, tbl->objOpaque);
+            const u_int *entry = BANK_PTR(const u_int *, bank, list[ObjGroupIndex(bank, tbl, first + i)]);
+            *BANK_PTR(u_int *, bank, entry[SUN_OBJ_COPY_TARGET]) = word;
+        }
+    }
+    if (tr->playing == TRACK_ACT_END && IsReplayKind(tr->kind))
+        tr->playing = 0;        /* the ROM resets it in each kind's branch: pose kinds stay */
+}
+
 // CT3 0x0184bf60
 // Puts the key each running (TRACK_PLAYING) or ending (TRACK_ACT_END) track stands on into what it
 // animates, without moving the time: set when the parts header's ticks are 0 or the track is ending,
@@ -5103,6 +5419,11 @@ static int IsReplayKind(int kind)
 // goes to its group's objects either way. An ending track of these kinds stops (playing 0). Always 0.
 // PORT: (bank, anim) for the behaviour's EE word. The ROM keeps one stack vector across the tracks
 // (FLOAT0_7_9 writes its x only, UV its xy): `held` is that vector, zeroed where the ROM's stack is stale.
+// callcheck: asContInterpolateGA_VECTORZipNormal_XYZ0, asContInterpolateGA_VECTORZipTrans_XYZ1,
+// callcheck: asContInterpolateGA_VECTORZipTrans_XYZ1_nw, asContInterpolateVector, asContInterpolateVector_nw,
+// callcheck: asContZipNormal2Normal_XYZ0, asContZipTrans2Trans_XYZ1, asContZipTrans2Trans_XYZ1_nw,
+// callcheck: asInterpolateNumber, asInterpolateVector, asInterpolateZipFloat1_1_14X, asMemCopy128c,
+// callcheck: asMemCopy128c_nw, asZipFloat0_7_9X2Float, asZipVECTOR2VECTOR_XYZ1 (in ReplayTrack)
 int EA_010(int bank, u_int anim, ALL_TABLE *tbl)
 {
     BEHAVIOR *bhv = BANK_PTR(BEHAVIOR *, bank, anim);
@@ -5121,217 +5442,13 @@ int EA_010(int bank, u_int anim, ALL_TABLE *tbl)
             continue;
         tr = BehaviorTracks(bank, bhv, g);
         for (t = grp->trackCount; t > 0; t--, tr++) {
-            const u_char *keys;
             if (tr->playing != TRACK_PLAYING && tr->playing != TRACK_ACT_END)
                 continue;
-            keys = BANK_PTR(const u_char *, bank, tr->keys);
-            if (ticks == 0 || tr->playing == TRACK_ACT_END) {
-                /* set */
-                switch (tr->kind) {
-                case TRACK_KIND_FLOAT0_7_9:
-                    asZipFloat0_7_9X2Float((float *)(part + PARTS_ANIM_VECTOR), (const u_short *)(keys + 8));
-                    break;
-                case TRACK_KIND_UV: {
-                    int first, count, i;
-                    short group;
-                    memcpy(&held[0], keys + 8, 8);
-                    memcpy(&group, keys + 0x1c, sizeof(group));
-                    ObjGroup(bank, tbl, group, &first, &count);
-                    for (i = 0; i < count; i++)
-                        memcpy(ObjOpaqueObject(bank, tbl, ObjGroupIndex(bank, tbl, first + i)) + GA_OBJ_UV_OFFSET,
-                               held, 8);
-                    break;
-                }
-                case TRACK_KIND_NORMAL: {
-                    const ANIM_SUBKEY *sub = (const ANIM_SUBKEY *)keys;
-                    int n = (int)(tr->length & TRACK_KEY_STRIDE);
-                    if (n != 0) {
-                        do {
-                            u_char *obj = ObjOpaqueObject(bank, tbl, sub->obj);
-                            asContZipNormal2Normal_XYZ0((float *)(ObjWord(bank, obj, GA_OBJ_NORMALS) + 0x10),
-                                                        BANK_PTR(const short *, bank, sub->data), sub->count);
-                            n -= sub->size;
-                            sub++;
-                        } while (n > 0);
-                    }
-                    break;
-                }
-                case TRACK_KIND_VERTEX: {
-                    const ANIM_SUBKEY *sub = (const ANIM_SUBKEY *)keys;
-                    u_int len = tr->length;
-                    int n = (int)(len & TRACK_KEY_STRIDE);
-                    if (n != 0) {
-                        do {
-                            u_char *obj = ObjOpaqueObject(bank, tbl, sub->obj);
-                            float *dst = (float *)ObjWord(bank, obj, GA_OBJ_POSITIONS);
-                            const void *src = BankEePtr(bank, sub->data);
-                            if (len & TRACK_KEY_RAW) {
-                                if (len & TRACK_KEY_SPARSE)
-                                    asMemCopy128c_nw(0.0f, dst, src, sub->count);
-                                else
-                                    asMemCopy128c(dst, src, (u_int)sub->count);
-                            } else if (len & TRACK_KEY_SPARSE) {
-                                asContZipTrans2Trans_XYZ1_nw(dst, (const short *)src, sub->count,
-                                                             TRACK_KEY_SHIFT(len), ANIM_SKIP_SHORT);
-                            } else {
-                                asContZipTrans2Trans_XYZ1(dst, (const short *)src, sub->count, TRACK_KEY_SHIFT(len));
-                            }
-                            n -= sub->size;
-                            sub++;
-                        } while (n > 0);
-                    }
-                    break;
-                }
-                case TRACK_KIND_SUB_NUMBER: {
-                    const ANIM_SUBKEY *sub = (const ANIM_SUBKEY *)keys;
-                    int n;
-                    for (n = (int)tr->length; n > 0; n -= sub->size, sub++) {
-                        u_char *colors = ObjWord(bank, ObjOpaqueObject(bank, tbl, sub->obj), GA_OBJ_COLORS);
-                        const signed char *pct = BANK_PTR(const signed char *, bank, sub->data);
-                        int i;
-                        for (i = 0; i < sub->count; i++) {
-                            short a = (short)(sub->number * pct[i] / 100);
-                            if (a > SUB_NUMBER_MAX)
-                                a = SUB_NUMBER_MAX;
-                            colors[GA_OBJ_COLOR_ALPHA(i)] = (u_char)a;
-                        }
-                    }
-                    break;
-                }
-                case TRACK_KIND_NUMBER:
-                    memcpy(part + PARTS_ANIM_NUMBER, keys + 8, 2);
-                    break;
-                case TRACK_KIND_FLOAT1_1_14:
-                    memcpy(part + PARTS_ANIM_FLOAT1_1_14, keys + 8, 2);
-                    break;
-                case TRACK_KIND_VECTOR_XYZ:
-                    asZipVECTOR2VECTOR_XYZ1((float *)(part + PARTS_ANIM_VECTOR_XYZ), (const short *)(keys + 8));
-                    break;
-                default:
-                    break;
-                }
-            } else {
-                /* blend */
+            if (ticks != 0 && tr->playing != TRACK_ACT_END) {
                 u_int elapsed = (u_int)anim_play_slow * (u_int)gGlobalNextTicksInterval * tr->playRate / 100;
                 AnimWeights(w, ticks, elapsed, total, dir);
-                switch (tr->kind) {
-                case TRACK_KIND_FLOAT0_7_9:
-                    asZipFloat0_7_9X2Float(held, (const u_short *)(keys + 8));
-                    asInterpolateVector((float *)(part + PARTS_ANIM_VECTOR), (float *)(part + PARTS_ANIM_VECTOR), held, w);
-                    break;
-                case TRACK_KIND_UV: {
-                    int first, count, i;
-                    short group;
-                    memcpy(&held[0], keys + 8, 8);
-                    memcpy(&group, keys + 0x1c, sizeof(group));
-                    ObjGroup(bank, tbl, group, &first, &count);
-                    for (i = 0; i < count; i++) {
-                        u_char *obj = ObjOpaqueObject(bank, tbl, ObjGroupIndex(bank, tbl, first + i));
-                        alignas(16) float cur[4] = { 0, 0, 0, 0 }, out[4];
-                        memcpy(cur, obj + GA_OBJ_UV_OFFSET, 8);
-                        asInterpolateVector(out, cur, held, w);
-                        memcpy(obj + GA_OBJ_UV_OFFSET, out, 8);
-                    }
-                    break;
-                }
-                case TRACK_KIND_NORMAL: {
-                    const ANIM_SUBKEY *sub = (const ANIM_SUBKEY *)keys;
-                    int n;
-                    for (n = (int)tr->length; n > 0; n -= sub->size, sub++) {
-                        u_char *obj = ObjOpaqueObject(bank, tbl, sub->obj);
-                        float *dst = (float *)(ObjWord(bank, obj, GA_OBJ_NORMALS) + 0x10);
-                        asContInterpolateGA_VECTORZipNormal_XYZ0(dst, dst, BANK_PTR(const short *, bank, sub->data), w,
-                                                                 sub->count);
-                    }
-                    break;
-                }
-                case TRACK_KIND_VERTEX: {
-                    const ANIM_SUBKEY *sub = (const ANIM_SUBKEY *)keys;
-                    u_int len = tr->length;
-                    int n = (int)(len & TRACK_KEY_STRIDE);
-                    if (n != 0) {
-                        do {
-                            u_char *obj = ObjOpaqueObject(bank, tbl, sub->obj);
-                            float *dst = (float *)ObjWord(bank, obj, GA_OBJ_POSITIONS);
-                            const void *src = BankEePtr(bank, sub->data);
-                            if (len & TRACK_KEY_RAW) {
-                                if (len & TRACK_KEY_SPARSE)
-                                    asContInterpolateVector_nw(0.0f, dst, dst, (const float *)src, w, sub->count);
-                                else
-                                    asContInterpolateVector(dst, dst, (const float *)src, w, sub->count);
-                            } else if (len & TRACK_KEY_SPARSE) {
-                                asContInterpolateGA_VECTORZipTrans_XYZ1_nw(dst, dst, (const short *)src, w, sub->count,
-                                                                           TRACK_KEY_SHIFT(len), ANIM_SKIP_SHORT);
-                            } else {
-                                asContInterpolateGA_VECTORZipTrans_XYZ1(dst, dst, (const short *)src, w, sub->count,
-                                                                        TRACK_KEY_SHIFT(len));
-                            }
-                            n -= sub->size;
-                            sub++;
-                        } while (n > 0);
-                    }
-                    break;
-                }
-                case TRACK_KIND_SUB_NUMBER: {
-                    const ANIM_SUBKEY *sub = (const ANIM_SUBKEY *)keys;
-                    int n;
-                    for (n = (int)tr->length; n > 0; n -= sub->size, sub++) {
-                        u_char *colors = ObjWord(bank, ObjOpaqueObject(bank, tbl, sub->obj), GA_OBJ_COLORS);
-                        const signed char *pct = BANK_PTR(const signed char *, bank, sub->data);
-                        int i;
-                        for (i = 0; i < sub->count; i++) {
-                            short a = (short)(sub->number * pct[i] / 100);
-                            if (a > SUB_NUMBER_MAX)
-                                a = SUB_NUMBER_MAX;
-                            colors[GA_OBJ_COLOR_ALPHA(i)] = (u_char)(int)asInterpolateNumber(
-                                (float)(signed char)colors[GA_OBJ_COLOR_ALPHA(i)], (float)a, w);
-                        }
-                    }
-                    break;
-                }
-                case TRACK_KIND_NUMBER: {
-                    short cur, key;
-                    memcpy(&cur, part + PARTS_ANIM_NUMBER, 2);
-                    memcpy(&key, keys + 8, 2);
-                    cur = (short)(int)asInterpolateNumber((float)cur, (float)key, w);
-                    memcpy(part + PARTS_ANIM_NUMBER, &cur, 2);
-                    break;
-                }
-                case TRACK_KIND_FLOAT1_1_14:
-                    asInterpolateZipFloat1_1_14X((short *)(part + PARTS_ANIM_FLOAT1_1_14),
-                                                 (const short *)(part + PARTS_ANIM_FLOAT1_1_14),
-                                                 (const short *)(keys + 8), w);
-                    break;
-                case TRACK_KIND_VECTOR_XYZ:
-                    asZipVECTOR2VECTOR_XYZ1(held, (const short *)(keys + 8));
-                    asInterpolateVector((float *)(part + PARTS_ANIM_VECTOR_XYZ),
-                                        (float *)(part + PARTS_ANIM_VECTOR_XYZ), held, w);
-                    break;
-                default:
-                    break;
-                }
             }
-            if (tr->kind == TRACK_KIND_COPY) {
-                // set either way: the word copyWords[key +8] to each object of group key +0xa
-                u_short which, group;
-                u_int word;
-                int first, count, i;
-                memcpy(&which, keys + 8, 2);
-                memcpy(&group, keys + 0xa, 2);
-                word = BANK_PTR(const u_int *, bank, tbl->copyWords)[which];
-                {
-                    const u_short *pair = BANK_PTR(const u_short *, bank, tbl->objGroups) + group * 2;
-                    first = pair[0];
-                    count = pair[1];
-                }
-                for (i = 0; i < count; i++) {
-                    const u_int *list = BANK_PTR(const u_int *, bank, tbl->objOpaque);
-                    const u_int *entry = BANK_PTR(const u_int *, bank, list[ObjGroupIndex(bank, tbl, first + i)]);
-                    *BANK_PTR(u_int *, bank, entry[SUN_OBJ_COPY_TARGET]) = word;
-                }
-            }
-            if (tr->playing == TRACK_ACT_END && IsReplayKind(tr->kind))
-                tr->playing = 0;        /* the ROM resets it in each kind's branch: pose kinds stay */
+            ReplayTrack(bank, tbl, part, tr, ticks == 0 || tr->playing == TRACK_ACT_END, w, held);
         }
     }
     return 0;

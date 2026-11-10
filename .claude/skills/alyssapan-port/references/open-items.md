@@ -473,6 +473,16 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    TU decides what that word is. EA_010 keeps the ROM's one stack vector across tracks (`held`, zeroed
    where the ROM's lanes are stale). The QuatSlerp.c Cont* writers, asZipTrans2Trans_XYZ0, the asDR_*
    GS words and asZipFloat0_7_9X2Float were written early.
+   Slice 15 (2026-11-10): ExecuteAnimation's general body written (any mix of play / replay / matOnly
+   other than one alone): **the TU's code is complete (verify)**; EA_100 and EA_010 now share its per-track
+   helpers (PoseTrack, MatKey, ReplayTrack). (ei) The general body shifts every track's time1c *before*
+   InterpolateAnimationKey, EA_100 *after* (both as their ROM bodies): a pass test
+   (asCheckAnimationFlamePassing_S) after a mixed call sees the old time where EA_100's sees the new; kept.
+   (ej) The ROM's one stack vector is shared by the pose kinds' temporaries and the replay kinds (the
+   general body's FLOAT0_7_9 blend reads lanes y..w a pose track wrote there): the port passes one
+   scratch vector through both, zeroed at entry where the ROM's is stale. The two written callers pass
+   one flag each; asCharacterAnimationExecute and asResetCharacterPosition (unwritten, other TUs) are
+   the ones that may mix them: when they run, the shot decides.
    (bw) Extract is untested against a known image: the first scene_init that runs on relocated data is
    its test (a wrong decode shows as garbage tables); a harness decoding one CT3X file from CT3PACK.DAT
    beside the ROM's (eerun.py) would prove it sooner.

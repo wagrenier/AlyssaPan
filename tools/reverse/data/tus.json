@@ -1,6 +1,5 @@
 {
  "queue": [
-  "game/ahRelocateSunPs2ObjectArry.c",
   "game/fileio.c"
  ],
  "settings": {
@@ -444,7 +443,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 121..121, 39 functions keyed by their statics, 22 unkeyed; file name from the names"
   },
   "game/ahRelocateSunPs2ObjectArry.c": {
-   "notes": "Left in the TU: the general body of ExecuteAnimation (marked stub; no caller reaches it yet). Shot still black, crash unchanged at main.c:2106 (ActressMP NULL). The shadow overlay needs sunSetupTBufferData (QuatSlerp.c stub) to bind the shadow buffer as a texture. New open items ef..eh.",
+   "notes": "All 93 functions written; nothing reaches the general body yet (the two written callers pass one flag each; asCharacterAnimationExecute and asResetCharacterPosition, unwritten, may mix them). Shot still black, crash unchanged at main.c:2106 (ActressMP NULL). The shadow overlay needs sunSetupTBufferData (QuatSlerp.c stub). New open items ei (time1c order differs between the general body and EA_100, both as the ROM) and ej (one scratch vector shared by pose and replay kinds).",
    "ranges": [
     [
      "0183e280",
@@ -452,11 +451,6 @@
     ]
    ],
    "sessions": [
-    {
-     "date": "2026-11-10 03:56",
-     "status": "partial",
-     "summary": "slice 3: seek bars (asSeekBarInitializeForX, asSeekBarFreeForX, asSeekBarAnimation), asSeatArrange_Init, BMT_01, ExecuteAnimationHistory_Free; ALL_TABLE +0xc0 / +0xdc / +0xe8 named; SEEKBAR_X kept in the PORT table SeekBarX (decision ce)"
-    },
     {
      "date": "2026-11-10 04:24",
      "status": "partial",
@@ -511,9 +505,14 @@
      "date": "2026-11-10 08:01",
      "status": "partial",
      "summary": "slice 14: asCheckAnimationFlamePassing_S (time1c pass test, forward / backward / either, character motion behaviour), asShadowEnd (shadow buffer fold, then the overlay: 56 tiled sprites or four Gouraud fans about the projected shadow anchor, lighten or darken by shadowOrder), EA_010 (the replay pass: keys set or blended into the part values, UV groups, vertex / normal / alpha sub-records, copy words); QuatSlerp.c Cont* writers, asZipTrans2Trans_XYZ0, asDR_* GS words, asZipFloat0_7_9X2Float written early; BANK_INFO shadowAnchor, ALL_TABLE copyWords / objGroups / objGroupIndex named"
+    },
+    {
+     "date": "2026-11-10 08:10",
+     "status": "verify",
+     "summary": "slice 15: ExecuteAnimation's general body (any mix of play, replay and matOnly: time1c shift, key at this frame's ticks, pose write, replay set or blend, the EA_001_PART_HASH matrix, the ticks count-down and act end); EA_100 and EA_010 now share the per-track helpers PoseTrack, MatKey and ReplayTrack; the TU's code is complete"
     }
    ],
-   "status": "partial",
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 69..69, 15 functions keyed by their statics, 77 unkeyed; file name from the names"
   },
   "game/ahalloc.c": {
