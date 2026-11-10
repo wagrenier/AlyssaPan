@@ -6,6 +6,7 @@
 #include <array>
 #include <atomic>
 #include <cstdint>
+#include <filesystem>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -137,6 +138,10 @@ public:
 
     void loadBindings(const IniFile &file);
     void saveBindings(IniFile &file) const;
+
+    // The community gamepad database (resources/gamecontrollerdb.txt), so pads SDL does not know
+    // still map to a standard layout (RosePan). Missing is fine: SDL's built-in mappings stand.
+    void loadControllerMappings(const std::filesystem::path &file);
 
     // ---- devices -----------------------------------------------------------------------------
     struct GamepadInfo

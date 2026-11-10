@@ -230,7 +230,15 @@ void InterruptController::run()
         }
         std::ranges::sort(due, {}, &Timed::when);
 
-        const bool fieldDue = now >= nextField;
+        bool fieldDue = now >= nextField;
+        if (fieldDue && m_held.load())
+        {
+            // Held (the window in the background): the field is skipped, not owed, so the game wakes to
+            // the next one when the hold lifts and does not run a burst to catch up.
+            const double rate = m_standard.load() == VideoStandard::Pal ? kPalFieldRate : kNtscFieldRate;
+            nextField = now + seconds(1.0 / rate);
+            fieldDue = false;
+        }
         const VBlankCallback vblankCallback = m_vblankCallback;
         const std::function<void()> fieldListener = m_fieldListener;
         lock.unlock();

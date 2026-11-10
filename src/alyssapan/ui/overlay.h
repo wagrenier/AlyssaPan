@@ -3,6 +3,7 @@
 // it has one, its window.
 #pragma once
 
+#include <chrono>
 #include <memory>
 #include <vector>
 
@@ -60,12 +61,24 @@ public:
 private:
     bool menuChordPressed(const SDL_Event &event);
 
+    // The display's content scale for the window, or the override in [ui] scale; applied before each
+    // frame when it changed (a window dragged to another monitor is caught whichever event said so).
+    float wantedUiScale() const;
+    void updateUiScale();
+    void applyUiScale(float scale);
+
+    // A cursor left still over the game hides; fullscreen with the bar down it hides moving too.
+    // Through ImGui, since its SDL backend re-shows the cursor every frame for the shape it wants.
+    void hideIdleCursor();
+
     Application &m_application;
     std::vector<std::unique_ptr<Panel>> m_panels;
     bool m_initialized = false;
     bool m_frameReady = false;
     bool m_menuVisible = false;
     bool m_chordLatched = false;
+    float m_uiScale = 0.0f; // the one applied; 0 before the first frame
+    std::chrono::steady_clock::time_point m_lastMouseActivity = std::chrono::steady_clock::now();
 };
 
 } // namespace alyssapan::ui

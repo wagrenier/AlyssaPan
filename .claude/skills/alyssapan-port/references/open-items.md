@@ -86,8 +86,9 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    its function is written; (e) main.c's .sbss run is a placement guess (architecture.md).
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
-   class: (a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale
-   (small, one session); (b) exclusive fullscreen, window position and presets; (c) the HDR swapchain,
+   class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~
+   (done 2026-11-09; pause in the background is written but no run has exercised it: smoke windows sit
+   in the background, so turning it on there would freeze the run); (b) exclusive fullscreen, window position and presets; (c) the HDR swapchain,
    MSAA, anisotropy, GPU driver choice; (d) the real memory card (RosePan's libmc), reverb and volume
    groups (YamiPan's SPU2 is next to them), the audio dump; (e) `libsdr` (CT3 calls `sceSdRemote`), newlib
    `rand`; (f) .iso reading, save import / export; (g) RmlUi menus and translations; (h) CI and AlyssaPan's

@@ -266,9 +266,20 @@ void Spu2Voices::start()
     m_started = true;
     m_output = audio::AudioOutput::open(kSampleRate);
     if (m_output != nullptr)
+    {
         log::info("audio: '{}', {} Hz stereo", m_output->deviceName(), kSampleRate);
+        m_output->setMuted(m_outputMuted);
+    }
     m_thread = std::make_unique<os::Thread>("AlyssaPanAudio", 256 * 1024, [this] { mixerLoop(); });
     m_thread->detach();
+}
+
+void Spu2Voices::setOutputMuted(bool muted)
+{
+    std::lock_guard lock(m_lock);
+    m_outputMuted = muted;
+    if (m_output != nullptr)
+        m_output->setMuted(muted);
 }
 
 Spu2Voices::Voice *Spu2Voices::voiceAt(int core, int voice)

@@ -23,6 +23,8 @@ public:
     // Bytes pushed and not yet played.
     int queuedBytes() const;
     void put(const void *frames, int bytes);
+    // Silence at the stream's gain: the mixer runs on, so nothing the game queued is lost or late.
+    void setMuted(bool muted);
     const std::string &deviceName() const { return m_deviceName; }
 
 private:

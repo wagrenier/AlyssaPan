@@ -4,8 +4,10 @@
 
 #include <SDL3/SDL_error.h>
 #include <SDL3/SDL_init.h>
+#include <SDL3/SDL_surface.h>
 
 #include "alyssapan/core/logger.h"
+#include "alyssapan/core/paths.h"
 
 namespace alyssapan
 {
@@ -84,6 +86,28 @@ void Window::noteResized()
     if (m_mode != WindowMode::Windowed)
         return;
     SDL_GetWindowSize(m_window, &m_windowedWidth, &m_windowedHeight);
+}
+
+void Window::setIcon(const std::filesystem::path &png)
+{
+    const std::string file = pathToUtf8(png);
+    SDL_Surface *const icon = SDL_LoadPNG(file.c_str());
+    if (icon == nullptr)
+    {
+        log::warning("window icon {}: {}", file, SDL_GetError());
+        return;
+    }
+    runOnMainThread([this, icon] {
+        if (!SDL_SetWindowIcon(m_window, icon))
+            log::warning("SDL_SetWindowIcon: {}", SDL_GetError());
+    });
+    SDL_DestroySurface(icon);
+}
+
+bool Window::inBackground() const
+{
+    const SDL_WindowFlags flags = SDL_GetWindowFlags(m_window);
+    return (flags & SDL_WINDOW_MINIMIZED) != 0 || (flags & SDL_WINDOW_INPUT_FOCUS) == 0;
 }
 
 } // namespace alyssapan

@@ -94,14 +94,21 @@ CT3** when main's TU is read: YamiPan chose "one EE thread at a time" for FS2's 
 Survey of 2026-11-09 (MikuPan `src/mikupan`, MioPan `zero_rom/zero2np/src/miopan`, ReiPan `src/reipan`,
 RosePan `src/rosepan` and their `src/sdk`). Each becomes a class here; the path is where to read it.
 
-Platform, game-independent:
-1. `gamecontrollerdb.txt` for unknown pads: RosePan `rosepan/io/rosepan_input.cpp:225-240`, `resources/`.
-2. Window and exe icon: RosePan `extern/icon.rc`, MikuPan `mikupan_renderer.cpp:437` (`SDL_SetWindowIcon`).
-3. Pause and mute in the background: MioPan `miopan/rendering/miopan_renderer.cpp` (UpdateBackgroundState,
-   `[window] pause_in_background`, `[audio] mute_in_background` in `miopan_config.cpp`).
-4. Overlay DPI scale that follows the display, with an override: MioPan `miopan_ui/miopan_ui.cpp`
-   (UpdateUiScale, QueryDisplayScale), MikuPan `ui/mikupan_ui_theme.cpp:55-75`.
-5. Cursor auto-hide: MioPan `miopan_ui.cpp:1429`, MikuPan `mikupan_renderer.cpp:93-167`.
+Platform, game-independent (1-5 carried over 2026-11-09, host task `alyssapan/core/window.cpp`):
+1. ~~`gamecontrollerdb.txt`~~ `io::InputSystem::loadControllerMappings` reads `resources/gamecontrollerdb.txt`
+   (RosePan's copy of the community DB) before the first pad opens.
+2. ~~Window and exe icon~~ `Window::setIcon` (`resources/alyssapan.png`, `SDL_LoadPNG`) and `extern/icon.rc`
+   (`extern/alyssapan.ico`); both drawn by `tools/make_icon.py` (original art: a clock face in the theme's
+   colours; no Pillow needed).
+3. ~~Pause and mute in the background~~ `Application::updateBackgroundState` after each pump, from
+   `Window::inBackground` (flags, not focus events): mute is `Spu2Voices::setOutputMuted` ->
+   `AudioOutput::setMuted` (the stream's gain: the mixer runs on); pause is
+   `ee::InterruptController::setHeld` (fields skipped, not owed: no catch-up burst; alarms and timers run
+   on). `[window] pause_in_background` (off), `[audio] mute_in_background` (on).
+4. ~~Overlay DPI scale~~ `ui::Overlay::updateUiScale` before each frame: the window's display scale over its
+   pixel density, or `[ui] scale` (0 = follow; `ALYSSAPAN_UI_SCALE`); both styles rebuilt from defaults.
+5. ~~Cursor auto-hide~~ `ui::Overlay::hideIdleCursor`: still for `[ui] cursor_hide_seconds` (2), or
+   borderless with the bar down, through `ImGui::SetMouseCursor(None)`.
 6. Exclusive fullscreen, position restore and centring, size presets: MikuPan
    `mikupan_renderer.cpp:1610-1735`, `ui/mikupan_ui_settings.cpp:80-175` (and save the position: new).
 7. The HDR swapchain (scRGB / HDR10, display headroom): RosePan `rosepan_renderer.cpp`

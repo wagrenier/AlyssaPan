@@ -4,6 +4,7 @@
 #pragma once
 
 #include <expected>
+#include <filesystem>
 #include <functional>
 #include <string>
 #include <utility>
@@ -42,6 +43,14 @@ public:
 
     // From the event pump, on a resize.
     void noteResized();
+
+    // The title bar's and taskbar's picture, from a PNG (the exe's own comes from extern/icon.rc). A
+    // missing file leaves the system's default and says so in the log.
+    void setIcon(const std::filesystem::path &png);
+
+    // Minimised, or without the keyboard focus: nobody is playing. Read off the window's flags rather
+    // than tracked from focus events, so a missed or coalesced event cannot leave it stuck (MioPan).
+    bool inBackground() const;
 
 private:
     Window(SDL_Window *window, const DisplaySettings &settings);

@@ -6,11 +6,13 @@
 #include <format>
 #include <ranges>
 
+#include <SDL3/SDL_error.h>
 #include <SDL3/SDL_keyboard.h>
 #include <SDL3/SDL_scancode.h>
 
 #include "alyssapan/core/ini_file.h"
 #include "alyssapan/core/logger.h"
+#include "alyssapan/core/paths.h"
 
 namespace alyssapan::io
 {
@@ -400,6 +402,21 @@ bool InputSystem::bindingsAreDefault() const
 {
     std::scoped_lock lock(m_lock);
     return m_buttons == kDefaultButtons && m_sticks == kDefaultSticks;
+}
+
+void InputSystem::loadControllerMappings(const std::filesystem::path &file)
+{
+    const std::string path = pathToUtf8(file);
+    if (!std::filesystem::exists(file))
+    {
+        log::warning("{} was not found: SDL's built-in pad mappings only", path);
+        return;
+    }
+    const int added = SDL_AddGamepadMappingsFromFile(path.c_str());
+    if (added < 0)
+        log::warning("pad mappings from {}: {}", path, SDL_GetError());
+    else
+        log::info("pad mappings: {} from {}", added, path);
 }
 
 void InputSystem::loadBindings(const IniFile &file)

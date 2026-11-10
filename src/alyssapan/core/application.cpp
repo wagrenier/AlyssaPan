@@ -13,8 +13,12 @@
 
 #include "alyssapan/core/crash_report.h"
 #include "alyssapan/core/logger.h"
+#include "alyssapan/ee/interrupts.h"
 #include "alyssapan/ee/kernel.h"
 #include "alyssapan/io/disc.h"
+#include "alyssapan/iop/kernel.h"
+#include "alyssapan/iop/spu2.h"
+#include "alyssapan/iop/spu2_voices.h"
 
 // The game's own main (0x01839d10): game/main.c, built with main=gameMain.
 int gameMain(int argc, char **argv);
@@ -70,6 +74,7 @@ bool Application::startServices()
         return false;
     }
     m_window.emplace(std::move(*window));
+    m_window->setIcon(m_paths.resource("resources/alyssapan.png"));
 
     auto device = gpu::Device::create(m_paths);
     if (!device)
@@ -85,6 +90,7 @@ bool Application::startServices()
     }
 
     m_input = std::make_unique<io::InputSystem>();
+    m_input->loadControllerMappings(m_paths.resource("resources/gamecontrollerdb.txt"));
     m_input->loadBindings(m_config.ini());
 
     m_overlay = std::make_unique<ui::Overlay>(*this);
@@ -139,6 +145,27 @@ void Application::pumpEvents()
     } while (SDL_PollEvent(&event));
 }
 
+// After each pump: a window nobody is looking at is muted and, if asked, holds the game. Logged on the
+// change, since a silent or frozen game is the first thing a report about it will describe (MioPan).
+void Application::updateBackgroundState()
+{
+    const bool background = m_window->inBackground();
+    const bool mute = background && m_config.audio.muteInBackground;
+    const bool hold = background && m_config.window.pauseInBackground;
+    if (mute != m_backgroundMuted)
+    {
+        m_backgroundMuted = mute;
+        iop::Kernel::instance().spu2().voices().setOutputMuted(mute);
+        log::info("audio {}", mute ? "muted (window in the background)" : "unmuted");
+    }
+    if (hold != m_backgroundHeld)
+    {
+        m_backgroundHeld = hold;
+        ee::Kernel::instance().interrupts().setHeld(hold);
+        log::info("game {}", hold ? "held (window in the background)" : "resumed");
+    }
+}
+
 void Application::quit()
 {
     log::info("Quitting");
@@ -167,7 +194,10 @@ int Application::run()
         startGame();
 
     while (m_running)
+    {
         pumpEvents();
+        updateBackgroundState();
+    }
 
     quit();
     return EXIT_SUCCESS;

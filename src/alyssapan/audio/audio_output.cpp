@@ -48,4 +48,10 @@ void AudioOutput::put(const void *frames, int bytes)
     SDL_PutAudioStreamData(m_stream, frames, bytes);
 }
 
+void AudioOutput::setMuted(bool muted)
+{
+    if (!SDL_SetAudioStreamGain(m_stream, muted ? 0.0f : 1.0f))
+        log::warning("SDL_SetAudioStreamGain: {}", SDL_GetError());
+}
+
 } // namespace alyssapan::audio

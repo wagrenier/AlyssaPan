@@ -174,6 +174,14 @@ void visitSections(Config_ &config, IniFile &file)
         config.display.serialize(visitor);
     }
     {
+        Visitor visitor(file, "window");
+        config.window.serialize(visitor);
+    }
+    {
+        Visitor visitor(file, "ui");
+        config.ui.serialize(visitor);
+    }
+    {
         Visitor visitor(file, "paths");
         config.paths.serialize(visitor);
     }
@@ -213,6 +221,19 @@ void DisplaySettings::serialize(Archive &archive)
 }
 
 template <class Archive>
+void WindowSettings::serialize(Archive &archive)
+{
+    archive("pause_in_background", pauseInBackground);
+}
+
+template <class Archive>
+void UiSettings::serialize(Archive &archive)
+{
+    archive("scale", scale);
+    archive("cursor_hide_seconds", cursorHideSeconds);
+}
+
+template <class Archive>
 void PathSettings::serialize(Archive &archive)
 {
     archive("data_folder", dataFolder);
@@ -230,6 +251,7 @@ void AudioSettings::serialize(Archive &archive)
     archive("master", master);
     archive("music", music);
     archive("effects", effects);
+    archive("mute_in_background", muteInBackground);
 }
 
 Config::Config() : m_ini(std::make_unique<IniFile>()) {}
@@ -246,6 +268,9 @@ void Config::load(const std::filesystem::path &file)
     display.windowHeight = std::max(display.windowHeight, 240);
     display.renderScale = std::clamp(display.renderScale, 0.25f, 8.0f);
     display.aspectRatio = std::clamp(display.aspectRatio, 0.5f, 5.0f);
+    if (ui.scale != 0.0f)
+        ui.scale = std::clamp(ui.scale, kUiScaleMin, kUiScaleMax);
+    ui.cursorHideSeconds = std::clamp(ui.cursorHideSeconds, 0.0f, 60.0f);
 
     if (firstRun)
         save();
@@ -280,6 +305,7 @@ void Config::applyEnvironment()
     apply("ALYSSAPAN_WINDOW_WIDTH", display.windowWidth);
     apply("ALYSSAPAN_WINDOW_HEIGHT", display.windowHeight);
     apply("ALYSSAPAN_PRESENT_MODE", display.presentMode);
+    apply("ALYSSAPAN_UI_SCALE", ui.scale);
 }
 
 } // namespace alyssapan

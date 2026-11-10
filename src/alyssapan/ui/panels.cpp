@@ -84,6 +84,27 @@ private:
             setWindowMode(WindowMode::Windowed);
         if (ImGui::MenuItem("Borderless fullscreen", "Alt+Enter", mode == WindowMode::Borderless))
             setWindowMode(WindowMode::Borderless);
+        if (ImGui::MenuItem("Pause in the background", nullptr, &m_config.window.pauseInBackground))
+            m_config.save();
+
+        ImGui::Separator();
+        ImGui::TextDisabled("Overlay");
+        bool followDisplay = m_config.ui.scale == 0.0f;
+        if (ImGui::MenuItem("Scale follows the display", nullptr, &followDisplay))
+        {
+            m_config.ui.scale = followDisplay ? 0.0f : 1.0f;
+            m_config.save();
+        }
+        if (!followDisplay)
+        {
+            ImGui::SetNextItemWidth(180.0f);
+            ImGui::SliderFloat("Overlay scale", &m_config.ui.scale, kUiScaleMin, kUiScaleMax, "%.2fx");
+            saveAfterEdit();
+        }
+        ImGui::SetNextItemWidth(180.0f);
+        ImGui::SliderFloat("Hide idle cursor", &m_config.ui.cursorHideSeconds, 0.0f, 10.0f,
+                           m_config.ui.cursorHideSeconds > 0.0f ? "after %.1f s" : "never");
+        saveAfterEdit();
 
         ImGui::Separator();
         ImGui::TextDisabled("Aspect ratio");
@@ -171,6 +192,8 @@ private:
         volumeSlider("Master", audio.master);
         volumeSlider("Music, voices, ambience", audio.music);
         volumeSlider("Effects", audio.effects);
+        if (ImGui::MenuItem("Mute in the background", nullptr, &audio.muteInBackground))
+            m_config.save();
         ImGui::EndMenu();
     }
 

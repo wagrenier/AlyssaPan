@@ -1,5 +1,6 @@
 #include "alyssapan/ui/overlay.h"
 
+#include <algorithm>
 #include <cstdlib>
 
 #include <imgui.h>
@@ -110,13 +111,85 @@ void Overlay::processEvent(const SDL_Event &event)
     if (menuChordPressed(event))
         m_menuVisible = !m_menuVisible;
 
+    if (event.type == SDL_EVENT_MOUSE_MOTION || event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ||
+        event.type == SDL_EVENT_MOUSE_WHEEL)
+    {
+        m_lastMouseActivity = std::chrono::steady_clock::now();
+    }
+
     ImGui_ImplSDL3_ProcessEvent(&event);
+}
+
+float Overlay::wantedUiScale() const
+{
+    const float configured = m_application.config().ui.scale;
+    if (configured > 0.0f)
+        return configured;
+
+    // The content scale over the pixel density: with SDL_WINDOW_HIGH_PIXEL_DENSITY a Retina-style
+    // window already has its pixels doubled, and ImGui's own coordinates are the window's.
+    SDL_Window *const window = m_application.window().get();
+    const float display = SDL_GetWindowDisplayScale(window);
+    float density = SDL_GetWindowPixelDensity(window);
+    if (!(display > 0.0f))
+        return 1.0f; // SDL answers 0 on failure
+    if (!(density > 0.0f))
+        density = 1.0f;
+    return std::clamp(display / density, kUiScaleMin, kUiScaleMax);
+}
+
+void Overlay::updateUiScale()
+{
+    const float wanted = wantedUiScale();
+    if (wanted != m_uiScale)
+        applyUiScale(wanted);
+}
+
+// Both styles rebuilt from their defaults at `scale`, so scaling twice never compounds.
+void Overlay::applyUiScale(float scale)
+{
+    ImGuiStyle &style = ImGui::GetStyle();
+    style = ImGuiStyle();
+    ImPlot::GetStyle() = ImPlotStyle();
+    applyTheme();
+    style.ScaleAllSizes(scale);
+    style.FontScaleDpi = scale;
+
+    // ImPlot has no ScaleAllSizes: its pixel sizes by hand (alphas and fractions stay).
+    ImPlotStyle &plot = ImPlot::GetStyle();
+    for (ImVec2 *size : {&plot.PlotDefaultSize, &plot.PlotMinSize, &plot.MajorTickLen, &plot.MinorTickLen,
+                         &plot.MajorTickSize, &plot.MinorTickSize, &plot.MajorGridSize, &plot.MinorGridSize,
+                         &plot.PlotPadding, &plot.LabelPadding, &plot.LegendPadding, &plot.LegendInnerPadding,
+                         &plot.LegendSpacing, &plot.MousePosPadding, &plot.AnnotationPadding})
+    {
+        size->x *= scale;
+        size->y *= scale;
+    }
+    plot.PlotBorderSize *= scale;
+    plot.DigitalBitHeight *= scale;
+    plot.DigitalBitGap *= scale;
+
+    log::info("overlay scale {:.2f}", scale);
+    m_uiScale = scale;
+}
+
+void Overlay::hideIdleCursor()
+{
+    if (ImGui::GetIO().WantCaptureMouse)
+        return;
+    const float idleSeconds = m_application.config().ui.cursorHideSeconds;
+    const bool idle = idleSeconds > 0.0f && std::chrono::steady_clock::now() - m_lastMouseActivity >=
+                                                std::chrono::duration<float>(idleSeconds);
+    const bool fullscreenPlay = m_application.window().mode() == WindowMode::Borderless && !m_menuVisible;
+    if (idle || fullscreenPlay)
+        ImGui::SetMouseCursor(ImGuiMouseCursor_None);
 }
 
 void Overlay::beginFrame()
 {
     if (!m_initialized)
         return;
+    updateUiScale();
     ImGui_ImplSDLGPU3_NewFrame();
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
@@ -136,6 +209,7 @@ void Overlay::draw(rendering::Renderer &)
     }
     for (const std::unique_ptr<Panel> &panel : m_panels)
         panel->drawWindow();
+    hideIdleCursor();
 
     // The game reads a released pad while a window here has the keyboard.
     m_application.input().setSuppressed(ImGui::GetIO().WantCaptureKeyboard);

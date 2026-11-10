@@ -104,12 +104,40 @@ struct GameSettings
     void serialize(Archive &archive);
 };
 
+// What the window does when nobody is looking at it (MioPan's [window] section).
+struct WindowSettings
+{
+    // Holds the game's field clock while the window is minimised or unfocused: the game stops where it
+    // is, as a paused console would. Off by default, as in MioPan.
+    bool pauseInBackground = false;
+
+    template <class Archive>
+    void serialize(Archive &archive);
+};
+
+inline constexpr float kUiScaleMin = 0.5f;
+inline constexpr float kUiScaleMax = 4.0f;
+
+// The overlay (ImGui).
+struct UiSettings
+{
+    // 0 follows the display's content scale, and a window dragged to another monitor follows it there;
+    // anything else is the scale, fixed.
+    float scale = 0.0f;
+    // A cursor left still over the game hides after this long; 0 never hides it.
+    float cursorHideSeconds = 2.0f;
+
+    template <class Archive>
+    void serialize(Archive &archive);
+};
+
 // Percent on top of the game's own mix: 100 is the level the game asks for.
 struct AudioSettings
 {
     int master = 100;
     int music = 100;
     int effects = 100;
+    bool muteInBackground = true;
 
     template <class Archive>
     void serialize(Archive &archive);
@@ -119,6 +147,8 @@ class Config
 {
 public:
     DisplaySettings display;
+    WindowSettings window;
+    UiSettings ui;
     PathSettings paths;
     GameSettings game;
     AudioSettings audio;

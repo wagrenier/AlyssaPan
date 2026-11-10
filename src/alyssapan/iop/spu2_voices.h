@@ -83,6 +83,9 @@ public:
     std::uint32_t autoDmaOffset(int core);
     void autoDmaSetVolume(int core, std::uint16_t left, std::uint16_t right);
 
+    // The host's mute (the window in the background): kept across the device opening late.
+    void setOutputMuted(bool muted);
+
 private:
     struct Voice;
     struct AutoDma;
@@ -113,6 +116,7 @@ private:
     std::unique_ptr<audio::AudioOutput> m_output;
     std::unique_ptr<os::Thread> m_thread;
     bool m_started = false;
+    bool m_outputMuted = false;
 };
 
 } // namespace alyssapan::iop

@@ -74,6 +74,11 @@ public:
     // Periodic host work on the field clock, for the vsync the pacing and tools hang off.
     void setFieldListener(std::function<void()> listener);
 
+    // Stops the fields (vblank, sceGsSyncV, the field listener) while true: everything the game paces
+    // itself on waits, as a paused console would. Alarms and timers run on. Any thread.
+    void setHeld(bool held) { m_held.store(held); }
+    bool held() const { return m_held.load(); }
+
 private:
     struct Timed
     {
@@ -115,6 +120,7 @@ private:
     VBlankCallback m_vblankCallback = nullptr;
     std::atomic<VideoStandard> m_standard{VideoStandard::Ntsc};
     std::atomic<std::uint64_t> m_fields{0};
+    std::atomic<bool> m_held{false};
     std::atomic<Clock::rep> m_lastFieldTime{0};
     int m_nextHandlerId = 1;
     int m_nextAlarmId = 1;

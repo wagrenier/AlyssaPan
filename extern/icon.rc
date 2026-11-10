@@ -1,0 +1,2 @@
+// The exe's icon (Explorer, the taskbar before the window opens). Drawn by tools/make_icon.py.
+IDI_ICON1 ICON "alyssapan.ico"

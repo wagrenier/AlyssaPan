@@ -51,6 +51,7 @@ private:
     bool startServices();
     void startGame();
     void pumpEvents();
+    void updateBackgroundState();
     void quit();
 
     std::span<char *> m_arguments;
@@ -64,6 +65,8 @@ private:
     std::unique_ptr<rendering::Renderer> m_renderer;
     std::atomic<bool> m_gameStarted{false};
     bool m_running = true;
+    bool m_backgroundMuted = false;
+    bool m_backgroundHeld = false;
 };
 
 } // namespace alyssapan

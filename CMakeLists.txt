@@ -66,6 +66,12 @@ add_executable(AlyssaPan src/main.cpp ${ALYSSAPAN_HOST_SOURCES} $<TARGET_OBJECTS
 add_dependencies(AlyssaPan compile_shaders)
 target_include_directories(AlyssaPan PRIVATE src)
 target_link_libraries(AlyssaPan PRIVATE SDL3::SDL3 imgui)
+# The exe's icon (tools/make_icon.py draws it; resources/alyssapan.png is the window's, loaded at run time).
+if(WIN32)
+    enable_language(RC)
+    target_sources(AlyssaPan PRIVATE extern/icon.rc)
+    set_property(SOURCE extern/icon.rc APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/extern/alyssapan.ico)
+endif()
 if(MSVC)
     target_compile_options(AlyssaPan PRIVATE /W3 /Zc:preprocessor /utf-8)
     target_compile_definitions(AlyssaPan PRIVATE _CRT_SECURE_NO_WARNINGS)
