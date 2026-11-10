@@ -43,6 +43,12 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
   stack word at sp+0x100 (Ghidra: aiStack_30) and _SunFree's it, but only three _SunAlloc calls exist
   (sp+0x10c, 0xe0, 0xf0): the PS2 writes through whatever the slot held. The port allocates it (PORT
   comment). Count the allocations in the listing before trusting a decompiled buffer.
+- (2026-11-10, host task game/ct3_types.h) **Bank data is EE layout: never a host pointer in a bank
+  record.** ALL_TABLE (image + 0x80) and every list it reaches keep the EE offsets; a pointer field
+  declared as a host pointer silently shifts every later field by 4 per pointer (scene_init read
+  partsHeader from +0x38's count). Declare such words u_int and read them with BANK_PTR(type, bank, word);
+  ALLobject[] and the sort tables hold EE words too. A host-only struct may hold host pointers; a
+  struct the relocator walks may not.
 - (2026-11-10, game/Character_Init.c slice 4) **A fifth argument in t0 that Ghidra's call drops.**
   SceneLightSet's gaSearchNearLight4 call shows four arguments; t0 still holds the list count from the
   loop compare just before the jal (CharLightSet's call shows it). Read the listing above every jal.
