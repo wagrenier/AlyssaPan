@@ -1235,14 +1235,9 @@ void asGAobjectControlPolygonDisplayRotateFlagReverse(ALL_TABLE *tbl)
 
 // PORT: a part's REC_PARENT word as a host matrix: matUnit for a root (LinkMatrixTree's), else a
 // matrix of the same bank (decision h).
-#define MATUNIT_EE 0x01939e40u
 static float (*PartsParentMatrix(int bank, u_int ee))[4]
 {
     if (ee == MATUNIT_EE)
-        return matUnit;
-    // PORT (temporary, 2026-11-10): the file leaves the word 0 and LinkMatrixTree fills it; while
-    // game/LinkMatrixTree.c is a stub, 0 reads as the root. Remove when LinkMatrixTree is written.
-    if (ee == 0)
         return matUnit;
     return BANK_PTR(float (*)[4], bank, ee);
 }
@@ -1608,4 +1603,10 @@ void asShadowStart(void)
 void BMT_20(u_char *partsHeader, int bank)
 {
     ALYSSAPAN_STUB("BMT_20", 0x01850770);
+}
+
+// stub of CT3 0x018513b0
+void asCopyDoubleBufferL2V(u_char *partsHeader, int mode)
+{
+    ALYSSAPAN_STUB("asCopyDoubleBufferL2V", 0x018513b0);
 }

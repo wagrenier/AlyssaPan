@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-10 04:24 at commit `7ea9294` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-10 04:33 at commit `9f0d2f4` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **315**; stubs: **242**
+- reconstructed CT3 functions: **319**; stubs: **239**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -52,10 +52,10 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/Clipping_Portal.c` | 0 | 33 |
 | `src/game/CpDivideEECom.c` | 0 | 1 |
 | `src/game/IOPGetFileSize.c` | 0 | 3 |
-| `src/game/LinkMatrixTree.c` | 0 | 4 |
+| `src/game/LinkMatrixTree.c` | 4 | 0 |
 | `src/game/QuatSlerp.c` | 1 | 42 |
 | `src/game/SdMasterVolumeSetSE.c` | 0 | 34 |
-| `src/game/ahRelocateSunPs2ObjectArry.c` | 32 | 22 |
+| `src/game/ahRelocateSunPs2ObjectArry.c` | 32 | 23 |
 | `src/game/ahalloc.c` | 7 | 0 |
 | `src/game/asEyeForcusUP2CamMat.c` | 0 | 9 |
 | `src/game/asMothPause.c` | 0 | 1 |
@@ -77,9 +77,9 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 50, partial 3, verify 12, done 3
-- next: **game/LinkMatrixTree.c** (pinned in the queue)
-- pinned queue: game/LinkMatrixTree.c, game/ahRelocateSunPs2ObjectArry.c, game/fileio.c
+- 65 TUs: todo 49, partial 3, verify 13, done 3
+- next: **game/ahRelocateSunPs2ObjectArry.c** (pinned in the queue)
+- pinned queue: game/ahRelocateSunPs2ObjectArry.c, game/fileio.c
 - partial: `game/ahRelocateSunPs2ObjectArry.c` 32/93 -- LinkMatrixTree.c is queued first: the record +0x8c parent word is 0 until LinkMatrixTree fills it, and PartsParentMatrix reads 0 as matUnit meanwhile (temporary
 - partial: `game/fileio.c` 33/40 -- Written: FSMltLoadProc (steps FSMLT_*), ReserveBank, Extract; FQUE +0 is dir. The first global bank now loads and the run crashes in scene_init (main.c) reading
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
@@ -90,6 +90,7 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/AlignedNum.c` 4/4 -- WaitLoop is split in Ghidra: WaitLoop 0x0189f650 plus WaitLoop_body 0x0189f680 (game-inferred), one C function. The j at 0x0189f718 belongs to the next object (
 - verify: `game/ArtoolDebugOpen.c` 15/15 -- Smoke run: FlInit prints no error, so the pack directory loads and sceCdSearchFile finds the pack; no run reads a file yet (main2 and fileio.c are stubs), the s
 - verify: `game/Character_Init.c` 48/49 -- All 49 functions written; nothing on screen reaches the card yet (main2 is a stub), shot black as before. The save image layout is in architecture.md (The save 
+- verify: `game/LinkMatrixTree.c` 4/4 -- Code complete, nothing on screen shows it yet: the smoke run still crashes at main.c 2106 (ActressMP NULL, the known blocker) and the shot stays black. LinkMatr
 - verify: `game/ahalloc.c` 7/7 -- Host block header is 0x20 bytes (EE 0x10). SunAllocInit runs at boot; nothing calls _SunAlloc yet. AlignedNum is a stub answering 0, so game/AlignedNum.c is que
 - verify: `game/main.c` 29/29 -- Smoke run: build green, layoutcheck OK, callcheck: main_rtn_Particle2 matches the ROM (extra BankEePtr only); AllDrawObject / GlobalDrawObject / DrawObjectRefra
 - verify: `game/main2.c` 18/18 -- Smoke run leaves main2 and runs the frame loop with no crash; the shot stays black because FSMltLoad (fileio.c) is a stub so no bank loads. PORT BankReady skips
@@ -97,6 +98,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-10 04:33 `game/LinkMatrixTree.c` verify: all 4 functions: InitMatrixTree, LinkMatrixTree (parent words MATUNIT_EE or BankEeAddr, decision h), ahTimeInit, ahTimeMaintenance; tick globals moved here; Par
 - 2026-11-10 04:24 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 4: BuildMatrixTree from the disassembly (look-at, link, light parts; parent words stay EE addresses), behaviour start / stop, asShadowDrawing_Fin, asDrawS
 - 2026-11-10 03:56 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 3: seek bars (asSeekBarInitializeForX, asSeekBarFreeForX, asSeekBarAnimation), asSeatArrange_Init, BMT_01, ExecuteAnimationHistory_Free; ALL_TABLE +0xc0 /
 - 2026-11-10 03:34 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 2: the animation pass (asUpDateSceneAnimation, asUpDateGAobjectsAnimation, asCheckAnimationExecutable_Scene, asCheckNowMoving, asForceOperateAnimation_Sce
@@ -104,7 +106,6 @@ Recent sessions:
 - 2026-11-10 02:55 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 1: the file relocator -- ahRelocateFileObject (0x3b80 bytes), ahRelocateBehavior, ahRelocateSunPs2ObjectArry; words stay EE addresses relocated to BankIma
 - 2026-11-10 02:34 `game/fileio.c` partial: slice 2: the bank loader - FSMltLoadProc, ReserveBank, Extract (the CT3X unpacker)
 - 2026-11-10 02:21 `game/fileio.c` partial: slice 1: the bank queue and table, the FSLoad queue, the file server (32 of 40)
-- 2026-11-10 01:57 `game/main2.c` verify: all 18 functions: main2, InitLoadSceneChar, the scene, global, shape and behaviour triggers, CharacterAllFree, the self-discard queue
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
@@ -114,7 +115,7 @@ Recent sessions:
 | `game/Clipping_Portal.c` | todo | 0/33/73 | 44.8 | 130 | 14 |
 | `game/ssSetTexUVforCubeMap.c` | todo | 0/30/96 | 35.3 | 79 | 8 |
 | `game/wideXcmd_DebugPrint.c` | todo | 0/13/109 | 40.6 | 76 | 11 |
-| `game/ahRelocateSunPs2ObjectArry.c` | partial | 32/22/93 | 76.0 | 67 | 7 |
+| `game/ahRelocateSunPs2ObjectArry.c` | partial | 32/23/93 | 76.0 | 73 | 8 |
 | `game/asEyeForcusUP2CamMat.c` | todo | 0/9/30 | 23.6 | 52 | 5 |
 | `ga/gaInit3dlib.c` | todo | 0/5/25 | 3.6 | 42 | 4 |
 | `ga/gaDmaSync_VIF1.c` | todo | 0/3/5 | 0.5 | 35 | 3 |

@@ -168,13 +168,6 @@ int FadeStartTicks;                             /* sbss 0x0194294c */
 int XfadeStartTicks;                            /* sbss 0x01942954 */
 int VibTimeTicks;                               /* sbss 0x0193f76c */
 
-int gNextTicksInterval;                         /* sbss 0x0193cb18 */
-int gNextTicks;                                 /* sbss 0x0193cb1c */
-int gTotalTicks;                                /* sbss 0x0193cb20 */
-int gGlobalNextTicksInterval;                   /* sbss 0x0193cb08 */
-int gGlobalNextTicks;                           /* sbss 0x0193cb0c */
-int gGlobalTotalTicks;                          /* sbss 0x0193cb10 */
-
 int ItemList[12];                               /* sbss 0x0193f9a0 */
 /* data 0x0192e810 */
 u_char ItemData[100][0x18] = {
@@ -400,7 +393,6 @@ u_char LetterData[100][0xc] = {                 /* data 0x0192fad0 */
     {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
     {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
 };
-
 
 // ---- sound (game/sound.c's slice 1) ----
 u_int gBfoScene = 0x78787842;                          /* sdata 0x0193a28c */

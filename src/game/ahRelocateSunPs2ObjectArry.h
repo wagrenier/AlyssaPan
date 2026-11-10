@@ -44,6 +44,7 @@ void asGetShadowMatrixGlobalView(void);                                         
 void Shadow_OnceInit(void);                                                              // CT3 0x01847c30
 void ExecuteAnimationHistory_init(void);                                                 // CT3 0x0184ef00
 void asCopyDoubleBuffer(void);                                                           // CT3 0x01851150
+void asCopyDoubleBufferL2V(u_char *partsHeader, int mode);                              // CT3 0x018513b0
 void ExecuteAnimationHistory_Free(void);                                                 // CT3 0x0184eed0
 // (scene, mode, pass): (0, 1) BMT_01, (2, 0) BMT_20; mode 1 rebuilds every part, pass != 0 the view
 // matrices of what moved; a negative scene also keeps this frame's matrices as the previous ones.

@@ -147,14 +147,6 @@ extern int FadeStartTicks;                      /* sbss 0x0194294c */
 extern int XfadeStartTicks;                     /* sbss 0x01942954 */
 extern int VibTimeTicks;                        /* sbss 0x0193f76c */
 
-// ---- time (LinkMatrixTree.c's ahTime*) ---------------------------------------------------------------
-extern int gNextTicksInterval;                  /* sbss 0x0193cb18 */
-extern int gNextTicks;                          /* sbss 0x0193cb1c */
-extern int gTotalTicks;                         /* sbss 0x0193cb20 */
-extern int gGlobalNextTicksInterval;            /* sbss 0x0193cb08 */
-extern int gGlobalNextTicks;                    /* sbss 0x0193cb0c */
-extern int gGlobalTotalTicks;                   /* sbss 0x0193cb10 */
-
 // ---- items (tiItemInit) ------------------------------------------------------------------------------
 extern int ItemList[12];                        /* sbss 0x0193f9a0 */
 extern u_char ItemData[100][0x18];              /* data 0x0192e810: the item table (byte +1 = held) */
@@ -178,6 +170,7 @@ extern float DrawOnPosSetMatrixTemp[4][4];      /* sbss 0x01942500: asJointParts
 extern u_long DrawOnPosSetHashTemp;             /* sbss 0x019424e0: != 0 -> TrgSceneDraw(.., -2, ..) joints by matrix */
 extern int CharacterDisable;                    /* sbss 0x01942384: main2 clears it */
 extern float matUnit[4][4];                     /* sdata 0x01939e40: the unit matrix */
+#define MATUNIT_EE 0x01939e40u           /* matUnit's EE address (a root part's REC_PARENT) */
 extern u_char LetterData[100][0xc];             /* data 0x0192fad0: the letter table */
 
 // ---- sound (game/sound.c's slice 1 uses them; the Sd driver TU or the scene TU owns them) -----------

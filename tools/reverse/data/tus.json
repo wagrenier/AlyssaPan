@@ -1,6 +1,5 @@
 {
  "queue": [
-  "game/LinkMatrixTree.c",
   "game/ahRelocateSunPs2ObjectArry.c",
   "game/fileio.c"
  ],
@@ -391,12 +390,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 95..95, 3 functions keyed by their statics, 1 unkeyed; file name from the names"
   },
   "game/LinkMatrixTree.c": {
+   "notes": "Code complete, nothing on screen shows it yet: the smoke run still crashes at main.c 2106 (ActressMP NULL, the known blocker) and the shot stays black. LinkMatrixTree finds its bank by matching pModelPartsHeader (PORT PartsHeaderBank). asCopyDoubleBufferL2V declared and stubbed in ahRelocateSunPs2ObjectArry.c (reached). Open items cn..cq. Next: the queue's ahRelocateSunPs2ObjectArry.c (BMT_20, asMakeStraw, ExecuteAnimation, asCopyDoubleBufferL2V).",
    "ranges": [
     [
      "018514d0",
      "018518d0"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-10 04:33",
+     "status": "verify",
+     "summary": "all 4 functions: InitMatrixTree, LinkMatrixTree (parent words MATUNIT_EE or BankEeAddr, decision h), ahTimeInit, ahTimeMaintenance; tick globals moved here; PartsParentMatrix temporary 0 line removed"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 70..70, 2 functions keyed by their statics, 2 unkeyed; file name from the names"
   },
   "game/PicPaz.c": {

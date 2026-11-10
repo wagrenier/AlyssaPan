@@ -437,6 +437,25 @@ whose bytes 2..3 (home) are copied to 4..5 and 6..7 at init. Model part records 
 non-kind-1 record's position (+0xf0) to +0x2f0 and, unless record +0x34c is set, builds record +0x340 =
 view * matrix (+0x180) and +0x300 = that * diag(record +0x2c0 xyz).
 
+## The matrix tree set-up and the game clock, game/LinkMatrixTree.c (2026-11-10)
+
+- **InitMatrixTree(header)** (scene_init, data_load_set, asJointParts_byMatrix): for each record
+  (header + 0x40 + i * 0x380, ended by a negative depth) copy the file's values into the working fields:
+  +0x80 -> REC_BASE (+0x280), +0x40 -> REC_OFFSET (+0x240), +0xc0 -> REC_SCALE (+0x2c0, not kind 3),
+  +0xd0 -> +0x2d0; the w words +0x4c / +0x5c / +0x6c (REC_PREV_SCALE_*) and +0x8c (REC_PARENT) sit
+  inside those matrices and copy as 0; REC_BLEND (+0x7c) = 1, REC_MATRIX_PREV (+0x1c0) = unit; then
+  asCopyDoubleBufferL2V(header, 1).
+- **LinkMatrixTree(lists, header)** right after: two depth stacks (0x80 bytes each on the ROM's stack)
+  give every record its REC_PARENT -- the parent's REC_LOCAL (+0x200; matUnit for a root), or for a static
+  part (kind 1) the REC_MATRIX (+0x180) of the nearest non-static ancestor; REC_VIEW_HOLD (+0x34c) = 1.
+  Then the three draw lists (ALL_TABLE.objOpaque on, 0-ended): each entry's ga draw object gets +0x58 /
+  +0x5c = its part's record +0x100 / +0x140 (a static part: its parent's), and that part's
+  REC_VIEW_HOLD = 0; lights (4, 5), look-at parts (0x14) and kinds 0xd, 0x11, 0x15, 0x16 get 0 too.
+  On the host the words are EE addresses (MATUNIT_EE or BankEeAddr; decision h).
+- **The clock**: 5 ticks per VSync of ga_main_timer. ahTimeMaintenance(paused) once a frame: the scene
+  clock (gNextTicksInterval / gNextTicks / gTotalTicks) only when not paused, the global clock
+  (gGlobal*) always; statics last_frame (0x0193cb14) and Globallast_frame (0x0193cb04).
+
 ## The IOP side (2026-11-09)
 
 The EE loads `cdrom0:\IOP\IOPRP255.IMG;1` (an IOP reboot), then `SIO2MAN`, `PADMAN`, `MCMAN`, `MCSERV`,
