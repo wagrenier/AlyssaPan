@@ -119,7 +119,7 @@ void Character_All_Init(void)
             chr->shapeName[j] = 0;
         }
         chr->flags = 0;
-        chr->w090 = 0;
+        chr->roomHash = 0;
         chr->w098 = 0;
         chr->lightBank = -1;
         memcpy(chr->posBefore, kVf0, sizeof(qword));
@@ -2957,7 +2957,7 @@ void data_load_set(u_char *data)
             TrgCharacterShapeLoad(chara, name, bank, -1);
             if (rec->loaded == 1) {
                 Character[chara].bank = -1;
-                Character[chara].w090 = 0;
+                Character[chara].roomHash = 0;
                 Character[chara].w098 = 0;
                 Character[chara].lightBank = -1;
                 TrgCharacterShapeSet(chara, name, -1, 0, 0);
@@ -2976,7 +2976,7 @@ void data_load_set(u_char *data)
 
     // The fields the shape set-up reset come back from the images.
     for (i = 0; i < CHARACTER_MAX; i++) {
-        MC_CHARA_FIELD(Character[i], save->chara[i], w090);
+        MC_CHARA_FIELD(Character[i], save->chara[i], roomHash);
         MC_CHARA_FIELD(Character[i], save->chara[i], w098);
         MC_CHARA_FIELD(Character[i], save->chara[i], lightBank);
         MC_CHARA_FIELD(Character[i], save->chara[i], h100);

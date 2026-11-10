@@ -19,7 +19,8 @@ typedef struct CHARACTER {
     u_char pad086[2];
     u_int flags;                        /* 0x088: CHARACTER_FLAG_* */
     u_int flagsPrev;                    /* 0x08c: flags as the last asCopyDoubleBuffer left them */
-    u_long w090;                        /* 0x090: Character_All_Init: 0 (a doubleword store) */
+    u_long roomHash;                    /* 0x090: GetRoomName_file of the room it belongs to (CharID_TO_BankID
+                                           finds the bank by it); Character_All_Init: 0 */
     u_long w098;                        /* 0x098: Character_All_Init: 0 (a doubleword store) */
     short lightBank;                    /* 0x0a0: the bank whose light main_rtn applies, -1 = none */
     u_char pad0a2[0xe];
@@ -74,7 +75,7 @@ static_assert(offsetof(CHARACTER, rotBefore) == 0x0e8, "CHARACTER.rotBefore");
 static_assert(offsetof(CHARACTER, translucent) == 0x52c, "CHARACTER.translucent");
 static_assert(offsetof(CHARACTER, translucentAlpha) == 0x530, "CHARACTER.translucentAlpha");
 static_assert(offsetof(CHARACTER, behaviorName) == 0x022, "CHARACTER.behaviorName");
-static_assert(offsetof(CHARACTER, w090) == 0x090, "CHARACTER.w090");
+static_assert(offsetof(CHARACTER, roomHash) == 0x090, "CHARACTER.roomHash");
 static_assert(offsetof(CHARACTER, brain) == 0x0fc, "CHARACTER.brain");
 static_assert(offsetof(CHARACTER, shapeName) == 0x018, "CHARACTER.shapeName");
 static_assert(offsetof(CHARACTER, legParts) == 0x54c, "CHARACTER.legParts");
@@ -356,7 +357,9 @@ typedef struct MODEL_PARTS {
     u_long hash;                        /* 0x48: the part's name hash (ahGetHash); TrgSceneDraw joints a
                                            bank to a PARTS_KIND_JOINT_PORTAL part by it */
     u_int flags;                        /* 0x50: PARTS_FLAG_* */
-    u_char pad054[0xdc];
+    u_char pad054[0xcc];
+    float alpha;                        /* 0x120: the part's alpha: ALL_TABLE.partsPos w at AmbientAlphaInit */
+    u_char pad124[0xc];
     float pos[4];                       /* 0x130: the part's position (SSGetPositional: a sound source) */
     u_char pad140[0x80];
     float matrix[4][4];                 /* 0x1c0: the part's world matrix (SelfDiscardSceneLoad; ActressMP's) */
@@ -368,6 +371,7 @@ typedef struct MODEL_PARTS {
     float lightPos[4];                  /* 0x320: as a light source; w: falloff (1 = Omni0/1_num) */
     u_char pad330[0x50];
 } MODEL_PARTS;
+static_assert(offsetof(MODEL_PARTS, alpha) == 0x120, "MODEL_PARTS.alpha");
 static_assert(offsetof(MODEL_PARTS, lightColor) == 0x310, "MODEL_PARTS.lightColor");
 static_assert(offsetof(MODEL_PARTS, lightPos) == 0x320, "MODEL_PARTS.lightPos");
 static_assert(sizeof(MODEL_PARTS) == 0x380, "MODEL_PARTS");

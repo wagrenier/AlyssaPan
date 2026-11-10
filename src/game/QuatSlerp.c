@@ -3,9 +3,39 @@
 
 #include "common/alyssapan_stub.h"
 #include "game/QuatSlerp.h"
+#include "ga/gaInit3dlib.h"
+#include "game/unassigned_data.h"
+#include "ga/gaSinCos.h"
+#include "game/ssGrpPortalCheck.h"
 
 #include <math.h>
 #include <string.h>
+
+// CT3 0x019395b0 (RoomNameTbl, 95 names) and 0x01939730 (RoomIdTbl, 95 trigger events + -1): row i
+// is a room (its files' first four characters) and the event RoomInFlagOn registers in it.
+static const char *const RoomNameTbl[ROOM_TBL_COUNT] = {
+    "0A01", "0A02", "0A03", "0A06", "0A07", "0A10", "0A11", "0A16", "0A17", "0A19",
+    "0A23", "0A27", "0A30", "0B01", "0B03", "0B06", "0B07", "0B19", "1A02", "1A04",
+    "1A10", "1A11", "1B01", "1B03", "1B04", "1B05", "1B07", "1B08", "1B09", "1B11",
+    "1B12", "1C01", "1C02", "1C03", "1C04", "1C05", "1C06", "2A01", "2A02", "2B01",
+    "2B02", "2B03", "2B04", "2B05", "2B06", "2B07", "2B08", "2D01", "2D02", "2D03",
+    "3A01", "3A02", "3C01", "3C02", "3C03", "3C05", "3C06", "3C07", "3D01", "3D02",
+    "3D03", "3D05", "3E01", "3F01", "4A01", "4A02", "4A03", "4A04", "4A05", "4A06",
+    "4A07", "4A08", "4A09", "4A10", "4A11", "4A12", "4B01", "4B02", "4B03", "4B04",
+    "4B05", "4B06", "4B07", "4B08", "4B09", "4B10", "4C01", "4N01", "4N02", "4N03",
+    "5A01", "5A01", "5A02", "5A03", "5A04",
+};
+static const int RoomIdTbl[ROOM_TBL_COUNT + 1] = {
+    1846, 1847, 1848, 1851, 1852, 1855, 1856, 1861, 1862, 1864, 1867, 1871,
+    1922, 1872, 1874, 1875, 1876, 1879, 1801, 1802, 1803, 1804, 1806, 1808,
+    1809, 1810, 1812, 1813, 1814, 1816, 1817, 1818, 1819, 1820, 1821, 1822,
+    1823, 1833, 1834, 1835, 1836, 1837, 1838, 1839, 1840, 1841, 1842, 1843,
+    1844, 1845, 1915, 1916, 1910, 1917, 1911, 1881, 1882, 1907, 1883, 1884,
+    1908, 1885, 1909, 1886, 1887, 1888, 1919, 1889, 1893, 1894, 1890, 1918,
+    1891, 1892, 1895, 1896, 1902, 1904, 1906, 1921, 1920, 1897, 1898, 1899,
+    1914, 1905, 1912, 1900, 1901, 1903, 1913, 1913, 1925, 1923, 1924, -1,
+};
+
 
 // CT3 0x0185df90
 // Written early (ahRelocateSunPs2ObjectArry.c slice 13): VU0 RSQRT of x2 + y2 + z2, then 1 / Q.
@@ -159,10 +189,15 @@ void AmbientAlphaUpdate(void)
     ALYSSAPAN_STUB("AmbientAlphaUpdate", 0x01856c30);
 }
 
-// stub of CT3 0x01853220
+// CT3 0x01942970 (ClatteringData): the controller rattles (vibration requests).
+CLATTERING ClatteringData[CLATTERING_MAX];
+
+// CT3 0x01853220: every slot free (the ROM unrolls the first eight).
 void ControllerClatteringInit(void)
 {
-    ALYSSAPAN_STUB("ControllerClatteringInit", 0x01853220);
+    int i;
+    for (i = 0; i < CLATTERING_MAX; i++)
+        ClatteringData[i].id = CLATTERING_FREE;
 }
 
 // stub of CT3 0x01852f90
@@ -255,25 +290,103 @@ void ssMenuUpdate(int mode)
     ALYSSAPAN_STUB("ssMenuUpdate", 0x01854d30);
 }
 
-// stub of CT3 0x0185e580
+// ---- part lookup and name hashes (slice 1, 2026-11-10) ----
+
+// CT3 0x0185e580
+// Each character's low 7 bits, rotated left by 7 * i (mod 64), XORed in: the ROM builds the rotation
+// from 32-bit halves in four shift ranges (< 25, < 32, < 58, and the wrap), which is a 64-bit rotate.
+// A name of up to 9 characters never overlaps itself, so asConvertHash2String reads it back
+// (PARTS_HASH_BIP01 is "Bip01", PARTS_HASH_BASE_POINT "BasePoint").
 u_long ahGetHash(const char *name)
 {
-    ALYSSAPAN_STUB("ahGetHash", 0x0185e580);
-    return {};
+    u_long hash = 0;
+    u_int shift = 0;
+
+    if (name == NULL)
+        return 0;
+    for (; *name != '\0'; name++) {
+        u_long c = (u_long)(*name & HASH_CHAR_MASK);
+        hash ^= shift == 0 ? c : (c << shift | c >> (64 - shift));
+        shift = (shift + HASH_CHAR_BITS) & 0x3f;
+    }
+    return hash;
 }
 
-// stub of CT3 0x0185e360
+// CT3 0x0193ce58 (szHash$257): 9 characters and the terminator.
+static char szHash[10];
+
+// CT3 0x0185e420
+// The inverse for short names: nine 7-bit characters from the low end, terminated. (The ROM unrolls
+// the first eight and writes each byte twice, zero first.)
+char *asConvertHash2String(u_long hash)
+{
+    int i;
+    for (i = 0; i < 9; i++) {
+        szHash[i] = (char)(hash & HASH_CHAR_MASK);
+        hash >>= HASH_CHAR_BITS;
+    }
+    szHash[9] = '\0';
+    return szHash;
+}
+
+// CT3 0x0185e360: the global banks (0..5) keep their number; every scene / character bank answers 6.
 int asCheckBankID(int bank)
 {
-    ALYSSAPAN_STUB("asCheckBankID", 0x0185e360);
-    return {};
+    if (bank > GLOBAL_BANK_LAST)
+        bank = GLOBAL_BANK_LAST + 1;
+    return bank;
 }
 
-// stub of CT3 0x0185e150
+// CT3 0x0185e380: 1 for a scene / character bank (6..), 0 for a global one.
+int asCheckBankType(int bank)
+{
+    return bank > GLOBAL_BANK_LAST;
+}
+
+// CT3 0x0185e150
+// The index of the part whose hash matches, -1 when none (or no header). Four names have a cache word
+// in the parts header (+0x10..+0x1c): 0 means not looked up yet, -1 not in this model, > 0 the index.
+// A miss stores -1 and a hit its index in the cache of the name looked up (an index 0 is stored as 0,
+// so part 0 is searched again each time: the ROM's).
 int asFindModelPartsID(u_char *header, u_long hash)
 {
-    ALYSSAPAN_STUB("asFindModelPartsID", 0x0185e150);
-    return {};
+    int cache = -1;             /* which cache word this name has; -1 none */
+    u_int i, count;
+
+    if (header == NULL)
+        return -1;
+    if (hash == PARTS_HASH_BIP01)
+        cache = 0;
+    else if (hash == PARTS_HASH_BASE_POINT)
+        cache = 1;
+    else if (hash == PARTS_HASH_CACHE2)
+        cache = 2;
+    else if (hash == PARTS_HASH_CACHE3)
+        cache = 3;
+    if (cache >= 0) {
+        int known = *(int *)(header + PARTS_HDR_CACHE + cache * 4);
+        if (known == -1)
+            return -1;
+        if (known > 0)
+            return known;
+    }
+
+    count = *(u_short *)(header + PARTS_HDR_COUNT);
+    for (i = 0; i < count; i++) {
+        u_long partHash;
+        memcpy(&partHash, header + PARTS_HDR_RECORDS + i * PARTS_REC_SIZE + PARTS_REC_HASH, sizeof(partHash));
+        if (partHash == hash)
+            break;
+    }
+    if (cache >= 0)
+        *(int *)(header + PARTS_HDR_CACHE + cache * 4) = i < count ? (int)i : -1;
+    return i < count ? (int)i : -1;
+}
+
+// CT3 0x0185deb0: answers its argument (a character's struct is its own handle).
+void *asFindCharacterStruct(void *chara)
+{
+    return chara;
 }
 
 // stub of CT3 0x01858f20
@@ -283,17 +396,48 @@ int OneMaxObjectDrawZOnly(int bank, int index)
     return {};
 }
 
-// stub of CT3 0x0185e380
-int asCheckBankType(int bank)
+// ---- the view matrix read back as a camera (slice 1, 2026-11-10, from the disassembly) ----
+
+// CT3 0x0185a670: a focal length in the PS2's projection units (screen_0[8], 512) to a Leica's mm.
+float asFocalLength_PS22LEICA(float f)
 {
-    ALYSSAPAN_STUB("asCheckBankType", 0x0185e380);
-    return {};
+    return f * FOCAL_LEICA_MM / FOCAL_PS2_UNITS;
 }
 
-// stub of CT3 0x0185a8a0
+// CT3 0x0185a6b0: the inverse.
+float asFocalLength_LEICA2PS2(float f)
+{
+    return f * FOCAL_PS2_UNITS / FOCAL_LEICA_MM;
+}
+
+// CT3 0x0185a8a0
+// The view matrix's rotation (its translation row replaced by vf0, (0, 0, 0, 1)) inverted in place:
+// its rows are the camera's right, up and front (each copied when asked for). pos = -(row 3).xyz with
+// row 3's own w, multiplied through the inverse (all four lanes).
 void asViewMatrix2PosRUF(float *view, float *pos, float *right, float *up, float *front)
 {
-    ALYSSAPAN_STUB("asViewMatrix2PosRUF", 0x0185a8a0);
+    float inv[4][4];
+    float v[4];
+    int i;
+
+    memcpy(inv, view, sizeof(inv));
+    inv[3][0] = inv[3][1] = inv[3][2] = 0.0f;
+    inv[3][3] = 1.0f;
+    gaInversMatrix(inv, inv);
+    if (right != NULL)
+        memcpy(right, inv[0], sizeof(inv[0]));
+    if (up != NULL)
+        memcpy(up, inv[1], sizeof(inv[1]));
+    if (front != NULL)
+        memcpy(front, inv[2], sizeof(inv[2]));
+    if (pos != NULL) {
+        v[0] = -view[12];
+        v[1] = -view[13];
+        v[2] = -view[14];
+        v[3] = view[15];
+        for (i = 0; i < 4; i++)
+            pos[i] = inv[0][i] * v[0] + inv[1][i] * v[1] + inv[2][i] * v[2] + inv[3][i] * v[3];
+    }
 }
 
 // stub of CT3 0x01859520
@@ -320,16 +464,46 @@ void tnInit3dlibWork(void *work, void *spr)
     ALYSSAPAN_STUB("tnInit3dlibWork", 0x01854560);
 }
 
-// stub of CT3 0x0185a6f0
+// CT3 0x0185a6f0
+// As asViewMatrix2PosRUF, but pos is the camera's eye: the view origin moved back along front by
+// three focal lengths in mm (asFocalLength_PS22LEICA(screen_0[8]) * -3); w stays the origin's.
 void asViewMatrix2CamRUF(float (*view)[4], float *pos, float *right, float *up, float *forward)
 {
-    ALYSSAPAN_STUB("asViewMatrix2CamRUF", 0x0185a6f0);
+    float origin[4], r[4], u[4], f[4];
+    float back;
+
+    asViewMatrix2PosRUF(&view[0][0], origin, r, u, f);
+    if (right != NULL)
+        memcpy(right, r, sizeof(r));
+    if (up != NULL)
+        memcpy(up, u, sizeof(u));
+    if (forward != NULL)
+        memcpy(forward, f, sizeof(f));
+    if (pos != NULL) {
+        back = asFocalLength_PS22LEICA(screen_0[SCREEN_PROJ_DIST]) * -CAMERA_EYE_FOCALS;
+        pos[0] = origin[0] + f[0] * back;
+        pos[1] = origin[1] + f[1] * back;
+        pos[2] = origin[2] + f[2] * back;
+        pos[3] = origin[3];
+    }
 }
 
-// stub of CT3 0x01856e70
+// CT3 0x01a4b900 (scene_alpha_anim): one ambient-alpha animation per bank.
+SCENE_ALPHA_ANIM scene_alpha_anim[BANK_MAX];
+
+// CT3 0x01856e70
+// Each part's alpha (MODEL_PARTS.alpha) starts as its ALL_TABLE.partsPos w, up to the record whose
+// kind byte is -1; the bank's alpha animation is cleared.
 void AmbientAlphaInit(int scene)
 {
-    ALYSSAPAN_STUB("AmbientAlphaInit", 0x01856e70);
+    u_char *header = pModelPartsHeader[scene];
+    float (*partsPos)[4] = BANK_PTR(float (*)[4], scene, All_table_TBL[scene]->partsPos);
+    MODEL_PARTS *part;
+    int i;
+
+    for (i = 0, part = (MODEL_PARTS *)header; (s_char)part->kind != PARTS_KIND_END; i++, part = (MODEL_PARTS *)((u_char *)part + PARTS_REC_SIZE))
+        part->alpha = partsPos[i][3];
+    memset(&scene_alpha_anim[scene], 0, sizeof(scene_alpha_anim[scene]));
 }
 
 // stub of CT3 0x01856070
@@ -344,23 +518,54 @@ void EventSoundEnd(void)
     ALYSSAPAN_STUB("EventSoundEnd", 0x018532a0);
 }
 
-// stub of CT3 0x0185a650
+// CT3 0x0185a650: the eye of matrix_global_view.
 void CameraMatrix2CameraPos(float *pos)
 {
-    ALYSSAPAN_STUB("CameraMatrix2CameraPos", 0x0185a650);
+    asViewMatrix2CamRUF(matrix_global_view, pos, NULL, NULL, NULL);
 }
 
-// stub of CT3 0x0185a5e0
+// CT3 0x0185a5e0: the point CAMERA_TARGET_DIST (300) ahead of matrix_global_view's eye; w the eye's.
 void CameraMatrix2CameraTrg3m(float *trg)
 {
-    ALYSSAPAN_STUB("CameraMatrix2CameraTrg3m", 0x0185a5e0);
+    float pos[4], front[4];
+
+    asViewMatrix2CamRUF(matrix_global_view, pos, NULL, NULL, front);
+    trg[0] = pos[0] + front[0] * CAMERA_TARGET_DIST;
+    trg[1] = pos[1] + front[1] * CAMERA_TARGET_DIST;
+    trg[2] = pos[2] + front[2] * CAMERA_TARGET_DIST;
+    trg[3] = pos[3];
 }
 
-// stub of CT3 0x0185a400
+// ---- banks and characters (slice 1, 2026-11-10) ----
+
+// CT3 0x0185a400
+// The first character whose shape bank, or one of whose ten behaviour banks, is `bank`; -1 none.
 int BankID_TO_CharID(short bank)
 {
-    ALYSSAPAN_STUB("BankID_TO_CharID", 0x0185a400);
-    return {};
+    int i, j;
+    for (i = 0; i < CHARACTER_MAX; i++) {
+        if (Character[i].bank == bank)
+            return i;
+        for (j = 0; j < 10; j++)
+            if (Character[i].behaviorBank[j] == bank)
+                return i;
+    }
+    return -1;
+}
+
+// CT3 0x0185a480
+// The bank (0..85) holding the character's room: a bank in use whose file name's first four
+// characters hash to the character's roomHash (0 never matches); -1 none.
+int CharID_TO_BankID(int chara)
+{
+    u_long room;
+    int i;
+    for (i = 0; i < BANK_MAX; i++) {
+        room = Character[chara].roomHash;
+        if (room == GetRoomName_file(BankInfo[i].name) && room != 0 && BankInfo[i].state != 0)
+            return i;
+    }
+    return -1;
 }
 
 // stub of CT3 0x01852240
@@ -370,18 +575,22 @@ int GetAreaNumber(int a0)
     return {};
 }
 
-// stub of CT3 0x0185c2e0
+// CT3 0x0185c2e0: ahGetHash of the name's first four characters (a room's files share them).
 u_long GetRoomName_file(const char *name)
 {
-    ALYSSAPAN_STUB("GetRoomName_file", 0x0185c2e0);
-    return {};
+    char room[ROOM_NAME_LEN + 1];
+    memcpy(room, name, ROOM_NAME_LEN);
+    room[ROOM_NAME_LEN] = '\0';
+    return ahGetHash(room);
 }
 
-// stub of CT3 0x0185e100
-u_char * asFindModelParts(u_char *header, u_long hash)
+// CT3 0x0185e100: the part's record (header + 0x40 + i * 0x380), NULL when the model has none.
+u_char *asFindModelParts(u_char *header, u_long hash)
 {
-    ALYSSAPAN_STUB("asFindModelParts", 0x0185e100);
-    return {};
+    int id = asFindModelPartsID(header, hash);
+    if (id < 0)
+        return NULL;
+    return header + PARTS_HDR_RECORDS + id * PARTS_REC_SIZE;
 }
 
 // stub of CT3 0x01854b20
@@ -404,10 +613,58 @@ void asGetCrossPointInPlaneWithLine(float out[4], float a[4], float b[4], float 
     ALYSSAPAN_STUB("asGetCrossPointInPlaneWithLine", 0x01859f00);
 }
 
-// stub of CT3 0x018520b0
+// CT3 0x018520b0
+// A point light's range change in progress (REC_OMNI_CHANGING): the inverse range (REC_OMNI_INV_RANGE)
+// moves 1 / steps of the way to 1 / REC_OMNI_RANGE each call; the last step lands on it and ends the
+// change.
 void OmniRangeChange(u_char *rec)
 {
-    ALYSSAPAN_STUB("OmniRangeChange", 0x018520b0);
+    int *changing = (int *)(rec + REC_OMNI_CHANGING);
+    int *steps = (int *)(rec + REC_OMNI_STEPS);
+    float range = *(float *)(rec + REC_OMNI_RANGE);
+    float *inv = (float *)(rec + REC_OMNI_INV_RANGE);
+
+    if (*changing == 0)
+        return;
+    if (*steps == 0) {
+        *changing = 0;
+        *inv = 1.0f / range;
+    } else {
+        *inv = *inv + (1.0f / range - *inv) / (float)*steps;
+        (*steps)--;
+    }
+}
+
+// ---- the rooms' trigger events (slice 1, 2026-11-10) ----
+
+// CT3 0x01852130: every room's event removed.
+void RoomFlagClear(void)
+{
+    int i;
+    for (i = 0; RoomIdTbl[i] != -1; i++)
+        ssTrigRemoveEvent(RoomIdTbl[i], 1, 0);
+}
+
+// CT3 0x01851f00: a jump to RoomFlagClear.
+void BRANCH_CLEAR(void)
+{
+    RoomFlagClear();
+}
+
+// CT3 0x01852180: the event of the room the player character (Character[0]) is in, registered: its
+// roomHash read back as a name, matched on four characters.
+void RoomInFlagOn(void)
+{
+    char room[16];
+    int i;
+
+    strcpy(room, asConvertHash2String(Character[0].roomHash));
+    for (i = 0; RoomIdTbl[i] != -1; i++) {
+        if (memcmp(room, RoomNameTbl[i], ROOM_NAME_LEN) == 0) {
+            ssTrigRegisterEvent(RoomIdTbl[i], 1, 0);
+            return;
+        }
+    }
 }
 
 // CT3 0x0185e040
@@ -590,18 +847,63 @@ void asMakeWatchMeMatrixToPosition(float (*out)[4], float (*m)[4], float *target
     ALYSSAPAN_STUB("asMakeWatchMeMatrixToPosition", 0x0185d4d0);
 }
 
-// stub of CT3 0x01851dc0
-int ahAcos(float c)
+// ---- angles (slice 1, 2026-11-10; 0x10000 = a full turn) ----
+
+// CT3 0x0190a600 (ah_acos_table): acos(i / 4096) for i = 0..4097, the ROM's floats.
+static const u_int ah_acos_table_bits[AH_ACOS_TABLE_SIZE] = {
+#include "game/ah_acos_table.inc"
+};
+
+static float ahAcosTable(int i)
 {
-    ALYSSAPAN_STUB("ahAcos", 0x01851dc0);
-    return {};
+    float f;
+    memcpy(&f, &ah_acos_table_bits[i], sizeof(f));
+    return f;
 }
 
-// stub of CT3 0x01851d60
+// CT3 0x01851dc0
+// A negative cosine answers 0x8000 - acos(|c|). 0 is 0x4000, |c| >= 1 is 0 (or 0x8000); from
+// AH_ACOS_NEAR_ONE the table is too coarse and acosf is called (on the signed value, masked to 16
+// bits -- the ROM returns that directly, without the 0x8000 - step); below it the table is
+// interpolated linearly at c * 4096.
+int ahAcos(float c)
+{
+    int sign = 1, base = 0, angle, i;
+    float x;
+
+    if (c < 0.0f) {
+        sign = -1;
+        base = ANGLE_HALF_TURN;
+        c = -c;
+    }
+    if (c == 0.0f)
+        return ANGLE_QUARTER_TURN;
+    if (c >= 1.0f) {
+        angle = 0;
+    } else if (c >= AH_ACOS_NEAR_ONE) {
+        return (int)(ANGLE_FULL_TURN_F * acosf(c * (float)sign) / AH_TWO_PI) & 0xffff;
+    } else {
+        x = c * AH_ACOS_STEPS;
+        i = (int)x;
+        angle = (int)(ahAcosTable(i) + (x - (float)i) * (ahAcosTable(i + 1) - ahAcosTable(i)));
+    }
+    return base + sign * angle;
+}
+
+// CT3 0x01851d60: gaSinCos's second answer.
 float ahCos(int angle)
 {
-    ALYSSAPAN_STUB("ahCos", 0x01851d60);
-    return {};
+    float s, c = 0.0f;
+    gaSinCos(&s, &c, angle);
+    return c;
+}
+
+// CT3 0x01851d90: gaSinCos's first answer.
+float ahSin(int angle)
+{
+    float s = 0.0f, c;
+    gaSinCos(&s, &c, angle);
+    return s;
 }
 
 // stub of CT3 0x0185ddf0
@@ -659,22 +961,61 @@ void asContInterpolateZipTrans_XYZ(short *out, const short *a, const short *b, c
     ALYSSAPAN_STUB("asContInterpolateZipTrans_XYZ", 0x0185ca50);
 }
 
-// stub of CT3 0x0185c530
+// CT3 0x0185c5a0: a float to the 7.9 form (mul.s by 512, cvt.w.s truncates, the low halfword kept).
+void asFloat2ZipFloat0_7_9X(short *out, const float *in)
+{
+    *out = (short)(int)(512.0f * *in);
+}
+
+// CT3 0x0185c530: both unpacked (unsigned), blended by asInterpolateNumber, packed again.
 void asInterpolateZipFloat0_7_9X(short *out, const short *a, const short *b, const float *w)
 {
-    ALYSSAPAN_STUB("asInterpolateZipFloat0_7_9X", 0x0185c530);
+    float fa, fb, f;
+    asZipFloat0_7_9X2Float(&fa, (const u_short *)a);
+    asZipFloat0_7_9X2Float(&fb, (const u_short *)b);
+    f = asInterpolateNumber(fa, fb, w);
+    asFloat2ZipFloat0_7_9X(out, &f);
 }
 
-// stub of CT3 0x0185c630
+// CT3 0x0185c6d0: a 1.1.14 fixed-point short to a float (div.s by 16384).
+void asZipFloat1_1_14X2Float(float *out, const short *in)
+{
+    *out = (float)*in / ZIP_FLOAT_1_1_14_SCALE;
+}
+
+// CT3 0x0185c6a0: and back (mul.s, cvt.w.s truncates).
+void asFloat2ZipFloat1_1_14X(short *out, const float *in)
+{
+    *out = (short)(int)(ZIP_FLOAT_1_1_14_SCALE * *in);
+}
+
+// CT3 0x0185c630: both unpacked, blended by asInterpolateNumber, packed again.
 void asInterpolateZipFloat1_1_14X(short *out, const short *a, const short *b, const float *w)
 {
-    ALYSSAPAN_STUB("asInterpolateZipFloat1_1_14X", 0x0185c630);
+    float fa, fb, f;
+    asZipFloat1_1_14X2Float(&fa, a);
+    asZipFloat1_1_14X2Float(&fb, b);
+    f = asInterpolateNumber(fa, fb, w);
+    asFloat2ZipFloat1_1_14X(out, &f);
 }
 
-// stub of CT3 0x0185cfb0
+// CT3 0x0185d020
+// Not a packer: the first two floats (u, v) are copied into out's 8 bytes as they are (the ROM moves
+// them as four halfwords), so what asInterpolateZipUV writes is a float pair.
+void asUV2ZipUV_R(short *out, const float *uv)
+{
+    memcpy(out, uv, 2 * sizeof(float));
+}
+
+// CT3 0x0185cfb0: both packed UVs unpacked (asZipUV2UV), blended (asInterpolateVector), and the float
+// u, v stored into out (asUV2ZipUV_R).
 void asInterpolateZipUV(short *out, const short *a, const short *b, const float *w)
 {
-    ALYSSAPAN_STUB("asInterpolateZipUV", 0x0185cfb0);
+    float ua[4], ub[4], u[4];
+    asZipUV2UV(ua, a);
+    asZipUV2UV(ub, b);
+    asInterpolateVector(u, ua, ub, w);
+    asUV2ZipUV_R(out, u);
 }
 
 // stub of CT3 0x0185dc30
@@ -685,9 +1026,14 @@ float asRadianByO(float *v, int axis)
 }
 
 
-// stub of CT3 0x0185ded0
+// CT3 0x0185ded0
+// The *squared* distance: vsub.xyz, then gaInnerProductXYZ of the difference with itself (no root).
 float asVectorDistance(const float *a, const float *b)
 {
-    ALYSSAPAN_STUB("asVectorDistance", 0x0185ded0);
-    return {};
+    float d[4];
+    d[0] = a[0] - b[0];
+    d[1] = a[1] - b[1];
+    d[2] = a[2] - b[2];
+    d[3] = a[3];
+    return gaInnerProductXYZ(d, d);
 }

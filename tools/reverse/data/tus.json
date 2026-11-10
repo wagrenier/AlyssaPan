@@ -1,5 +1,7 @@
 {
- "queue": [],
+ "queue": [
+  "game/QuatSlerp.c"
+ ],
  "settings": {
   "data_dir": "C:/Users/willi/Documents/Decomp/Clocl Tower 3",
   "frontier_ignore": [],
@@ -414,12 +416,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 129..129, 4 functions keyed by their statics, 5 unkeyed; file name from the names"
   },
   "game/QuatSlerp.c": {
+   "notes": "Queue was empty: refilled with game/QuatSlerp.c (asFindModelParts was the recorded blocker). 15 s smoke run ends without a fault, shot black (ga draw calls are stubs). gaSinCos is a new stub (ga/gaSinCos.c); gaInversMatrix still a stub so the camera read-back answers zeros. Next reached stub in this TU: GetAreaNumber. open-items.md (ep)..(es).",
    "ranges": [
     [
      "01851bf0",
      "0185e9d0"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-10 09:20",
+     "status": "partial",
+     "summary": "slice 1: part lookup and name hashes (ahGetHash reads back: Bip01, BasePoint), ahAcos with the ROM table, the camera read-back, packed blends, bank/character/room lookups, room trigger flags, OmniRangeChange, AmbientAlphaInit, ControllerClatteringInit; the ActressMP crash at main.c:2106 is gone"
+    }
+   ],
+   "status": "partial",
    "why": "tumap.py (bootstrap 5): symtab local chunks 73..73, 30 functions keyed by their statics, 147 unkeyed; file name from the names"
   },
   "game/RotateCamera.c": {

@@ -539,6 +539,26 @@ view * matrix (+0x180) and +0x300 = that * diag(record +0x2c0 xyz).
   clock (gNextTicksInterval / gNextTicks / gTotalTicks) only when not paused, the global clock
   (gGlobal*) always; statics last_frame (0x0193cb14) and Globallast_frame (0x0193cb04).
 
+## Part lookup, name hashes, the camera read-back, game/QuatSlerp.c (2026-11-10, slice 1)
+
+- **Names are hashed, not stored** (ahGetHash, 0x0185e580): hash ^= rotl64(c & 0x7f, 7 i mod 64) over
+  the characters. A name of up to 9 characters never overlaps itself, so asConvertHash2String
+  (0x0185e420) reads it back: 0x3161c34c2 = "Bip01", 0x74dda77d0cbcf0c2 = "BasePoint". A room is the
+  hash of its files' first four characters (GetRoomName_file); CHARACTER.roomHash holds one, and
+  RoomNameTbl / RoomIdTbl (0x019395b0 / 0x01939730, 95 rooms, "0A01".."5A04") give each room a trigger
+  event (1801..1925) that RoomInFlagOn registers and RoomFlagClear removes.
+- **The parts header** (pModelPartsHeader[bank]): +2 u_short part count, +0x10..+0x1c four int cache
+  words for "Bip01", "BasePoint" and two longer names (0 = not looked up, -1 = absent, > 0 = index),
+  records of 0x380 bytes from +0x40 with the u_long hash at record +8. asFindModelParts answers the
+  record (header + 0x40 + i * 0x380).
+- **Banks 0..5 are global**: asCheckBankID folds 6.. to 6, asCheckBankType answers bank > 5.
+- **The camera from a view matrix** (asViewMatrix2PosRUF): the rotation's inverse rows are right / up
+  / front, the position is -translation through it; asViewMatrix2CamRUF moves the eye back by
+  3 * asFocalLength_PS22LEICA(screen_0[8]) (512 * 4.3267 / 680.33 = 3.26 per focal, so about 9.8 units);
+  CameraMatrix2CameraTrg3m is the point 300 ahead (the name says 3 m, so the world unit is likely the cm).
+- **Angles** are 0x10000 per turn; ahAcos interpolates the ROM's 4098-entry ah_acos_table below 0.9988
+  and calls acosf above (that branch returns acosf's own 16 bits, also for a negative cosine).
+
 ## The IOP side (2026-11-09)
 
 The EE loads `cdrom0:\IOP\IOPRP255.IMG;1` (an IOP reboot), then `SIO2MAN`, `PADMAN`, `MCMAN`, `MCSERV`,

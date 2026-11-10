@@ -523,6 +523,31 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    calls scene_end) -- settled: FSMltLoadProc sets it on the group right after scene_init; (bu) FSMltLoadStatus's
    answers: main2.c reads "non-zero" as "still loading", but FS_STATUS_LOADED (1) is non-zero too, so
    main2's waits also run for loaded files (harmless: FSMltLoadEndWaitFile returns at once).
+   **game/QuatSlerp.c slice 1 (partial, 2026-11-10; the queue was empty, refilled with it: asFindModelParts
+   was the ActressMP blocker):** the part lookup (asFindModelParts / _ID with the parts header's four
+   cache words), ahGetHash (a 64-bit XOR of 7-bit characters rotated 7 apart) and its inverse
+   asConvertHash2String, asCheckBankID / _Type, asFindCharacterStruct, asVectorDistance (squared),
+   ahAcos (the ROM's ah_acos_table carried as src/game/ah_acos_table.inc: a host acos differs in 866 of
+   4098 entries), ahCos / ahSin, the camera read-back (asViewMatrix2PosRUF / CamRUF,
+   CameraMatrix2CameraPos / Trg3m, asFocalLength_*), the 1.1.14 / 0.7.9 / UV packed blends,
+   BankID_TO_CharID / CharID_TO_BankID / GetRoomName_file, RoomFlagClear / BRANCH_CLEAR / RoomInFlagOn
+   (RoomNameTbl / RoomIdTbl from the ELF), OmniRangeChange, AmbientAlphaInit, ControllerClatteringInit.
+   **The ActressMP crash (main.c:2106) is gone**: a 15 s smoke run ends without a fault (27,000+ frames);
+   the shot stays black (the ga draw calls are stubs). Open: (ep) **(ec) settled**: the hashes read back
+   -- 0x3161c34c2 is "Bip01" (sound.h's PARTS_HASH_SOUND_ORIGIN), 0x74dda77d0cbcf0c2 "BasePoint"
+   (EA_001_PART_HASH / SP_ANCHOR_HASH); the other two cached names are longer than 9 characters (ends
+   "...sa_ta", "...sa_se"): hash the shape files' part names to find them; any other u_long hash
+   constant can be read back the same way (py: 7-bit groups from the low end); (eq) asUV2ZipUV_R stores the two
+   floats themselves (8 bytes), so asInterpolateZipUV's output is a float pair where its inputs are
+   packed shorts -- EA_010's out + 8 slot must be 8 bytes of floats (check when the vertex kinds draw);
+   (er) CHARACTER +0x90 renamed roomHash (CharID_TO_BankID, RoomInFlagOn read Character[0]'s); MODEL_PARTS
+   +0x120 is `alpha`; SCENE_ALPHA_ANIM (5 words) and CLATTERING (+0x10 id) are named from their inits
+   only; REC_OMNI_* (record +0x30 / +0x34 / +0x38 / +0x2ec) from OmniRangeChange; (es) gaSinCos(s, c,
+   angle) is a new stub in ga/gaSinCos.c (ahSin / ahCos read the first / second answer): every ah angle
+   helper answers 0 until it is written; gaInversMatrix is still a stub, so the camera read-back answers
+   zeros. Left in this TU (frontier): GetAreaNumber (next reached), sunSetupTBufferData /
+   sunBGT_*_VIF1, PanicModeInit, AmbientAlphaUpdate, the warp objects, asMakeRotMatrixByQuartanion,
+   QuatSlerp, ControllerClatteringUpdate and the brief's other 100.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
    class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~
