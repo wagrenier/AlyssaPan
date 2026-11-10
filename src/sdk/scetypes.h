@@ -42,3 +42,11 @@ typedef __declspec(align(16)) int qword[4];
 typedef int qword[4] __attribute__((aligned(16)));
 #endif
 static_assert(sizeof(qword) == 16 && alignof(qword) == 16);
+
+// The calling function's return address (the ROM's `move a0,ra` before a tail jump to a report).
+#if defined(_MSC_VER) && !defined(__clang__)
+#include <intrin.h>
+#define EE_RETURN_ADDRESS() _ReturnAddress()
+#else
+#define EE_RETURN_ADDRESS() __builtin_return_address(0)
+#endif

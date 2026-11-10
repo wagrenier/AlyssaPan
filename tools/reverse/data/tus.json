@@ -1,5 +1,19 @@
 {
- "queue": [],
+ "queue": [
+  "game/IOPGetFileSize.c",
+  "game/SdMasterVolumeSetSE.c",
+  "ga/gaPadInit.c",
+  "game/movie.c",
+  "game/wideXcmd_DebugPrint.c",
+  "game/tkXDTrg_GetSceneHash.c",
+  "game/asUseArrow.c",
+  "game/asMothRouteSearch.c",
+  "game/asXcmd.c",
+  "game/asEyeForcusUP2CamMat.c",
+  "game/ssHitCheckAttackToScn.c",
+  "game/ssSetTexUVforCubeMap.c",
+  "game/ssGrpPortalCheck.c"
+ ],
  "settings": {
   "data_dir": "C:/Users/willi/Documents/Decomp/Clocl Tower 3",
   "frontier_ignore": [],
@@ -47,12 +61,21 @@
    "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 16 unkeyed; file name from the names"
   },
   "ga/gaDmaSync_VIF1.c": {
+   "notes": "Host: kicks leave CHCR.STR clear (the transfer is over), so the syncs return at once; the BGT send keeps the copy and the flip, the packet goes nowhere (draw modules draw the frame). New: ga/wait.h (gaDMAStopMessage_VIF1 / _GIF take the caller ra in a0), sdk/eeregs.h D_RBSR and GIF_STAT, sdk/scetypes.h EE_RETURN_ADDRESS for MSVC. The shot stays black (nothing draws yet). Queue refilled in smoke-run reach order (open-items Decisions); next game/IOPGetFileSize.c (IOPBindRPC).",
    "ranges": [
     [
      "018a1738",
      "018a1948"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-10 13:34",
+     "status": "verify",
+     "summary": "all 5 functions from the disassembly: the VIF1 / GIF syncs with their timeout reports, the VIF1 normal and chain kicks, and the BGT ring send (memory packets copied into the scratchpad packet area, which flips between 0xa00 and 0x1800)"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 5 unkeyed; file name from the names"
   },
   "ga/gaDrawObject.c": {

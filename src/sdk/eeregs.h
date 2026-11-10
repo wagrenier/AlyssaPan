@@ -44,6 +44,8 @@ inline volatile u_int g_regVif1Stat; // VIF1_STAT 0x10003c00: likewise
 inline volatile u_int g_regVif1Mark; // VIF1_MARK 0x10003c30: kept as written
 inline volatile u_int g_regSprFromMadr; // D8_MADR 0x1000d010 } equal on the host: the BGT ring reads empty
 inline volatile u_int g_regVif1Tadr;    // D1_TADR 0x10009030 }
+inline volatile u_int g_regDRbsr;       // D_RBSR 0x1000e040: the MFIFO ring's mask, kept as written
+inline volatile u_int g_regGifStat;     // GIF_STAT 0x10003020: no GIF on the host, so it always reads idle (0)
 inline volatile u_long g_regGsPmode;
 inline volatile u_long g_regGsSmode2;
 inline volatile u_long g_regGsDispfb1;
@@ -67,6 +69,8 @@ inline volatile u_long g_regGsCsr;
 #define REG_VIF1_MARK g_regVif1Mark
 #define REG_DMAC_8_SPR_FROM_MADR g_regSprFromMadr
 #define REG_DMAC_1_VIF1_TADR g_regVif1Tadr
+#define REG_DMAC_RBSR g_regDRbsr
+#define REG_GIF_STAT g_regGifStat
 #define REG_GS_PMODE g_regGsPmode
 #define REG_GS_SMODE2 g_regGsSmode2
 #define REG_GS_DISPFB1 g_regGsDispfb1

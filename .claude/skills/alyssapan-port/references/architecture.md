@@ -226,6 +226,21 @@ the TU map's evidence.
   chain (`sceDmaSend`) transfers do nothing. D_CTRL / D_ENABLEW are host variables (sdk/eeregs.h).
   main.c's `SPR_3DLIB_WORK` is `SCRATCHPAD(0x400)` since this TU (ga3dlibwork's per-frame copy).
 
+## The ga library's hand-written kicks and the BGT send, ga/gaDmaSync_VIF1.c (2026-11-10)
+
+- Asm object 0x018a1738..0x018a1948 (5 functions + the stray `_DmaVIF1_Sync_error` jump). The syncs
+  (`gaDmaSync_VIF1`, `gaDmaSync_GIF`) poll CHCR.STR (GIF: then GIF_STAT & 0x1f000c00, FQC + APATH) with one
+  count of 0x4000000 polls and on timeout tail-jump to `gaDMAStopMessage_VIF1 / _GIF` (ga/wait.c) with
+  **a0 = the caller's ra** (`move a0,ra`). `gaDmaSendN_VIF1(addr, qwc)`: MADR, QWC, CHCR 0x101;
+  `gaDmaSendS_VIF1(tag)`: TADR, QWC 0, CHCR 0x105; both turn a scratchpad address into DMA form (+0x10000000).
+- **`gaBGT_DmaSendN_fromSPR_VIF1(addr, qwc)`**: a packet below 0x70000000 is first copied (lq/sq) into the
+  scratchpad packet area at GA_SPR_WORK.bgtPacketEE (+0xf0), which then **flips between 0x70000a00 and
+  0x70001800** (double buffer); then wait fromSPR idle, SADR = packet + 0x10000000, QWC, wait until the
+  ring is empty (D8_MADR == D1_TADR) or `(TADR - MADR) & D_RBSR` > qwc * 16, then CHCR |= STR.
+- Host: the channel blocks are `sceDmaGetChan(n)`; kicks write the ROM's fields with STR already clear
+  (the transfer is over); the copy and the flip are kept. sdk/eeregs.h gained D_RBSR and GIF_STAT (idle);
+  sdk/scetypes.h `EE_RETURN_ADDRESS()` (MSVC has no `__builtin_return_address`).
+
 ## The ga library's VIF set-up, ga/gaVifInit.c (2026-11-09)
 
 - A GCC object 0x018a1948..0x018a1a48 (6 functions) with its .data 0x0192e640..0x0192e790: 18 global

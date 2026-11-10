@@ -7,6 +7,10 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-10, gaDmaSync_VIF1.c) **layoutcheck compiles the game sources with MSVC too**: a GCC builtin
+  (`__builtin_return_address`) builds under MinGW and still fails the check. Use the sdk/scetypes.h
+  wrappers (`EE_RETURN_ADDRESS()`), and on the host a DMA kick must leave CHCR.STR clear, or the ROM's
+  sync loops spin to their timeout.
 - (2026-11-10, gaInit3dlib.c) **gaMulMatrix(dst, a, b) is dst = b * a, not a * b**: the ROM loads a's rows
   into vf4..vf7 and runs b's rows through them (row vectors on the left). The old header comment said
   "dst = a * b"; every caller written so far (ahRelocateSunPs2ObjectArry.c, Character_Init.c) passes its

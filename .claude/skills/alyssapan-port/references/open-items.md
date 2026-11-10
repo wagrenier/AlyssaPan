@@ -738,6 +738,12 @@ questions. Resolve items here when they are settled (move them to "Done" with th
 
 ## Decisions
 
+- 2026-11-10 (Claude, scheduled run, for the user to overrule): **the empty queue was refilled in the
+  order a smoke run reaches stubs** (the run log's first stub per TU): ga/gaDmaSync_VIF1.c (taken),
+  game/IOPGetFileSize.c, game/SdMasterVolumeSetSE.c, ga/gaPadInit.c, game/movie.c,
+  game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c,
+  game/asXcmd.c, game/asEyeForcusUP2CamMat.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c,
+  game/ssGrpPortalCheck.c. The shims of item 2 stay unqueued: no run reaches them yet.
 - 2026-11-09 (the user): **AlyssaPan ports Clock Tower 3** (the copy with debug symbols, `SLUS_206.33`,
   already loaded in Ghidra). It **keeps YamiPan's priorities and design guidelines**, **reuses the shims of
   the other Pan projects ("the windows handling and all the rest")** and **builds on YamiPan's C++
