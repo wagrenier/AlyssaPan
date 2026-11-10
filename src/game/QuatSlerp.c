@@ -172,3 +172,9 @@ void tnInit3dlibWork(void *work, void *spr)
 {
     ALYSSAPAN_STUB("tnInit3dlibWork", 0x01854560);
 }
+
+// stub of CT3 0x0185a6f0
+void asViewMatrix2CamRUF(float (*view)[4], float *pos, float *right, float *up, float *forward)
+{
+    ALYSSAPAN_STUB("asViewMatrix2CamRUF", 0x0185a6f0);
+}

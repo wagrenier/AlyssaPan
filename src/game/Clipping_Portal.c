@@ -137,3 +137,27 @@ void Clipping_Portal(void *work, void *screen)
 {
     ALYSSAPAN_STUB("Clipping_Portal", 0x01889cd0);
 }
+
+// stub of CT3 0x0188dca0
+void tiChara_Translucence_End(float alpha, int fbuf)
+{
+    ALYSSAPAN_STUB("tiChara_Translucence_End", 0x0188dca0);
+}
+
+// stub of CT3 0x0188d720
+void tiChara_Translucence_End2(int fbuf, int chara)
+{
+    ALYSSAPAN_STUB("tiChara_Translucence_End2", 0x0188d720);
+}
+
+// stub of CT3 0x0188dd40
+void tiChara_Translucence_Start(void)
+{
+    ALYSSAPAN_STUB("tiChara_Translucence_Start", 0x0188dd40);
+}
+
+// stub of CT3 0x0188dbd0
+void tiChara_Translucence_Start2(void)
+{
+    ALYSSAPAN_STUB("tiChara_Translucence_Start2", 0x0188dbd0);
+}

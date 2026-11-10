@@ -91,6 +91,8 @@ void main_rtn_DOF(int bank, int mode, int chara, int pass, int charaIndex, void 
 void main_rtn_Particle2(int bank, int fog, int after, void **lastTex);                  // CT3 0x01837570
 void main_rtn_Particle(int bank, int fog, void **lastTex);                              // CT3 0x018379d0
 void main_rtn(int bank, int mode, int chara, u_int flags, int charaIndex, void **lastTex); // CT3 0x01838600
+void main_rtn_GHOST_DOF(int bank, int mode, int chara, int pass, int charaIndex, void **lastTex); // CT3 0x01834440
+void main_rtn_GHOST(int bank, int mode, int chara, u_int flags, int charaIndex, void **lastTex); // CT3 0x01834c40
 void scene_end(int scene);                                                              // CT3 0x01838f20
 void scene_draw_init(int scene);                                                        // CT3 0x01838fa0
 void system_end(void);                                                                  // CT3 0x01839670

@@ -169,6 +169,30 @@ the TU map's evidence.
   ring slots head .. tail (u16 at state +0x48 / +0x4a, wrap at +0x46), objects `ParticleObject[bank][i]`
   + slot * 0x80. `main_rtn_Particle2` reads a qword pointer at the draw object's +0x38 (open-items (h)).
   screen_0 holds a fixed 512 x 448 viewport: the 3D TU must widen it from DisplayGeometry (any aspect).
+- **The scene draw, AllDrawObject (slice 5, 2026-11-09):** `AllDrawObject(mode)` (0 normal, 2 / 3 the DOF
+  slices; 3 skips the lights) draws, with `lastTex` restarted where noted: the opaque list (+0x18) of each
+  loaded type-1 bank 6..85 under `SceneLightSet`; `asDrawShadowVolumeLoop` (before the characters, or
+  after the mirrors when trigger event 0x3b is set); the characters of `CharacterSortBuff` (sbss
+  0x01940170, 35 shorts, -1 ends) whose `translucent` byte (+0x52c) is 0 and whose light bank (+0xa0) is
+  loaded: `CharLightSet`, their bank's +0x18 then +0x1c lists as a character pass; then back to front,
+  each such character whose bank lacks flag 0x10 and whose light bank's All_table record has a mirror
+  (`asEnumMirror(tbl)`): `asMirrorPlaneCalc(vPVbk, vPPbk copies)`, `asMakeMirrorMatrixByPlane`,
+  `asMirrorCulling(0)`, `asBuildMirrorMatrixTree(tbl +0x2c)`,
+  `asGAobjectControlPolygonDisplayRotateFlagReverse(tbl)`, the same two lists, `asMirrorCulling(1)`;
+  undone after (flag reverse + `asBuildMirrorMatrixTreeBack`). Then the type-1 banks' +0x1c lists
+  (flag-2 banks last), their particles (`main_rtn_Particle` + `_Particle2` mode 0), those of characters
+  with flags 0xc0000000 set, and last the translucent characters: bit 0 = `tiChara_Translucence_Start`,
+  the lists, `_End(alpha +0x530, ga_draw_fbuf_address)`; bit 1 = `_Start2`, `main_rtn_GHOST` (main_rtn
+  with one fixed draw control `gaSetupDrawCtrlData(1,1,1,1,0,0,0)`, always the current scene's character
+  fog, always sorted, no camera update; `_GHOST_DOF` likewise from `main_rtn_DOF`), `_End2(fbuf, chara)`.
+- **HQ DOF (slice 5):** `ssHQDOF_DrawAllObject` draws the normal frame, then (unless `EffectBuffer_Use`)
+  8 more: the eye moved by `HQDOFCameraOffset` / 10 (sdata 30 -> 3.0) along the camera's right / up
+  vectors (`asViewMatrix2CamRUF(matrix_global_view, pos, right, up, forward)`): +R, +U, -R, -U, then the
+  half diagonals; `asEyeForcusUP2CamMat(screen_0[8], matrix_global_view, eye, focusPos$905, up)`;
+  `asBuildDOFMatrixTree(pModelPartsHeader[b])` for every loaded type-1 bank and refracting character;
+  drawn into FBP 0xa8000 after the frame clear, blended back by `ssBGT_HQDOF_WriteBackFB((HQDOFOpacity
+  << 7) / 100)` (30 % -> 38). focusPos$905 then takes `Cam[asCheckBankID(6)]` +0xf0 (`Cam`, bss
+  0x01ae7c40, 7 x 0x1c0).
 - **main.c's globals** are taken to be the .sbss run 0x01942ab0..0x01942b48 (`pad_key_button` ..
   `gArgc`): contiguous, all used by main.c's functions, `gArgv` / `gArgc` surely its own. A guess from
   placement; the locals (symtab 895..911) are `a$1034`, `skip_wait_temp$61`, `focusPos$905` and the

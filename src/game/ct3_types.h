@@ -22,7 +22,11 @@ typedef struct CHARACTER {
     u_char pad0d0[0x18];
     int rotBefore;                      /* 0x0e8: last frame's value of 0x0ec */
     int rot;                            /* 0x0ec */
-    u_char pad0f0[0x490];
+    u_char pad0f0[0x43c];
+    u_char translucent;                 /* 0x52c: CHARA_TRANS_*; non-zero: AllDrawObject's last pass draws it */
+    u_char pad52d[3];
+    float translucentAlpha;             /* 0x530: tiChara_Translucence_End's first argument */
+    u_char pad534[0x4c];
 } CHARACTER;
 static_assert(sizeof(CHARACTER) == 0x580, "CHARACTER");
 static_assert(offsetof(CHARACTER, bank) == 0x002, "CHARACTER.bank");
@@ -31,11 +35,29 @@ static_assert(offsetof(CHARACTER, lightBank) == 0x0a0, "CHARACTER.lightBank");
 static_assert(offsetof(CHARACTER, posBefore) == 0x0b0, "CHARACTER.posBefore");
 static_assert(offsetof(CHARACTER, pos) == 0x0c0, "CHARACTER.pos");
 static_assert(offsetof(CHARACTER, rotBefore) == 0x0e8, "CHARACTER.rotBefore");
+static_assert(offsetof(CHARACTER, translucent) == 0x52c, "CHARACTER.translucent");
+static_assert(offsetof(CHARACTER, translucentAlpha) == 0x530, "CHARACTER.translucentAlpha");
+
+// CHARACTER.translucent (AllDrawObject): any bit keeps the character out of the opaque and mirror passes.
+#define CHARA_TRANS_TRANSLUCENT 0x1     /* drawn last between tiChara_Translucence_Start / _End */
+#define CHARA_TRANS_GHOST 0x2           /* (without 0x1) drawn last by main_rtn_GHOST, _Start2 / _End2 */
 
 #define CHARACTER_MAX 35                /* 0x23: Character[], AI_flag[], DirectLightCharaCounter[] */
 #define CHARACTER_FLAG_REFRACTION 0x80000000u /* DrawObjectRefraction: with _SHADOW, the character's bank
                                              is drawn in the refraction pass (name from that use) */
 #define CHARACTER_FLAG_SHADOW 0x40000000u /* main: the character's bank casts a shadow polygon */
+
+// One camera of Cam[7] (0x01ae7c40, 0x1c0 bytes each; indexed by asCheckBankID: scene banks 0..5 and
+// the shared one). Only what main.c reads.
+typedef struct CAMERA {
+    u_char pad000[0xf0];
+    float focus[4];                     /* 0x0f0: the point looked at (ssHQDOF_DrawAllObject's focusPos) */
+    u_char pad100[0xc0];
+} CAMERA;
+static_assert(sizeof(CAMERA) == 0x1c0, "CAMERA");
+static_assert(offsetof(CAMERA, focus) == 0x0f0, "CAMERA.focus");
+
+#define CAMERA_MAX 7                    /* Cam[]: 3136 bytes in the symtab */
 
 // One loaded bank of BankInfo[86] (0x01aea360, 0x90 bytes each). A bank heading a group of banks has
 // count > 0: the loops over BankInfo skip the rest of the group.
@@ -61,7 +83,10 @@ static_assert(offsetof(BANK_INFO, flags) == 0x28, "BANK_INFO.flags");
 #define BANK_SCENE_MAX 6                /* asCheckBankID: banks 0..5 have their own view matrix, the
                                            rest share bank 6's; GlobalDrawObject draws banks 0..5 */
 #define BANK_FLAG_DRAW_FIRST 0x2        /* scene_draw_init: ARRW.BIN, "E_*" and "M<digit>*" banks;
-                                           GlobalDrawObject draws them before the other banks */
+                                           GlobalDrawObject draws them before the other banks
+                                           (AllDrawObject's "trans" pass draws them after the rest) */
+#define BANK_FLAG_NO_MIRROR 0x10        /* AllDrawObject: a character of this bank is not mirrored
+                                           (name from that use) */
 
 // A loaded scene's object tables (All_table_TBL[86], a record of the scene's bank): each list is a
 // NULL-terminated array of draw objects. Only the fields main.c reads; fileio.c owns the layout.
@@ -74,6 +99,7 @@ typedef struct ALL_TABLE {
     void **objOpaque;                   /* EE 0x18: GlobalDrawObject's first main_rtn list */
     void **objTrans;                    /* EE 0x1c: main_rtn mode 1; scene_draw_init sorts it */
     float *light;                       /* EE 0x28: [2] (+8) scales a character's lit parts (main_rtn) */
+    void *matrixTree;                   /* EE 0x2c: asBuildMirrorMatrixTree / _Back's argument */
     void **particles;                   /* EE 0x58: main_rtn_Particle's list */
     void **objAfter;                    /* EE 0x60: after the particles; non-empty -> ExportDrawToTex */
     float *partsLight;                  /* EE 0x70: per model part: TEX_KIND_LIGHT parts' DRAW_OBJ_LIGHT */

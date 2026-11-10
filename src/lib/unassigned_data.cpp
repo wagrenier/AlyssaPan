@@ -107,6 +107,11 @@ u_char *FogCtrlAddr[BANK_MAX];                  /* sbss 0x019405f0 */
 FOG_ANIME FogAnimeBuff[BANK_MAX];               /* bss  0x01a58040 */
 
 CHARACTER Character[CHARACTER_MAX];             /* bss  0x01a4bfc0 */
+alignas(16) CAMERA Cam[CAMERA_MAX];             /* bss  0x01ae7c40 */
+u_char EffectBuffer_Use;                        /* sbss 0x0193f764 */
+u_char HQDOFCameraOffset = 30;                  /* sdata 0x01939c84 */
+u_char HQDOFOpacity = 30;                       /* sdata 0x01939c88 */
+short CharacterSortBuff[CHARACTER_MAX] = {-1};  /* sbss 0x01940170 */
 int DirectLightCharaCounter[CHARACTER_MAX];     /* sbss 0x019400e0 */
 short AI_flag[CHARACTER_MAX];                   /* sbss 0x0193fca0 */
 u_short CharDirectLightSet[CHARACTER_MAX][6];   /* sbss 0x0193ff30 */

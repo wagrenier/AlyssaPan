@@ -26,3 +26,7 @@ void tiFreeBossData(void);                                                      
 void tiWindEnd_All(void);                                                                // CT3 0x0188cb60
 void ExportDrawToTex(void);                                                              // CT3 0x01893cf0
 void Clipping_Portal(void *work, void *screen);                                         // CT3 0x01889cd0
+void tiChara_Translucence_End2(int fbuf, int chara);                                     // CT3 0x0188d720
+void tiChara_Translucence_Start2(void);                                                  // CT3 0x0188dbd0
+void tiChara_Translucence_End(float alpha, int fbuf);                                    // CT3 0x0188dca0
+void tiChara_Translucence_Start(void);                                                   // CT3 0x0188dd40

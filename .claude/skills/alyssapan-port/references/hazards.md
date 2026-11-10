@@ -41,6 +41,14 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 - (2026-11-09, game/main.c) **Null tables the EE reads harmlessly.** `FogCtrlAddr[scene]` is null until a
   scene loads; the EE reads kernel RAM there, the host crashed. main.c's `FogClearColor` guards it (black).
   Expect more of these while `main2` / fileio.c are stubs.
+- (2026-11-09, game/main.c slice 5) **The ROM indexes BankInfo with a character's light bank of -1.**
+  AllDrawObject's opaque and translucent passes read `BankInfo[lightBank].loaded` with no -1 test (the EE
+  reads the 0x90 bytes before the table, 0x01aea2f0); the mirror passes test -1 only after the read. The
+  port treats -1 as not loaded (`AllDrawLightBankLoaded`). If a character with no light bank ever goes
+  missing on screen, look here.
+- (2026-11-09, game/main.c slice 5) **callcheck credits a static helper with the next function's
+  annotation** when the helper sits between the `// CT3 0x...` comment and the function: put helpers
+  above the comment block.
 - (2026-11-09, game/main.c) **layoutcheck had never passed under MSVC**: `sdk/sif.cpp` (an IOP module start
   typed `int(int, char**)` against `runModuleStart(int (*)())`) and `iop/system_memory.cpp`
   (`std::max` against windows.h's macro) failed `cl`; fixed with the TU, as `tus.py finish` refuses a red

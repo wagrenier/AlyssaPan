@@ -83,3 +83,65 @@ void ExecuteAnimationHistory_Free(void)
 {
     ALYSSAPAN_STUB("ExecuteAnimationHistory_Free", 0x0184eed0);
 }
+
+// stub of CT3 0x0184f220
+void asBuildMirrorMatrixTree(void *tree)
+{
+    ALYSSAPAN_STUB("asBuildMirrorMatrixTree", 0x0184f220);
+}
+
+// stub of CT3 0x0184f120
+void asBuildMirrorMatrixTreeBack(void *tree)
+{
+    ALYSSAPAN_STUB("asBuildMirrorMatrixTreeBack", 0x0184f120);
+}
+
+// stub of CT3 0x018443c0
+void asDrawShadowVolumeLoop(void)
+{
+    ALYSSAPAN_STUB("asDrawShadowVolumeLoop", 0x018443c0);
+}
+
+// stub of CT3 0x0184fb40
+int asEnumMirror(ALL_TABLE *tbl)
+{
+    ALYSSAPAN_STUB("asEnumMirror", 0x0184fb40);
+    return {};
+}
+
+// stub of CT3 0x0184f330
+void asGAobjectControlPolygonDisplayRotateFlagReverse(ALL_TABLE *tbl)
+{
+    ALYSSAPAN_STUB("asGAobjectControlPolygonDisplayRotateFlagReverse", 0x0184f330);
+}
+
+// stub of CT3 0x0184fd00
+void asInitMirrorMatrix(void)
+{
+    ALYSSAPAN_STUB("asInitMirrorMatrix", 0x0184fd00);
+}
+
+// stub of CT3 0x0184f910
+int asMakeMirrorMatrixByPlane(float *planeVec, float *planePoint)
+{
+    ALYSSAPAN_STUB("asMakeMirrorMatrixByPlane", 0x0184f910);
+    return {};
+}
+
+// stub of CT3 0x0184f390
+void asMirrorCulling(int on)
+{
+    ALYSSAPAN_STUB("asMirrorCulling", 0x0184f390);
+}
+
+// stub of CT3 0x0184fb20
+void asMirrorPlaneCalc(float *planeVec, float *planePoint)
+{
+    ALYSSAPAN_STUB("asMirrorPlaneCalc", 0x0184fb20);
+}
+
+// stub of CT3 0x0184f020
+void asBuildDOFMatrixTree(u_char *partsHeader)
+{
+    ALYSSAPAN_STUB("asBuildDOFMatrixTree", 0x0184f020);
+}

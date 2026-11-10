@@ -447,7 +447,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 132..132, 4 functions keyed by their statics, 18 unkeyed; file name from the names"
   },
   "game/main.c": {
-   "notes": "Smoke run: build green, layoutcheck OK; screenshot black, main2 is still a stub so no bank loads and no draw pass runs. callcheck flags DrawObjectRefraction like GlobalDrawObject: its calls live in the static helper RefractionDrawBank (the ROM inlines the body in both loops). ssDOF_ClipObjectFromZRange declared and stubbed. Left in main.c: AllDrawObject (reached stub, next), ssHQDOF_DrawAllObject, main_rtn_Particle2 (blocked, open-items 1 h), main_rtn_GHOST / GHOST_DOF, scene_init. Doubts j..m in open-items item 1.",
+   "notes": "Smoke run: build green, layoutcheck OK; screenshot black, main2 is still a stub so no bank loads and no draw pass runs. callcheck flags AllDrawObject like GlobalDrawObject: its calls live in static helpers (AllDrawList, AllDrawCharacter, AllDrawMirrored). The ROM reads BankInfo[-1] for a character without a light bank; the port treats it as not loaded (hazards.md). Left in main.c: scene_init (next, 0x3f8 bytes) and main_rtn_Particle2 (blocked, open-items 1 h). Doubts n..p in open-items item 1.",
    "ranges": [
     [
      "01834440",
@@ -474,6 +474,11 @@
      "date": "2026-11-09 19:11",
      "status": "partial",
      "summary": "main.c slice 4: DrawObjectRefraction (the refraction pass over type-1 banks 6..85 and refracting characters) and main_rtn_DOF (main_rtn for one depth-of-field slice); MODEL_PARTS.kind, DRAW_OBJ_ENTRY.dofMode, CHARACTER_FLAG_REFRACTION"
+    },
+    {
+     "date": "2026-11-09 19:28",
+     "status": "partial",
+     "summary": "main.c slice 5: AllDrawObject (the scene draw: banks, sorted characters, mirrors, translucent banks, particles, translucent and ghost characters), ssHQDOF_DrawAllObject (8 jittered-eye renders blended back), main_rtn_GHOST and main_rtn_GHOST_DOF; CHARACTER.translucent / translucentAlpha, CAMERA, CharacterSortBuff, BANK_FLAG_NO_MIRROR, 18 callee prototypes"
     }
    ],
    "status": "partial",

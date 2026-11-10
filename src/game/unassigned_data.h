@@ -89,6 +89,11 @@ extern FOG_ANIME FogAnimeBuff[BANK_MAX];        /* bss  0x01a58040 */
 
 // ---- characters --------------------------------------------------------------------------------------
 extern CHARACTER Character[CHARACTER_MAX];      /* bss  0x01a4bfc0 */
+extern CAMERA Cam[CAMERA_MAX];                  /* bss  0x01ae7c40 */
+extern u_char EffectBuffer_Use;                 /* sbss 0x0193f764: the effect frame buffer is taken */
+extern u_char HQDOFCameraOffset;                /* sdata 0x01939c84: tenths: the HQ DOF eye jitter */
+extern u_char HQDOFOpacity;                     /* sdata 0x01939c88: percent: each HQ DOF sample's weight */
+extern short CharacterSortBuff[CHARACTER_MAX];  /* sbss 0x01940170 (70 bytes): Character indices, -1 ends */
 extern int DirectLightCharaCounter[CHARACTER_MAX]; /* sbss 0x019400e0 */
 extern short AI_flag[CHARACTER_MAX];            /* sbss 0x0193fca0 */
 extern u_short CharDirectLightSet[CHARACTER_MAX][6]; /* sbss 0x0193ff30 */

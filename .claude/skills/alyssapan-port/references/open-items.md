@@ -42,11 +42,17 @@ questions. Resolve items here when they are settled (move them to "Done" with th
 1. **`main`'s TU first** -- **partial (2026-11-09):** slice 1 written (main, the boot and init functions,
    ControllerMain, tiItemInit, scene_end, the small draw passes; 15 functions); slice 2 (2026-11-09):
    `GlobalDrawObject`, `scene_draw_init`, `system_end`, `get_draw_obj`; slice 3 (2026-11-09): `main_rtn`, `main_rtn_Particle`; slice 4 (2026-11-09):
-   `DrawObjectRefraction`, `main_rtn_DOF`. Left in main.c:
-   `AllDrawObject`, `ssHQDOF_DrawAllObject`, `main_rtn_Particle2`,
-   `main_rtn_GHOST` / `_GHOST_DOF`, `scene_init` (stubs in main.c). Open from slice 4: (j) `BANK_TYPE_SHADOW`
-   (type 1) is also the type DrawObjectRefraction draws among banks 6..85: the name may be too narrow;
-   the bank loader TU names the type; (k) `CHARACTER_FLAG_REFRACTION` (0x80000000) is named from that one
+   `DrawObjectRefraction`, `main_rtn_DOF`; slice 5 (2026-11-09): `AllDrawObject`,
+   `ssHQDOF_DrawAllObject`, `main_rtn_GHOST`, `main_rtn_GHOST_DOF`. Left in main.c: `main_rtn_Particle2`
+   (blocked by (h)) and `scene_init` (0x3f8 bytes, next). Open from slice 5: (n) the mirror arguments
+   (`asEnumMirror(ALL_TABLE *)`, `asMirrorPlaneCalc(planeVec, planePoint)`, tbl +0x2c `matrixTree`) and
+   `tiChara_Translucence_End(float alpha, int fbuf)` / `_End2(int fbuf, int chara)` come from the call
+   sites: confirm them in their TUs; (o) `BANK_FLAG_NO_MIRROR` (0x10) and `EV_SHADOW_AFTER_MIRROR`
+   (0x3b) are named from that one use; (p) HQ DOF's eye w for the diagonal samples follows the
+   decompiler's operand order (up's w), unverified -- only xyz should matter. Open from slice 4: (j)
+   `BANK_TYPE_SHADOW` (type 1) is the type of every bank AllDrawObject, ssHQDOF_DrawAllObject and
+   DrawObjectRefraction draw among banks 6..85: it is the scene-object bank type, not a shadow kind --
+   rename it when the bank loader TU names the type; (k) `CHARACTER_FLAG_REFRACTION` (0x80000000) is named from that one
    use; (l) `MODEL_PARTS.kind` (+0x42) == 9 skips a part in the DOF slices (`PARTS_KIND_NO_DOF`), other
    values unread; (m) `DRAW_OBJ_ENTRY.dofMode` (+0x10) is ssDOF_ClipObjectFromZRange's mode (< 2 tests
    the object's view Z against DOF_NearClip / DOF_FarClip; >= 2 draws only when the near clip is -10000). Open from slice 2: (f) `ALL_TABLE` (All_table_TBL's records, ct3_types.h) is

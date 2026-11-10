@@ -2,9 +2,9 @@
 // game_init, system_init), the main loop, and the draw passes it picks by DrawMode. Built with
 // main=gameMain (CMakeLists.txt): the process entry is the host's (src/main.cpp).
 // Written 2026-11-09: slice 1 (the boot, the loop, the small draw passes), slice 2 (GlobalDrawObject,
-// scene_draw_init, system_end, get_draw_obj), slice 3 (main_rtn, main_rtn_Particle); main_rtn_Particle2,
-// main_rtn_DOF / _GHOST / _GHOST_DOF, AllDrawObject, DrawObjectRefraction, ssHQDOF_DrawAllObject and
-// scene_init are the TU's later slices.
+// scene_draw_init, system_end, get_draw_obj), slice 3 (main_rtn, main_rtn_Particle), slice 4
+// (DrawObjectRefraction, main_rtn_DOF), slice 5 (AllDrawObject, ssHQDOF_DrawAllObject, main_rtn_GHOST /
+// _GHOST_DOF); main_rtn_Particle2 and scene_init are the TU's later slices.
 #include "game/main.h"
 #include "common/alyssapan_stub.h"
 
@@ -98,6 +98,8 @@ enum {
     EV_DEMO_SKIPPED = 0xaf,                     /* registered while a skipped demo fast-forwards */
     EV_0xCA = 0xca,                             /* removed in a time stop unless 0xcc is set */
     EV_0xCC = 0xcc,
+    EV_SHADOW_AFTER_MIRROR = 0x3b,              /* AllDrawObject: set, the shadow volumes draw after the
+                                                   mirrored characters instead of before the characters */
 };
 
 enum DEMO_SKIP {                                /* DEMO_SKIP_FLAG: the demo skip's steps */
@@ -129,6 +131,249 @@ enum DEMO_SKIP {                                /* DEMO_SKIP_FLAG: the demo skip
 #define KEY_MAP_SKIP 11                         /* KEY_MAP[11] (+0x16): skip a demo */
 #define KEY_MAP_DRAWN_OUT 23                    /* KEY_MAP[23] (+0x2e): the trigger forced while CntDrawnOut */
 #define PAD_BUTTON_0x100 0x100
+
+// ──────────────────────────────────────────────────────────────────────
+// main_rtn_DOF for a ghost: main_rtn_DOF's slice test and stored clip byte, with main_rtn_GHOST's
+// differences (the current scene's character fog, one fixed draw control, GHOST_DRAWCTRL_ARGS).
+// CT3 0x01834440
+
+#define GHOST_DRAWCTRL_ARGS 1, 1, 1, 1, 0, 0, 0 /* gaSetupDrawCtrlData's arguments for every ghost part */
+
+void main_rtn_GHOST_DOF(int bank, int mode, int chara, int pass, int charaIndex, void **lastTex)
+{
+    alignas(16) GA_DRAWCTRL_DATA ctrl;
+    short lightBank = -1;
+    float lightFrames = 0.0f;
+    int count;
+    int blur;
+    u_char *table;
+    FOG_INFO *fog;
+    TEX_INFO *texNow;
+    u_int *timNow = NULL;
+    int zonlyParts = -1;
+    int i;
+
+    if (chara == 1) {
+        lightBank = Character[charaIndex].lightBank;
+        lightFrames = (float)DirectLightCharaCounter[charaIndex];
+    }
+    if (asCheckBankType(bank) == 0)
+        asChangeViewMatrix_forTheBank(asCheckBankID(bank));
+    count = get_draw_obj(bank);
+    if (count == 1)
+        return;
+
+    blur = ssGetNumBlurDrawObjForScene(bank, mode);
+    texNow = (TEX_INFO *)*lastTex;
+    table = osTotalObjTable[mode][bank];
+    if (mode != 0 && count != 0) {
+        if (blur == 0)
+            objSort(bank, count, table);
+        else
+            objSortWithBlurIdx(bank, count, table);
+        ALLobject[bank] = (void **)table;
+    }
+    if (blur != 0) {
+        ssPartMotionBlurInsertObjToDrawTable(bank, table, ALLobject[bank], count, mode);
+        ALLobject[bank] = (void **)table;
+    }
+
+    fog = (FOG_INFO *)FogCtrlAddr[idCurrentScene];
+    gaSetupFogCtrlData(&fogctrl[bank], fog->charaFog[0], fog->charaFog[1], fog->charaFog[2],
+                       fog->charaFogArg[0], fog->charaFogArg[1], fog->charaFogArg[2]);
+    gaSet3dlibStruct(MAIN_RTN_CLIP_FAR, ga3dlibwork, &drawbuffer_0, &fogctrl[bank], screen_0);
+    if (Clipping_System == 1)
+        Clipping_Portal(ga3dlibwork, screen_0);
+    tnInit3dlibWork(ga3dlibwork, SPR_3DLIB_WORK);
+    gaBGT_ExecFogCtrlData_VIF1(&fogctrl[bank]);
+    if (((MODEL_PARTS *)pModelPartsHeader[idCurrentScene])[fog->parts].flags & PARTS_FLAG_FOG)
+        FOG_mode = 1;
+    gaSetupDrawCtrlData(&ctrl, GHOST_DRAWCTRL_ARGS);
+    gaBGT_ExecDrawCtrlData_VIF1(&ctrl);
+
+    for (i = 0; ALLobject[bank][i] != NULL; i++) {
+        DRAW_OBJ_ENTRY *ent = (DRAW_OBJ_ENTRY *)ALLobject[bank][i];
+        u_char *obj = ent->obj;
+        TEX_INFO *tex = ent->tex;
+        MODEL_PARTS *parts = &((MODEL_PARTS *)pModelPartsHeader[bank])[ent->parts];
+
+        if (parts->flags & PARTS_FLAG_FOG)
+            continue;
+        if (!(All_table_TBL[bank]->partsPos[ent->parts][3] > PARTS_POS_HIDDEN_W))
+            continue;
+        if (parts->kind == PARTS_KIND_NO_DOF)
+            continue;
+        if ((parts->flags & PARTS_FLAG_ZONLY_FIRST) && zonlyParts != ent->parts)
+            zonlyParts = OneMaxObjectDrawZOnly(bank, i);
+        if (pass == ALL_DRAW_DOF_FIRST)
+            obj[DRAW_OBJ_CLIP] = (u_char)gaObjectClippingCheck(obj);
+        if ((s_char)obj[DRAW_OBJ_CLIP] < 0)
+            continue;
+
+        if (texNow != tex && tex != NULL && tex->tim != timNow && tex->tim != NULL) {
+            sunSetupTBufferData(ent->tbuffer, tex->tim, tex->tbuf[0], tex->tbuf[1], tex->tbuf[2],
+                                tex->tbuf[3], tex->tbuf[4], tex->tbuf[5]);
+            sunBGT_LoadGSTexClutData_VIF1(ent->tbuffer);
+        }
+        if (ssDOF_ClipObjectFromZRange(obj, (u_int)ent->dofMode) == 0)
+            continue;
+        *(int *)(obj + DRAW_OBJ_ATTR) = parts->attr;
+        if (tex != NULL) {
+            float *light = (float *)(obj + DRAW_OBJ_LIGHT);
+
+            if (chara == 0) {
+                if (tex->kind == TEX_KIND_LIGHT)
+                    *light = All_table_TBL[bank]->partsLight[ent->parts];
+            } else if (tex->kind == TEX_KIND_LIGHT && lightBank != -1 && BankInfo[lightBank].loaded == 1) {
+                float target = All_table_TBL[lightBank]->light[2] * All_table_TBL[bank]->partsLight[ent->parts];
+
+                if (lightFrames == 0.0f)
+                    *light = target;
+                else
+                    *light = *light + (target - *light) / lightFrames;
+            }
+        }
+
+        drawobj_attr = 0;
+        if (texNow != tex && tex != NULL) {
+            if (tex->tim != timNow && tex->tim != NULL) {
+                if (tex->tim[0] <= TEX_SMALL_MAX && tex->tim[1] <= TEX_SMALL_MAX) {
+                    gaBGT_End();
+                    gaBGT_Start(bgt_ringbuffer, BGT_RINGBUFFER_SIZE);
+                }
+                timNow = tex->tim;
+            }
+            sunBGT_ExecTBufferData_VIF1(ent->tbuffer);
+            texNow = tex;
+        }
+        if (obj[DRAW_OBJ_CLIP] == 0 && !(obj[DRAW_OBJ_FLAGS] & DRAW_OBJ_FLAG_CLIP))
+            gaBGT_DrawObject_NoClippingCheck2(obj, drawobj_attr);
+        else
+            gaBGT_DrawObject(obj, drawobj_attr);
+    }
+    *lastTex = texNow;
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// main_rtn for a ghost (CHARA_TRANS_GHOST, AllDrawObject's last pass): the same list, light and texture
+// handling, but every list with entries sorted (mode 1), the current scene's character fog whatever
+// chara says, one fixed draw control for every part (GHOST_DRAWCTRL_*) instead of the parts' own, no
+// camera position update, and only the small-texture rule restarting the BGT ring.
+// CT3 0x01834c40
+
+void main_rtn_GHOST(int bank, int mode, int chara, u_int flags, int charaIndex, void **lastTex)
+{
+    alignas(16) GA_DRAWCTRL_DATA ctrl;
+    short lightBank = -1;
+    float lightFrames = 0.0f;
+    int count;
+    int blur;
+    u_char *table;
+    MODEL_PARTS *parts;
+    FOG_INFO *fog;
+    TEX_INFO *texNow;
+    u_int *timNow = NULL;
+    int zonlyParts = -1;
+    int i;
+
+    if (chara == 1) {
+        lightBank = Character[charaIndex].lightBank;
+        lightFrames = (float)DirectLightCharaCounter[charaIndex];
+    }
+    if (asCheckBankType(bank) == 0)
+        asChangeViewMatrix_forTheBank(asCheckBankID(bank));
+    count = get_draw_obj(bank);
+    if (count == 1)
+        return;
+
+    blur = ssGetNumBlurDrawObjForScene(bank, mode);
+    texNow = (TEX_INFO *)*lastTex;
+    table = osTotalObjTable[mode][bank];
+    if (mode != 0 && count != 0) {
+        if (blur == 0)
+            objSort(bank, count, table);
+        else
+            objSortWithBlurIdx(bank, count, table);
+        ALLobject[bank] = (void **)table;
+    }
+    if (blur != 0) {
+        ssPartMotionBlurInsertObjToDrawTable(bank, table, ALLobject[bank], count, mode);
+        ALLobject[bank] = (void **)table;
+    }
+
+    fog = (FOG_INFO *)FogCtrlAddr[idCurrentScene];
+    gaSetupFogCtrlData(&fogctrl[bank], fog->charaFog[0], fog->charaFog[1], fog->charaFog[2],
+                       fog->charaFogArg[0], fog->charaFogArg[1], fog->charaFogArg[2]);
+    gaSet3dlibStruct(MAIN_RTN_CLIP_FAR, ga3dlibwork, &drawbuffer_0, &fogctrl[bank], screen_0);
+    if (Clipping_System == 1)
+        Clipping_Portal(ga3dlibwork, screen_0);
+    tnInit3dlibWork(ga3dlibwork, SPR_3DLIB_WORK);
+    gaBGT_ExecFogCtrlData_VIF1(&fogctrl[bank]);
+    if (((MODEL_PARTS *)pModelPartsHeader[idCurrentScene])[fog->parts].flags & PARTS_FLAG_FOG)
+        FOG_mode = 1;
+    gaSetupDrawCtrlData(&ctrl, GHOST_DRAWCTRL_ARGS);
+    gaBGT_ExecDrawCtrlData_VIF1(&ctrl);
+
+    for (i = 0; ALLobject[bank][i] != NULL; i++) {
+        DRAW_OBJ_ENTRY *ent = (DRAW_OBJ_ENTRY *)ALLobject[bank][i];
+        u_char *obj = ent->obj;
+        TEX_INFO *tex = ent->tex;
+        int clip;
+
+        parts = &((MODEL_PARTS *)pModelPartsHeader[bank])[ent->parts];
+        if (parts->flags & PARTS_FLAG_FOG)
+            continue;
+        if (!(All_table_TBL[bank]->partsPos[ent->parts][3] > PARTS_POS_HIDDEN_W))
+            continue;
+        if ((parts->flags & PARTS_FLAG_ZONLY_FIRST) && zonlyParts != ent->parts)
+            zonlyParts = OneMaxObjectDrawZOnly(bank, i);
+        clip = (flags & MAIN_RTN_NO_CLIP) == 0 ? gaObjectClippingCheck(obj) : 0;
+        if (clip < 0)
+            continue;
+
+        if (texNow != tex && tex != NULL && tex->tim != timNow && tex->tim != NULL) {
+            sunSetupTBufferData(ent->tbuffer, tex->tim, tex->tbuf[0], tex->tbuf[1], tex->tbuf[2],
+                                tex->tbuf[3], tex->tbuf[4], tex->tbuf[5]);
+            sunBGT_LoadGSTexClutData_VIF1(ent->tbuffer);
+        }
+        *(int *)(obj + DRAW_OBJ_ATTR) = parts->attr;
+        if (tex != NULL) {
+            float *light = (float *)(obj + DRAW_OBJ_LIGHT);
+
+            if (chara == 0) {
+                if (tex->kind == TEX_KIND_LIGHT)
+                    *light = All_table_TBL[bank]->partsLight[ent->parts];
+            } else if (tex->kind == TEX_KIND_LIGHT && lightBank != -1 && BankInfo[lightBank].loaded == 1) {
+                float target = All_table_TBL[lightBank]->light[2] * All_table_TBL[bank]->partsLight[ent->parts];
+
+                if (lightFrames == 0.0f)
+                    *light = target;
+                else
+                    *light = *light + (target - *light) / lightFrames;
+            }
+        }
+
+        drawobj_attr = 0;
+        if (texNow != tex && tex != NULL) {
+            if (tex->tim != timNow && tex->tim != NULL) {
+                if (tex->tim[0] <= TEX_SMALL_MAX && tex->tim[1] <= TEX_SMALL_MAX) {
+                    gaBGT_End();
+                    gaBGT_Start(bgt_ringbuffer, BGT_RINGBUFFER_SIZE);
+                }
+                timNow = tex->tim;
+            }
+            sunBGT_ExecTBufferData_VIF1(ent->tbuffer);
+            texNow = tex;
+        }
+        if (clip == 0 && !(obj[DRAW_OBJ_FLAGS] & DRAW_OBJ_FLAG_CLIP)) {
+            gaBGT_DrawObject_NoClippingCheck2(obj, drawobj_attr);
+        } else {
+            obj[DRAW_OBJ_CLIP] = (u_char)clip;
+            gaBGT_DrawObject(obj, drawobj_attr);
+        }
+    }
+    *lastTex = texNow;
+}
 
 // ──────────────────────────────────────────────────────────────────────
 // Clears the item, key item, letter and arrow lists, and every item's held flag.
@@ -364,12 +609,312 @@ void DrawAllObject_Normal(void)
     PanicFilter();
 }
 
+#define HQDOF_SAMPLES 8
+#define HQDOF_FBUF 0xa8000                      /* ga_draw_fbuf_address while a sample draws */
+#define SCREEN_PROJ 8                           /* screen_0[8]: the projection distance (512) */
+
+// The eye's offset for sample i: v = r * right + u * up, xyz only; w from the vector the ROM loads first.
+static void HqdofEyeOffset(float *out, const float *right, const float *up, float r, float u)
+{
+    const float *wsrc = (u != 0.0f) ? up : right;
+    int k;
+
+    for (k = 0; k < 3; k++)
+        out[k] = right[k] * r + up[k] * u;
+    out[3] = wsrc[3];
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// DRAW_MODE_HQDOF: the normal frame, then (unless the effect buffer is taken) HQDOF_SAMPLES more renders
+// of the scene into the effect frame buffer (HQDOF_FBUF), each from an eye moved in the camera's
+// right / up plane by HQDOFCameraOffset tenths (+-R, +-U, then the four half diagonals) and still looking
+// at focusPos, each blended back over the frame at HQDOFOpacity percent: what is far from the focus
+// blurs. focusPos then takes the shared camera's focus for the next frame.
+// CT3 0x01835d40
+
+void ssHQDOF_DrawAllObject(void)
+{
+    static const signed char sampleR[HQDOF_SAMPLES] = { 2, 0, -2, 0, 1, -1, 1, -1 }; /* in halves */
+    static const signed char sampleU[HQDOF_SAMPLES] = { 0, 2, 0, -2, 1, 1, -1, -1 };
+    alignas(16) static float focusPos[4];       /* focusPos$905, sdata 0x0193bc90 */
+    alignas(16) float pos[4];
+    alignas(16) float right[4];
+    alignas(16) float up[4];
+    alignas(16) float forward[4];
+    alignas(16) float offset[4];
+    alignas(16) float eye[4];
+    float step;
+    int fbuf;
+    int i;
+    int k;
+    short c;
+
+    AllDrawObject(0);
+    DrawObjectRefraction(0);
+    tiDrawLensFlares();
+    PanicFilter();
+    if (EffectBuffer_Use != 0)
+        return;
+
+    gaBGT_End();
+    EffectBuffer_Use = 1;
+    asViewMatrix2CamRUF(matrix_global_view, pos, right, up, forward);
+    step = (float)HQDOFCameraOffset / 10.0f;
+    for (i = 0; i < HQDOF_SAMPLES; i++) {
+        HqdofEyeOffset(offset, right, up, step * sampleR[i] / 2.0f, step * sampleU[i] / 2.0f);
+        for (k = 0; k < 3; k++)
+            eye[k] = offset[k] + pos[k];
+        eye[3] = offset[3];
+        asEyeForcusUP2CamMat(screen_0[SCREEN_PROJ], matrix_global_view, eye, focusPos, up);
+
+        for (k = 0; k < BANK_MAX; k++) {
+            if (BankInfo[k].loaded != 0 && BankInfo[k].type == BANK_TYPE_SHADOW)
+                asBuildDOFMatrixTree(pModelPartsHeader[k]);
+            if (BankInfo[k].groupCount != 0)
+                k += BankInfo[k].groupCount - 1;
+        }
+        for (c = 0; c < CHARACTER_MAX; c++) {
+            if ((Character[c].flags & CHARACTER_FLAG_REFRACTION) && (Character[c].flags & CHARACTER_FLAG_SHADOW)
+                && Character[c].bank >= 0)
+                asBuildDOFMatrixTree(pModelPartsHeader[Character[c].bank]);
+        }
+
+        fbuf = ga_draw_fbuf_address;
+        ga_draw_fbuf_address = HQDOF_FBUF;
+        FlushCache(0);
+        gaBGT_Start(bgt_ringbuffer, BGT_RINGBUFFER_SIZE);
+        ssBGT_HQDOF_SetDrawEnvPreRend();
+        gaBGT_ExecDrawCtrlData_VIF1(&drawctrl_frameclear);
+        gaBGT_ExecDrawCommandData_VIF1(&drawcom_frameclear);
+        AllDrawObject(0);
+        DrawObjectRefraction(0);
+        gaBGT_End();
+        ga_draw_fbuf_address = fbuf;
+        gaBGT_Start(bgt_ringbuffer, BGT_RINGBUFFER_SIZE);
+        ssBGT_HQDOF_WriteBackFB(((int)HQDOFOpacity << 7) / 100);
+        gaBGT_End();
+    }
+    memcpy(focusPos, Cam[asCheckBankID(BANK_SCENE_MAX)].focus, sizeof(focusPos));
+    EffectBuffer_Use = 0;
+    gaBGT_Start(bgt_ringbuffer, BGT_RINGBUFFER_SIZE);
+}
+
 // ──────────────────────────────────────────────────────────────────────
 // DRAW_MODE_REFLECT_MAP: empty in the retail build.
 // CT3 0x018362a0
 
 void CaptureReflectMap(void)
 {
+}
+
+// A bank AllDrawObject's scene passes draw: loaded, of BANK_TYPE_SHADOW (open-items.md item 1 (j)).
+static int AllDrawSceneBank(int bank)
+{
+    return BankInfo[bank].loaded != 0 && BankInfo[bank].type == BANK_TYPE_SHADOW;
+}
+
+// A character's light bank is loaded. The ROM reads BankInfo[lightBank].loaded without testing
+// lightBank >= 0 in the opaque and translucent passes (BankInfo[-1] is the memory before the table); the
+// port treats -1 as not loaded (hazards.md "AlyssaPan").
+static int AllDrawLightBankLoaded(short lightBank)
+{
+    return lightBank >= 0 && BankInfo[lightBank].loaded != 0;
+}
+
+// One of AllDrawObject's lists of a bank: main_rtn_DOF in the depth-of-field slices, main_rtn otherwise.
+static void AllDrawList(int bank, int list, int chara, int mode, int charaIndex, void **lastTex)
+{
+    if (mode == ALL_DRAW_DOF_FIRST || mode == ALL_DRAW_DOF_NEXT)
+        main_rtn_DOF(bank, list, chara, mode, charaIndex, lastTex);
+    else
+        main_rtn(bank, list, chara, (u_int)mode, charaIndex, lastTex);
+}
+
+// A character's bank as a character: its light (not in the nearer DOF slices), the opaque list, the
+// translucent list.
+static void AllDrawCharacter(short c, int mode, void **lastTex)
+{
+    short bank = Character[c].bank;
+    ALL_TABLE *tbl = All_table_TBL[bank];
+
+    if (mode != ALL_DRAW_DOF_NEXT)
+        CharLightSet(c);
+    ALLobject[bank] = tbl->objOpaque;
+    AllDrawList(bank, 0, 1, mode, c, lastTex);
+    ALLobject[bank] = tbl->objTrans;
+    AllDrawList(bank, 1, 1, mode, c, lastTex);
+}
+
+// A sorted character the mirror passes reflect: opaque, its bank not BANK_FLAG_NO_MIRROR, its light
+// bank loaded with a table, and a mirror there (asEnumMirror).
+static int AllDrawMirrored(short c)
+{
+    CHARACTER *chr = &Character[c];
+    short lightBank = chr->lightBank;
+
+    return chr->translucent == 0 && !(BankInfo[chr->bank].flags & BANK_FLAG_NO_MIRROR)
+        && AllDrawLightBankLoaded(lightBank) && All_table_TBL[lightBank] != NULL
+        && asEnumMirror(All_table_TBL[lightBank]) != 0;
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// The 3D scene's draw (mode: 0 normal, ALL_DRAW_DOF_FIRST / _NEXT for the depth-of-field slices):
+// 1. the opaque list of each scene bank (6..85, a group's banks skipped after its head), under its
+//    scene light;
+// 2. the shadow volumes here unless event 0x3b is set (then after the mirrors);
+// 3. the sorted characters' opaque and translucent lists (CharacterSortBuff, front to back), those
+//    with CHARA_TRANS_* bits left for the end;
+// 4. back to front, each character standing by a mirror once more through the mirror matrix, culling
+//    reversed; then the mirror trees undone in the same order;
+// 5. the scene banks' translucent lists, BANK_FLAG_DRAW_FIRST banks last; their particles, then those
+//    of the REFRACTION + SHADOW characters;
+// 6. the translucent characters (tiChara_Translucence_*) and the ghosts (main_rtn_GHOST), each with
+//    its particles.
+// lastTex restarts at the passes the ROM restarts it.
+// CT3 0x018362b0
+
+void AllDrawObject(int mode)
+{
+    int fbuf = ga_draw_fbuf_address;
+    void *lastTex = NULL;
+    float planeVec[4];
+    float planePoint[4];
+    int count;
+    int i;
+    short c;
+
+    // 1. the scene banks' opaque lists
+    asChangeViewMatrix_forTheBank(asCheckBankID(BANK_SCENE_MAX));
+    for (i = BANK_SCENE_MAX; i < BANK_MAX; i++) {
+        if (AllDrawSceneBank(i)) {
+            if (mode != ALL_DRAW_DOF_NEXT)
+                SceneLightSet(i);
+            ALLobject[i] = All_table_TBL[i]->objOpaque;
+            AllDrawList(i, 0, 0, mode, 0, &lastTex);
+        }
+        if (BankInfo[i].groupCount != 0)
+            i += BankInfo[i].groupCount - 1;
+    }
+    // (The ROM has an empty loop over CHARACTER_MAX here: a body compiled out of the retail build.)
+
+    // 2. shadow volumes before the characters
+    if (ssTrigCheckEvent(EV_SHADOW_AFTER_MIRROR, 1, 0) == 0)
+        asDrawShadowVolumeLoop();
+
+    // 3. the sorted characters
+    lastTex = NULL;
+    asInitMirrorMatrix();
+    count = 0;
+    for (i = 0; CharacterSortBuff[i] != -1; i++) {
+        c = CharacterSortBuff[i];
+        if (Character[c].translucent == 0 && AllDrawLightBankLoaded(Character[c].lightBank))
+            AllDrawCharacter(c, mode, &lastTex);
+        count++;
+    }
+
+    // 4. the mirrored characters, back to front
+    lastTex = NULL;
+    for (i = count - 1; i >= 0; i--) {
+        c = CharacterSortBuff[i];
+        if (AllDrawMirrored(c)) {
+            ALL_TABLE *tbl = All_table_TBL[Character[c].bank];
+
+            asMirrorPlaneCalc(planeVec, planePoint);
+            asMakeMirrorMatrixByPlane(planeVec, planePoint);
+            asMirrorCulling(0);
+            asBuildMirrorMatrixTree(tbl->matrixTree);
+            asGAobjectControlPolygonDisplayRotateFlagReverse(tbl);
+            AllDrawCharacter(c, mode, &lastTex);
+            asMirrorCulling(1);
+        }
+    }
+    asChangeViewMatrix_forTheBank(asCheckBankID(BANK_SCENE_MAX));
+    for (i = count - 1; i >= 0; i--) {
+        c = CharacterSortBuff[i];
+        if (AllDrawMirrored(c)) {
+            ALL_TABLE *tbl = All_table_TBL[Character[c].bank];
+
+            asGAobjectControlPolygonDisplayRotateFlagReverse(tbl);
+            asBuildMirrorMatrixTreeBack(tbl->matrixTree);
+        }
+    }
+    if (ssTrigCheckEvent(EV_SHADOW_AFTER_MIRROR, 1, 0) != 0)
+        asDrawShadowVolumeLoop();
+
+    // 5. the scene banks' translucent lists (BANK_FLAG_DRAW_FIRST last), then the particles
+    lastTex = NULL;
+    for (i = BANK_SCENE_MAX; i < BANK_MAX; i++) {
+        if (AllDrawSceneBank(i) && !(BankInfo[i].flags & BANK_FLAG_DRAW_FIRST)) {
+            ALLobject[i] = All_table_TBL[i]->objTrans;
+            AllDrawList(i, 1, 0, mode, 0, &lastTex);
+        }
+        if (BankInfo[i].groupCount != 0)
+            i += BankInfo[i].groupCount - 1;
+    }
+    for (i = BANK_SCENE_MAX; i < BANK_MAX; i++) {
+        if (AllDrawSceneBank(i) && (BankInfo[i].flags & BANK_FLAG_DRAW_FIRST)) {
+            ALLobject[i] = All_table_TBL[i]->objTrans;
+            AllDrawList(i, 1, 0, mode, 0, &lastTex);
+        }
+        if (BankInfo[i].groupCount != 0)
+            i += BankInfo[i].groupCount - 1;
+    }
+    lastTex = NULL;
+    for (i = BANK_SCENE_MAX; i < BANK_MAX; i++) {
+        if (AllDrawSceneBank(i)) {
+            main_rtn_Particle(i, 0, &lastTex);
+            main_rtn_Particle2(i, 0, 0, &lastTex);
+        }
+        if (BankInfo[i].groupCount != 0)
+            i += BankInfo[i].groupCount - 1;
+    }
+    for (c = 0; c < CHARACTER_MAX; c++) {
+        if ((Character[c].flags & CHARACTER_FLAG_REFRACTION) && (Character[c].flags & CHARACTER_FLAG_SHADOW)
+            && Character[c].translucent == 0 && Character[c].bank >= 0) {
+            main_rtn_Particle(Character[c].bank, 1, &lastTex);
+            main_rtn_Particle2(Character[c].bank, 1, 0, &lastTex);
+        }
+    }
+
+    // 6. the translucent characters and the ghosts
+    lastTex = NULL;
+    asInitMirrorMatrix();
+    for (i = 0; CharacterSortBuff[i] != -1; i++) {
+        CHARACTER *chr;
+        short bank;
+        ALL_TABLE *tbl;
+
+        c = CharacterSortBuff[i];
+        chr = &Character[c];
+        bank = chr->bank;
+        if (chr->translucent & CHARA_TRANS_TRANSLUCENT) {
+            tiChara_Translucence_Start();
+            if (AllDrawLightBankLoaded(chr->lightBank)) {
+                AllDrawCharacter(c, mode, &lastTex);
+                tiChara_Translucence_End(chr->translucentAlpha, fbuf);
+                main_rtn_Particle(bank, 1, &lastTex);
+                main_rtn_Particle2(bank, 1, 0, &lastTex);
+            }
+        } else if (chr->translucent & CHARA_TRANS_GHOST) {
+            tiChara_Translucence_Start2();
+            if (AllDrawLightBankLoaded(chr->lightBank)) {
+                tbl = All_table_TBL[bank];
+                ALLobject[bank] = tbl->objOpaque;
+                if (mode == ALL_DRAW_DOF_FIRST || mode == ALL_DRAW_DOF_NEXT)
+                    main_rtn_GHOST_DOF(bank, 0, 1, mode, c, &lastTex);
+                else
+                    main_rtn_GHOST(bank, 0, 1, (u_int)mode, c, &lastTex);
+                ALLobject[bank] = tbl->objTrans;
+                if (mode == ALL_DRAW_DOF_FIRST || mode == ALL_DRAW_DOF_NEXT)
+                    main_rtn_GHOST_DOF(bank, 1, 1, mode, c, &lastTex);
+                else
+                    main_rtn_GHOST(bank, 1, 1, (u_int)mode, c, &lastTex);
+                tiChara_Translucence_End2(fbuf, c);
+                main_rtn_Particle(bank, 1, &lastTex);
+                main_rtn_Particle2(bank, 1, 0, &lastTex);
+            }
+        }
+    }
 }
 
 // One loaded scene bank of GlobalDrawObject's: its view matrix, a cleared Z buffer, its lights, then the
@@ -1538,18 +2083,6 @@ int main(int argc, char **argv)
 }
 
 // ---- stubs (tools/reverse/stubgen.py) ----
-
-// stub of CT3 0x018362b0
-void AllDrawObject(int mode)
-{
-    ALYSSAPAN_STUB("AllDrawObject", 0x018362b0);
-}
-
-// stub of CT3 0x01835d40
-void ssHQDOF_DrawAllObject(void)
-{
-    ALYSSAPAN_STUB("ssHQDOF_DrawAllObject", 0x01835d40);
-}
 
 // stub of CT3 0x01837570
 void main_rtn_Particle2(int bank, int fog, int after, void **lastTex)

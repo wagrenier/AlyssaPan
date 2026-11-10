@@ -29,3 +29,9 @@ void SceneLightSet(int scene)
 {
     ALYSSAPAN_STUB("SceneLightSet", 0x018b4480);
 }
+
+// stub of CT3 0x018b49f0
+void CharLightSet(int chara)
+{
+    ALYSSAPAN_STUB("CharLightSet", 0x018b49f0);
+}

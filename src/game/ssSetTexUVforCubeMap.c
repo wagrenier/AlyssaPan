@@ -163,3 +163,15 @@ int ssDOF_ClipObjectFromZRange(u_char *obj, u_int mode)
     ALYSSAPAN_STUB("ssDOF_ClipObjectFromZRange", 0x0189da90);
     return {};
 }
+
+// stub of CT3 0x0189b510
+void ssBGT_HQDOF_SetDrawEnvPreRend(void)
+{
+    ALYSSAPAN_STUB("ssBGT_HQDOF_SetDrawEnvPreRend", 0x0189b510);
+}
+
+// stub of CT3 0x0189b390
+void ssBGT_HQDOF_WriteBackFB(int alpha)
+{
+    ALYSSAPAN_STUB("ssBGT_HQDOF_WriteBackFB", 0x0189b390);
+}
