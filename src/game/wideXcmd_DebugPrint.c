@@ -83,3 +83,17 @@ void asInitPlayerBehaviorControler(CHARACTER *chr)
 {
     ALYSSAPAN_STUB("asInitPlayerBehaviorControler", 0x018fe380);
 }
+
+// stub of CT3 0x018fe290
+u_long asCharacterMortionChangeRequest(int chara, int mode, int index)
+{
+    ALYSSAPAN_STUB("asCharacterMortionChangeRequest", 0x018fe290);
+    return {};
+}
+
+// stub of CT3 0x018fe230
+u_long asCharacterMortionChangeRequestHash(int chara, int mode, u_long hash)
+{
+    ALYSSAPAN_STUB("asCharacterMortionChangeRequestHash", 0x018fe230);
+    return {};
+}

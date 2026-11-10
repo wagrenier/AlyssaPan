@@ -399,9 +399,22 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    the C order (bank, a, b) is a guess for ssGrpPortalCheck.c's call site; BankInfo +0x64 / +0x68 are
    its two floats, +0x6d the angle lock, +0x6c (shadowOrder) is what SetShadowValue sets;
    (dl) asFindBehavior / _ByCharacter answer host BEHAVIOR pointers (the list words resolved by
-   BankOfHostPtr's bank); BEHAVIOR +0 is its 64-bit `hash`. Left in this TU: EA_010, the general body of
-   ExecuteAnimation, asShadowDrawing_CheckTransMode, asSceneAnimationStart, asMirrorCulling,
-   asUpdateAnimation_Matrix, asDrawShadowVolume / _Init and the rest of the brief's list.
+   BankOfHostPtr's bank); BEHAVIOR +0 is its 64-bit `hash`.
+   Open from slice 10 (2026-11-10, the shadow pass order, asSceneAnimationStart,
+   asUpdateAnimation_Matrix, the play rate): (dm) CHARACTER +0x350 is the EE word of the character's
+   motion table (0x30-byte records: hash, +8 the motion's hash), written by asInitPlayerBehaviorControler
+   (wideXcmd_DebugPrint.c, a stub): asSceneAnimationStart's SCENE_ANIM_CHARACTER + toEnd path reads it
+   through CharaMotionTable(), which answers NULL (an empty table, index 0) until that TU gives the word
+   a host form; (dn) asShadowDrawing_CheckTransMode's mode-0 sort reuses one register as the character
+   loop's index and the count of shadowOrder changes (the disassembly, 0x01847918..0x01847a1c): a change
+   skips the next character and iShadowTransModeFin always ends 1; kept as the ROM does it -- a smoke
+   run with several shadowed characters of mixed order is where it shows; (do) the two hashes of
+   CHARA_AXIS_HASH_ROW1 / _ROW2 (asUpdateAnimation_Matrix, CHARACTER.refractAxis) have no names yet;
+   (dp) BEHAVIOR_TRACK +0xe is `playRate` (percent; was value0e): asSceneAnimationStart sets speed * 100,
+   or 0 with toEnd. Left in this TU: EA_010, the general body of ExecuteAnimation, asMirrorCulling,
+   asShadowPolygonPositions and asStockShadowVolume (one piece: ga draw objects with the
+   ShadowVolume1_* VIF data, through the host draw module), asDrawShadowVolume / _Init, asShadowEnd,
+   asShadowStart and the rest of the brief's list.
    (bw) Extract is untested against a known image: the first scene_init that runs on relocated data is
    its test (a wrong decode shows as garbage tables); a harness decoding one CT3X file from CT3PACK.DAT
    beside the ROM's (eerun.py) would prove it sooner.

@@ -16,9 +16,11 @@
 #include "game/fileio.h"
 #include "game/main.h"
 #include "game/main2.h"
+#include "game/sound.h"
 #include "game/ssCalcInversMatrix2.h"
 #include "game/ssGrpPortalCheck.h"
 #include "game/unassigned_data.h"
+#include "game/wideXcmd_DebugPrint.h"
 
 // ---- the file relocator (CT3 0x0183e280..0x01842290) ----
 //
@@ -1414,7 +1416,7 @@ void asSceneAutoStartAnimation(void *behavior)
                     tr->flags |= TRACK_FLAG_STARTED;
                 asStartAnimationFromTop(tr, 1);
             }
-            tr->value0e = TRACK_VALUE0E_START;
+            tr->playRate = TRACK_PLAY_RATE_FULL;
         }
     }
 }
@@ -2141,7 +2143,7 @@ void asStartAnimation(BEHAVIOR_TRACK *track)
         track->step = 1;
     track->playing = TRACK_PLAYING;
     if (track->time == track->playable * TRACK_TIME_SCALE)
-        track->value0e = 0;
+        track->playRate = 0;
 }
 
 // CT3 0x0184a540
@@ -2437,7 +2439,7 @@ static void PosePosKey(float *dst, const BEHAVIOR_TRACK *tr, const u_char *keys,
 
 // CT3 0x0184d1a0
 // Every running track of the behaviour takes its key at this frame's ticks (anim_play_slow *
-// gGlobalNextTicksInterval * value0e / 100; atKey: where it stands) and, for a pose kind, puts it in
+// gGlobalNextTicksInterval * playRate / 100; atKey: where it stands) and, for a pose kind, puts it in
 // its group's part (set when the parts header's ticks are 0, else blended by AnimWeights) and marks
 // the part PARTS_ANIM_DIRTY. With mat, the EA_001_PART_HASH part's keys build base * local as EA_001
 // does (every done byte set). Every track's time1c shifts up and takes time / 100. The call is
@@ -2467,7 +2469,7 @@ int EA_100(int bank, u_int anim, ALL_TABLE *tbl, float (*mat)[4], int atKey)
             continue;
         tr = BehaviorTracks(bank, bhv, g);
         for (t = grp->trackCount; t > 0; t--, tr++) {
-            elapsed = (u_int)anim_play_slow * (u_int)gGlobalNextTicksInterval * tr->value0e / 100;
+            elapsed = (u_int)anim_play_slow * (u_int)gGlobalNextTicksInterval * tr->playRate / 100;
             AnimWeights(w, ticks, elapsed, total, dir);
             if (tr->playing == TRACK_PLAYING) {
                 int pose = IsPoseTrack(tr->kind);
@@ -2578,15 +2580,169 @@ int ExecuteAnimation(int bank, u_int anim, ALL_TABLE *tbl, float (*mat)[4], int 
     return 0;
 }
 
-// ---- stubs (tools/reverse/stubgen.py) ----
-
-// stub of CT3 0x018483d0
-u_long asSceneAnimationStart(float speed, int a0, ALL_TABLE *tbl, int a2, int frame, int id, int a6,
-                             int a7, int a8, int a9, int a10, int a11, int a12, int a13)
+// CT3 0x018427f0
+// main, once a frame after the animations: the matrix trees of the drawn scene banks (and those drawn
+// first) and of the refracting shadowed characters, each such character's axis from its model, then
+// every drawn bank's world matrices kept as last frame's.
+void asUpdateAnimation_Matrix(void)
 {
-    ALYSSAPAN_STUB("asSceneAnimationStart", 0x018483d0);
-    return {};
+    int i;
+    short c;
+    for (i = 0; i < BANK_MAX; i++) {
+        BANK_INFO *bi = &BankInfo[i];
+        if (bi->state == BANK_STATE_LOADED
+            && (bi->drawOn == DRAW_BANK_ON || (bi->flags & BANK_FLAG_DRAW_FIRST) != 0)
+            && (bi->type == BANK_TYPE_SHADOW || bi->type == BANK_TYPE_0))
+            BuildMatrixTree(i, 0, 1);
+        if (bi->state > 0)
+            i += bi->groupCount - 1;
+    }
+    for (c = 0; c < CHARACTER_MAX; c++) {
+        CHARACTER *ch = &Character[c];
+        u_char *rec;
+        if ((ch->flags & CHARACTER_FLAG_REFRACTION) == 0 || (ch->flags & CHARACTER_FLAG_SHADOW) == 0
+            || ch->bank < 0)
+            continue;
+        BuildMatrixTree(ch->bank, 0, 1);
+        rec = asFindModelParts(pModelPartsHeader[ch->bank], CHARA_AXIS_HASH_ROW1);
+        if (rec != NULL) {
+            memcpy(ch->refractAxis, rec + REC_MATRIX + 0x10, sizeof(ch->refractAxis));
+        } else if ((rec = asFindModelParts(pModelPartsHeader[ch->bank], CHARA_AXIS_HASH_ROW2)) != NULL) {
+            memcpy(ch->refractAxis, rec + REC_MATRIX + 0x20, sizeof(ch->refractAxis));
+        } else {
+            static const float vf0[4] = {0.0f, 0.0f, 0.0f, 1.0f}; /* sqc2 vf0 */
+            memcpy(ch->refractAxis, vf0, sizeof(ch->refractAxis));
+        }
+    }
+    for (i = 0; i < BANK_MAX; i++) {
+        BANK_INFO *bi = &BankInfo[i];
+        if (bi->state != BANK_STATE_LOADED)
+            continue;
+        if ((bi->drawOn == DRAW_BANK_ON || (bi->flags & BANK_FLAG_DRAW_FIRST) != 0)
+            && (bi->type == BANK_TYPE_2 || bi->type == BANK_TYPE_SHADOW || bi->type == BANK_TYPE_0))
+            asCopyDoubleBufferL2W(BANK_PTR(u_char *, i, All_table_TBL[i]->partsHeader));
+        if (bi->state > 0)
+            i += bi->groupCount - 1;
+    }
+    asResetCharacterRotation(0, 0, 0);
 }
+
+// PORT: CHARACTER +CHARA_MOTION_TABLE holds the EE address of the character's motion table, written
+// by asInitPlayerBehaviorControler (wideXcmd_DebugPrint.c, still a stub), whose TU decides its host
+// form; until then no character has one here (an empty table: the walk ends at once, index 0).
+static const u_char *CharaMotionTable(const CHARACTER *ch)
+{
+    (void)ch;
+    return NULL;
+}
+
+// CT3 0x018483d0
+// Starts a scene animation over [from, to] (frames). SCENE_ANIM_SCENE: every track of the groups of
+// the scene's behaviour that animate partId (or with byPart, the groups of part 0 too) whose kind the
+// switches select: pose for the pose and vertex kinds, other for the number / vector kinds, byPart for
+// the copy and UV kinds whose first key names partId. Each gets the range, the two flag bits, the play
+// rate (speed * 100; toEnd: 0, to the end at once), its pass check and a start. SCENE_ANIM_CHARACTER:
+// the character's motion by hash instead (toEnd: through its motion table, at frame `to`). 0 when a
+// track started (or what the motion request answers), 1 otherwise.
+u_long asSceneAnimationStart(float speed, u_long hash, ALL_TABLE *tbl, int from, int to, int partId,
+                             int pose, int other, int byPart, int started, int toEnd, int stepFromRuns,
+                             int target, int chara)
+{
+    int bank, g, t;
+    BEHAVIOR *bhv;
+    float rate;
+    u_short part;
+    u_char any;
+    if (tbl == NULL)
+        return 1;
+    bank = BankOfHostPtr(tbl);
+    rate = (char)toEnd == 0 ? 1.0f : 0.0f;
+    if ((char)target == SCENE_ANIM_CHARACTER) {
+        CHARACTER *ch = &Character[(u_char)chara];
+        if ((char)toEnd == 0)
+            return asCharacterMortionChangeRequestHash((u_char)chara, 0, hash);
+        // The character's motion table (CHARACTER +CHARA_MOTION_TABLE, an EE word): 0x30-byte records
+        // led by a hash, the motion's own hash at +8, a 0 hash ending it; the record's index goes to
+        // the request.
+        {
+            const u_char *table = CharaMotionTable(ch);
+            int i = 0;
+            u_long h = 0;
+            if (table != NULL)
+                memcpy(&h, table, sizeof(h));
+            while (h != 0) {
+                if (h == hash) {
+                    memcpy(&hash, table + i * CHARA_MOTION_SIZE + 8, sizeof(hash));
+                    break;
+                }
+                i++;
+                memcpy(&h, table + i * CHARA_MOTION_SIZE, sizeof(h));
+            }
+            asChangeBehaviorAnimationCurrent(asFindBehaviorByCharacter((u_char)chara, hash), to);
+            return asCharacterMortionChangeRequest((u_char)chara, CHARA_MOTION_REQUEST_INDEX, i);
+        }
+    }
+    if ((char)target != SCENE_ANIM_SCENE)
+        return 1;
+    bhv = BANK_PTR(BEHAVIOR *, bank, tbl->behavior);
+    part = (u_short)partId;
+    if (part == 0)
+        part = (u_short)asFindModelPartsID(BANK_PTR(u_char *, bank, tbl->partsHeader), hash);
+    any = 0;
+    for (g = 0; g < bhv->groupCount; g++) {
+        BEHAVIOR_TRACK *tr;
+        if (!(bhv->groups[g].part == (short)part || (byPart != 0 && bhv->groups[g].part == 0)))
+            continue;
+        tr = BehaviorTracks(bank, bhv, g);
+        for (t = bhv->groups[g].trackCount; t > 0; t--, tr++) {
+            int take = 0;
+            switch (tr->kind) {
+            case TRACK_KIND_BASE_POS:
+            case TRACK_KIND_BASE_ROT:
+            case TRACK_KIND_POS:
+            case TRACK_KIND_ROT:
+            case TRACK_KIND_VECTOR:
+            case TRACK_KIND_NORMAL:
+            case TRACK_KIND_VERTEX:
+                take = (char)pose != 0;
+                break;
+            case TRACK_KIND_COPY:
+                if (byPart != 0) {
+                    u_short p;
+                    memcpy(&p, BANK_PTR(const u_char *, bank, tr->keys) + 0x1a, sizeof(p));
+                    take = p == (u_short)partId;
+                }
+                break;
+            case TRACK_KIND_UV:
+                if (byPart != 0) {
+                    short p;
+                    memcpy(&p, BANK_PTR(const u_char *, bank, tr->keys) + 0x1c, sizeof(p));
+                    take = p == (int)(u_short)partId;
+                }
+                break;
+            case TRACK_KIND_FLOAT0_7_9:
+            case TRACK_KIND_SUB_NUMBER:
+            case TRACK_KIND_NUMBER:
+            case TRACK_KIND_FLOAT1_1_14:
+            case TRACK_KIND_VECTOR_XYZ:
+                take = (char)other != 0;
+                break;
+            }
+            if (!take)
+                continue;
+            any = 1;
+            asChangePlayRange(tr, from, to);
+            tr->flags = (u_char)((tr->flags & ~TRACK_FLAG_STEP_FROM_RUNS) | (u_char)stepFromRuns);
+            tr->flags = (u_char)((tr->flags & ~TRACK_FLAG_STARTED) | (u_char)((char)started << 1));
+            tr->playRate = (u_char)(int)(speed * rate * 100.0f);
+            asResetPassCheckarameter(tr, from);
+            asStartAnimation(tr);
+        }
+    }
+    return any ^ 1;
+}
+
+// ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x0184bf60
 int EA_010(int bank, u_int anim, ALL_TABLE *tbl)
@@ -2601,11 +2757,6 @@ void asShadowPolygonPositions(int bank)
     ALYSSAPAN_STUB("asShadowPolygonPositions", 0x01844df0);
 }
 
-// stub of CT3 0x018427f0
-void asUpdateAnimation_Matrix(void)
-{
-    ALYSSAPAN_STUB("asUpdateAnimation_Matrix", 0x018427f0);
-}
 
 // stub of CT3 0x0184f220
 void asBuildMirrorMatrixTree(void *tree)
@@ -2645,13 +2796,6 @@ void asDrawShadowVolume(int bank)
 void asDrawShadowVolumeInit(int a0)
 {
     ALYSSAPAN_STUB("asDrawShadowVolumeInit", 0x018461f0);
-}
-
-// stub of CT3 0x01847660
-int asShadowDrawing_CheckTransMode(int mode)
-{
-    ALYSSAPAN_STUB("asShadowDrawing_CheckTransMode", 0x01847660);
-    return {};
 }
 
 // stub of CT3 0x01846360
@@ -2859,7 +3003,7 @@ static void IAK_WriteKey(int bank, const BEHAVIOR_TRACK *tr, u_char *out, const 
 
 // CT3 0x0184dbc0
 // Moves the track's time on by dir ticks (backwards with TRACK_FLAG_REVERSE; at anim_play_slow's speed
-// snapped to TRACK_SLOW_STEP; value0e 0 jumps to the end), applies the play mode at the ends (1 when
+// snapped to TRACK_SLOW_STEP; playRate 0 jumps to the end), applies the play mode at the ends (1 when
 // a once track reached playable), finds the keys either side and writes key 0 (IAK_WriteKey). dir 0
 // is IAK_0's.
 // callcheck: IAK_0 (all-caps: callcheck reads it as a macro)
@@ -2881,10 +3025,10 @@ int InterpolateAnimationKey(BEHAVIOR_TRACK *track, int dir)
     lastFrame = KeyFrame(keys + track->runs * stride);
     last = lastFrame * TRACK_TIME_SCALE;
     t = dir * ((flags & TRACK_FLAG_REVERSE) ? -1 : 1);
-    if (track->value0e == 0) {
+    if (track->playRate == 0) {
         track->time = end;
         t = end;
-    } else if ((u_int)track->value0e == (u_int)(anim_play_slow * 100) / 100) {
+    } else if ((u_int)track->playRate == (u_int)(anim_play_slow * 100) / 100) {
         if (!(flags & TRACK_FLAG_REVERSE))
             t = ((t + before - 1) / TRACK_SLOW_STEP + 1) * TRACK_SLOW_STEP;
         else
@@ -2956,7 +3100,7 @@ int InterpolateAnimationKey(BEHAVIOR_TRACK *track, int dir)
 }
 
 // CT3 0x0184e520
-// The key at the track's time as it stands (value0e 0: the end), clamped to playable -- 1 when it is
+// The key at the track's time as it stands (playRate 0: the end), clamped to playable -- 1 when it is
 // there (at or past it forwards, at or before it backwards).
 // callcheck: asContInterpolateVector, asContInterpolateZipNormal_XYZ, asContInterpolateZipTrans_XYZ, asInterpolateNumber, asInterpolateVector, asInterpolateZipFloat0_7_9X, asInterpolateZipFloat1_1_14X, asInterpolateZipTrans_XYZ, asInterpolateZipUV, asInterpolateZipVECTOR_XYZ, asMemCopy128c, asMemCopy16c, asQuatSlerpZipVECTOR, asZipUV2UV, gaMemCopy32 (in IAK_WriteKey; gaMemCopy32 is memmove)
 int IAK_0(BEHAVIOR_TRACK *track)
@@ -2969,7 +3113,7 @@ int IAK_0(BEHAVIOR_TRACK *track)
     int t, ret;
     u_int k;
     const u_char *prev, *next;
-    if (track->value0e == 0) {
+    if (track->playRate == 0) {
         track->time = end;
         t = end;
     } else {
@@ -3108,6 +3252,171 @@ void asShadowDrawing_SetShadowValue(int bank, s_char value)
 {
     if (bank >= 0)
         BankInfo[bank].shadowOrder = value;
+}
+
+// CT3 0x018475e0
+// The shadow's alpha (shadowColor[3]; asShadowDrawing_Disable puts 0xff there).
+void asShadowDrawing_SetShadowLevel(int bank, u_char level)
+{
+    if (bank >= 0)
+        BankInfo[bank].shadowColor[3] = level;
+}
+
+// CT3 0x01847630
+void asShadowDrawing_SetTransMode(char mode)
+{
+    iShadowTransMode = mode == SHADOW_TRANS_MODE_PLAIN;
+}
+
+// ---- the shadow pass order (CT3 0x01847660, slice 10, 2026-11-10) ----
+//
+// SHADOW_TRANS_SORT lists the banks whose shadow is drawn: the drawn scene banks (type
+// BANK_TYPE_SHADOW, shadowDraw on; a group's later banks skipped), then the shadowed characters'
+// banks (CHARACTER_FLAG_SHADOW, not translucent). shadowOrder > 0 puts a bank at the front of BID
+// (from 0 up), <= 0 at the back (from 0xff down); 0xff marks an empty slot. Each SHADOW_TRANS_NEXT
+// then hands out the next bank: the front ones in order, then the back ones from the end (with
+// iShadowTransOrderBW the other way round), SHADOW_TRANS_END when both are spent.
+
+#define BID_SLOTS 256
+#define BID_EMPTY 0xff
+static u_short BID[BID_SLOTS];          /* bss  0x0193c610 (BID$2565) */
+static u_short BidxB;                   /* sbss 0x0193c604 (BidxB$2566): the next front slot */
+static u_short BidxW;                   /* sbss 0x0193c600 (BidxW$2567): the next back slot */
+
+// Whether a bank is one SHADOW_TRANS_SORT lists from the scene banks.
+static int ShadowSortSceneBank(const BANK_INFO *bi)
+{
+    return bi->drawOn != 0 && bi->type == BANK_TYPE_SHADOW && bi->shadowDraw != 0;
+}
+
+// Whether a character's bank is one it lists: shadowed, opaque, and its bank's shadow on.
+static int ShadowSortCharacter(const CHARACTER *ch)
+{
+    return ch->bank >= 0 && (ch->flags & CHARACTER_FLAG_SHADOW) != 0 && ch->translucent == 0
+        && BankInfo[ch->bank].shadowDraw != 0;
+}
+
+// CT3 0x01847660
+int asShadowDrawing_CheckTransMode(int mode)
+{
+    int i, b, w;
+    if (mode == SHADOW_TRANS_SORT) {
+        for (i = 0; i < BID_SLOTS; i++)
+            BID[i] = BID_EMPTY;
+        BidxW = BID_EMPTY;
+        BidxB = 0;
+        if (iShadowTransMode == 0) {
+            // One counter does two jobs here, as the ROM has it: the character loop's index also
+            // counts the changes of shadowOrder, so a change skips the next character, and the loop
+            // always ends with it >= 2 (iShadowTransModeFin 1). The bank loop's count is unused.
+            s_char order = 0x7f;
+            int n = 0;
+            b = 0;
+            w = BID_SLOTS - 1;
+            for (i = 0; i < BANK_MAX; i++) {
+                BANK_INFO *bi = &BankInfo[i];
+                if (ShadowSortSceneBank(bi)) {
+                    if (order != bi->shadowOrder) {
+                        order = bi->shadowOrder;
+                        n++;
+                    }
+                    if (bi->shadowOrder > 0) {
+                        BID[b++] = (u_short)i;
+                        BidxB++;
+                    } else {
+                        BID[w--] = (u_short)i;
+                        BidxW--;
+                    }
+                }
+                if (bi->state > 0)
+                    i += bi->groupCount - 1;
+            }
+            (void)n;
+            b = BidxB;
+            w = BidxW;
+            for (n = 0; n < CHARACTER_MAX; n++) {
+                CHARACTER *ch = &Character[n];
+                if (ShadowSortCharacter(ch)) {
+                    s_char o = BankInfo[ch->bank].shadowOrder;
+                    if (order != o) {
+                        order = o;
+                        n++;
+                    }
+                    if (o > 0) {
+                        BID[b++] = (u_short)ch->bank;
+                        BidxB++;
+                    } else {
+                        BID[w--] = (u_short)ch->bank;
+                        BidxW--;
+                    }
+                }
+            }
+            iShadowTransModeFin = n >= 2;
+        } else {
+            iShadowTransModeFin = 2;
+            b = 0;
+            w = BID_SLOTS - 1;
+            for (i = 0; i < BANK_MAX; i++) {
+                BANK_INFO *bi = &BankInfo[i];
+                if (ShadowSortSceneBank(bi)) {
+                    if (bi->shadowOrder > 0) {
+                        BID[b++] = (u_short)i;
+                        BidxB++;
+                    } else {
+                        BID[w--] = (u_short)i;
+                        BidxW--;
+                    }
+                }
+                if (bi->state > 0)
+                    i += bi->groupCount - 1;
+            }
+            b = BidxB;
+            w = BidxW;
+            for (i = 0; i < CHARACTER_MAX; i++) {
+                CHARACTER *ch = &Character[i];
+                if (ShadowSortCharacter(ch)) {
+                    if (BankInfo[ch->bank].shadowOrder > 0) {
+                        BID[b++] = (u_short)ch->bank;
+                        BidxB++;
+                    } else {
+                        BID[w--] = (u_short)ch->bank;
+                        BidxW--;
+                    }
+                }
+            }
+        }
+        BidxB = 0;
+        BidxW = BID_EMPTY;
+    }
+    if (mode < SHADOW_TRANS_NEXT)
+        return (u_char)iShadowTransModeFin;
+    if (iShadowTransOrderBW == 0) {
+        if (BID[BidxB] != BID_EMPTY)
+            return BID[BidxB++];
+        if (BID[BidxW] != BID_EMPTY)
+            return BID[BidxW--];
+    } else {
+        if (BID[BidxW] != BID_EMPTY)
+            return BID[BidxW--];
+        if (BID[BidxB] != BID_EMPTY)
+            return BID[BidxB++];
+    }
+    return SHADOW_TRANS_END;
+}
+
+// CT3 0x01847cf0
+// Every track of the behaviour plays at rate percent (BEHAVIOR_TRACK.playRate).
+void asChangeBehaviorAnimationPlayRate(BEHAVIOR *bhv, u_char rate)
+{
+    int bank, g, t;
+    if (bhv == NULL)
+        return;
+    bank = BankOfHostPtr(bhv);
+    for (g = 0; g < bhv->groupCount; g++) {
+        BEHAVIOR_TRACK *tr = BehaviorTracks(bank, bhv, g);
+        for (t = bhv->groups[g].trackCount; t > 0; t--, tr++)
+            tr->playRate = rate;
+    }
 }
 
 // The record fields asCopyDoubleBufferL2W keeps (LinkMatrixTree.c names them the same).

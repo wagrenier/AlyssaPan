@@ -16,5 +16,7 @@ void asRapidLeverChangeOperate(int a0, int a1, int a2, int a3, int a4);         
 void asMonsterDistanceStack_inPanic(int a0, int a1, int a2);                             // CT3 0x018fb940
 void asAlyssaLockedByAnything(int mode);                                                 // CT3 0x018fbb50
 void asSetCharacterKeyEnable(int enable);                                                // CT3 0x018fe370
+u_long asCharacterMortionChangeRequestHash(int chara, int mode, u_long hash);             // CT3 0x018fe230
+u_long asCharacterMortionChangeRequest(int chara, int mode, int index);                  // CT3 0x018fe290
 void ChrMoveControllerMode_init(void);                                                   // CT3 0x018fe4b0
 void asInitPlayerBehaviorControler(CHARACTER *chr);                                      // CT3 0x018fe380

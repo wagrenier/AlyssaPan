@@ -474,6 +474,26 @@ view * matrix (+0x180) and +0x300 = that * diag(record +0x2c0 xyz).
   all-ones animation copies each attached part's parent word into ALL_TABLE.ctrl's first list (+0, count
   +0xc, 0x20-byte entries: +8 parent, +0xe part). `FrameCounter` (0x0194494c) counts its calls.
 
+## The shadow pass order and scene animation starts, game/ahRelocateSunPs2ObjectArry.c (2026-11-10, slice 10)
+
+- **The shadow pass order** (asShadowDrawing_CheckTransMode, statics `BID$2565` 0x0193c610 u_short[256],
+  `BidxB$2566` 0x0193c604, `BidxW$2567` 0x0193c600): mode 0 lists the drawn scene banks (BANK_TYPE_SHADOW,
+  shadowDraw on) and then the banks of the shadowed, opaque characters; shadowOrder > 0 fills BID from
+  the front, <= 0 from the back, 0xff marks empty slots. Mode 2 hands out the next bank (front first,
+  then the back from the end; iShadowTransOrderBW reverses that), -1 when both are spent. Modes 0 / 1
+  answer iShadowTransModeFin: 2 with asShadowDrawing_SetTransMode(1), else 1 (open item dn).
+  asShadowDrawing_SetShadowLevel sets the shadow's alpha (BankInfo +0x63).
+- **asSceneAnimationStart(speed, hash, tbl, from, to, partId, pose, other, byPart, started, toEnd,
+  stepFromRuns, target, chara)**: target 1 starts the scene behaviour's tracks of the part's groups whose
+  kind the three switches pick (pose: 0x0b / 0x0c / 0x0d / 0x1f / 0x20 / '>' / '='; other: '*' 'H' '"'
+  '!' ')'; byPart: '4' / '3' whose first key names the part at +0x1a / +0x1c, and part 0's groups): range,
+  flag bits 0 / 1, playRate = speed * 100 (0 with toEnd), pass check, start; answers 0 when one started.
+  Target 2 sends the character a motion request by hash, or with toEnd by its motion-table index.
+- **asUpdateAnimation_Matrix** (main, after the animations): BuildMatrixTree(bank, 0, 1) for each drawn
+  (or BANK_FLAG_DRAW_FIRST) scene bank of type 0 / 1 and each refracting shadowed character's bank, the
+  character's refractAxis (+0x4b0) from row 1 or row 2 of one of two parts' world matrices, then
+  asCopyDoubleBufferL2W for the drawn banks of type 0 / 1 / 2, and asResetCharacterRotation(0, 0, 0).
+
 ## The matrix tree set-up and the game clock, game/LinkMatrixTree.c (2026-11-10)
 
 - **InitMatrixTree(header)** (scene_init, data_load_set, asJointParts_byMatrix): for each record

@@ -39,7 +39,11 @@ typedef struct CHARACTER {
     u_char b2f2;                        /* 0x2f2: Character_All_Init: 0 */
     u_char pad2f3[0xd];
     int w300[4];                        /* 0x300: Character_All_Init: 0 */
-    u_char behavior[0x524 - 0x310];     /* 0x310: asInitPlayerBehaviorControler's (0x310..0x488 at least) */
+    u_char behavior[0x4b0 - 0x310];     /* 0x310: asInitPlayerBehaviorControler's (0x310..0x488 at least) */
+    qword refractAxis;                  /* 0x4b0: asUpdateAnimation_Matrix, for a refracting shadowed
+                                           character: row 1 of part CHARA_AXIS_HASH_ROW1's world matrix,
+                                           else row 2 of part CHARA_AXIS_HASH_ROW2's, else (0, 0, 0, 1) */
+    u_char pad4c0[0x524 - 0x4c0];
     int hp;                             /* 0x524: Character_All_Init: Char_Init_MAX_HP[i] */
     int hpMax;                          /* 0x528: Character_All_Init: Char_Init_MAX_HP[i] (which of the
                                            two is the maximum is a guess from the table's name) */
@@ -60,6 +64,8 @@ typedef struct CHARACTER {
 static_assert(sizeof(CHARACTER) == 0x580, "CHARACTER");
 static_assert(offsetof(CHARACTER, flagsPrev) == 0x8c, "CHARACTER.flagsPrev");
 static_assert(offsetof(CHARACTER, bank) == 0x002, "CHARACTER.bank");
+static_assert(offsetof(CHARACTER, refractAxis) == 0x4b0, "CHARACTER.refractAxis");
+static_assert(offsetof(CHARACTER, hp) == 0x524, "CHARACTER.hp");
 static_assert(offsetof(CHARACTER, flags) == 0x088, "CHARACTER.flags");
 static_assert(offsetof(CHARACTER, lightBank) == 0x0a0, "CHARACTER.lightBank");
 static_assert(offsetof(CHARACTER, posBefore) == 0x0b0, "CHARACTER.posBefore");

@@ -444,7 +444,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 121..121, 39 functions keyed by their statics, 22 unkeyed; file name from the names"
   },
   "game/ahRelocateSunPs2ObjectArry.c": {
-   "notes": "Next in this TU: EA_010, the general body of ExecuteAnimation, asSceneAnimationStart (frontier x3), asShadowDrawing_CheckTransMode, asMirrorCulling, asUpdateAnimation_Matrix, asDrawShadowVolume and _Init. Shot still black, crash unchanged at main.c:2106 (ActressMP NULL). QuatSlerp itself and the vertex-kind Cont interpolators are still stubs. Open items dh..dl.",
+   "notes": "Next in this TU: asShadowPolygonPositions with asStockShadowVolume as one piece (ga draw objects with the ShadowVolume1 VIF data, through the host draw module), asDrawShadowVolume and _Init, asShadowEnd, asShadowStart, EA_010, the general body of ExecuteAnimation, asMirrorCulling. Shot still black, crash unchanged at main.c:2106 (ActressMP NULL). New stubs in wideXcmd_DebugPrint.c: asCharacterMortionChangeRequest and _Hash. Open items dm..dp.",
    "ranges": [
     [
      "0183e280",
@@ -496,6 +496,11 @@
      "date": "2026-11-10 06:20",
      "status": "partial",
      "summary": "slice 9: InterpolateAnimationKey and IAK_0 (play modes once / loop, forward and reverse, the slow-speed snap, the key search and the per-kind key write, ANIM_SUBKEY vertex sub-records), asChangePlayRange, asResetPassCheckarameter, asFindBehavior, asFindBehaviorByCharacter, asChangeBehaviorAnimationCurrent, four shadow setters, asCopyDoubleBufferL2W; QuatSlerp.c packed-key converters written early, two stub addresses fixed"
+    },
+    {
+     "date": "2026-11-10 06:31",
+     "status": "partial",
+     "summary": "slice 10: asShadowDrawing_CheckTransMode (the shadow pass order, BID front and back, the ROM's shared index kept), asSceneAnimationStart (scene tracks by kind switches, character motion requests), asUpdateAnimation_Matrix (matrix trees, CHARACTER.refractAxis, L2W), asShadowDrawing_SetShadowLevel and _SetTransMode, asChangeBehaviorAnimationPlayRate; BEHAVIOR_TRACK +0xe named playRate"
     }
    ],
    "status": "partial",

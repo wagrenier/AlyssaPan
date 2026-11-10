@@ -79,6 +79,10 @@ extern char iShadowTransOrderBW;        /* 0x0193fa70 */
 void asForceOperateAnimation_Scene(int scene, int mode);                                 // CT3 0x01842400
 void asUpDateGAobjectsAnimation(void);                                                   // CT3 0x01842540
 void asUpDateSceneAnimation(void);                                                       // CT3 0x018426e0
+// The two parts whose world matrix gives CHARACTER.refractAxis (asUpdateAnimation_Matrix: row 1 of the
+// first, else row 2 of the second); their names are not known yet.
+#define CHARA_AXIS_HASH_ROW1 0x61e97f0f3932cf98ull
+#define CHARA_AXIS_HASH_ROW2 0x61cb2103161c34f0ull
 void asUpdateAnimation_Matrix(void);                                                     // CT3 0x018427f0
 void asSeekBarFreeForX(int scene);                                                       // CT3 0x01842fe0
 void asShadowPolygonPositions(int bank);                                                 // CT3 0x01844df0
@@ -138,9 +142,9 @@ typedef struct SEEKBAR_ANIM {
     int frameB;                         /* 0x8: the frame at t = 1 */
 } SEEKBAR_ANIM;
 static_assert(sizeof(SEEKBAR_ANIM) == 12, "SEEKBAR_ANIM");
-#define SEEKBAR_ANIM_0 0                /* asSceneAnimationStart's 7th argument set */
-#define SEEKBAR_ANIM_1 1                /* its 8th */
-#define SEEKBAR_ANIM_2 2                /* its 9th */
+#define SEEKBAR_ANIM_0 0                /* asSceneAnimationStart(.. pose ..): the pose and vertex tracks */
+#define SEEKBAR_ANIM_1 1                /* (.. other ..): the number and vector tracks */
+#define SEEKBAR_ANIM_2 2                /* (.. byPart ..): part 0 groups, copy and UV tracks of the part */
 
 // A seek bar: a line in a part's space; where a plane (a part's position) crosses it sets t in [0, 1],
 // and t picks each animation's frame. 0x40 bytes, _SunAlloc'd (layout: host; EE offsets kept: the
@@ -223,8 +227,15 @@ static_assert(sizeof(SEARCH_OBJ) == 0x50, "SEARCH_OBJ");
 #define PARTS_FLAG_HIDDEN 0x1           /* MODEL_PARTS.flags: asSeekBarAnimation skips the bar's part (the
                                            same bit as PARTS_FLAG_FOG) */
 
-u_long asSceneAnimationStart(float speed, int a0, ALL_TABLE *tbl, int a2, int frame, int id, int a6,
-                             int a7, int a8, int a9, int a10, int a11, int a12, int a13); // CT3 0x018483d0
+// asSceneAnimationStart's target (its 13th argument).
+#define SCENE_ANIM_SCENE 1              /* the scene's behaviour tracks */
+#define SCENE_ANIM_CHARACTER 2          /* the character's motion (asCharacterMortionChangeRequest*) */
+#define CHARA_MOTION_TABLE 0x350        /* CHARACTER: the EE word of its motion table (0x30-byte records) */
+#define CHARA_MOTION_SIZE 0x30
+#define CHARA_MOTION_REQUEST_INDEX 3    /* asCharacterMortionChangeRequest's mode: by table index */
+u_long asSceneAnimationStart(float speed, u_long hash, ALL_TABLE *tbl, int from, int to, int partId,
+                             int pose, int other, int byPart, int started, int toEnd, int stepFromRuns,
+                             int target, int chara);                                     // CT3 0x018483d0
 void asSeatArrange_ObjectMatchGlid(int row, int cell);                                   // CT3 0x018437c0
 void asSeatArrange_FlameInit(int scene);                                                 // CT3 0x01843270
 void BMT_01(u_char *partsHeader, int bank);                                              // CT3 0x01850fc0
@@ -246,7 +257,9 @@ typedef struct BEHAVIOR_TRACK {         /* 0x20 bytes */
     char kind;                          /* 0x09: BEHAVIOR_TRACK_* ('H', '>', '=') */
     short step;                         /* 0x0a: 1 from the top */
     u_short runs;                       /* 0x0c */
-    u_char value0e;                     /* 0x0e: TRACK_VALUE0E_START at scene start */
+    u_char playRate;                    /* 0x0e: percent of the tick step (IAK: ticks * playRate / 100; 0 jumps
+                                           to the end); TRACK_PLAY_RATE_FULL at scene start,
+                                           asChangeBehaviorAnimationPlayRate sets it */
     u_char flags;                       /* 0x0f: TRACK_FLAG_* */
     int playable;                       /* 0x10: group 0 track 0's: asGetBehaviorPlayableTicks; the
                                            end the time stops at (* TRACK_TIME_SCALE) */
@@ -258,7 +271,7 @@ typedef struct BEHAVIOR_TRACK {         /* 0x20 bytes */
 static_assert(sizeof(BEHAVIOR_TRACK) == 0x20, "BEHAVIOR_TRACK");
 static_assert(offsetof(BEHAVIOR_TRACK, playing) == 0x08, "BEHAVIOR_TRACK.playing");
 static_assert(offsetof(BEHAVIOR_TRACK, step) == 0x0a, "BEHAVIOR_TRACK.step");
-static_assert(offsetof(BEHAVIOR_TRACK, value0e) == 0x0e, "BEHAVIOR_TRACK.value0e");
+static_assert(offsetof(BEHAVIOR_TRACK, playRate) == 0x0e, "BEHAVIOR_TRACK.playRate");
 static_assert(offsetof(BEHAVIOR_TRACK, time) == 0x18, "BEHAVIOR_TRACK.time");
 typedef struct BEHAVIOR_GROUP {         /* 8 bytes, from BEHAVIOR +0x10 */
     short part;                         /* 0x0: the MODEL_PARTS index the group animates (EA_001) */
@@ -277,7 +290,7 @@ static_assert(offsetof(BEHAVIOR, groupCount) == 0x08, "BEHAVIOR.groupCount");
 static_assert(offsetof(BEHAVIOR, groups) == 0x10, "BEHAVIOR.groups");
 #define TRACK_FLAG_STARTED 0x2          /* asSceneAutoStartAnimation sets it on an auto-start track */
 #define TRACK_FLAG_AUTO_START 0x4       /* the track plays from the top at scene start */
-#define TRACK_VALUE0E_START 100         /* asSceneAutoStartAnimation's value for every track's +0xe */
+#define TRACK_PLAY_RATE_FULL 100        /* BEHAVIOR_TRACK.playRate: normal speed (asSceneAutoStartAnimation sets it) */
 #define TRACK_FLAG_STEP_FROM_RUNS 0x1   /* asStartAnimation: step starts at runs (+0xc), not 1 */
 #define TRACK_PLAYING 1                 /* BEHAVIOR_TRACK.playing: running */
 #define TRACK_ACT_END 3                 /* ... asBehaviorActEndAnimation's mark on a running track */
@@ -306,7 +319,7 @@ int InterpolateAnimationKey(BEHAVIOR_TRACK *track, int dir);                    
 #define TRACK_PLAY_ONCE_REVERSE 1       /* backward, stops at playable */
 #define TRACK_PLAY_LOOP 2               /* forward, past playable goes on from rangeStart */
 #define TRACK_PLAY_LOOP_REVERSE 3       /* backward, below playable goes on from rangeStart */
-#define TRACK_SLOW_STEP 500             /* value0e == anim_play_slow: the time snaps to 5-frame steps */
+#define TRACK_SLOW_STEP 500             /* playRate == anim_play_slow: the time snaps to 5-frame steps */
 // The other kinds InterpolateAnimationKey writes (BEHAVIOR_TRACK.kind, the ROM's character constants;
 // named from what it calls on them).
 #define TRACK_KIND_NUMBER '"'           /* 0x22: one short at key + 8 */
@@ -342,6 +355,7 @@ BEHAVIOR *asFindBehavior(u_char *image, u_long hash);                           
 BEHAVIOR *asFindBehaviorByCharacter(int chara, u_long hash);                             // CT3 0x0184ef50
 // Every track of the behaviour to frame (playable * 100 - 1 when frame is not below playable).
 void asChangeBehaviorAnimationCurrent(BEHAVIOR *bhv, int frame);                         // CT3 0x01847c50
+void asChangeBehaviorAnimationPlayRate(BEHAVIOR *bhv, u_char rate);                     // CT3 0x01847cf0
 // The bank's shadow follows the part's light position (an EE address: PARTS_REC + SHADOW_LIGHT_POS).
 #define SHADOW_LIGHT_POS 0xf0
 void asShadowDrawing_AttachLightPosition(int bank, ALL_TABLE *tbl, int part);            // CT3 0x01847490
@@ -349,6 +363,10 @@ void asShadowDrawing_AttachLightPosition(int bank, ALL_TABLE *tbl, int part);   
 void asShadowDrawing_SetShadowAngleLockParameter(int bank, float lock64, float lock68);  // CT3 0x01847550
 void asShadowDrawing_SetShadowAngleLock(int bank, u_char on);                            // CT3 0x01847580
 void asShadowDrawing_SetShadowValue(int bank, s_char value);                             // CT3 0x018475b0
+void asShadowDrawing_SetShadowLevel(int bank, u_char level);                             // CT3 0x018475e0
+#define SHADOW_TRANS_MODE_PLAIN 1       /* asShadowDrawing_SetTransMode: no pass split by shadowOrder
+                                           (iShadowTransModeFin 2); any other value: the split pass */
+void asShadowDrawing_SetTransMode(char mode);                                            // CT3 0x01847630
 // Track kinds EA_001 reads (BEHAVIOR_TRACK.kind; named from that one use): a local rotation /
 // position, and the base's the local one is multiplied into.
 #define TRACK_KIND_ROT 0x0b             /* a packed quaternion: rows 0..2 of the local matrix */
