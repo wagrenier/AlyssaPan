@@ -13,6 +13,8 @@ void tiWindEnd(int scene);                                                      
 void tiWindUpdate(void);                                                                 // CT3 0x0188cbe0
 void tiVibrationTimer(void);                                                             // CT3 0x0188cd70
 void tiVibrationOff(int mode);                                                           // CT3 0x0188cdc0
+// From PanicSound's call (0, 1, 10 + 4 * level, 5): the argument names wait for this TU.
+void tiVibrationOn(int port, int a1, int a2, int a3);                                     // CT3 0x0188ce10
 void tiDrawShadingOff(void);                                                             // CT3 0x0188ced0
 // time: seconds (f12; x30 frames), type: Fade_Type (a0, a byte). MemorycardUpdate leaves a0 unset (open-items.md).
 #define FADE_TYPE_MC_LOAD 4             /* mc_load_set (name from that use) */

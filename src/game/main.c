@@ -243,9 +243,9 @@ void main_rtn_GHOST_DOF(int bank, int mode, int chara, int pass, int charaIndex,
             float *light = (float *)(obj + DRAW_OBJ_LIGHT);
 
             if (chara == 0) {
-                if (tex->kind == TEX_KIND_LIGHT)
+                if (tex->tfx == TEX_TFX_HIGHLIGHT2)
                     *light = BANK_PTR(float *, bank, All_table_TBL[bank]->partsLight)[ent->parts];
-            } else if (tex->kind == TEX_KIND_LIGHT && lightBank != -1 && BankInfo[lightBank].drawOn == 1) {
+            } else if (tex->tfx == TEX_TFX_HIGHLIGHT2 && lightBank != -1 && BankInfo[lightBank].drawOn == 1) {
                 float target = BANK_PTR(SCENE_LIGHT *, lightBank, All_table_TBL[lightBank]->light)->charaScale * BANK_PTR(float *, bank, All_table_TBL[bank]->partsLight)[ent->parts];
 
                 if (lightFrames == 0.0f)
@@ -361,9 +361,9 @@ void main_rtn_GHOST(int bank, int mode, int chara, u_int flags, int charaIndex, 
             float *light = (float *)(obj + DRAW_OBJ_LIGHT);
 
             if (chara == 0) {
-                if (tex->kind == TEX_KIND_LIGHT)
+                if (tex->tfx == TEX_TFX_HIGHLIGHT2)
                     *light = BANK_PTR(float *, bank, All_table_TBL[bank]->partsLight)[ent->parts];
-            } else if (tex->kind == TEX_KIND_LIGHT && lightBank != -1 && BankInfo[lightBank].drawOn == 1) {
+            } else if (tex->tfx == TEX_TFX_HIGHLIGHT2 && lightBank != -1 && BankInfo[lightBank].drawOn == 1) {
                 float target = BANK_PTR(SCENE_LIGHT *, lightBank, All_table_TBL[lightBank]->light)->charaScale * BANK_PTR(float *, bank, All_table_TBL[bank]->partsLight)[ent->parts];
 
                 if (lightFrames == 0.0f)
@@ -1261,9 +1261,9 @@ void main_rtn(int bank, int mode, int chara, u_int flags, int charaIndex, void *
             float *light = (float *)(obj + DRAW_OBJ_LIGHT);
 
             if (chara == 0) {
-                if (tex->kind == TEX_KIND_LIGHT)
+                if (tex->tfx == TEX_TFX_HIGHLIGHT2)
                     *light = BANK_PTR(float *, bank, All_table_TBL[bank]->partsLight)[ent->parts];
-            } else if (tex->kind == TEX_KIND_LIGHT && lightBank != -1 && BankInfo[lightBank].drawOn == 1) {
+            } else if (tex->tfx == TEX_TFX_HIGHLIGHT2 && lightBank != -1 && BankInfo[lightBank].drawOn == 1) {
                 float target = BANK_PTR(SCENE_LIGHT *, lightBank, All_table_TBL[lightBank]->light)->charaScale * BANK_PTR(float *, bank, All_table_TBL[bank]->partsLight)[ent->parts];
 
                 if (lightFrames == 0.0f)
@@ -1452,9 +1452,9 @@ void main_rtn_DOF(int bank, int mode, int chara, int pass, int charaIndex, void 
             float *light = (float *)(obj + DRAW_OBJ_LIGHT);
 
             if (chara == 0) {
-                if (tex->kind == TEX_KIND_LIGHT)
+                if (tex->tfx == TEX_TFX_HIGHLIGHT2)
                     *light = BANK_PTR(float *, bank, All_table_TBL[bank]->partsLight)[ent->parts];
-            } else if (tex->kind == TEX_KIND_LIGHT && lightBank != -1 && BankInfo[lightBank].drawOn == 1) {
+            } else if (tex->tfx == TEX_TFX_HIGHLIGHT2 && lightBank != -1 && BankInfo[lightBank].drawOn == 1) {
                 float target = BANK_PTR(SCENE_LIGHT *, lightBank, All_table_TBL[lightBank]->light)->charaScale * BANK_PTR(float *, bank, All_table_TBL[bank]->partsLight)[ent->parts];
 
                 if (lightFrames == 0.0f)

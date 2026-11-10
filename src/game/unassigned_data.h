@@ -168,6 +168,8 @@ extern int backup_progress_time;                /* sbss 0x0193fa18: the play tim
 extern int idCameraScene;                       /* sbss 0x01940e30: the bank whose camera is live */
 extern int TransparentBodyTime;                 /* sbss 0x01940e48: data_load_set: 360 */
 extern PANIC_INFO PanicInfoData;                /* sbss 0x01940e50 */
+extern u_char act_small;                        /* sbss 0x0193f840: the pad's small motor is running (vibration TU) */
+extern u_char act_large;                        /* sbss 0x0193f844: its large motor */
 extern int GlobalVariable[GLOBAL_VARIABLE_COUNT]; /* sbss 0x01941190 */
 extern u_char GlobalEventFlag[GLOBAL_EVENT_FLAG_BYTES]; /* sbss 0x01941590 */
 extern qword DrawOnPosSetVectorTemp;            /* sbss 0x01942540: TrgSceneDraw(.., -2, ..) places the bank here */

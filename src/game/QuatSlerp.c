@@ -15,6 +15,13 @@
 #include "game/ahalloc.h"
 #include "game/Convert.h"
 #include "game/sound.h"
+#include "ga/gaDma.h"
+#include "ga/gaDmaSync_VIF1.h"
+#include "ga/gaVifInit.h"
+#include "sdk/libgraph.h"
+#include "ga/gaInitInterrupt.h"
+#include "game/SdMasterVolumeSetSE.h"
+#include "game/Clipping_Portal.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -336,12 +343,12 @@ void PanicModeInit(void)
     PanicInfoData.h02 = 0;
     for (i = 0; i < 8; i++)
         PanicInfoData.w04[i] = 0;
-    PanicInfoData.w24 = 0;
-    PanicInfoData.f28 = 10000.0f;
+    PanicInfoData.gauge = 0.0f;
+    PanicInfoData.gaugeMax = 10000.0f;
     PanicInfoData.w2c = -1;
     Panicdef.f00 = 3.5f;
     Panicdef.f04 = 8.0f;
-    Panicdef.f08 = 5000.0f;
+    Panicdef.beatFrom = 5000.0f;
     Panicdef.f0c = 2.0f;
     Panicdef.w10 = 30;
     Panicdef.w14 = 4;
@@ -352,16 +359,163 @@ void PanicModeInit(void)
     ssTrigRemoveEvent(TRIG_EVENT_PANIC_48, 1, 0);
 }
 
+// ---- the panic sounds (slice 3, 2026-11-10) -----------------------------------------------------
+static int sPanicBeforeFlg = 1;                 /* data 0x019381f4: EventSoundUpdate's last argument */
+static int sBeatCount;                          /* sbss 0x0193cb3c: ga_main_timer at the last heartbeat */
+static int sHandleKeyONFinFin;                  /* sbss 0x0193cb40: the looping SEs' handles (0 = off) */
+static int sHandleKeyONLavender;                /* sbss 0x0193cb44 */
+static int sHandleKeyONInvisible;               /* sbss 0x0193cb48 */
+
+// CT3 0x01853310: the panic, invisible and lavender sounds run while on; when it goes off (and was off
+// the frame before too) the looping ones stop.
+void EventSoundUpdate(int on)
+{
+    if (on == 0) {
+        if (sPanicBeforeFlg == 0) {
+            if (sHandleKeyONFinFin != 0) {
+                SdStopSE(sHandleKeyONFinFin);
+                sHandleKeyONFinFin = 0;
+            }
+            if (sHandleKeyONInvisible != 0) {
+                SdStopSE(sHandleKeyONInvisible);
+                sHandleKeyONInvisible = 0;
+            }
+            if (sHandleKeyONLavender != 0) {
+                SdStopSE(sHandleKeyONLavender);
+                sHandleKeyONLavender = 0;
+            }
+        }
+    } else {
+        PanicSound();
+        InvisibleSound();
+        LavenderSound();
+    }
+    sPanicBeforeFlg = on;
+}
+
+// CT3 0x018533b0: the heartbeat. Past Panicdef.beatFrom the gauge picks one of five levels (the top
+// one while PANIC_MODE_FULL); each level beats at its own interval and volume, with a pad rattle when
+// no motor runs. FinFin loops while PANIC_MODE_FULL.
+void PanicSound(void)
+{
+    static const int beatFrames_2885[PANIC_BEAT_LEVELS] = {52, 44, 38, 32, 28}; /* @2885 0x019381c0 */
+    static const int beatVolume_2886[PANIC_BEAT_LEVELS] = {90, 100, 110, 115, 127}; /* @2886 0x019381e0 */
+    int level;
+    int handle;
+
+    if (!(Panicdef.beatFrom <= PanicInfoData.gauge)) {
+        if (sHandleKeyONFinFin != 0) {
+            SdStopSESDT(PANIC_SE_JLS, PANIC_SE_FINFIN, 1);
+            sHandleKeyONFinFin = 0;
+        }
+        return;
+    }
+    level = (int)((PanicInfoData.gauge - Panicdef.beatFrom) / (PanicInfoData.gaugeMax - Panicdef.beatFrom) *
+                  (float)PANIC_BEAT_LEVELS);
+    if (PanicInfoData.mode & PANIC_MODE_FULL)
+        level = PANIC_BEAT_LEVELS - 1;
+    else if (level > PANIC_BEAT_LEVELS - 1)
+        level = PANIC_BEAT_LEVELS - 1;
+    if (beatFrames_2885[level] < ga_main_timer - sBeatCount) {
+        handle = SdReqPlaySE(PANIC_SE_JLS, PANIC_SE_HEARTBEAT, 1);
+        SdSetParamSE(handle, SD_SE_PARAM_VOLUME | SD_SE_PARAM_30, beatVolume_2886[level], level / 2);
+        sBeatCount = ga_main_timer;
+        if (act_small == 0 && act_large == 0)
+            tiVibrationOn(0, 1, level * PANIC_VIBRATION_STEP + PANIC_VIBRATION_BASE, PANIC_VIBRATION_ARG3);
+    }
+    if ((PanicInfoData.mode & PANIC_MODE_FULL) == 0) {
+        if (sHandleKeyONFinFin != 0) {
+            SdStopSESDT(PANIC_SE_JLS, PANIC_SE_FINFIN, 1);
+            sHandleKeyONFinFin = 0;
+        }
+    } else if (sHandleKeyONFinFin == 0) {
+        sHandleKeyONFinFin = SdReqPlaySE(PANIC_SE_JLS, PANIC_SE_FINFIN, 1);
+    }
+}
+
+// CT3 0x01853560: the lavender SE loops while its event is on.
+void LavenderSound(void)
+{
+    int on = (char)ssTrigCheckEvent(TRIG_EVENT_LAVENDER, 1, 0);
+
+    if (sHandleKeyONLavender == 0) {
+        if (on != 0)
+            sHandleKeyONLavender = SdReqPlaySE(PANIC_SE_JLS, PANIC_SE_LAVENDER, 1);
+    } else if (on == 0) {
+        SdStopSE(sHandleKeyONLavender);
+        sHandleKeyONLavender = 0;
+    }
+}
+
+// CT3 0x018535c0: the invisible SE loops while its event is on.
+void InvisibleSound(void)
+{
+    int on = (char)ssTrigCheckEvent(TRIG_EVENT_INVISIBLE, 1, 0);
+
+    if (sHandleKeyONInvisible == 0) {
+        if (on != 0)
+            sHandleKeyONInvisible = SdReqPlaySE(PANIC_SE_JLS, PANIC_SE_INVISIBLE, 1);
+    } else if (on == 0) {
+        SdStopSE(sHandleKeyONInvisible);
+        sHandleKeyONInvisible = 0;
+    }
+}
+
+// CT3 0x01854260: whether panic may run now: PANIC_CHECK_OFF when a scene forbids it (it wins), else
+// PANIC_CHECK_ON when one forces it, else 0.
+int PanicCheck(void)
+{
+    int result = ssTrigCheckEvent(TRIG_EVENT_PANIC_ON_4D, 1, 0) != 0;
+
+    if (ssTrigCheckEvent(TRIG_EVENT_PANIC_ON_8A, 1, 0) != 0)
+        result = PANIC_CHECK_ON;
+    if (ssTrigCheckEvent(TRIG_EVENT_PANIC_ON_257, 1, 0) != 0)
+        result = PANIC_CHECK_ON;
+    if (ssTrigCheckEvent(TRIG_EVENT_PANIC_ON_5E0, 1, 0) != 0)
+        result = PANIC_CHECK_ON;
+    if (ssTrigCheckEvent(TRIG_EVENT_PANIC_ON_AD, 1, 0) != 0)
+        result = PANIC_CHECK_ON;
+    if (TrgCharStopFlag & TRG_CHAR_STOP_CHAR)
+        result = PANIC_CHECK_ON;
+    if (ssTrigCheckEvent(TRIG_EVENT_BOSS_BATTLE, 1, 0) != 0)
+        result = PANIC_CHECK_OFF;
+    if (ssTrigCheckEvent(TRIG_EVENT_PANIC_26, 1, 0) != 0)
+        result = PANIC_CHECK_OFF;
+    if (ssTrigCheckEvent(TRIG_EVENT_PANIC_OFF_63, 1, 0) != 0)
+        result = PANIC_CHECK_OFF;
+    if (ssTrigCheckEvent(TRIG_EVENT_BOSS_ALYS_DEAD, 1, 0) != 0)
+        result = PANIC_CHECK_OFF;
+    if (SkipMain != 0 || DemoSkip != 0)
+        result = PANIC_CHECK_OFF;
+    if (ssTrigCheckEvent(TRIG_EVENT_PANIC_OFF_14, 1, 0) != 0)
+        result = PANIC_CHECK_OFF;
+    if (ssTrigGetVariable(TRIG_VAR_PANIC_OFF, 1, 0) >= 0)
+        result = PANIC_CHECK_OFF;
+    if (ssTrigCheckEvent(TRIG_EVENT_PANIC_OFF_07, 1, 0) != 0)
+        result = PANIC_CHECK_OFF;
+    if (ssTrigCheckEvent(TRIG_EVENT_PANIC_OFF_08, 1, 0) != 0)
+        result = PANIC_CHECK_OFF;
+    if (ssTrigCheckEvent(TRIG_EVENT_PANIC_OFF_19, 1, 0) != 0)
+        result = PANIC_CHECK_OFF;
+    return result;
+}
+
 // stub of CT3 0x018537b0
 void PanicUpdate(void)
 {
     ALYSSAPAN_STUB("PanicUpdate", 0x018537b0);
 }
 
-// stub of CT3 0x018550b0
+// CT3 0x018550b0: stop (mode != 0) or free the player's keys, with the trigger event that tells scripts.
 void PlayerControlUpdate(int mode)
 {
-    ALYSSAPAN_STUB("PlayerControlUpdate", 0x018550b0);
+    if (mode == 0) {
+        TrgCharStopFlag &= ~TRG_CHAR_STOP_KEYS;
+        ssTrigRemoveEvent(TRIG_EVENT_PLAYER_STOP, 1, 0);
+    } else {
+        TrgCharStopFlag |= TRG_CHAR_STOP_KEYS;
+        ssTrigRegisterEvent(TRIG_EVENT_PLAYER_STOP, 1, 0);
+    }
 }
 
 // stub of CT3 0x0185aa50
@@ -577,10 +731,13 @@ void asWarpSceneObject(void *table, int maxId, float *pos)
     ALYSSAPAN_STUB("asWarpSceneObject", 0x0185c100);
 }
 
-// stub of CT3 0x01854d30
+// CT3 0x01854d30: a menu is open (mode != 0) or closed.
 void ssMenuUpdate(int mode)
 {
-    ALYSSAPAN_STUB("ssMenuUpdate", 0x01854d30);
+    if (mode == 0)
+        TrgCharStopFlag &= ~TRG_CHAR_STOP_MENU;
+    else
+        TrgCharStopFlag |= TRG_CHAR_STOP_MENU;
 }
 
 // ---- part lookup and name hashes (slice 1, 2026-11-10) ----
@@ -733,22 +890,282 @@ void asViewMatrix2PosRUF(float *view, float *pos, float *right, float *up, float
     }
 }
 
-// stub of CT3 0x01859520
-void sunBGT_ExecTBufferData_VIF1(void *tbuffer)
+// ---- texture buffers (slice 3, 2026-11-10) ------------------------------------------------------
+// Host: there is no GS. The packets are built byte for byte as the ROM builds them and go through the
+// BGT DMA wrapper, which drops VIF1 transfers (gaInitDrawObject.c's rule); the texture itself is to reach
+// the GPU decoded at its source, by the host draw module (open-items.md).
+#define SUN_TBUFFER_SEND_QWC 8          /* sunBGT_ExecTBufferData_VIF1 sends 8 qwords */
+#define SUN_TBUFFER_AD_PAIRS 5
+#define SUN_MIP_TBP_LEVELS 7            /* level 0 and MIPTBP1 / MIPTBP2's six */
+#define SUN_CLUT8_WORDS 0x100           /* PSMT8 / PSMT8H: a 16 x 16 CT32 CLUT */
+#define SUN_CLUT8_W 16
+#define SUN_CLUT8_H 16
+#define SUN_CLUT4_WORDS 0x40            /* the rest: 8 x 2 */
+#define SUN_CLUT4_W 8
+#define SUN_CLUT4_H 2
+#define SUN_MIP_MIN_WORDS 0x40          /* a level takes at least 0x40 words */
+#define SUN_MIP_TBW_MIN 0x40            /* a level's buffer width, at least 64 pixels */
+#define GS_BLOCK_SHIFT_SUN 6            /* word address -> TBP / CBP / DBP units (64 words) */
+#define TEX0_TCC_RGBA_SUN (1ull << 34)
+#define TEX0_CLD_LOAD (1ull << 61)      /* CLD 1: always load the CLUT buffer */
+#define GIFTAG_AD_NOEOP(nloop) (0x1000000000000000ull | (u_long)(nloop))
+#define GIFTAG_IMAGE(nloop) (0x0800000000008000ull | (u_long)(nloop)) /* FLG IMAGE, EOP */
+#define SUN_LOADENV_QWC 6               /* the A+D qwords DIRECT sends before the image */
+#define SUN_TEXLOAD_ENV_QWC 7           /* the CNT part: the packet's GA_LOADENV */
+#define SUN_TEXLOAD_SEND_QWC 9          /* tag, GA_LOADENV, REF tag */
+#define SUN_TEXFLUSH_QWC 3
+#define SUN_LOAD_MARK(kind) (0xdddd0000ull | (u_long)(kind))
+enum SUN_LOAD_MARK_KIND {               /* the upload packets' DMAtag upper halves (as ga's) */
+    SUN_LOAD_CLUT_ENV = 0,
+    SUN_LOAD_CLUT_REF = 1,
+    SUN_LOAD_MIP_ENV = 2,
+    SUN_LOAD_MIP_REF = 3,
+    SUN_LOAD_TEXFLUSH = 0xf,
+};
+
+typedef struct SUN_TEXLOAD_PACKET {     /* at the scratchpad's mark packet area (EE 0x70000800) */
+    u_long dmatag;                      /* 0x00: CNT 7 */
+    u_long mark;                        /* 0x08 */
+    GA_LOADENV env;                     /* 0x10 */
+    u_long refTag;                      /* 0x80: REF, qwc = the image's, addr = the image */
+    u_long refMark;                     /* 0x88 */
+} SUN_TEXLOAD_PACKET;
+static_assert(sizeof(SUN_TEXLOAD_PACKET) == 0x90, "SUN_TEXLOAD_PACKET");
+
+typedef struct SUN_TEXFLUSH_PACKET {
+    GA_PACKET_HEAD head;                /* 0x00: CNT 3, DIRECT 2, A+D x 1 (no EOP) */
+    GA_AD texflush;                     /* 0x30 */
+} SUN_TEXFLUSH_PACKET;
+static_assert(sizeof(SUN_TEXFLUSH_PACKET) == 0x40, "SUN_TEXFLUSH_PACKET");
+
+// PORT: tex_attr_A$2750 (data 0x01937c80, asShadowStart's): the shadow buffer read as a texture, 512 x
+// 448, CT32, one level whose pixels are already in GS memory (no data words). The ROM's bytes.
+#define TEX_ATTR_A_2750_EE 0x01937c80u
+static const SUN_TEX_ATTR tex_attr_A_2750 = {512, 448, 9, 9, SCE_GS_PSMCT32, 0, 0x000e0000u, {0, 0, 0, 0}, 0, 0};
+
+// PORT: an EE word of a texture record (TEX_INFO.tim, SUN_TEX_ATTR.clutData) as a host pointer. The ROM
+// reads it directly; the host finds the bank whose relocated EE range holds it (as
+// ahRelocateSunPs2ObjectArry.c's BankOfEeAddr), or the one game-data record a caller passes
+// (tex_attr_A$2750). NULL when neither holds it.
+static const void *SunTexEePtr(u_int ee)
 {
-    ALYSSAPAN_STUB("sunBGT_ExecTBufferData_VIF1", 0x01859520);
+    int bank, best = -1;
+
+    if (ee == 0)
+        return NULL;
+    if (ee == TEX_ATTR_A_2750_EE)
+        return &tex_attr_A_2750;
+    for (bank = 0; bank < BANK_MAX; bank++) {
+        if (BankImage[bank] != NULL && BankImageEE[bank] <= ee && (best < 0 || BankImageEE[bank] > BankImageEE[best]))
+            best = bank;
+    }
+    return best < 0 ? NULL : BankEePtr(best, ee);
 }
 
-// stub of CT3 0x018590b0
-void sunBGT_LoadGSTexClutData_VIF1(void *tbuffer)
-{
-    ALYSSAPAN_STUB("sunBGT_LoadGSTexClutData_VIF1", 0x018590b0);
-}
-
-// stub of CT3 0x01859530
+// CT3 0x01859530: a texture buffer packet from a texture record and where it sits in GS memory: TEX0_1
+// (TCC RGBA, CLD 1), CLAMP_1, the mip levels packed after level 0 in MIPTBP1 / MIPTBP2, TEXFLUSH; then
+// what sunBGT_LoadGSTexClutData_VIF1 needs. Addresses are GS word addresses. Unlike ga's copy, level 0's
+// TBW is the width >> 6 as is, the levels' widths have one minimum, and CLD is always 1.
 void sunSetupTBufferData(void *tbuffer, TEX_INFO tex)
 {
-    ALYSSAPAN_STUB("sunSetupTBufferData", 0x01859530);
+    SUN_TBUFFER_DATA *tbuf = (SUN_TBUFFER_DATA *)tbuffer;
+    const SUN_TEX_ATTR *attr = (const SUN_TEX_ATTR *)SunTexEePtr(tex.tim);
+    u_int width, height, psm, bpp, clutWords, clutW, clutH;
+    u_int levelTbp[SUN_MIP_TBP_LEVELS];
+    u_int levelTbw[SUN_MIP_TBP_LEVELS];
+    int level;
+
+    tbuf->head.dmatag = GA_DMATAG_CNT(SUN_TBUFFER_SEND_QWC - 1);
+    tbuf->head.mark = GA_PACKET_MARK(GA_PACKET_TBUFFER);
+    tbuf->head.vifcode[0] = VC_NOP;
+    tbuf->head.vifcode[1] = VC_NOP;
+    tbuf->head.vifcode[2] = VC_NOP;
+    tbuf->head.vifcode[3] = GA_VIFCODE_DIRECT(SUN_TBUFFER_SEND_QWC - 2);
+    tbuf->head.giftag = GA_GIFTAG_AD(SUN_TBUFFER_AD_PAIRS);
+    tbuf->head.giftagRegs = GA_GIFTAG_REGS_AD;
+    if (attr == NULL)
+        return; /* PORT: a record the host cannot find (the ROM would read it); the rest stays as was */
+
+    width = attr->width;
+    height = attr->height;
+    psm = attr->psm;
+    if (psm == SCE_GS_PSMT8H || psm == SCE_GS_PSMT8) {
+        clutW = SUN_CLUT8_W;
+        clutWords = SUN_CLUT8_WORDS;
+        clutH = SUN_CLUT8_H;
+    } else {
+        clutWords = SUN_CLUT4_WORDS;
+        clutW = SUN_CLUT4_W;
+        clutH = SUN_CLUT4_H;
+    }
+    tbuf->tex0.data = ((u_long)tex.tfx << 35) + ((u_long)attr->th << 30) + ((u_long)attr->tw << 26) +
+                      ((u_long)psm << 20) + (u_long)(tex.tbp >> GS_BLOCK_SHIFT_SUN) +
+                      ((u_long)(width >> 6) << 14) + TEX0_CLD_LOAD + TEX0_TCC_RGBA_SUN +
+                      ((u_long)((tex.cbp + clutWords * tex.clut) >> GS_BLOCK_SHIFT_SUN) << 37);
+    tbuf->tex0.addr = SCE_GS_TEX0_1;
+    tbuf->clamp.data = ((u_long)tex.maxv << 34) + ((u_long)tex.minv << 24) + ((u_long)tex.maxu << 14) +
+                       ((u_long)tex.minu << 4) + (u_long)tex.wms + ((u_long)tex.wmt << 2);
+    tbuf->clamp.addr = SCE_GS_CLAMP_1;
+
+    // Bits per pixel as the ROM sizes the levels: PSMCT16 falls to 4 (ga's slip too), PSMT8H to 32.
+    if (psm == SCE_GS_PSMCT16)
+        bpp = 4;
+    else if (psm == SCE_GS_PSMT8H || psm == SCE_GS_PSMCT24 || psm == SCE_GS_PSMCT32)
+        bpp = 32;
+    else if (psm != SCE_GS_PSMT8)
+        bpp = 4;
+    else
+        bpp = 8;
+
+    // Each level after the one before it, in words (w * h * bpp / 32), at least 0x40; widths halve, at
+    // least 64. MIPTBP1 / MIPTBP2 get levels 1..6; only 0..3 are kept for the upload.
+    levelTbp[0] = tex.tbp;
+    levelTbw[0] = width;
+    for (level = 1; level < SUN_MIP_TBP_LEVELS; level++) {
+        u_int words = bpp * (width >> (level - 1)) * (height >> (level - 1)) >> 5;
+
+        if (words < SUN_MIP_MIN_WORDS)
+            words = SUN_MIP_MIN_WORDS;
+        levelTbp[level] = levelTbp[level - 1] + words;
+        levelTbw[level] = width >> level;
+        if (levelTbw[level] < SUN_MIP_TBW_MIN)
+            levelTbw[level] = SUN_MIP_TBW_MIN;
+    }
+    tbuf->miptbp1.data = (u_long)(levelTbp[1] >> 6) + ((u_long)(levelTbw[1] >> 6) << 14) +
+                         ((u_long)(levelTbp[2] >> 6) << 20) + ((u_long)(levelTbw[2] >> 6) << 34) +
+                         ((u_long)(levelTbp[3] >> 6) << 40) + ((u_long)(levelTbw[3] >> 6) << 54);
+    tbuf->miptbp1.addr = SCE_GS_MIPTBP1_1;
+    tbuf->miptbp2.data = (u_long)(levelTbp[4] >> 6) + ((u_long)(levelTbw[4] >> 6) << 14) +
+                         ((u_long)(levelTbp[5] >> 6) << 20) + ((u_long)(levelTbw[5] >> 6) << 34) +
+                         ((u_long)(levelTbp[6] >> 6) << 40) + ((u_long)(levelTbw[6] >> 6) << 54);
+    tbuf->miptbp2.addr = SCE_GS_MIPTBP2_1;
+    tbuf->texflush.data = 0;
+    tbuf->texflush.addr = SCE_GS_TEXFLUSH;
+
+    tbuf->mipMax = attr->mipMax;
+    for (level = 0; level < SUN_MIP_LEVELS; level++) {
+        tbuf->mipData[level] = attr->mipData[level];
+        tbuf->mipTbp[level] = levelTbp[level];
+        tbuf->mipTbw[level] = levelTbw[level];
+    }
+    tbuf->psm = attr->psm;
+    tbuf->width = width;
+    tbuf->height = height;
+    tbuf->clutCount = attr->clutCount;
+    tbuf->clutData = attr->clutData;
+    tbuf->clutWords = clutWords;
+    tbuf->cbp = tex.cbp;
+    tbuf->clutWidth = clutW;
+    tbuf->clutHeight = clutH;
+}
+
+// CT3 0x01859390: an upload's GS set-up (as gaBGT_SetLoadGSEnv): destination (dbp, dbw in their GS units,
+// dpsm), the rectangle at (dsax, dsay) of rrw x rrh, host to local, and the IMAGE tag. Returns the image's
+// qwords (0xffff for a format it does not size).
+int sunBGT_SetLoadGSEnv(GA_LOADENV *env, u_int dbp, u_int dbw, u_int dpsm, u_int dsax, u_int dsay, int rrw,
+                        int rrh)
+{
+    int qwc = 0xffff;
+
+    if (dpsm == SCE_GS_PSMT4HH || dpsm == SCE_GS_PSMT4HL || dpsm == SCE_GS_PSMT4)
+        qwc = rrw * rrh >> 5;
+    else if (dpsm == SCE_GS_PSMT8H || dpsm == SCE_GS_PSMT8)
+        qwc = rrw * rrh >> 4;
+    else if (dpsm == SCE_GS_PSMCT16)
+        qwc = rrw * rrh >> 3;
+    else if (dpsm == SCE_GS_PSMCT24)
+        qwc = rrw * rrh * 3 >> 4;
+    else if (dpsm == SCE_GS_PSMCT32)
+        qwc = rrw * rrh >> 2;
+    env->vifcode[0] = VC_NOP;
+    env->vifcode[1] = VC_NOP;
+    env->vifcode[2] = VC_NOP;
+    env->vifcode[3] = GA_VIFCODE_DIRECT((qwc + SUN_LOADENV_QWC) & 0xffff);
+    env->giftag = GIFTAG_AD_NOEOP(4);
+    env->giftagRegs = GA_GIFTAG_REGS_AD;
+    env->bitbltbuf.data = ((u_long)dpsm << 56) | ((u_long)dbp << 32) | ((u_long)dbw << 48);
+    env->bitbltbuf.addr = SCE_GS_BITBLTBUF;
+    env->trxpos.data = (u_long)dsax | ((u_long)dsay << 16);
+    env->trxpos.addr = SCE_GS_TRXPOS;
+    env->trxreg.data = (u_long)(u_int)rrw | ((u_long)(u_int)rrh << 32);
+    env->trxreg.addr = SCE_GS_TRXREG;
+    env->trxdir.data = 0;
+    env->trxdir.addr = SCE_GS_TRXDIR;
+    env->imageTag = GIFTAG_IMAGE((u_int)qwc);
+    env->imageTagRegs = 0;
+    return qwc;
+}
+
+// A REF tag's address from an EE address, as the ROM converts it (ga's GaRefTagAddr, inlined twice here).
+static u_int SunRefTagAddr(u_int ee)
+{
+    u_int addr = ee;
+    u_int bit30;
+
+    if (ee >= SCRATCHPAD_EE_BASE)
+        addr = ee - SCRATCHPAD_EE_BASE;
+    bit30 = addr & 0x40000000u;
+    return (bit30 << 1) | ((addr & 0x1fffffffu) ^ (bit30 >> 2));
+}
+
+static void SunSetTexLoadRef(SUN_TEXLOAD_PACKET *packet, int envKind, u_int data, int qwc)
+{
+    packet->refTag = ((u_long)SunRefTagAddr(data) << 32) | (u_long)(u_int)qwc | GA_DMATAG_REF_EMPTY;
+    packet->refMark = SUN_LOAD_MARK(envKind + 1);
+}
+
+// CT3 0x018590b0: upload a texture buffer's CLUTs (CT32, at cbp + clutWords * i) and its levels
+// 0..mipMax, each through the scratchpad's upload packet with a REF to the data, after one TEXFLUSH
+// (ga's copy flushes after as well; this one does not).
+void sunBGT_LoadGSTexClutData_VIF1(void *tbuffer)
+{
+    SUN_TBUFFER_DATA *tbuf = (SUN_TBUFFER_DATA *)tbuffer;
+    SUN_TEXFLUSH_PACKET *flush = (SUN_TEXFLUSH_PACKET *)SCRATCHPAD(GA_SPR_MARK_PACKET);
+    SUN_TEXLOAD_PACKET *load = (SUN_TEXLOAD_PACKET *)SCRATCHPAD(GA_SPR_MARK_PACKET);
+    const u_int *clutTable = (const u_int *)SunTexEePtr(tbuf->clutData); /* PORT: an EE word */
+    u_int i;
+    int qwc;
+
+    gaDmaSync_fromSPR();
+    flush->head.dmatag = GA_DMATAG_CNT(SUN_TEXFLUSH_QWC);
+    flush->head.mark = SUN_LOAD_MARK(SUN_LOAD_TEXFLUSH);
+    flush->head.vifcode[0] = VC_NOP;
+    flush->head.vifcode[1] = VC_NOP;
+    flush->head.vifcode[2] = VC_NOP;
+    flush->head.vifcode[3] = GA_VIFCODE_DIRECT(SUN_TEXFLUSH_QWC - 1);
+    flush->head.giftag = GIFTAG_AD_NOEOP(1);
+    flush->head.giftagRegs = GA_GIFTAG_REGS_AD;
+    flush->texflush.data = 0;
+    flush->texflush.addr = SCE_GS_TEXFLUSH;
+    gaBGT_DmaSendN_fromSPR_VIF1(flush, SUN_TEXFLUSH_QWC + 1);
+
+    for (i = 0; i < tbuf->clutCount; i++) {
+        gaDmaSync_fromSPR();
+        load->dmatag = GA_DMATAG_CNT(SUN_TEXLOAD_ENV_QWC);
+        load->mark = SUN_LOAD_MARK(SUN_LOAD_CLUT_ENV);
+        qwc = sunBGT_SetLoadGSEnv(&load->env, (tbuf->cbp + tbuf->clutWords * i) >> GS_BLOCK_SHIFT_SUN, 1,
+                                  SCE_GS_PSMCT32, 0, 0, (int)tbuf->clutWidth, (int)tbuf->clutHeight);
+        SunSetTexLoadRef(load, SUN_LOAD_CLUT_ENV, clutTable != NULL ? clutTable[i] : 0, qwc);
+        gaBGT_DmaSendN_fromSPR_VIF1(load, SUN_TEXLOAD_SEND_QWC);
+    }
+    // mipMax -1: no level (the ROM's unsigned compare against mipMax + 1 = 0). PORT: at most the four
+    // levels the record keeps (the ROM would read past mipData into mipTbp; no texture seen asks it).
+    for (i = 0; i < (u_int)tbuf->mipMax + 1 && i < SUN_MIP_LEVELS; i++) {
+        gaDmaSync_fromSPR();
+        load->dmatag = GA_DMATAG_CNT(SUN_TEXLOAD_ENV_QWC);
+        load->mark = SUN_LOAD_MARK(SUN_LOAD_MIP_ENV);
+        qwc = sunBGT_SetLoadGSEnv(&load->env, tbuf->mipTbp[i] >> GS_BLOCK_SHIFT_SUN,
+                                  tbuf->mipTbw[i] >> GS_BLOCK_SHIFT_SUN, tbuf->psm, 0, 0,
+                                  (int)(tbuf->width >> (i & 0x1f)), (int)(tbuf->height >> (i & 0x1f)));
+        SunSetTexLoadRef(load, SUN_LOAD_MIP_ENV, tbuf->mipData[i], qwc);
+        gaBGT_DmaSendN_fromSPR_VIF1(load, SUN_TEXLOAD_SEND_QWC);
+    }
+}
+
+// CT3 0x01859520: a tail jump -- send the packet's 8 qwords through the BGT ring.
+void sunBGT_ExecTBufferData_VIF1(void *tbuffer)
+{
+    gaBGT_DmaSendN_fromSPR_VIF1(tbuffer, SUN_TBUFFER_SEND_QWC);
 }
 
 // CT3 0x01854560: gaInit3dlibWork with the copy built in: the 3dlib work (32 floats, ga3dlibwork) is

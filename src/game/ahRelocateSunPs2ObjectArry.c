@@ -3606,8 +3606,8 @@ void asDrawShadowVolumeInit(void)
 // Drawing goes to the shadow buffer (the old address kept for asShadowEnd), its frame / texture
 // buffers set up once and sent, then the clear sprite under gaDC_EBclear_B.
 // PORT: sunSetupTBufferData's TEX_INFO.tim is the EE address of tex_attr_A$2750 (data 0x01937c80:
-// 512 x 448, log2 9 x 9, +0x18 0x000e0000 -- the shadow buffer read as a texture); the QuatSlerp.c TU
-// that writes sunSetupTBufferData resolves it (open-items.md).
+// 512 x 448, log2 9 x 9, +0x18 0x000e0000 -- the shadow buffer read as a texture); sunSetupTBufferData
+// (QuatSlerp.c) keeps the host copy and resolves the word.
 void asShadowStart(void)
 {
     asSD_BackBufferAdd = ga_draw_fbuf_address;
@@ -3616,9 +3616,9 @@ void asShadowStart(void)
         TEX_INFO tex;
         memset(&tex, 0, sizeof(tex));
         tex.tim = 0x01937c80u;                  /* tex_attr_A$2750 */
-        tex.tbuf[0] = SHADOW_FBUF_ADDRESS;
-        tex.tbuf[3] = 1;
-        tex.tbuf[4] = 1;
+        tex.tbp = SHADOW_FBUF_ADDRESS;
+        tex.wms = TEX_WRAP_CLAMP;
+        tex.wmt = TEX_WRAP_CLAMP;
         sunSetupTBufferData(tex_A_2748, tex);
         gaSetupDBufferData(&d_buffer_A_2747, ga_draw_fbuf_address, SHADOW_FBUF_WIDTH, 0, 0, 0, 0, 1, 0, 0,
                            SHADOW_SCISSOR_X1, SHADOW_SCISSOR_Y1, 0, 0, 0);

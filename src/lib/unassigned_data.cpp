@@ -286,6 +286,8 @@ int backup_progress_time;                       /* sbss 0x0193fa18 */
 int idCameraScene;                              /* sbss 0x01940e30 */
 int TransparentBodyTime;                        /* sbss 0x01940e48 */
 PANIC_INFO PanicInfoData;                       /* sbss 0x01940e50 */
+u_char act_small;                               /* sbss 0x0193f840 */
+u_char act_large;                               /* sbss 0x0193f844 */
 int GlobalVariable[GLOBAL_VARIABLE_COUNT];      /* sbss 0x01941190 */
 u_char GlobalEventFlag[GLOBAL_EVENT_FLAG_BYTES]; /* sbss 0x01941590 */
 qword DrawOnPosSetVectorTemp;                   /* sbss 0x01942540 */

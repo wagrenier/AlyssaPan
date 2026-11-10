@@ -203,3 +203,9 @@ void tiPipeJointInit(int bank)
 {
     ALYSSAPAN_STUB("tiPipeJointInit", 0x0188bf30);
 }
+
+// stub of CT3 0x0188ce10
+void tiVibrationOn(int port, int a1, int a2, int a3)
+{
+    ALYSSAPAN_STUB("tiVibrationOn", 0x0188ce10);
+}

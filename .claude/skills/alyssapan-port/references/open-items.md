@@ -567,6 +567,28 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    2, PanicFilter, XcmdScreenFilter / Skip, DemoScreenFilter (the screen filters), sunSetupTBufferData,
    sunBGT_LoadGSTexClutData_VIF1 / _ExecTBufferData_VIF1 / _SetLoadGSEnv (the texture upload: the next
    blocker for the picture with the ga draw stubs), and the brief's other 92.
+   **game/QuatSlerp.c slice 3 (partial, 2026-11-10):** the texture buffers (sunSetupTBufferData,
+   sunBGT_SetLoadGSEnv, sunBGT_LoadGSTexClutData_VIF1, sunBGT_ExecTBufferData_VIF1; SUN_TEX_ATTR 0x34 and
+   SUN_TBUFFER_DATA 0xd8 in QuatSlerp.h, TEX_INFO's words named: tbp, cbp, clut, CLAMP's six, tfx), the
+   panic sounds (EventSoundUpdate, PanicSound, LavenderSound, InvisibleSound), PanicCheck, ssMenuUpdate,
+   PlayerControlUpdate. PANIC_INFO +0x24 is the float gauge, +0x28 gaugeMax; Panicdef +0x08 beatFrom.
+   15 s smoke run: no fault, 27,360 frames, shot still black. Open: (ew) **the texture still never
+   reaches the GPU**: the packets are built byte for byte and the host DMAC drops them; the picture needs
+   a host texture module that decodes a SUN_TEX_ATTR (its mipData / clutData EE words, psm) at the
+   source and binds it where TEX0.TBP points -- the user's no-GS-emulator rule; whoever writes the ga
+   draw path (gaBGT_DrawObject) should key textures by the SUN_TBUFFER_DATA's tex0 word; (ex) the host
+   resolves TEX_INFO.tim / clutData with a bank search (SunTexEePtr) plus one hard-wired game-data record
+   (tex_attr_A$2750, the shadow buffer read as a texture, 0x01937c80): a new game-data texture record
+   from another caller answers NULL and leaves the packet's body unset -- add it there; (ey)
+   TEX_TFX_HIGHLIGHT2 replaced TEX_KIND_LIGHT (the same word is TEX0.TFX): main_rtn's light rule keys on
+   TFX 3 -- check against a bank whose highlight parts are known; (ez) the panic events and SEs
+   (TRIG_EVENT_LAVENDER 0x1a, _INVISIBLE 0x97, _PLAYER_STOP 0x90, PanicCheck's ON / OFF events,
+   TRIG_VAR_PANIC_OFF 0x0b, SE 0x23 / 0x24 / 0x43 / 0x45 in slot 4), PANIC_MODE_FULL (mode bit 0) and
+   tiVibrationOn's argument names are from this use only; act_small / act_large (0x0193f840 / 44) sit in
+   lib/unassigned_data.cpp until the vibration TU (Clipping_Portal.c's tiVibration*) owns them; the
+   heartbeat's second SdSetParamSE argument (SD_SE_PARAM_30, level / 2) is unk30 until the Sd TU names it.
+   Left (frontier): PanicUpdate, PanicFilter, XcmdScreenFilter / Skip, DemoScreenFilter, MonsterAIUpdate,
+   FogAnimeUpdate, ExecuteWarpObject / 2, ssGetBankID, ssStrCmp4Byte and the brief's other ~70.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
    class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~

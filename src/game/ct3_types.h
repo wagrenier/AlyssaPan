@@ -205,7 +205,7 @@ typedef struct SCENE_LIGHT {
     u_int pairs;                        /* 0x00: short [part, set] pairs, ended by part LIGHT_PAIRS_END:
                                            the lit part and its LIGHT_SET (LIGHT_NONE: unlit) */
     u_int sets;                         /* 0x04: LIGHT_SET[] */
-    float charaScale;                   /* 0x08: main_rtn: scales a character's TEX_KIND_LIGHT parts */
+    float charaScale;                   /* 0x08: main_rtn: scales a character's TEX_TFX_HIGHLIGHT2 parts */
     u_int charaDir;                     /* 0x0c: short[LIGHT_SLOTS]: the directional light parts of a
                                            character lit by this bank (CharLightSet) */
     u_int omniList;                     /* 0x10: LIGHT_LIST: the point lights a character lit by this
@@ -282,7 +282,7 @@ typedef struct ALL_TABLE {
     u_int shadow;                       /* 0x6c: the shadow table (relocated: 7 words, then 8 key tables);
                                            its word 0 is the shadow volume's ga draw objects, 0x80 apart,
                                            ended by a 0 kind byte (asDrawShadowVolume) */
-    u_int partsLight;                   /* 0x70: float[parts]: TEX_KIND_LIGHT parts' DRAW_OBJ_LIGHT */
+    u_int partsLight;                   /* 0x70: float[parts]: TEX_TFX_HIGHLIGHT2 parts' DRAW_OBJ_LIGHT */
     u_int pad74;
     u_int particles2;                   /* 0x78: list of PARTICLE2_ENTRY: main_rtn_Particle2 mode 0 */
     u_int particles2After;              /* 0x7c: the same, mode 1; non-empty -> ExportDrawToTex */
@@ -382,12 +382,12 @@ static_assert(offsetof(MODEL_PARTS, matrix) == 0x1c0, "MODEL_PARTS.matrix");
 // PanicInfoData (0x01940e50, 48 bytes): the player's panic state a save keeps whole. Fields by offset
 // (data_save_set / data_load_set copy them one by one; the load then sets b01 = 0xff, h02 = 0).
 typedef struct PANIC_INFO {
-    u_char mode;                        /* 0x00 */
+    u_char mode;                        /* 0x00: PANIC_MODE_* bits */
     u_char b01;                         /* 0x01: data_load_set: 0xff */
     short h02;                          /* 0x02: data_load_set: 0 */
     int w04[8];                         /* 0x04 */
-    int w24;                            /* 0x24 */
-    float f28;                          /* 0x28: PanicModeInit: 10000.0 */
+    float gauge;                        /* 0x24: the panic gauge (PanicSound: heartbeat from Panicdef.beatFrom) */
+    float gaugeMax;                     /* 0x28: its top (PanicModeInit: 10000.0) */
     int w2c;                            /* 0x2c: PanicModeInit: -1 */
 } PANIC_INFO;
 static_assert(sizeof(PANIC_INFO) == 0x30, "PANIC_INFO");
@@ -416,16 +416,29 @@ static_assert(sizeof(FOG_INFO) == 0x40, "FOG_INFO");
 static_assert(offsetof(FOG_INFO, charaFog) == 0x28, "FOG_INFO.charaFog");
 
 // A texture of a draw list entry (DRAW_OBJ_ENTRY.tex). layout: ee (2026-11-10): bank data, tim an EE
-// word (BANK_PTR). tim's first two words are the texture's width and height.
+// word (BANK_PTR). tim is a SUN_TEX_ATTR (QuatSlerp.h). The words after it are sunSetupTBufferData's
+// arguments, passed by value (2026-11-10, QuatSlerp.c slice 3): where the texture sits in GS memory, its
+// CLAMP_1 and TEX0's function.
 typedef struct TEX_INFO {
-    u_int tim;                          /* 0x00: EE address of the texture; 0 = none */
-    int tbuf[6];                        /* 0x04: sunSetupTBufferData's arguments */
-    int pad1c[3];
-    int kind;                           /* 0x28: TEX_KIND_* */
+    u_int tim;                          /* 0x00: EE address of the SUN_TEX_ATTR; 0 = none */
+    u_int tbp;                          /* 0x04: GS word address of level 0 */
+    u_int cbp;                          /* 0x08: GS word address of the CLUT area */
+    u_int clut;                         /* 0x0c: which CLUT of that area TEX0.CBP points at */
+    u_int wms;                          /* 0x10: CLAMP_1 fields (TEX_WRAP_*) */
+    u_int wmt;                          /* 0x14 */
+    u_int minu;                         /* 0x18 */
+    u_int maxu;                         /* 0x1c */
+    u_int minv;                         /* 0x20 */
+    u_int maxv;                         /* 0x24 */
+    int tfx;                            /* 0x28: TEX0.TFX (TEX_TFX_*) */
 } TEX_INFO;
-static_assert(offsetof(TEX_INFO, kind) == 0x28, "TEX_INFO.kind");
+static_assert(sizeof(TEX_INFO) == 0x2c, "TEX_INFO");
+static_assert(offsetof(TEX_INFO, tfx) == 0x28, "TEX_INFO.tfx");
 
-#define TEX_KIND_LIGHT 3                /* the part's DRAW_OBJ_LIGHT comes from ALL_TABLE.partsLight */
+#define TEX_WRAP_REPEAT 0               /* CLAMP_1.WMS / WMT */
+#define TEX_WRAP_CLAMP 1
+#define TEX_TFX_HIGHLIGHT2 3            /* TEX0.TFX 3; main_rtn also takes such a part's DRAW_OBJ_LIGHT
+                                           from ALL_TABLE.partsLight */
 #define TEX_SMALL_MAX 32                /* both sides <= 32: the BGT ring restarts before the upload */
 
 // One entry of a draw list (ALLobject[bank][i], 0-terminated EE words; objSort's tables). layout: ee

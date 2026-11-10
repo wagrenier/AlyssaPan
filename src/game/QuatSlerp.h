@@ -4,6 +4,7 @@
 
 #include "sdk/scetypes.h"
 #include "game/ct3_types.h"
+#include "ga/gaInitDrawObject.h"
 
 void ControllerClatteringUpdate(void);                                                   // CT3 0x01852f90
 void ControllerClatteringInit(void);                                                     // CT3 0x01853220
@@ -113,7 +114,57 @@ void CameraMatrix2CameraPos(float *pos);                                        
 float asVectorDistance(const float *a, const float *b);                                  // CT3 0x0185ded0
 void tnInit3dlibWork(void *work, void *spr);                                            // CT3 0x01854560
 int OneMaxObjectDrawZOnly(int bank, int index);                                          // CT3 0x01858f20
+// ---- the game's texture buffers (slice 3, 2026-11-10): sun* are its own copies of the ga library's
+// gaSetupTBufferData / gaBGT_* (gaInitDrawObject.h), with four mip levels and a smaller record.
+#define SUN_MIP_LEVELS 4
+
+// A texture record (TEX_INFO.tim; layout from sunSetupTBufferData's loads, tex_attr_A$2750 0x01937c80
+// is one). layout: ee -- bank data; its address words stay EE addresses.
+typedef struct SUN_TEX_ATTR {
+    u_int width;                        /* 0x00: pixels */
+    u_int height;                       /* 0x04 */
+    u_int tw;                           /* 0x08: TEX0.TW (log2 width) */
+    u_int th;                           /* 0x0c: TEX0.TH */
+    u_int psm;                          /* 0x10: SCE_GS_PSM* */
+    int mipMax;                         /* 0x14: the last level to upload; -1 = none */
+    u_int pad18;                        /* unread (tex_attr_A: 0x000e0000) */
+    u_int mipData[SUN_MIP_LEVELS];      /* 0x1c: EE address of each level's pixels */
+    u_int clutCount;                    /* 0x2c */
+    u_int clutData;                     /* 0x30: EE address of u_int[clutCount], each a CLUT's EE address */
+} SUN_TEX_ATTR;
+static_assert(sizeof(SUN_TEX_ATTR) == 0x34, "SUN_TEX_ATTR");
+
+// A texture buffer packet (0xd8; tex_A$2748 has 0x100): TEX0_1, CLAMP_1, MIPTBP1_1, MIPTBP2_1, TEXFLUSH (8
+// qwords sunBGT_ExecTBufferData_VIF1 sends), then what sunBGT_LoadGSTexClutData_VIF1 reads.
+typedef struct SUN_TBUFFER_DATA {
+    GA_PACKET_HEAD head;                /* 0x00 */
+    GA_AD tex0;                         /* 0x30 */
+    GA_AD clamp;                        /* 0x40 */
+    GA_AD miptbp1;                      /* 0x50 */
+    GA_AD miptbp2;                      /* 0x60 */
+    GA_AD texflush;                     /* 0x70 */
+    u_int mipData[SUN_MIP_LEVELS];      /* 0x80: SUN_TEX_ATTR.mipData */
+    u_int mipTbp[SUN_MIP_LEVELS];       /* 0x90: GS word address of each level */
+    u_int mipTbw[SUN_MIP_LEVELS];       /* 0xa0: each level's buffer width, pixels (level 0: the width) */
+    u_int psm;                          /* 0xb0 */
+    u_int width;                        /* 0xb4 */
+    u_int height;                       /* 0xb8 */
+    u_int clutCount;                    /* 0xbc */
+    u_int clutData;                     /* 0xc0: SUN_TEX_ATTR.clutData (EE) */
+    u_int cbp;                          /* 0xc4: TEX_INFO.cbp: CLUT i sits at cbp + clutWords * i */
+    u_int clutWords;                    /* 0xc8: 0x100 (PSMT8 / PSMT8H) or 0x40 */
+    u_int clutWidth;                    /* 0xcc: 16 or 8 */
+    u_int clutHeight;                   /* 0xd0: 16 or 2 */
+    int mipMax;                         /* 0xd4: SUN_TEX_ATTR.mipMax */
+} SUN_TBUFFER_DATA;
+static_assert(offsetof(SUN_TBUFFER_DATA, mipData) == 0x80, "SUN_TBUFFER_DATA.mipData");
+static_assert(offsetof(SUN_TBUFFER_DATA, psm) == 0xb0, "SUN_TBUFFER_DATA.psm");
+static_assert(offsetof(SUN_TBUFFER_DATA, cbp) == 0xc4, "SUN_TBUFFER_DATA.cbp");
+static_assert(sizeof(SUN_TBUFFER_DATA) == 0xd8, "SUN_TBUFFER_DATA");
+
 void sunBGT_LoadGSTexClutData_VIF1(void *tbuffer);                                      // CT3 0x018590b0
+int sunBGT_SetLoadGSEnv(GA_LOADENV *env, u_int dbp, u_int dbw, u_int dpsm, u_int dsax, u_int dsay, int rrw,
+                        int rrh);                                                        // CT3 0x01859390
 void sunBGT_ExecTBufferData_VIF1(void *tbuffer);                                        // CT3 0x01859520
 void sunSetupTBufferData(void *tbuffer, TEX_INFO tex);                                   // CT3 0x01859530 (tex by value, 0x2c bytes)
 void TexFileSetInit(int scene);                                                          // CT3 0x01856070
@@ -259,7 +310,7 @@ int DemoSkipCheckEvent(int event);                                              
 typedef struct PANIC_DEF {
     float f00;                          /* 3.5 */
     float f04;                          /* 8.0 */
-    float f08;                          /* 5000.0 */
+    float beatFrom;                     /* 0x08: 5000.0: the gauge where PanicSound's heartbeat starts */
     float f0c;                          /* 2.0 */
     int w10;                            /* 30 */
     int w14;                            /* 4 */
@@ -274,6 +325,42 @@ extern int AdvantageousTimeTime;                                                
 #define TRIG_EVENT_PANIC_3 0x03         /* the three events PanicModeInit removes (named from this use) */
 #define TRIG_EVENT_PANIC_26 0x26
 #define TRIG_EVENT_PANIC_48 0x48
+
+// The panic sounds (slice 3, 2026-11-10). Named from their use here only; ssGrpPortalCheck.c owns the
+// trigger events, the Sd driver the SE numbers (bank slot 4: the system SEs).
+#define PANIC_MODE_FULL 0x1             /* PANIC_INFO.mode: the heartbeat at its fastest, FinFin looping */
+#define PANIC_BEAT_LEVELS 5             /* the gauge from Panicdef.beatFrom to gaugeMax, in five levels */
+#define PANIC_SE_JLS 4                  /* SdReqPlaySE's slot of the panic SEs */
+#define PANIC_SE_HEARTBEAT 0x23
+#define PANIC_SE_FINFIN 0x24            /* loops while PANIC_MODE_FULL */
+#define PANIC_SE_LAVENDER 0x43          /* loops while TRIG_EVENT_LAVENDER */
+#define PANIC_SE_INVISIBLE 0x45         /* loops while TRIG_EVENT_INVISIBLE */
+#define PANIC_VIBRATION_BASE 10         /* tiVibrationOn's third argument: 10 + 4 * level */
+#define PANIC_VIBRATION_STEP 4
+#define PANIC_VIBRATION_ARG3 5
+#define TRIG_EVENT_LAVENDER 0x1a
+#define TRIG_EVENT_INVISIBLE 0x97
+#define TRIG_EVENT_PLAYER_STOP 0x90     /* PlayerControlUpdate: registered while the keys are stopped */
+// PanicCheck: 1 when one of these events is on (or TRG_CHAR_STOP_CHAR is set) ...
+#define TRIG_EVENT_PANIC_ON_4D 0x4d
+#define TRIG_EVENT_PANIC_ON_8A 0x8a
+#define TRIG_EVENT_PANIC_ON_257 0x257
+#define TRIG_EVENT_PANIC_ON_5E0 0x5e0
+#define TRIG_EVENT_PANIC_ON_AD 0xad
+// ... and -1, whatever else, when one of these is (or a skip runs, or TRIG_VAR_PANIC_OFF >= 0).
+#define TRIG_EVENT_PANIC_OFF_63 0x63
+#define TRIG_EVENT_PANIC_OFF_14 0x14
+#define TRIG_EVENT_PANIC_OFF_07 0x07
+#define TRIG_EVENT_PANIC_OFF_08 0x08
+#define TRIG_EVENT_PANIC_OFF_19 0x19
+#define TRIG_VAR_PANIC_OFF 0x0b
+#define PANIC_CHECK_ON 1
+#define PANIC_CHECK_OFF (-1)
+void EventSoundUpdate(int on);                                                           // CT3 0x01853310
+void PanicSound(void);                                                                   // CT3 0x018533b0
+void LavenderSound(void);                                                                // CT3 0x01853560
+void InvisibleSound(void);                                                               // CT3 0x018535c0
+int PanicCheck(void);                                                                    // CT3 0x01854260
 
 // GetAreaNumber: RoomNameID_STR_Tbl / RoomNameID_ID_Tbl (0x019392f0 / 0x01939110) give each room its
 // area number (1..52, the save file's area message). A room listed more than once answers its first

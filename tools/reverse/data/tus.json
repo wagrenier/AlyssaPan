@@ -416,7 +416,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 129..129, 4 functions keyed by their statics, 5 unkeyed; file name from the names"
   },
   "game/QuatSlerp.c": {
-   "notes": "15 s smoke run: no fault, 27000 frames, shot black (ga draw calls and the sun texture upload are stubs). Next in this TU: sunSetupTBufferData and the sunBGT texture upload (the picture's blocker), then PanicFilter, XcmdScreenFilter and Skip, DemoScreenFilter, ExecuteWarpObject and ExecuteWarpObject2. open-items.md (et)..(ev).",
+   "notes": "15 s smoke run: no fault, 27360 frames, shot black (the ga draw path is stubbed and the texture packets are dropped by the host DMAC: a host texture module must decode SUN_TEX_ATTR at its source, open-items.md (ew)). Next in this TU: PanicUpdate and PanicFilter, XcmdScreenFilter and Skip, DemoScreenFilter, MonsterAIUpdate, FogAnimeUpdate, ExecuteWarpObject and ExecuteWarpObject2. open-items.md (ew)..(ez).",
    "ranges": [
     [
      "01851bf0",
@@ -433,6 +433,11 @@
      "date": "2026-11-10 09:37",
      "status": "partial",
      "summary": "slice 2: GetAreaNumber (RoomNameID tables), the controller rattles (Free, Get, Update, Set), DemoSkipCheckEvent, PanicModeInit, QuatSlerp, asMakeRotMatrixByQuartanion, the warp family (WarpObject, WarpObjectUpdate, Set, Init, asWarpObjectBody), tnInit3dlibWork"
+    },
+    {
+     "date": "2026-11-10 09:56",
+     "status": "partial",
+     "summary": "slice 3: the texture buffers (sunSetupTBufferData, sunBGT_SetLoadGSEnv, sunBGT_LoadGSTexClutData_VIF1, sunBGT_ExecTBufferData_VIF1; SUN_TEX_ATTR, SUN_TBUFFER_DATA, TEX_INFO named), the panic sounds (EventSoundUpdate, PanicSound, LavenderSound, InvisibleSound), PanicCheck, ssMenuUpdate, PlayerControlUpdate"
     }
    ],
    "status": "partial",
