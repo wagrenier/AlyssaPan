@@ -7,6 +7,15 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-10, QuatSlerp.c slice 5) **The decompiler drops the fifth and sixth arguments (t0 / t1)**:
+  the fade Targets take the eye's position in t0 and the facing in t1 (stack copies), which Ghidra showed
+  as missing or stale; read `addiu t0,sp,..` / `addiu t1,sp,..` before each jal. It also dropped the
+  second subject loop's closing flag write in LosHitFadeUpdateTarget. And a VU `vrsqrt` of 0 is the
+  largest float, not inf: a zero vector times it is 0, where the host's 1/sqrtf(0) makes NaN (and NaN
+  into ahAcos indexes its table out of range) -- AngleAttenuationAlphaSet uses FLT_MAX for that case.
+  ROM bug kept out: DistanceAttenuationUpdate / LosHitFadeUpdate read the eye-character list even when
+  it is 0 (a hash from low EE memory); the port skips (open-items.md 1 ff). `sed -i` from Git Bash
+  rewrites CRLF files with LF: use a script that keeps the line ends.
 - (2026-11-10, ahRelocateSunPs2ObjectArry.c slice 5) **A blanket text replace over a TU file hits the
   relocator**: replacing `t + 0x10` by a field name in new code also rewrote three `R(t + 0x10)` lines of
   ahRelocateFileObject. Scope replacements to the new block (or check `git diff` for `-` lines that are

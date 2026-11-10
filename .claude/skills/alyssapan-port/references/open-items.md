@@ -604,6 +604,25 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    ATST 5 / AREF 0x7f with ATE 0 (no alpha test) -- kept. Next in this TU: AngleAttenuationUpdate (+
    AngleAttenuationTarget, DistanceAttenuationUpdate, LosHitFadeUpdate), PanicUpdate, MonsterAIUpdate,
    FogAnimeUpdate, TexFileSetInit, ExecuteWarpObject / 2.
+   **game/QuatSlerp.c slice 5 (partial, 2026-11-10):** the part fades AmbientAlphaUpdate runs every frame:
+   DistanceAttenuationUpdate / _Target / _AlphaSet (ALL_TABLE +0x80, DIST_ATTEN 0x28), AngleAttenuation*
+   (+0x84, ANGLE_ATTEN 0x24), LosHitFadeUpdate / _Target (+0x74, LOS_FADE 0x28; CheckLOS / CheckLOS_Multi
+   declared in ssHitCheckAttackToScn.h with LOS_SEG / LOS_MULTI from the call sites, now stubs there);
+   DemoSkipRegisterEvent, asVectorLength. MODEL_PARTS +0x124 / +0x128 / +0x12c are losAlpha / distAlpha /
+   angleAlpha; PARTS_FLAG_LOS_FADING 0x10 / _LOS_CLEAR 0x20. The eye / subject lists share ATTEN_EYE_* /
+   ATTEN_SUBJ_* bits and ATTEN_CHARA (0x10: chara, hash). 15 s smoke run: no fault, shot black. Open:
+   (fd) ATTEN_CHARA_LIVE (Character flags 0x80000000 and 0x40000000 both) is the fades' test of a
+   character: 0x80000000 is CHARACTER_FLAG_REFRACTION from main.c's one use -- this second use says it is
+   wider (a character in the scene?): rename it when Character_Init.c's TU reads the bit; (fe) Cam[6] +0xc0
+   (CAMERA_EYE_POS) is the distance and LOS fades' camera position (the angle fade overwrites it with
+   asViewMatrix2PosRUF's): name the CAMERA field with the camera TU; (ff) the ROM's eye-character branch
+   with no list reads a part hash from low EE memory (hazards.md): the port skips those characters --
+   check whether any bank data has flag 2 with list 0; (fg) LOS_MULTI.hits are host pointers to records
+   whose short at 0x198 is an id: ssHitCheckAttackToScn.c's TU names the record; (fh) asJointParts is
+   left: the ROM passes asJointParts_byMatrix a fourth argument (the hash, a3), which its 3-argument
+   prototype lacks -- write the pair together. Next in this TU: PanicUpdate, MonsterAIUpdate,
+   FogAnimeUpdate, TexFileSetInit, OneMaxObjectDrawZOnly, asJointParts with asJointParts_byMatrix,
+   tnTrigTexFileSetNext with TexFileSetNext, ExecuteWarpObject / 2.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
    class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~

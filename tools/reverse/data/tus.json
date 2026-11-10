@@ -416,7 +416,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 129..129, 4 functions keyed by their statics, 5 unkeyed; file name from the names"
   },
   "game/QuatSlerp.c": {
-   "notes": "15 s smoke run: no fault, shot black (no host draw module takes the packets yet). FILTER_CHANGE_WORK +0x08 is the target, +0x18 the current colour (renamed, main.c follows). AmbientAlphaUpdate reaches the LosHit, Distance and Angle attenuation stubs. Next in this TU: AngleAttenuationUpdate with AngleAttenuationTarget, DistanceAttenuationUpdate, LosHitFadeUpdate; TexFileSetInit (texture pages: ALL_TABLE +0x8c, FSLoad or tnSlideThawing, patches the TEX_INFO words); PanicUpdate, MonsterAIUpdate, FogAnimeUpdate, ExecuteWarpObject and 2. open-items.md (fa)..(fc).",
+   "notes": "15 s smoke run: no fault, shot black (no host draw module yet). MODEL_PARTS +0x124/+0x128/+0x12c are losAlpha/distAlpha/angleAlpha; ALL_TABLE +0x74/+0x80/+0x84 the fade lists. Open-items 1 (fd)..(fh). Next in this TU: PanicUpdate, MonsterAIUpdate, FogAnimeUpdate, TexFileSetInit, OneMaxObjectDrawZOnly, asJointParts with asJointParts_byMatrix (4 arguments), tnTrigTexFileSetNext with TexFileSetNext, ExecuteWarpObject and 2.",
    "ranges": [
     [
      "01851bf0",
@@ -443,6 +443,11 @@
      "date": "2026-11-10 10:18",
      "status": "partial",
      "summary": "slice 4: the screen filters (PanicFilter, DemoScreenFilter, XcmdScreenFilter and Skip, SCREEN_FILTER_OBJ packets and draw controls), EventSoundEnd, ssGetBankID and ssStrCmp4Byte, the slide LZSS decoder (tnSlideThawing, decode, tn_getc, tn_putc), AmbientAlphaUpdate"
+    },
+    {
+     "date": "2026-11-10 10:39",
+     "status": "partial",
+     "summary": "slice 5: the part fades AmbientAlphaUpdate runs (DistanceAttenuationUpdate, Target, AlphaSet; AngleAttenuationUpdate, Target, AlphaSet; LosHitFadeUpdate and Target with CheckLOS and CheckLOS_Multi declared), DemoSkipRegisterEvent, asVectorLength; DIST_ATTEN, ANGLE_ATTEN, LOS_FADE, ATTEN_CHARA, LOS_SEG, LOS_MULTI named"
     }
    ],
    "status": "partial",

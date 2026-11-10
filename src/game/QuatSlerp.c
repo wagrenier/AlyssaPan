@@ -22,7 +22,9 @@
 #include "ga/gaInitInterrupt.h"
 #include "game/SdMasterVolumeSetSE.h"
 #include "game/Clipping_Portal.h"
+#include "game/ssHitCheckAttackToScn.h"
 
+#include <float.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -246,11 +248,434 @@ void AmbientAlphaUpdate(void)
     }
 }
 
-// stub of CT3 0x01856f20 (next slice: the angle fade; AngleAttenuationTarget, ALL_TABLE +0x84's
-// 0x24-byte records, Character[] +0x48 / +0x70 / +0xa8)
+// ---- the distance and angle fades (slice 5) --------------------------------------------------------
+// The ROM hands the Target / AlphaSet functions the part's record (MODEL_PARTS + 0x40) and writes the
+// fade at record +0xe8 / +0xec; the port passes the MODEL_PARTS (the same words: distAlpha, angleAlpha).
+
+// The bank's part i.
+static MODEL_PARTS *AttenPart(int bank, int i)
+{
+    return (MODEL_PARTS *)(pModelPartsHeader[bank] + i * PARTS_REC_SIZE);
+}
+
+// A character the fades see: both CHARACTER_FLAG_REFRACTION and _SHADOW.
+static int AttenCharaLive(int chara)
+{
+    u_int flags = Character[chara].flags;
+    return (flags & CHARACTER_FLAG_REFRACTION) != 0 && (flags & CHARACTER_FLAG_SHADOW) != 0;
+}
+
+// The character's part named by hash. The ROM looks it up in All_table_TBL[bank]->partsHeader, the
+// header scene_init copies into pModelPartsHeader[bank]. PORT: NULL when the part is missing (the ROM
+// would use asFindModelParts' answer anyway).
+static MODEL_PARTS *AttenCharaPart(int chara, u_long hash)
+{
+    u_char *rec = asFindModelParts(pModelPartsHeader[Character[chara].bank], hash);
+    return rec != NULL ? (MODEL_PARTS *)(rec - PARTS_HDR_RECORDS) : NULL;
+}
+
+// Lower the part's ALL_TABLE.partsPos w to the fade (both Update functions end each record so).
+static void AttenLowerW(int bank, int index, float fade)
+{
+    float (*partsPos)[4] = BANK_PTR(float (*)[4], bank, All_table_TBL[bank]->partsPos);
+    if (fade < partsPos[index][3])
+        partsPos[index][3] = fade;
+}
+
+// CT3 0x01857c70
+void DistanceAttenuationAlphaSet(const float *eye, const float *subj, DIST_ATTEN *at, MODEL_PARTS *part)
+{
+    float f = asVectorDistance(subj, eye);
+    float max = at->max;
+
+    f = max * (f - at->start) / (at->full - at->start);
+    if (f < 0.0f)
+        f = 0.0f;
+    if (max < f)
+        f = max;
+    part->distAlpha = -f;
+}
+
+// CT3 0x01857af0: the part's fade for one eye, over the record's subjects.
+void DistanceAttenuationTarget(int bank, int a1, MODEL_PARTS *part, DIST_ATTEN *at, const float *eye)
+{
+    // callcheck: asFindModelParts (AttenCharaPart makes it)
+    ATTEN_CHARA *ch;
+    MODEL_PARTS *subj;
+    int *idx;
+
+    (void)a1;
+    if (at->flags & ATTEN_SUBJ_CHARA) {
+        for (ch = BANK_PTR(ATTEN_CHARA *, bank, at->subjCharas); ch->chara != -1; ch++) {
+            if (!AttenCharaLive(ch->chara))
+                continue;
+            subj = AttenCharaPart(ch->chara, ch->hash);
+            if (subj != NULL)
+                DistanceAttenuationAlphaSet(eye, subj->pos, at, part);
+        }
+    }
+    if (at->flags & ATTEN_SUBJ_PARTS) {
+        for (idx = BANK_PTR(int *, bank, at->subjParts); *idx != -1; idx++) {
+            subj = AttenPart(bank, *idx);
+            if ((subj->flags & PARTS_FLAG_FOG) == 0)
+                DistanceAttenuationAlphaSet(eye, subj->pos, at, part);
+        }
+    }
+}
+
+// CT3 0x01857590: the distance fades of the bank's parts (AmbientAlphaUpdate, every frame).
+void DistanceAttenuationUpdate(int bank, int a1)
+{
+    // callcheck: asFindModelParts (AttenCharaPart makes it)
+    DIST_ATTEN *at;
+    MODEL_PARTS *part, *eyePart;
+    ATTEN_CHARA *ch;
+    float eye[4];
+    int *list;
+    int i;
+
+    if (All_table_TBL[bank]->distAtten == 0)
+        return;
+    for (at = BANK_PTR(DIST_ATTEN *, bank, All_table_TBL[bank]->distAtten); at->part != -1; at++) {
+        part = AttenPart(bank, at->part);
+        if (at->flags & ATTEN_EYE_CAMERA) {
+            // the shared camera's word at +0xc0 (copied by value: the ROM's lq / sq)
+            if (at->cuts == 0) {
+                memcpy(eye, (u_char *)&Cam[CAMERA_SHARED] + CAMERA_EYE_POS, sizeof(eye));
+                DistanceAttenuationTarget(bank, a1, part, at, eye);
+            } else {
+                for (list = BANK_PTR(int *, bank, at->cuts); *list != -1; list++) {
+                    if (Cam[CAMERA_SHARED].cut == *list) {
+                        memcpy(eye, (u_char *)&Cam[CAMERA_SHARED] + CAMERA_EYE_POS, sizeof(eye));
+                        DistanceAttenuationTarget(bank, a1, part, at, eye);
+                    }
+                }
+            }
+        }
+        if (at->flags & ATTEN_EYE_CHARA) {
+            // ROM bug: with no list (eyeCharas 0) the ROM still walks every live character and reads
+            // its part hash from the list (word 0 + a stale index * 0x10 + 8: low EE memory). PORT: no
+            // hash, no part: those characters are skipped.
+            if (at->eyeCharas != 0) {
+                for (ch = BANK_PTR(ATTEN_CHARA *, bank, at->eyeCharas); ch->chara != -1; ch++) {
+                    if (!AttenCharaLive(ch->chara))
+                        continue;
+                    eyePart = AttenCharaPart(ch->chara, ch->hash);
+                    if (eyePart == NULL)
+                        continue;
+                    memcpy(eye, eyePart->pos, sizeof(eye));
+                    DistanceAttenuationTarget(bank, a1, part, at, eye);
+                }
+            }
+        }
+        if (at->flags & ATTEN_EYE_PARTS) {
+            if (at->eyeParts == 0) {
+                for (i = 0; (s_char)AttenPart(bank, i)->kind != PARTS_KIND_END; i++) {
+                    eyePart = AttenPart(bank, i);
+                    if ((eyePart->flags & PARTS_FLAG_FOG) == 0) {
+                        memcpy(eye, eyePart->pos, sizeof(eye));
+                        DistanceAttenuationTarget(bank, a1, part, at, eye);
+                    }
+                }
+            } else {
+                for (list = BANK_PTR(int *, bank, at->eyeParts); *list != -1; list++) {
+                    eyePart = AttenPart(bank, *list);
+                    if ((eyePart->flags & PARTS_FLAG_FOG) == 0) {
+                        memcpy(eye, eyePart->pos, sizeof(eye));
+                        DistanceAttenuationTarget(bank, a1, part, at, eye);
+                    }
+                }
+            }
+        }
+        AttenLowerW(bank, at->part, part->distAlpha);
+    }
+}
+
+// Does the line from eye to the subject at pos block on a drawn scene bank (CheckLOS), or, by id, on
+// this bank (CheckLOS_Multi, a hit whose id is listed)? A plain hit ends the subject walk at once; a hit
+// by id does not.
+static int LosHitBlocked(int bank, LOS_FADE *at, const float *eye, const float *pos, int *stop)
+{
+    LOS_SEG seg;
+    LOS_MULTI q;
+    int *ids;
+    u_int i;
+    int b;
+
+    *stop = 0;
+    if (at->flags & LOS_FADE_BY_ID) {
+        memcpy(q.from, eye, sizeof(q.from));
+        q.from[3] = 1.0f;
+        memcpy(q.to, pos, sizeof(q.to));
+        q.to[3] = 1.0f;
+        if (CheckLOS_Multi(bank, &q) == 0)
+            return 0;
+        for (i = 0; i < q.count; i++) {
+            for (ids = BANK_PTR(int *, bank, at->hitIds); *ids != -1; ids++) {
+                if (*(short *)((u_char *)q.hits[i] + LOS_HIT_ID) == *ids)
+                    return 1;
+            }
+        }
+        return 0;
+    }
+    memcpy(seg.from, eye, sizeof(seg.from));
+    seg.from[3] = 1.0f;
+    memcpy(seg.to, pos, sizeof(seg.to));
+    seg.to[3] = 1.0f;
+    for (b = GLOBAL_BANK_LAST + 1; b < BANK_MAX; b++) {
+        if (BankInfo[b].drawOn == 0)
+            continue;
+        if (BankInfo[b].type == BANK_TYPE_SHADOW && CheckLOS(b, &seg) != 0) {
+            *stop = 1;
+            return 1;
+        }
+        b += BankInfo[b].groupCount - 1;
+    }
+    return 0;
+}
+
+// CT3 0x01858370: start the part's line-of-sight fade for one eye: out while a line to a subject is
+// blocked, in when none is (each subject kind decides on its own; the later one wins).
+void LosHitFadeUpdateTarget(int bank, int a1, MODEL_PARTS *part, LOS_FADE *at, const float *eye)
+{
+    // callcheck: CheckLOS, CheckLOS_Multi, asFindModelParts (LosHitBlocked and AttenCharaPart make them)
+    ATTEN_CHARA *ch;
+    MODEL_PARTS *subj;
+    int *idx;
+    int blocked, stop;
+
+    (void)a1;
+    if (at->flags & ATTEN_SUBJ_CHARA) {
+        blocked = 0;
+        for (ch = BANK_PTR(ATTEN_CHARA *, bank, at->subjCharas); ch->chara != -1; ch++) {
+            if (!AttenCharaLive(ch->chara))
+                continue;
+            subj = AttenCharaPart(ch->chara, ch->hash);
+            if (subj == NULL)
+                continue;
+            if (LosHitBlocked(bank, at, eye, subj->pos, &stop)) {
+                blocked = 1;
+                part->flags = (part->flags | PARTS_FLAG_LOS_FADING) & ~PARTS_FLAG_LOS_CLEAR;
+                if (stop)
+                    break;
+            }
+        }
+        if (!blocked)
+            part->flags |= PARTS_FLAG_LOS_CLEAR | PARTS_FLAG_LOS_FADING;
+    }
+    if (at->flags & ATTEN_SUBJ_PARTS) {
+        blocked = 0;
+        for (idx = BANK_PTR(int *, bank, at->subjParts); *idx != -1; idx++) {
+            subj = AttenPart(bank, *idx);
+            if (subj->flags & PARTS_FLAG_FOG)
+                continue;
+            if (LosHitBlocked(bank, at, eye, subj->pos, &stop)) {
+                blocked = 1;
+                part->flags = (part->flags | PARTS_FLAG_LOS_FADING) & ~PARTS_FLAG_LOS_CLEAR;
+                if (stop)
+                    break;
+            }
+        }
+        if (!blocked)
+            part->flags |= PARTS_FLAG_LOS_CLEAR | PARTS_FLAG_LOS_FADING;
+    }
+}
+
+// CT3 0x01857d10: the line-of-sight fades of the bank's parts (AmbientAlphaUpdate, every frame). The eyes
+// are DistanceAttenuationUpdate's; then a running fade steps and lowers the part's partsPos w.
+void LosHitFadeUpdate(int bank, int a1)
+{
+    // callcheck: asFindModelParts (AttenCharaPart makes it)
+    LOS_FADE *at;
+    MODEL_PARTS *part, *eyePart;
+    ATTEN_CHARA *ch;
+    float eye[4];
+    int *list;
+    int i;
+
+    if (All_table_TBL[bank]->losFade == 0)
+        return;
+    for (at = BANK_PTR(LOS_FADE *, bank, All_table_TBL[bank]->losFade); at->part != -1; at++) {
+        part = AttenPart(bank, at->part);
+        if (at->flags & ATTEN_EYE_CAMERA) {
+            if (at->cuts == 0) {
+                memcpy(eye, (u_char *)&Cam[CAMERA_SHARED] + CAMERA_EYE_POS, sizeof(eye));
+                LosHitFadeUpdateTarget(bank, a1, part, at, eye);
+            } else {
+                for (list = BANK_PTR(int *, bank, at->cuts); *list != -1; list++) {
+                    if (Cam[CAMERA_SHARED].cut == *list) {
+                        memcpy(eye, (u_char *)&Cam[CAMERA_SHARED] + CAMERA_EYE_POS, sizeof(eye));
+                        LosHitFadeUpdateTarget(bank, a1, part, at, eye);
+                    }
+                }
+            }
+        }
+        // ROM bug as in DistanceAttenuationUpdate: no list reads the hash from low EE memory; skipped.
+        if ((at->flags & ATTEN_EYE_CHARA) && at->eyeCharas != 0) {
+            for (ch = BANK_PTR(ATTEN_CHARA *, bank, at->eyeCharas); ch->chara != -1; ch++) {
+                if (!AttenCharaLive(ch->chara))
+                    continue;
+                eyePart = AttenCharaPart(ch->chara, ch->hash);
+                if (eyePart == NULL)
+                    continue;
+                memcpy(eye, eyePart->pos, sizeof(eye));
+                LosHitFadeUpdateTarget(bank, a1, part, at, eye);
+            }
+        }
+        if (at->flags & ATTEN_EYE_PARTS) {
+            if (at->eyeParts == 0) {
+                for (i = 0; (s_char)AttenPart(bank, i)->kind != PARTS_KIND_END; i++) {
+                    eyePart = AttenPart(bank, i);
+                    if ((eyePart->flags & PARTS_FLAG_FOG) == 0) {
+                        memcpy(eye, eyePart->pos, sizeof(eye));
+                        LosHitFadeUpdateTarget(bank, a1, part, at, eye);
+                    }
+                }
+            } else {
+                for (list = BANK_PTR(int *, bank, at->eyeParts); *list != -1; list++) {
+                    eyePart = AttenPart(bank, *list);
+                    if ((eyePart->flags & PARTS_FLAG_FOG) == 0) {
+                        memcpy(eye, eyePart->pos, sizeof(eye));
+                        LosHitFadeUpdateTarget(bank, a1, part, at, eye);
+                    }
+                }
+            }
+        }
+        if (part->flags & PARTS_FLAG_LOS_FADING) {
+            if (part->flags & PARTS_FLAG_LOS_CLEAR) {
+                part->losAlpha += 255.0f / at->frames;
+                if (part->alpha < part->losAlpha) {
+                    part->losAlpha = part->alpha;
+                    part->flags &= ~PARTS_FLAG_LOS_FADING;
+                }
+            } else {
+                part->losAlpha -= 255.0f / at->frames;
+                if (part->losAlpha < -at->floor) {
+                    part->losAlpha = -at->floor;
+                    part->flags &= ~PARTS_FLAG_LOS_FADING;
+                }
+            }
+        }
+        AttenLowerW(bank, at->part, part->losAlpha);
+    }
+}
+
+// CT3 0x018574b0
+void AngleAttenuationAlphaSet(const float *eye, const float *dir, const float *subj, ANGLE_ATTEN *at,
+                              MODEL_PARTS *part)
+{
+    float d[4], len2, q, f;
+    int angle;
+
+    // vsub, then vmulq.xyz by vrsqrt(|d|^2): the VU's 1/sqrt(0) is the largest float, so a subject at
+    // the eye gives (0, 0, 0) and a quarter turn, not a NaN.
+    d[0] = subj[0] - eye[0];
+    d[1] = subj[1] - eye[1];
+    d[2] = subj[2] - eye[2];
+    d[3] = subj[3] - eye[3];
+    len2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+    q = len2 > 0.0f ? 1.0f / sqrtf(len2) : FLT_MAX;
+    d[0] *= q;
+    d[1] *= q;
+    d[2] *= q;
+    angle = ahAcos(gaInnerProductXYZ(d, (float *)dir));
+    f = at->max * ((float)(angle - at->start) / (float)(at->full - at->start));
+    if (f < 0.0f)
+        f = 0.0f;
+    if (at->max < f)
+        f = at->max;
+    part->angleAlpha = -f;
+}
+
+// CT3 0x01857320: the part's fade for one eye and its facing, over the record's subjects.
+void AngleAttenuationTarget(int bank, int a1, MODEL_PARTS *part, ANGLE_ATTEN *at, const float *eye,
+                            const float *dir)
+{
+    // callcheck: asFindModelParts (AttenCharaPart makes it)
+    ATTEN_CHARA *ch;
+    MODEL_PARTS *subj;
+    int *idx;
+
+    (void)a1;
+    if (at->flags & ATTEN_SUBJ_CHARA) {
+        for (ch = BANK_PTR(ATTEN_CHARA *, bank, at->subjCharas); ch->chara != -1; ch++) {
+            if (!AttenCharaLive(ch->chara))
+                continue;
+            subj = AttenCharaPart(ch->chara, ch->hash);
+            if (subj != NULL)
+                AngleAttenuationAlphaSet(eye, dir, subj->pos, at, part);
+        }
+    }
+    if (at->flags & ATTEN_SUBJ_PARTS) {
+        for (idx = BANK_PTR(int *, bank, at->subjParts); *idx != -1; idx++) {
+            subj = AttenPart(bank, *idx);
+            if ((subj->flags & PARTS_FLAG_FOG) == 0)
+                AngleAttenuationAlphaSet(eye, dir, subj->pos, at, part);
+        }
+    }
+}
+
+// The angle fade's eye at a character: its last-frame position, facing row 2 of RotY(its last angle).
+static void AngleAttenCharaEye(int bank, int a1, MODEL_PARTS *part, ANGLE_ATTEN *at, int chara)
+{
+    float eye[4], m[4][4];
+
+    memcpy(eye, &Character[chara].posBefore, sizeof(eye));
+    gaSetRotMatrixY(m, Character[chara].rotBefore);
+    AngleAttenuationTarget(bank, a1, part, at, eye, m[2]);
+}
+
+// The angle fade's eye at the shared camera: its position and front from the view matrix. (The ROM
+// first copies Cam[CAMERA_SHARED] +0xc0 into the position; asViewMatrix2PosRUF overwrites it.)
+static void AngleAttenCameraEye(int bank, int a1, MODEL_PARTS *part, ANGLE_ATTEN *at)
+{
+    float eye[4], front[4];
+
+    memcpy(eye, (u_char *)&Cam[CAMERA_SHARED] + CAMERA_EYE_POS, sizeof(eye));
+    asViewMatrix2PosRUF(&Cam[CAMERA_SHARED].view[0][0], eye, NULL, NULL, front);
+    AngleAttenuationTarget(bank, a1, part, at, eye, front);
+}
+
+// CT3 0x01856f20: the angle fades of the bank's parts (AmbientAlphaUpdate, every frame).
 void AngleAttenuationUpdate(int bank, int a1)
 {
-    ALYSSAPAN_STUB("AngleAttenuationUpdate", 0x01856f20);
+    // callcheck: AngleAttenuationTarget, asViewMatrix2PosRUF, gaSetRotMatrixY (AngleAttenCameraEye and
+    // AngleAttenCharaEye make them)
+    ANGLE_ATTEN *at;
+    MODEL_PARTS *part;
+    ATTEN_CHARA *ch;
+    int *list;
+    int c;
+
+    if (All_table_TBL[bank]->angleAtten == 0)
+        return;
+    for (at = BANK_PTR(ANGLE_ATTEN *, bank, All_table_TBL[bank]->angleAtten); at->part != -1; at++) {
+        part = AttenPart(bank, at->part);
+        if (at->flags & ATTEN_EYE_CAMERA) {
+            if (at->cuts == 0) {
+                AngleAttenCameraEye(bank, a1, part, at);
+            } else {
+                for (list = BANK_PTR(int *, bank, at->cuts); *list != -1; list++) {
+                    if (Cam[CAMERA_SHARED].cut == *list)
+                        AngleAttenCameraEye(bank, a1, part, at);
+                }
+            }
+        }
+        if (at->flags & ATTEN_EYE_CHARA) {
+            if (at->eyeCharas == 0) {
+                for (c = 0; c < CHARACTER_MAX; c++) {
+                    if (AttenCharaLive(c))
+                        AngleAttenCharaEye(bank, a1, part, at, c);
+                }
+            } else {
+                for (ch = BANK_PTR(ATTEN_CHARA *, bank, at->eyeCharas); ch->chara != -1; ch++) {
+                    if (AttenCharaLive(ch->chara))
+                        AngleAttenCharaEye(bank, a1, part, at, ch->chara);
+                }
+            }
+        }
+        AttenLowerW(bank, at->part, part->angleAlpha);
+    }
 }
 
 // CT3 0x01942970 (ClatteringData): the controller rattles (struggles the player shakes free of).
@@ -355,6 +780,12 @@ void ControllerClatteringInit(void)
 int DemoSkipCheckEvent(int event)
 {
     return (u_char)SkipEventFlag[event >> 3] >> (event & 7) & 1;
+}
+
+// CT3 0x01852030: set bit `event` of SkipEventFlag (the demo is seen: from now on it may be skipped).
+void DemoSkipRegisterEvent(int event)
+{
+    SkipEventFlag[event >> 3] |= (u_char)(1 << (event & 7));
 }
 
 // CT3 0x01940e80 (Panicdef) and 0x01940e44 (AdvantageousTimeTime): .sbss beside PanicInfoData.
@@ -2151,6 +2582,13 @@ float asRadianByO(float *v, int axis)
 }
 
 
+// CT3 0x0185dec0
+// The *squared* length: a tail jump to gaInnerProductXYZ(v, v).
+float asVectorLength(const float *v)
+{
+    return gaInnerProductXYZ((float *)v, (float *)v);
+}
+
 // CT3 0x0185ded0
 // The *squared* distance: vsub.xyz, then gaInnerProductXYZ of the difference with itself (no root).
 float asVectorDistance(const float *a, const float *b)
@@ -2163,14 +2601,3 @@ float asVectorDistance(const float *a, const float *b)
     return gaInnerProductXYZ(d, d);
 }
 
-// stub of CT3 0x01857590
-void DistanceAttenuationUpdate(int bank, int a1)
-{
-    ALYSSAPAN_STUB("DistanceAttenuationUpdate", 0x01857590);
-}
-
-// stub of CT3 0x01857d10
-void LosHitFadeUpdate(int bank, int a1)
-{
-    ALYSSAPAN_STUB("LosHitFadeUpdate", 0x01857d10);
-}

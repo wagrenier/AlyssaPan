@@ -112,6 +112,7 @@ u_long ahGetHash(const char *name);                                             
 void CameraMatrix2CameraTrg3m(float *trg);                                              // CT3 0x0185a5e0
 void CameraMatrix2CameraPos(float *pos);                                                 // CT3 0x0185a650
 float asVectorDistance(const float *a, const float *b);                                  // CT3 0x0185ded0
+float asVectorLength(const float *v);                                                     // CT3 0x0185dec0
 void tnInit3dlibWork(void *work, void *spr);                                            // CT3 0x01854560
 int OneMaxObjectDrawZOnly(int bank, int index);                                          // CT3 0x01858f20
 // ---- the game's texture buffers (slice 3, 2026-11-10): sun* are its own copies of the ga library's
@@ -309,6 +310,7 @@ int ControllerClatteringFree(int slot);                                         
 int ControllerClatteringGet(int slot);                                                   // CT3 0x01852f60
 int ControllerClatteringSet(const CLATTERING_SET *set);                                  // CT3 0x01853150
 int DemoSkipCheckEvent(int event);                                                       // CT3 0x01852010
+void DemoSkipRegisterEvent(int event);                                                   // CT3 0x01852030
 
 // Panicdef (0x01940e80, 0x1c bytes): the panic tuning PanicModeInit sets. f00..f0c by offset until
 // PanicUpdate reads them.
@@ -423,6 +425,87 @@ void tnSlideThawing(const u_char *src, u_char *dst);                            
 void decode(const u_char *src, u_char *dst);                                             // CT3 0x0185e6d0
 void tn_putc(u_char *dst, u_char c);                                                     // CT3 0x0185e8b0
 int tn_getc(const u_char *src);                                                          // CT3 0x0185e8d0
+// ---- the distance and angle fades (slice 5, 2026-11-10) -------------------------------------------
+// A bank lists parts that fade by the distance (ALL_TABLE.distAtten) or the angle (.angleAtten) between
+// an eye (the shared camera, live characters, or the bank's own parts: ATTEN_EYE_*) and a subject
+// (parts of live characters, or the bank's own parts: ATTEN_SUBJ_*). For each eye and subject the
+// part's distAlpha / angleAlpha becomes minus max * (v - start) / (full - start), clamped to 0..max
+// (the last pair wins); the part's ALL_TABLE.partsPos w is then lowered to it. The distance is
+// asVectorDistance's, squared; the angle ahAcos's, of the eye's facing and the line to the subject.
+// Every list is relocated bank data (BankEePtr) ended by -1; a 0 word means "all" (cuts: any cut).
+#define ATTEN_EYE_CAMERA 0x1            /* the shared camera (Cam[CAMERA_SHARED]), in the listed cuts */
+#define ATTEN_EYE_CHARA 0x2             /* the listed characters (all live ones if none listed) */
+#define ATTEN_EYE_PARTS 0x4             /* the bank's listed parts (distance only) */
+#define ATTEN_SUBJ_CHARA 0x10000        /* the listed characters' parts (by hash) */
+#define ATTEN_SUBJ_PARTS 0x20000        /* the bank's listed parts */
+#define CAMERA_SHARED 6                 /* Cam[6]: the camera every bank shares */
+#define CAMERA_EYE_POS 0xc0             /* CAMERA: the qword the fades take as the camera's place */
+#define ATTEN_CHARA_LIVE (CHARACTER_FLAG_REFRACTION | CHARACTER_FLAG_SHADOW) /* both bits: a character
+                                           the fades see (the same test as the refraction pass) */
+// A character in an eye or subject list (0x10 bytes).
+typedef struct ATTEN_CHARA {
+    int chara;                          /* 0x00: Character[] index, -1 ends the list */
+    int pad04;
+    u_long hash;                        /* 0x08: the part (asFindModelParts) */
+} ATTEN_CHARA;
+static_assert(sizeof(ATTEN_CHARA) == 0x10, "ATTEN_CHARA");
+// One faded part of ALL_TABLE.distAtten (0x28 bytes, ended by part -1). layout: ee.
+typedef struct DIST_ATTEN {
+    int part;                           /* 0x00: the faded part's index */
+    float full;                         /* 0x04: the squared distance of the full fade (max) */
+    float start;                        /* 0x08: the squared distance the fade starts at (0) */
+    float max;                          /* 0x0c */
+    u_int flags;                        /* 0x10: ATTEN_EYE_* | ATTEN_SUBJ_* */
+    u_int cuts;                         /* 0x14: int[]: Cam[CAMERA_SHARED].cut values, 0 = any */
+    u_int eyeCharas;                    /* 0x18: ATTEN_CHARA[], 0 = every live character (see the code) */
+    u_int eyeParts;                     /* 0x1c: int[] of the bank's parts, 0 = all */
+    u_int subjCharas;                   /* 0x20: ATTEN_CHARA[] */
+    u_int subjParts;                    /* 0x24: int[] of the bank's parts */
+} DIST_ATTEN;
+static_assert(sizeof(DIST_ATTEN) == 0x28, "DIST_ATTEN");
+// One faded part of ALL_TABLE.angleAtten (0x24 bytes, ended by part -1). layout: ee.
+typedef struct ANGLE_ATTEN {
+    int part;                           /* 0x00 */
+    int full;                           /* 0x04: the angle (ahAcos units) of the full fade */
+    int start;                          /* 0x08: the angle the fade starts at */
+    float max;                          /* 0x0c */
+    u_int flags;                        /* 0x10: ATTEN_EYE_CAMERA / _CHARA | ATTEN_SUBJ_* */
+    u_int cuts;                         /* 0x14 */
+    u_int eyeCharas;                    /* 0x18: ATTEN_CHARA[] (only .chara read), 0 = every live one */
+    u_int subjCharas;                   /* 0x1c: ATTEN_CHARA[] */
+    u_int subjParts;                    /* 0x20: int[] */
+} ANGLE_ATTEN;
+static_assert(sizeof(ANGLE_ATTEN) == 0x24, "ANGLE_ATTEN");
+// One faded part of ALL_TABLE.losFade (0x28 bytes, ended by part -1). layout: ee. The part fades out
+// (MODEL_PARTS.losAlpha down to -floor, 255 / frames a frame) while it blocks the line from an eye to a
+// subject (CheckLOS on any drawn scene bank; with LOS_FADE_BY_ID, CheckLOS_Multi on the part's own bank
+// and one of hitIds among the hits), and back in (up to MODEL_PARTS.alpha) when no line is blocked.
+#define LOS_FADE_BY_ID 0x80000000u      /* LOS_FADE.flags: CheckLOS_Multi, hits matched against hitIds */
+#define PARTS_FLAG_LOS_FADING 0x10      /* MODEL_PARTS.flags: the line-of-sight fade runs (cleared at its end) */
+#define PARTS_FLAG_LOS_CLEAR 0x20       /* with _FADING: no line was blocked, fade back in */
+typedef struct LOS_FADE {
+    int part;                           /* 0x00 */
+    float frames;                       /* 0x04: the fade's length (255 / frames a frame) */
+    float floor;                        /* 0x08: losAlpha goes down to -floor */
+    u_int flags;                        /* 0x0c: ATTEN_EYE_* | ATTEN_SUBJ_* | LOS_FADE_BY_ID */
+    u_int hitIds;                       /* 0x10: int[]: the hit records' ids (LOS_HIT_ID) that count */
+    u_int cuts;                         /* 0x14 */
+    u_int eyeCharas;                    /* 0x18: ATTEN_CHARA[] */
+    u_int eyeParts;                     /* 0x1c: int[] */
+    u_int subjCharas;                   /* 0x20: ATTEN_CHARA[] */
+    u_int subjParts;                    /* 0x24: int[] */
+} LOS_FADE;
+static_assert(sizeof(LOS_FADE) == 0x28, "LOS_FADE");
 void LosHitFadeUpdate(int bank, int a1);                                                 // CT3 0x01857d10
+void LosHitFadeUpdateTarget(int bank, int a1, MODEL_PARTS *part, LOS_FADE *at,
+                            const float *eye);                                           // CT3 0x01858370
 void DistanceAttenuationUpdate(int bank, int a1);                                        // CT3 0x01857590
+void DistanceAttenuationTarget(int bank, int a1, MODEL_PARTS *part, DIST_ATTEN *at,
+                               const float *eye);                                        // CT3 0x01857af0
+void DistanceAttenuationAlphaSet(const float *eye, const float *subj, DIST_ATTEN *at,
+                                 MODEL_PARTS *part);                                     // CT3 0x01857c70
 void AngleAttenuationUpdate(int bank, int a1);                                           // CT3 0x01856f20
+void AngleAttenuationTarget(int bank, int a1, MODEL_PARTS *part, ANGLE_ATTEN *at, const float *eye,
+                            const float *dir);                                           // CT3 0x01857320
+void AngleAttenuationAlphaSet(const float *eye, const float *dir, const float *subj, ANGLE_ATTEN *at,
+                              MODEL_PARTS *part);                                        // CT3 0x018574b0

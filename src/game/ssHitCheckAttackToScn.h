@@ -7,3 +7,24 @@
 void ssProcessHit(void);                                                                 // CT3 0x018b1e60
 void ssHitGlobalInit(void);                                                              // CT3 0x018b20e0
 void ssHitInit(int scene);                                                               // CT3 0x018b2070
+
+// ---- line-of-sight tests (from LosHitFadeUpdateTarget's calls, QuatSlerp.c slice 5, 2026-11-10) ----
+// CheckLOS(bank, seg): != 0 when the segment from -> to hits the bank's collision.
+typedef struct LOS_SEG {
+    float from[4];                      /* 0x00: w 1 */
+    float to[4];                        /* 0x10: w 1 */
+} LOS_SEG;
+static_assert(sizeof(LOS_SEG) == 0x20, "LOS_SEG");
+#define LOS_MULTI_MAX 255
+// CheckLOS_Multi(bank, q): != 0 on a hit; fills hits[0..count) with the hit records, whose short at
+// LOS_HIT_ID the caller compares with its own id list. layout: host (the ROM's: 0x420 bytes on the
+// stack, from at 0, to at 0x10, hits at 0x20, count at 0x41c; the hits are pointers).
+typedef struct LOS_MULTI {
+    float from[4];
+    float to[4];
+    void *hits[LOS_MULTI_MAX];
+    u_int count;
+} LOS_MULTI;
+#define LOS_HIT_ID 0x198                /* short: the hit record's id (the faded part's hitIds list) */
+int CheckLOS_Multi(int bank, LOS_MULTI *q);                                              // CT3 0x018aa950
+int CheckLOS(int bank, LOS_SEG *seg);                                                    // CT3 0x018ab180

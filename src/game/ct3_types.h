@@ -283,11 +283,13 @@ typedef struct ALL_TABLE {
                                            its word 0 is the shadow volume's ga draw objects, 0x80 apart,
                                            ended by a 0 kind byte (asDrawShadowVolume) */
     u_int partsLight;                   /* 0x70: float[parts]: TEX_TFX_HIGHLIGHT2 parts' DRAW_OBJ_LIGHT */
-    u_int pad74;
+    u_int losFade;                      /* 0x74: LOS_FADE[] (LosHitFadeUpdate), 0 = none */
     u_int particles2;                   /* 0x78: list of PARTICLE2_ENTRY: main_rtn_Particle2 mode 0 */
     u_int particles2After;              /* 0x7c: the same, mode 1; non-empty -> ExportDrawToTex */
-    u_int pad80[14];
-    u_int fog;                          /* 0xb8: FOG_INFO (scene_init -> FogCtrlAddr, bank types 0 / 1) */
+    u_int distAtten;                    /* 0x80: DIST_ATTEN[] (DistanceAttenuationUpdate), 0 = none */
+    u_int angleAtten;                   /* 0x84: ANGLE_ATTEN[] (AngleAttenuationUpdate), 0 = none */
+    u_int pad88[12];
+    u_int fog;                         /* 0xb8: FOG_INFO (scene_init -> FogCtrlAddr, bank types 0 / 1) */
     u_int behavior;                     /* 0xbc: scene_init -> pBehaviorHeader[bank]; the relocator reads
                                            words to 0xe8: the table's end is not known */
     u_int ctrl;                         /* 0xc0: OBJ_CTRL_TABLE: the scene's controlled parts
@@ -359,8 +361,10 @@ typedef struct MODEL_PARTS {
     u_int flags;                        /* 0x50: PARTS_FLAG_* */
     u_char pad054[0xcc];
     float alpha;                        /* 0x120: the part's alpha: ALL_TABLE.partsPos w at AmbientAlphaInit */
-    u_char pad124[0xc];
-    float pos[4];                       /* 0x130: the part's position (SSGetPositional: a sound source) */
+    float losAlpha;                     /* 0x124: LosHitFadeUpdate's fade */
+    float distAlpha;                    /* 0x128: DistanceAttenuationAlphaSet's: minus the fade, -max..0 */
+    float angleAlpha;                   /* 0x12c: AngleAttenuationAlphaSet's: minus the fade, -max..0 */
+    float pos[4];                      /* 0x130: the part's position (SSGetPositional: a sound source) */
     u_char pad140[0x80];
     float matrix[4][4];                 /* 0x1c0: the part's world matrix (SelfDiscardSceneLoad; ActressMP's) */
     u_char pad200[0xf0];
@@ -372,6 +376,10 @@ typedef struct MODEL_PARTS {
     u_char pad330[0x50];
 } MODEL_PARTS;
 static_assert(offsetof(MODEL_PARTS, alpha) == 0x120, "MODEL_PARTS.alpha");
+static_assert(offsetof(MODEL_PARTS, losAlpha) == 0x124, "MODEL_PARTS.losAlpha");
+static_assert(offsetof(MODEL_PARTS, distAlpha) == 0x128, "MODEL_PARTS.distAlpha");
+static_assert(offsetof(MODEL_PARTS, angleAlpha) == 0x12c, "MODEL_PARTS.angleAlpha");
+static_assert(offsetof(MODEL_PARTS, pos) == 0x130, "MODEL_PARTS.pos");
 static_assert(offsetof(MODEL_PARTS, lightColor) == 0x310, "MODEL_PARTS.lightColor");
 static_assert(offsetof(MODEL_PARTS, lightPos) == 0x320, "MODEL_PARTS.lightPos");
 static_assert(sizeof(MODEL_PARTS) == 0x380, "MODEL_PARTS");

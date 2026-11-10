@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-10 10:18 at commit `c26be49` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-10 10:39 at commit `7e1c762` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **500**; stubs: **201**
+- reconstructed CT3 functions: **510**; stubs: **200**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -55,7 +55,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/CpDivideEECom.c` | 0 | 1 |
 | `src/game/IOPGetFileSize.c` | 0 | 3 |
 | `src/game/LinkMatrixTree.c` | 4 | 0 |
-| `src/game/QuatSlerp.c` | 112 | 20 |
+| `src/game/QuatSlerp.c` | 122 | 17 |
 | `src/game/SdMasterVolumeSetSE.c` | 0 | 34 |
 | `src/game/ahRelocateSunPs2ObjectArry.c` | 93 | 0 |
 | `src/game/ahalloc.c` | 7 | 0 |
@@ -72,7 +72,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/sound.c` | 73 | 0 |
 | `src/game/ssCalcInversMatrix2.c` | 0 | 1 |
 | `src/game/ssGrpPortalCheck.c` | 0 | 11 |
-| `src/game/ssHitCheckAttackToScn.c` | 0 | 3 |
+| `src/game/ssHitCheckAttackToScn.c` | 0 | 5 |
 | `src/game/ssSetTexUVforCubeMap.c` | 0 | 30 |
 | `src/game/tiAvoidObject.c` | 0 | 6 |
 | `src/game/tkXDTrg_GetSceneHash.c` | 0 | 3 |
@@ -83,7 +83,7 @@ Least-named game-code regions (64 KB blocks):
 - 65 TUs: todo 48, partial 2, verify 15, done 3
 - next: **game/QuatSlerp.c** (pinned in the queue)
 - pinned queue: game/QuatSlerp.c
-- partial: `game/QuatSlerp.c` 104/177 -- 15 s smoke run: no fault, shot black (no host draw module takes the packets yet). FILTER_CHANGE_WORK +0x08 is the target, +0x18 the current colour (renamed, mai
+- partial: `game/QuatSlerp.c` 114/177 -- 15 s smoke run: no fault, shot black (no host draw module yet). MODEL_PARTS +0x124/+0x128/+0x12c are losAlpha/distAlpha/angleAlpha; ALL_TABLE +0x74/+0x80/+0x84 
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaInitDrawObject.c` 24/24 -- No ROM caller for the texture three (the game uses its sun* copies in QuatSlerp.c): complete, nothing on screen can show them. Shot black as before: packets go 
 - verify: `ga/gaInitInterrupt.c` 3/3 -- GCC object; wait_vsync_state (data 0x0192e790), ga_main_timer, ga_down_timer defined here. gaWaitVSync takes no argument and returns the CSR FIELD bit; main.c c
@@ -102,6 +102,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-10 10:39 `game/QuatSlerp.c` partial: slice 5: the part fades AmbientAlphaUpdate runs (DistanceAttenuationUpdate, Target, AlphaSet; AngleAttenuationUpdate, Target, AlphaSet; LosHitFadeUpdate and Tar
 - 2026-11-10 10:18 `game/QuatSlerp.c` partial: slice 4: the screen filters (PanicFilter, DemoScreenFilter, XcmdScreenFilter and Skip, SCREEN_FILTER_OBJ packets and draw controls), EventSoundEnd, ssGetBankID 
 - 2026-11-10 09:56 `game/QuatSlerp.c` partial: slice 3: the texture buffers (sunSetupTBufferData, sunBGT_SetLoadGSEnv, sunBGT_LoadGSTexClutData_VIF1, sunBGT_ExecTBufferData_VIF1; SUN_TEX_ATTR, SUN_TBUFFER_DA
 - 2026-11-10 09:37 `game/QuatSlerp.c` partial: slice 2: GetAreaNumber (RoomNameID tables), the controller rattles (Free, Get, Update, Set), DemoSkipCheckEvent, PanicModeInit, QuatSlerp, asMakeRotMatrixByQuar
@@ -109,7 +110,6 @@ Recent sessions:
 - 2026-11-10 08:49 `game/fileio.c` verify: slice 4: Round2ChangeChar, the second-round file swap; the code is complete
 - 2026-11-10 08:35 `game/fileio.c` partial: slice 3: the sorts (CharacterSort, objSort, objSortWithBlurIdx, SortAlphaObjects), SceneEndBankMovie, Round2ChangeSectInfo
 - 2026-11-10 08:10 `game/ahRelocateSunPs2ObjectArry.c` verify: slice 15: ExecuteAnimation's general body (any mix of play, replay and matOnly: time1c shift, key at this frame's ticks, pose write, replay set or blend, the EA
-- 2026-11-10 08:01 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 14: asCheckAnimationFlamePassing_S (time1c pass test, forward / backward / either, character motion behaviour), asShadowEnd (shadow buffer fold, then the 
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
@@ -119,12 +119,12 @@ Recent sessions:
 | `game/wideXcmd_DebugPrint.c` | todo | 0/16/109 | 40.6 | 86 | 12 |
 | `game/ssSetTexUVforCubeMap.c` | todo | 0/30/96 | 35.3 | 84 | 9 |
 | `ga/gaInit3dlib.c` | partial | 2/6/25 | 3.6 | 77 | 6 |
-| `game/QuatSlerp.c` | partial | 104/20/177 | 50.3 | 65 | 7 |
 | `game/asEyeForcusUP2CamMat.c` | todo | 0/9/30 | 23.6 | 57 | 6 |
+| `game/QuatSlerp.c` | partial | 114/17/177 | 50.3 | 47 | 4 |
 | `ga/gaDmaSync_VIF1.c` | todo | 0/3/5 | 0.5 | 39 | 3 |
 | `game/tiAvoidObject.c` | todo | 0/6/82 | 30.5 | 26 | 4 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
-| `game/ssHitCheckAttackToScn.c` | todo | 0/3/37 | 32.0 | 18 | 3 |
+| `game/ssHitCheckAttackToScn.c` | todo | 0/5/37 | 32.0 | 22 | 3 |
 
 ## Frontier (called by reconstructed code, not written yet)
 
@@ -164,10 +164,10 @@ Recent sessions:
 | `018db340` | asXcmd_AddForLockToTargChara | 3 | sym | stub | game/asXcmd.c |
 | `018a7b50` | gaInversMatrix | 3 | sym | stub | ga/gaInit3dlib.c |
 | `018cddd0` | SdStopStream | 3 | sym | stub | game/SdMasterVolumeSetSE.c |
+| `018a6c10` | gaSetRotMatrixY | 3 | sym | stub | ga/gaSinCos.c |
 | `01883ca0` | asMothPause | 3 | sym | stub | game/asMothPause.c |
 | `018870c0` | camera_init0 | 3 | sym | stub | game/asEyeForcusUP2CamMat.c |
 | `01886dc0` | CamChange_S | 3 | sym | stub | game/asEyeForcusUP2CamMat.c |
 | `018a8258` | gaSetLight | 3 | sym | stub | ga/gaInit3dlib.c |
 | `018fe370` | asSetCharacterKeyEnable | 3 | sym | stub | game/wideXcmd_DebugPrint.c |
-| `018881a0` | camera_main | 3 | sym | stub | game/asEyeForcusUP2CamMat.c |
 
