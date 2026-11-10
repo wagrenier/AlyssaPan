@@ -359,7 +359,7 @@ int SSGetPositional(int bank, int objId, int *vol, int *pan, int fromPlayer, int
             return -1;
         }
     }
-    if (BankInfo[bank].count != 1 || BankInfo[bank].loaded == 0) {
+    if (BankInfo[bank].state != 1 || BankInfo[bank].drawOn == 0) {
         return -1;
     }
     parts = (MODEL_PARTS *)pModelPartsHeader[bank];
@@ -979,8 +979,8 @@ void SSBGMProc(void)
     }
 
     // 2. the room's rule
-    if (idCurrentScene > BANK_BOOT_LAST && BankInfo[idCurrentScene].count == 1
-        && BankInfo[idCurrentScene].loaded == 1) {
+    if (idCurrentScene > BANK_BOOT_LAST && BankInfo[idCurrentScene].state == 1
+        && BankInfo[idCurrentScene].drawOn == 1) {
         int sceneChange;
 
         memcpy(&gNowScene, BankInfo[idCurrentScene].name, sizeof gNowScene);
@@ -1565,7 +1565,7 @@ void SceneSELoad(void)
 {
     const char *room;
 
-    if (idCurrentScene <= BANK_BOOT_LAST || BankInfo[idCurrentScene].count == 0) {
+    if (idCurrentScene <= BANK_BOOT_LAST || BankInfo[idCurrentScene].state == 0) {
         return;
     }
     room = BankInfo[idCurrentScene].name;

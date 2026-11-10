@@ -524,12 +524,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 111..111, 2 functions keyed by their statics, 0 unkeyed; file name from the names"
   },
   "game/fileio.c": {
+   "notes": "Written: FSMltLoad and its queue (FQue), status, wait and cancel functions, FSMltInit, FSInit, FS_work_init, FSMltFindBank(Handle), FSMltSetDrawBank, SceneEndBank, FSLoad, FSLoadEnd, FSLoadEndWait, FSLoadCancelQue, FSLoadProc, FileSoundServer(_DontMltLoad), FSFileType, fs_error. BANK_INFO fields renamed from the loader (state, image, drawOn, handle). Next slice: FSMltLoadProc, Extract, ReserveBank, SceneEndBankMovie (no bank loads until then: the shot is black), then the sorts and Round2Change. open-items.md item 1 (bq)-(bu).",
    "ranges": [
     [
      "018c2170",
      "018c7fb0"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-10 02:21",
+     "status": "partial",
+     "summary": "slice 1: the bank queue and table, the FSLoad queue, the file server (32 of 40)"
+    }
+   ],
+   "status": "partial",
    "why": "tumap.py (bootstrap 5): symtab local chunks 118..118, 21 functions keyed by their statics, 19 unkeyed; source string fileio.c"
   },
   "game/hhXcmd_BGM_SE_VOLUME.c": {

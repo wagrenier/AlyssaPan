@@ -225,6 +225,29 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    0x22, E_00 0x2e) and GLBL_BANK_* are named from this TU's use only; (bo) Character_Init(chara, a1, a2)
    (0x018b3a60) is now declared and stubbed in Character_Init.c: TrgCharacterShapeSet passes its own
    fifth then fourth argument; (bp) FogClearColor (main.c) is now shared through main.h.
+   **game/fileio.c (partial, 2026-11-10, slice 1: 32 of 40 functions)** -- the bank queue (FQue[20]:
+   FSMltLoad, FSMltInsertQuePriority, the cancels, IsQueWaiting / FsIsQueExisting, FSMltLoadStatus /
+   _End / _EndWaitFile / _EndWaitAll), the bank table (FSMltInit / FSInit / FS_work_init, the finds,
+   FSMltSetDrawBank, SceneEndBank), the whole-file queue (sPreLoad[6]: FSLoad, FSLoadEnd, FSLoadEndWait,
+   FSLoadCancelQue, FSLoadProc), FileSoundServer(_DontMltLoad), FSFileType, fs_error, DebugBankDisp
+   (architecture.md "The bank loader"). **Left, the next slice: FSMltLoadProc (0x1220 bytes, the
+   blocker: no bank loads, the shot stays black), Extract (its decoder), ReserveBank,
+   SceneEndBankMovie**, then the sorts (CharacterSort, objSort*, SortAlphaObjects) and Round2Change*.
+   Open: (bq) BANK_INFO renamed from the loader's use: +0 `state` (was `count`; BANK_STATE_*, a group's
+   later banks hold their place 2..n), +0x20 `drawOn` (was `loaded`: FSMltSetDrawBank's mode), +0x1c
+   `image` (EE address), +0x24 `handle`; every user was updated. A bank's type is the FS_LOAD_* kind it
+   was loaded as (FSFileType: 0 GLOBAL, 1 SCENE, 2 / 3 PERSONA), so BANK_TYPE_SHADOW is the scene bank,
+   BANK_TYPE_2 the shape bank and BANK_TYPE_NO_ROOM_SOUND the behaviour bank: rename them to
+   BANK_TYPE_SCENE / _SHAPE / _BEHAVIOR in one pass ((j) settled); (br) FSMltInit gives banks 6..85 EE
+   slots 0x00410000 + (i - 6) * 0x40000 -- the first twelve overlap the GLBL heap (EE 0x00400000, 3 MB):
+   FSMltLoadProc / ReserveBank say how the ROM keeps them apart; the host gives the slots their own 20 MB
+   (gBankSlotArea) and fills BankImage / BankImageEE for them; global banks get theirs when
+   FSMltLoadProc allocates them (BankImage[i] from _SunAlloc, which SceneEndBank now frees); (bs)
+   FQUE.work (+0x00..0x0f) is never written by FSMltLoad (stack garbage in the ROM, zeroed on the host):
+   FSMltLoadProc's session names it if it reads it; (bt) BANK_FLAG_SCENE_INIT (flags bit 0: SceneEndBank
+   calls scene_end) is named from that one use -- scene_init probably sets it; (bu) FSMltLoadStatus's
+   answers: main2.c reads "non-zero" as "still loading", but FS_STATUS_LOADED (1) is non-zero too, so
+   main2's waits also run for loaded files (harmless: FSMltLoadEndWaitFile returns at once).
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
    class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~

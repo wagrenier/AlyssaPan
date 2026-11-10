@@ -245,7 +245,7 @@ void main_rtn_GHOST_DOF(int bank, int mode, int chara, int pass, int charaIndex,
             if (chara == 0) {
                 if (tex->kind == TEX_KIND_LIGHT)
                     *light = All_table_TBL[bank]->partsLight[ent->parts];
-            } else if (tex->kind == TEX_KIND_LIGHT && lightBank != -1 && BankInfo[lightBank].loaded == 1) {
+            } else if (tex->kind == TEX_KIND_LIGHT && lightBank != -1 && BankInfo[lightBank].drawOn == 1) {
                 float target = All_table_TBL[lightBank]->light->charaScale * All_table_TBL[bank]->partsLight[ent->parts];
 
                 if (lightFrames == 0.0f)
@@ -363,7 +363,7 @@ void main_rtn_GHOST(int bank, int mode, int chara, u_int flags, int charaIndex, 
             if (chara == 0) {
                 if (tex->kind == TEX_KIND_LIGHT)
                     *light = All_table_TBL[bank]->partsLight[ent->parts];
-            } else if (tex->kind == TEX_KIND_LIGHT && lightBank != -1 && BankInfo[lightBank].loaded == 1) {
+            } else if (tex->kind == TEX_KIND_LIGHT && lightBank != -1 && BankInfo[lightBank].drawOn == 1) {
                 float target = All_table_TBL[lightBank]->light->charaScale * All_table_TBL[bank]->partsLight[ent->parts];
 
                 if (lightFrames == 0.0f)
@@ -690,7 +690,7 @@ void ssHQDOF_DrawAllObject(void)
         asEyeForcusUP2CamMat(screen_0[SCREEN_PROJ], matrix_global_view, eye, focusPos, up);
 
         for (k = 0; k < BANK_MAX; k++) {
-            if (BankInfo[k].loaded != 0 && BankInfo[k].type == BANK_TYPE_SHADOW)
+            if (BankInfo[k].drawOn != 0 && BankInfo[k].type == BANK_TYPE_SHADOW)
                 asBuildDOFMatrixTree(pModelPartsHeader[k]);
             if (BankInfo[k].groupCount != 0)
                 k += BankInfo[k].groupCount - 1;
@@ -732,15 +732,15 @@ void CaptureReflectMap(void)
 // A bank AllDrawObject's scene passes draw: loaded, of BANK_TYPE_SHADOW (open-items.md item 1 (j)).
 static int AllDrawSceneBank(int bank)
 {
-    return BankInfo[bank].loaded != 0 && BankInfo[bank].type == BANK_TYPE_SHADOW;
+    return BankInfo[bank].drawOn != 0 && BankInfo[bank].type == BANK_TYPE_SHADOW;
 }
 
-// A character's light bank is loaded. The ROM reads BankInfo[lightBank].loaded without testing
+// A character's light bank is loaded. The ROM reads BankInfo[lightBank].drawOn without testing
 // lightBank >= 0 in the opaque and translucent passes (BankInfo[-1] is the memory before the table); the
 // port treats -1 as not loaded (hazards.md "AlyssaPan").
 static int AllDrawLightBankLoaded(short lightBank)
 {
-    return lightBank >= 0 && BankInfo[lightBank].loaded != 0;
+    return lightBank >= 0 && BankInfo[lightBank].drawOn != 0;
 }
 
 // One of AllDrawObject's lists of a bank: main_rtn_DOF in the depth-of-field slices, main_rtn otherwise.
@@ -983,11 +983,11 @@ void GlobalDrawObject(void)
 
     Clipping_System = 0;
     for (i = 0; i < BANK_SCENE_MAX; i++) {
-        if (BankInfo[i].loaded != 0 && (BankInfo[i].flags & BANK_FLAG_DRAW_FIRST))
+        if (BankInfo[i].drawOn != 0 && (BankInfo[i].flags & BANK_FLAG_DRAW_FIRST))
             GlobalDrawBank(i, &exported, &lastTex);
     }
     for (i = 0; i < BANK_SCENE_MAX; i++) {
-        if (BankInfo[i].loaded != 0 && !(BankInfo[i].flags & BANK_FLAG_DRAW_FIRST))
+        if (BankInfo[i].drawOn != 0 && !(BankInfo[i].flags & BANK_FLAG_DRAW_FIRST))
             GlobalDrawBank(i, &exported, &lastTex);
     }
     asChangeViewMatrix_forTheBank(BANK_SCENE_MAX);
@@ -1263,7 +1263,7 @@ void main_rtn(int bank, int mode, int chara, u_int flags, int charaIndex, void *
             if (chara == 0) {
                 if (tex->kind == TEX_KIND_LIGHT)
                     *light = All_table_TBL[bank]->partsLight[ent->parts];
-            } else if (tex->kind == TEX_KIND_LIGHT && lightBank != -1 && BankInfo[lightBank].loaded == 1) {
+            } else if (tex->kind == TEX_KIND_LIGHT && lightBank != -1 && BankInfo[lightBank].drawOn == 1) {
                 float target = All_table_TBL[lightBank]->light->charaScale * All_table_TBL[bank]->partsLight[ent->parts];
 
                 if (lightFrames == 0.0f)
@@ -1335,7 +1335,7 @@ void DrawObjectRefraction(int mode)
     short c;
 
     for (i = BANK_SCENE_MAX; i < BANK_MAX; i++) {
-        if (BankInfo[i].loaded != 0 && BankInfo[i].type == BANK_TYPE_SHADOW)
+        if (BankInfo[i].drawOn != 0 && BankInfo[i].type == BANK_TYPE_SHADOW)
             RefractionDrawBank(i, 0, mode, 0, &exported, &lastTex);
         if (BankInfo[i].groupCount != 0)
             i += BankInfo[i].groupCount - 1;
@@ -1454,7 +1454,7 @@ void main_rtn_DOF(int bank, int mode, int chara, int pass, int charaIndex, void 
             if (chara == 0) {
                 if (tex->kind == TEX_KIND_LIGHT)
                     *light = All_table_TBL[bank]->partsLight[ent->parts];
-            } else if (tex->kind == TEX_KIND_LIGHT && lightBank != -1 && BankInfo[lightBank].loaded == 1) {
+            } else if (tex->kind == TEX_KIND_LIGHT && lightBank != -1 && BankInfo[lightBank].drawOn == 1) {
                 float target = All_table_TBL[lightBank]->light->charaScale * All_table_TBL[bank]->partsLight[ent->parts];
 
                 if (lightFrames == 0.0f)
@@ -1920,9 +1920,9 @@ int main(int argc, char **argv)
             // ---- animation and shadows ---------------------------------------------------------
             asUpDateGAobjectsAnimation();
             for (i = 0; i < BANK_MAX; i++) {
-                if (BankInfo[i].loaded != 0 && BankInfo[i].type == BANK_TYPE_SHADOW)
+                if (BankInfo[i].drawOn != 0 && BankInfo[i].type == BANK_TYPE_SHADOW)
                     asShadowPolygonPositions(i);
-                if (BankInfo[i].count > 0)
+                if (BankInfo[i].state > 0)
                     i += BankInfo[i].groupCount - 1;
             }
             for (c = 0; c < CHARACTER_MAX; c++) {
@@ -2241,7 +2241,7 @@ int main(int argc, char **argv)
         main_rtn_id = 0;
         CharacterAllFree();
         for (i = 0; i < BANK_MAX; i++)
-            BankInfo[i].loaded = 0;
+            BankInfo[i].drawOn = 0;
         SceneEndBank(0, BANK_MAX);
         system_end();
         CheckAllocNum0(&gHeapJunc);

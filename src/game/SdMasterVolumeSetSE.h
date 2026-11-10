@@ -106,6 +106,7 @@ extern PLAY_SE_SP1 gPlaySESp1[PLAY_SE_SP1_COUNT]; /* bss 0x019436d0 */
 extern char gPlayADS[0x90];                       /* bss 0x019437f0: the playing ADS stream, its name first */
 
 void SdMasterVolumeSetSE(int vol);                                                       // CT3 0x018cbf90
+void SdProc(void);                                                                       // CT3 0x018d1390 (FileSoundServer, once a frame)
 void SdStopSEAll(void);                                                                  // CT3 0x018cbfe0
 void SdStopSESDT(int jls, int a1, int a2);                                               // CT3 0x018cc040
 void SdStopSE(int handle);                                                               // CT3 0x018cc0f0

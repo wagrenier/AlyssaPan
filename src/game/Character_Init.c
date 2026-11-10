@@ -208,7 +208,7 @@ static void LightOmniOverride(GA_LIGHT_WORK *lw, u_short *pair, int i)
 {
     short bank = (short)pair[0];
 
-    if (bank == LIGHT_NONE || BankInfo[bank].loaded != 1) {
+    if (bank == LIGHT_NONE || BankInfo[bank].drawOn != 1) {
         pair[0] = 0xffff;
         pair[1] = 0xffff;
     } else {
@@ -2760,7 +2760,7 @@ void mc_load_set(void)
         }
     }
     for (i = BANK_SCENE_MAX; i < BANK_MAX; i++) {
-        if (BankInfo[i].loaded == 1) {
+        if (BankInfo[i].drawOn == 1) {
             if (BankInfo[i].type == BANK_TYPE_NO_ROOM_SOUND) {
                 FSMltSetDrawBank(i, BankInfo[i].name, 0);
             } else if (BankInfo[i].type == BANK_TYPE_2) {
@@ -2768,11 +2768,11 @@ void mc_load_set(void)
             } else if (BankInfo[i].type == BANK_TYPE_SHADOW) {
                 TrgSceneDraw(0, 0, 0, BankInfo[i].name, i);
             }
-            BankInfo[i].count = 0;
+            BankInfo[i].state = 0;
         }
     }
     for (i = 0; i < BANK_MAX; i++) {
-        BankInfo[i].loaded = 0;
+        BankInfo[i].drawOn = 0;
     }
     SceneEndBank(0, BANK_MAX);
     system_init();
@@ -2879,20 +2879,20 @@ void data_load_set(u_char *data)
     }
 
     // The global banks: end what is loaded, then load and draw them again.
-    if (BankInfo[MC_GLBL_BANK_GAME].loaded != 0) {
+    if (BankInfo[MC_GLBL_BANK_GAME].drawOn != 0) {
         strcpy(glblName, BankInfo[MC_GLBL_BANK_GAME].name);
         glblName[4] = '\0';
         TrgGLBLSceneDraw(0, glblName, MC_GLBL_BANK_GAME);
     }
-    if (BankInfo[MC_GLBL_BANK_INFO].loaded != 0) {
+    if (BankInfo[MC_GLBL_BANK_INFO].drawOn != 0) {
         TrgGLBLSceneDraw(0, s_glblInfo, MC_GLBL_BANK_INFO);
         SceneEndBank(MC_GLBL_BANK_INFO, 1);
     }
-    if (BankInfo[MC_GLBL_BANK_E_GL].loaded != 0) {
+    if (BankInfo[MC_GLBL_BANK_E_GL].drawOn != 0) {
         TrgGLBLSceneDraw(0, s_glblEGl, MC_GLBL_BANK_E_GL);
         SceneEndBank(MC_GLBL_BANK_E_GL, 1);
     }
-    if (BankInfo[MC_GLBL_BANK_0MH0].loaded != 0) {
+    if (BankInfo[MC_GLBL_BANK_0MH0].drawOn != 0) {
         TrgGLBLSceneDraw(0, s_glblOmh0, MC_GLBL_BANK_0MH0);
         SceneEndBank(MC_GLBL_BANK_0MH0, 1);
     }
@@ -3031,7 +3031,7 @@ static void mc_save_bank_record(MC_SAVE_RECORD *rec, int bank)
     rec->chara = -1;
     strcpy(rec->name, BankInfo[bank].name);
     rec->type = BankInfo[bank].type;
-    rec->loaded = BankInfo[bank].loaded;
+    rec->loaded = BankInfo[bank].drawOn;
 }
 
 // CT3 0x018b9ee0: keep the game's state as a save image (mc_save_set: the card's; ContinueBackupSet: the
@@ -3066,7 +3066,7 @@ void data_save_set(u_char *data)
     memcpy(save->globalVariable, GlobalVariable, sizeof(save->globalVariable));
 
     count = 0;
-    if (BankInfo[MC_SAVE_GLOBAL_BANK].count > 0) {
+    if (BankInfo[MC_SAVE_GLOBAL_BANK].state > 0) {
         rec = &save->banks[0];
         mc_save_bank_record(rec, MC_SAVE_GLOBAL_BANK);
         memcpy(rec->pos, ((MODEL_PARTS *)pModelPartsHeader[MC_SAVE_GLOBAL_BANK])->drawOnPos, sizeof(rec->pos));
@@ -3074,7 +3074,7 @@ void data_save_set(u_char *data)
     }
     // The ROM does not bound count by MC_SAVE_RECORD_MAX (no more than 35 groups are ever loaded).
     for (i = MC_SAVE_BANK_FIRST; i < BANK_MAX; i++) {
-        if (BankInfo[i].count > 0) {
+        if (BankInfo[i].state > 0) {
             rec = save->banks + count;
             mc_save_bank_record(rec, i);
             if (rec->type == MC_BANK_BEHAVIOR || rec->type == MC_BANK_SHAPE) {

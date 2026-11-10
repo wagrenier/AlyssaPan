@@ -59,7 +59,7 @@ typedef struct MC_SAVE_RECORD {
     int chara;                          /* 0x14: types 2 / 3: BankID_TO_CharID, else -1 */
     char name[16];                      /* 0x18: BankInfo.name */
     int type;                           /* 0x28: BankInfo.type (MC_BANK_*) */
-    int loaded;                         /* 0x2c: BankInfo.loaded (1: drawn / set again on a load) */
+    int loaded;                         /* 0x2c: BankInfo.drawOn (1: drawn / set again on a load) */
 } MC_SAVE_RECORD;
 static_assert(sizeof(MC_SAVE_RECORD) == 0x30, "MC_SAVE_RECORD");
 static_assert(offsetof(MC_SAVE_RECORD, id) == 0x10, "MC_SAVE_RECORD.id");

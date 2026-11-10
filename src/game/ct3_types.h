@@ -109,28 +109,35 @@ static_assert(offsetof(CAMERA, focus) == 0x0f0, "CAMERA.focus");
 
 #define CAMERA_MAX 7                    /* Cam[]: 3136 bytes in the symtab */
 
-// One loaded bank of BankInfo[86] (0x01aea360, 0x90 bytes each). A bank heading a group of banks has
-// count > 0: the loops over BankInfo skip the rest of the group.
+// One bank of BankInfo[86] (0x01aea360, 0x90 bytes each; fileio.c owns it, fileio.h has its states).
+// A file larger than one slot takes a group of banks: the head is BANK_STATE_LOADED, the loops over
+// BankInfo skip the rest of the group with groupCount. (fileio.c slice 1, 2026-11-10: state was
+// `count`, drawOn `loaded`.)
 typedef struct BANK_INFO {
-    int count;                          /* 0x00: > 0: banks in this group (this one included) */
-    int groupCount;                     /* 0x04: added to the index (minus one) to skip the group */
+    int state;                          /* 0x00: BANK_STATE_* (fileio.h); a group's later banks: their place */
+    int groupCount;                     /* 0x04: banks in the group (added to the index, minus one, to skip it) */
     char name[16];                      /* 0x08: the bank's file ("GAME.BIN", "MENU.BIN", ...) */
-    int type;                           /* 0x18: BANK_TYPE_* */
-    u_char pad1c[4];
-    int loaded;                         /* 0x20: non-zero while the bank is in memory */
-    u_char pad24[4];
+    int type;                           /* 0x18: BANK_TYPE_* = the FS_LOAD_* kind it was loaded as */
+    u_int image;                        /* 0x1c: the EE address of its memory (host: BankImage[]) */
+    int drawOn;                         /* 0x20: FSMltSetDrawBank's mode (DRAW_BANK_ON: drawn) */
+    int handle;                         /* 0x24: the FSMltLoad handle that loaded it */
     u_int flags;                        /* 0x28: BANK_FLAG_* */
     u_char pad2c[0x64];
 } BANK_INFO;
 static_assert(sizeof(BANK_INFO) == 0x90, "BANK_INFO");
 static_assert(offsetof(BANK_INFO, name) == 0x08, "BANK_INFO.name");
 static_assert(offsetof(BANK_INFO, type) == 0x18, "BANK_INFO.type");
-static_assert(offsetof(BANK_INFO, loaded) == 0x20, "BANK_INFO.loaded");
+static_assert(offsetof(BANK_INFO, image) == 0x1c, "BANK_INFO.image");
+static_assert(offsetof(BANK_INFO, drawOn) == 0x20, "BANK_INFO.drawOn");
+static_assert(offsetof(BANK_INFO, handle) == 0x24, "BANK_INFO.handle");
 static_assert(offsetof(BANK_INFO, flags) == 0x28, "BANK_INFO.flags");
 
 #define BANK_MAX 86                     /* 0x56: BankInfo[], the per-scene tables (FogCtrlAddr, ...) */
 #define BANK_TYPE_SHADOW 1              /* main: banks of this type cast shadow polygons; scene_init:
-                                           their fog colour clears the frame (a stage bank?) */
+                                           their fog colour clears the frame. fileio.c (2026-11-10): a
+                                           bank's type is the FS_LOAD_* kind it was loaded as, so 1 is
+                                           FS_LOAD_SCENE, the scene bank (rename when its users are next
+                                           touched) */
 #define BANK_TYPE_0 0                   /* scene_init: takes the table's fog record, like type 1 */
 #define BANK_SCENE_MAX 6                /* asCheckBankID: banks 0..5 have their own view matrix, the
                                            rest share bank 6's; GlobalDrawObject draws banks 0..5 */

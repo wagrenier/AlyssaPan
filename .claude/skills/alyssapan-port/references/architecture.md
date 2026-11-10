@@ -340,6 +340,26 @@ brings E_00 (0x2e). The self-discard queue (5 x 0xc0 at 0x01942580) swaps a scen
 queued, the old bank undrawn and ended, the new one loaded, then drawn at the saved place with
 `SkipMain = 4`.
 
+## The bank loader, game/fileio.c (2026-11-10, slice 1)
+
+- **BankInfo[86]** (0x01aea360, 0x90 each): +0 state (0 free, 1 loaded = a group's head, -1 loading, a
+  group's later banks their place 2..n), +4 groupCount, +8 name, +0x18 type = the FS_LOAD_* kind,
+  +0x1c the bank's EE memory, +0x20 drawOn, +0x24 the FSMltLoad handle, +0x28 flags (bit 0: scene set
+  up, SceneEndBank calls scene_end). Banks 0..5 are global: their memory comes from the GLBL heap and
+  goes back to it in SceneEndBank; banks 6..85 are fixed 256 KB slots from EE 0x00410000 (FSMltInit),
+  a file larger than a slot taking a group. Files live in DATA/GLOBAL/ (kind 0), DATA/SCENE/ (1) and
+  DATA/PERSONA/ (2 shapes, 3 behaviours) -- FSFileType.
+- **FQue[20]** (0x01c833c0, 0x40 each: +0x10 name, +0x30 kind, +0x34 bank, +0x38 count, +0x3c handle):
+  row 0 is the file in flight. FSMltLoad drops queued requests whose banks overlap the new one, then
+  appends it; a global request goes after the other global ones (FSMltInsertQuePriority). Handles come
+  from gHandleCounter, the file layer's counter (ArtoolDebugOpen.c).
+- **Waiting** (FSMltLoadEndWaitFile, FSLoadEndWait) runs FileSoundServer and sceGsSyncV in a loop and
+  puts ga_main_timer back afterwards: a load does not count as game time.
+- **sPreLoad[6]** (0x01942b80): FSLoad's whole-file queue, independent of the banks: FSLoadProc reads
+  all but the last sector straight into the caller's buffer and the last one into BufLastSector
+  (0x01c643c0), copying only the file's bytes.
+- **FileSoundServer**, once a frame: FlProc, FSMltLoadProc, FSLoadProc, SdProc, SSProc.
+
 ## The IOP side (2026-11-09)
 
 The EE loads `cdrom0:\IOP\IOPRP255.IMG;1` (an IOP reboot), then `SIO2MAN`, `PADMAN`, `MCMAN`, `MCSERV`,

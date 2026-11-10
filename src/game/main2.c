@@ -416,10 +416,10 @@ void SelfDiscardSceneLoadUpdate(void)
 
                 memcpy(cur, old->name, 4);
                 cur[4] = 0;
-                if (old->count < 0) {
+                if (old->state < 0) {
                     printf("*************************************\n");
                     printf("Warning!! SelfDiscard : BANK(%d)\n", rec->bank);
-                    printf("             Use Flag : %d\n", old->count);
+                    printf("             Use Flag : %d\n", old->state);
                     printf("           Draw Scene : %s\n", cur);
                     printf("        Loading Scene : %s\n", old->name);
                     printf("*************************************\n");

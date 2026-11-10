@@ -212,3 +212,9 @@ void IopLoadCapcomSound(const char *device)
 {
     ALYSSAPAN_STUB("IopLoadCapcomSound", 0x018d1860);
 }
+
+// stub of CT3 0x018d1390
+void SdProc(void)
+{
+    ALYSSAPAN_STUB("SdProc", 0x018d1390);
+}

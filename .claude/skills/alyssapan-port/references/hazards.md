@@ -7,6 +7,15 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-10, game/fileio.c) **A field named from its readers can be the wrong field.** BANK_INFO +0
+  was `count` and +0x20 `loaded` from main.c's reads; the loader shows +0 is the load state (1 loaded,
+  -1 loading, a group member's place) and +0x20 FSMltSetDrawBank's draw flag. Name a struct's fields
+  in the TU that writes them; until then, keep the comment to what the reader does.
+- (2026-11-10, game/fileio.c) **ROM slips that write past an array are not kept.** FSLoadCancelQue moves
+  (idx + 1) rows instead of (5 - idx): for idx >= 3 its memcpy runs past sPreLoad into the sbss behind
+  it (mipsdis.py 018c3a80 018c3b10: a2 = 0x150 - (5 - idx) * 0x38). The port moves only the rows
+  behind, with a comment; keep harmless slips, fix the ones that corrupt memory, and say which.
+
 - (2026-11-10, game/main2.c) **symtab values are decimal in `symtab.entries()`**: matUnit is 26451520 =
   0x01939e40, not 0x01939c40 (a slip in mental hex conversion put it on a code-pointer table). Print
   `hex(e['value'])`, and read the bytes in Ghidra before writing an initial value.
