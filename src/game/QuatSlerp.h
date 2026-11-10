@@ -262,9 +262,14 @@ void RoomInFlagOn(void);                                                        
 #define REC_OMNI_RANGE 0x38             /* float: the range it goes to */
 #define REC_OMNI_INV_RANGE 0x2ec        /* float: 1 / the current range */
 #define PARTS_KIND_END -1               /* MODEL_PARTS.kind (s_char) of the record after the last */
-typedef struct SCENE_ALPHA_ANIM {       /* 0x14 bytes: AmbientAlphaInit zeroes it, AmbientAlphaUpdate reads */
-    int w[5];
+// A bank's ambient animation (0x14 bytes: AmbientAlphaInit zeroes it, AmbientAlphaUpdate runs it): every
+// part's ALL_TABLE.partsPos xyz moves 1/steps of the way to target each frame (at steps 0: set to it).
+typedef struct SCENE_ALPHA_ANIM {
+    int on;                             /* 0x00: != 0: the animation runs */
+    int steps;                          /* 0x04: frames left (counts down) */
+    float target[3];                    /* 0x08: the xyz it goes to (the ROM packs the words as they are) */
 } SCENE_ALPHA_ANIM;
+static_assert(offsetof(SCENE_ALPHA_ANIM, target) == 0x08, "SCENE_ALPHA_ANIM.target");
 static_assert(sizeof(SCENE_ALPHA_ANIM) == 0x14, "SCENE_ALPHA_ANIM");
 extern SCENE_ALPHA_ANIM scene_alpha_anim[BANK_MAX];                                      // CT3 0x01a4b900
 // A controller rattle (a struggle: the player shakes the sticks or presses buttons until a count is
@@ -305,16 +310,16 @@ int ControllerClatteringGet(int slot);                                          
 int ControllerClatteringSet(const CLATTERING_SET *set);                                  // CT3 0x01853150
 int DemoSkipCheckEvent(int event);                                                       // CT3 0x01852010
 
-// Panicdef (0x01940e80, 0x1c bytes): the panic tuning PanicModeInit sets. Fields by offset until the
-// panic TU (PanicUpdate) reads them.
+// Panicdef (0x01940e80, 0x1c bytes): the panic tuning PanicModeInit sets. f00..f0c by offset until
+// PanicUpdate reads them.
 typedef struct PANIC_DEF {
     float f00;                          /* 3.5 */
     float f04;                          /* 8.0 */
     float beatFrom;                     /* 0x08: 5000.0: the gauge where PanicSound's heartbeat starts */
     float f0c;                          /* 2.0 */
-    int w10;                            /* 30 */
-    int w14;                            /* 4 */
-    int w18;                            /* 8 */
+    int filterMax;                      /* 0x10: 30: PanicFilter's vignette alpha at its top */
+    int filterUp;                       /* 0x14: 4: added each frame while PANIC_MODE_FULL */
+    int filterDown;                     /* 0x18: 8: taken each frame otherwise */
 } PANIC_DEF;
 static_assert(sizeof(PANIC_DEF) == 0x1c, "PANIC_DEF");
 extern PANIC_DEF Panicdef;                                                               // CT3 0x01940e80
@@ -371,3 +376,53 @@ int PanicCheck(void);                                                           
 #define AREA_STAGE3_HOME 52             /* stage 3 (TRIG_VAR_STAGE): 0A11 / 0A10 / 0A01 */
 #define AREA_STAGE4_0A16 47             /* stage 4: 0A16 */
 extern CLATTERING ClatteringData[CLATTERING_MAX];                                        // CT3 0x01942970
+
+// ---- the screen filters (slice 4) -----------------------------------------------------------------
+// A screen filter's packet (ScreenFilterObj, XcmdScreenFilterObj, DemoScreenFilterObj: 0xa0 bytes of
+// sdata, the same bytes each): DMAtag cnt 9, DIRECT 8, a GIFtag (REGLIST, 14 registers: PRIM, then
+// RGBAQ / XYZ2 pairs, XYZ3) and a TRIFAN over the 512x448 frame (GS 0x8000..0xa000, 0x8000..0x9c00)
+// from its centre. The filters write only the RGBAQs.
+#define SCREEN_FILTER_VERTICES 6
+typedef struct SCREEN_FILTER_VTX {
+    u_long rgbaq;
+    u_long xyz2;
+} SCREEN_FILTER_VTX;
+static_assert(sizeof(SCREEN_FILTER_VTX) == 0x10, "SCREEN_FILTER_VTX");
+typedef struct SCREEN_FILTER_OBJ {
+    u_char head[0x38];                  /* 0x00: DMAtag, VIF codes, GIFtag, PRIM (TRIFAN) */
+    SCREEN_FILTER_VTX vtx[SCREEN_FILTER_VERTICES]; /* 0x38: the centre, then the corners round to the first */
+    u_long xyz3;                        /* 0x98: the centre again, no kick */
+} SCREEN_FILTER_OBJ;
+static_assert(sizeof(SCREEN_FILTER_OBJ) == 0xa0, "SCREEN_FILTER_OBJ");
+static_assert(offsetof(SCREEN_FILTER_OBJ, vtx) == 0x38, "SCREEN_FILTER_OBJ.vtx");
+#define SCREEN_FILTER_RGBAQ_INIT 0x3f800000ff208080ull
+#define SCREEN_FILTER_OBJ_INIT {                                                                      \
+    {0x09, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, \
+     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x50, \
+     0x01, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0xe4, 0x10, 0x15, 0x15, 0x15, 0x15, 0x15, 0xd5, 0x00, \
+     0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},                                               \
+    {{0x3f80000000208080ull, 0x8e009000ull},                                                        \
+     {SCREEN_FILTER_RGBAQ_INIT, 0x80008000ull},                                                     \
+     {SCREEN_FILTER_RGBAQ_INIT, 0x8000a000ull},                                                     \
+     {SCREEN_FILTER_RGBAQ_INIT, 0x9c00a000ull},                                                     \
+     {SCREEN_FILTER_RGBAQ_INIT, 0x9c008000ull},                                                     \
+     {SCREEN_FILTER_RGBAQ_INIT, 0x80008000ull}},                                                    \
+    0x8e009000ull}
+void DemoScreenFilter(void);                                                             // CT3 0x01858950
+
+// ---- banks by name, the slide decoder (slice 4) ---------------------------------------------------
+int ssGetBankID(const char *name);                                                       // CT3 0x0185c190
+int ssStrCmp4Byte(const char *a, const char *b);                                         // CT3 0x0185c220
+// A slide file is LZSS (Okumura's: a 4096-byte ring, 18-byte matches, threshold 2) after an 8-byte
+// header whose first word is the file's size: decoding stops at that byte.
+#define SLIDE_RING_SIZE 4096
+#define SLIDE_MATCH_MAX 18
+#define SLIDE_THRESHOLD 2
+#define SLIDE_HEADER_SIZE 8
+void tnSlideThawing(const u_char *src, u_char *dst);                                     // CT3 0x0185e6a0
+void decode(const u_char *src, u_char *dst);                                             // CT3 0x0185e6d0
+void tn_putc(u_char *dst, u_char c);                                                     // CT3 0x0185e8b0
+int tn_getc(const u_char *src);                                                          // CT3 0x0185e8d0
+void LosHitFadeUpdate(int bank, int a1);                                                 // CT3 0x01857d10
+void DistanceAttenuationUpdate(int bank, int a1);                                        // CT3 0x01857590
+void AngleAttenuationUpdate(int bank, int a1);                                           // CT3 0x01856f20

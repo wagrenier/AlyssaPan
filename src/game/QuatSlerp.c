@@ -199,10 +199,58 @@ void asZipFloat0_7_9X2Float(float *out, const u_short *in)
 
 // ---- stubs (tools/reverse/stubgen.py) ----
 
-// stub of CT3 0x01856c30
+// CT3 0x01856c30: each drawn bank (a group counted once; BANK_TYPE_NO_ROOM_SOUND banks left out) runs
+// its ambient animation over its parts' partsPos, copies each part's alpha into partsPos w, then the
+// line-of-sight, distance and angle fades.
 void AmbientAlphaUpdate(void)
 {
-    ALYSSAPAN_STUB("AmbientAlphaUpdate", 0x01856c30);
+    int bank, i;
+    MODEL_PARTS *part;
+    SCENE_ALPHA_ANIM *anim;
+    float (*partsPos)[4];
+    float q;
+
+    for (bank = 0; bank < BANK_MAX; bank++) {
+        if (BankInfo[bank].state <= 0)
+            continue;
+        if (BankInfo[bank].drawOn == 0 || BankInfo[bank].type == BANK_TYPE_NO_ROOM_SOUND) {
+            if (BankInfo[bank].state != 0)
+                bank += BankInfo[bank].groupCount - 1;
+            continue;
+        }
+        anim = &scene_alpha_anim[bank];
+        partsPos = BANK_PTR(float (*)[4], bank, All_table_TBL[bank]->partsPos);
+        for (i = 0, part = (MODEL_PARTS *)pModelPartsHeader[bank]; (s_char)part->kind != PARTS_KIND_END;
+             i++, part = (MODEL_PARTS *)((u_char *)part + PARTS_REC_SIZE)) {
+            if (anim->on != 0) {
+                if (anim->steps == 0) {
+                    partsPos[i][0] = anim->target[0];
+                    partsPos[i][1] = anim->target[1];
+                    partsPos[i][2] = anim->target[2];
+                } else {
+                    q = 1.0f / (float)anim->steps;
+                    partsPos[i][0] += (anim->target[0] - partsPos[i][0]) * q;
+                    partsPos[i][1] += (anim->target[1] - partsPos[i][1]) * q;
+                    partsPos[i][2] += (anim->target[2] - partsPos[i][2]) * q;
+                }
+            }
+            partsPos[i][3] = part->alpha;
+        }
+        if (anim->steps != 0)
+            anim->steps--;
+        LosHitFadeUpdate(bank, 0);
+        DistanceAttenuationUpdate(bank, 0);
+        AngleAttenuationUpdate(bank, 0);
+        if (BankInfo[bank].state != 0)
+            bank += BankInfo[bank].groupCount - 1;
+    }
+}
+
+// stub of CT3 0x01856f20 (next slice: the angle fade; AngleAttenuationTarget, ALL_TABLE +0x84's
+// 0x24-byte records, Character[] +0x48 / +0x70 / +0xa8)
+void AngleAttenuationUpdate(int bank, int a1)
+{
+    ALYSSAPAN_STUB("AngleAttenuationUpdate", 0x01856f20);
 }
 
 // CT3 0x01942970 (ClatteringData): the controller rattles (struggles the player shakes free of).
@@ -325,10 +373,130 @@ void MonsterAIUpdate(int mode)
     ALYSSAPAN_STUB("MonsterAIUpdate", 0x01854d60);
 }
 
-// stub of CT3 0x01853620
+// ---- the screen filters (slice 4, 2026-11-10) ----------------------------------------------------
+// Each filter is a full-screen fan of one colour (SCREEN_FILTER_OBJ, the ROM's sdata packets) drawn
+// over the frame with its own draw control. The panic vignette's centre vertex keeps its own colour.
+static SCREEN_FILTER_OBJ ScreenFilterObj = SCREEN_FILTER_OBJ_INIT;          /* sdata 0x01937f00 */
+static SCREEN_FILTER_OBJ XcmdScreenFilterObj = SCREEN_FILTER_OBJ_INIT;      /* sdata 0x01937fa0 */
+static SCREEN_FILTER_OBJ DemoScreenFilterObj = SCREEN_FILTER_OBJ_INIT;      /* sdata 0x01938040 */
+alignas(16) static GA_DRAWCTRL_DATA DemoScreenFilterDrawCtrl;               /* bss 0x0193cb80 */
+alignas(16) static GA_DRAWCTRL_DATA XcmdScreenFilterDrawCtrl;               /* bss 0x0193cc40 */
+alignas(16) static GA_DRAWCTRL_DATA ScreenFilterDrawCtrl;                   /* bss 0x0193cd00 */
+
+// The filters' draw controls (gaSetupDrawCtrlData's 29 argument slots, from the disassembly at
+// 0x01853680 / 0x01858cd4 / 0x01858d68): untextured Gouraud, alpha blended, no Z test.
+#define SCREEN_FILTER_DRAWCTRL_ARGS(alphaB, alphaFix) {                                    \
+    1, 0, 0, 1, 0, 0, 0, 0,      /* PRMODE: IIP, ABE */                                    \
+    0, 5, 0x7f, 1, 0, 0, 0, 2,   /* TEST_1: ATST 5, AREF 0x7f, AFAIL 1, ZTST 2 (ATE, ZTE 0) */ \
+    0, alphaB, 0, 1, alphaFix,   /* ALPHA_1: A 0 (Cs), B, C 0 (As), D 1 (Cd) */             \
+    0,                           /* FBA_1 */                                               \
+    0, 0, 1, 4, 0, 0,            /* TEX1_1: MMAG 1, MMIN 4 */                              \
+    0}                           /* TEXA */
+static const GA_DRAWCTRL_ARGS FILTER_BLEND_DRAWCTRL_ARGS = SCREEN_FILTER_DRAWCTRL_ARGS(1, 0);
+static const GA_DRAWCTRL_ARGS FILTER_ADD_DRAWCTRL_ARGS = SCREEN_FILTER_DRAWCTRL_ARGS(2, 0x80);
+
+#define PANIC_FILTER_CENTER_RGBAQ 0x3f80000000640000ull   /* Q 1.0, A 0, B 0x64: the vignette's centre */
+#define PANIC_FILTER_EDGE_RGBAQ 0x3f80000000170000ull     /* Q 1.0, B 0x17; A = PanicInfoData.filterAlpha */
+#define FILTER_RGBAQ_Q1 0x3f80000000000000ull
+
+// The fade's colour as the fan's RGBAQ (Q 1.0).
+static u_long FilterRGBAQ(const FILTER_CHANGE_WORK *work)
+{
+    return (u_long)(int64_t)work->current[0] << 24 | (u_long)(int64_t)work->current[3] << 16 |
+           (u_long)(int64_t)work->current[1] | (u_long)(int64_t)work->current[2] << 8 | FILTER_RGBAQ_Q1;
+}
+
+// One frame of a fade: current moves 1/timer of the way to target; at timer 0 it is there, and a
+// FILTER_OFF_AT_END filter switches off.
+static void FilterChangeStep(FILTER_CHANGE_WORK *work)
+{
+    int i;
+
+    if (work->timer == 0) {
+        for (i = 0; i < 4; i++)
+            work->current[i] = work->target[i];
+        if (work->active & FILTER_OFF_AT_END)
+            work->active = 0;
+    } else {
+        for (i = 0; i < 4; i++)
+            work->current[i] += (work->target[i] - work->current[i]) / work->timer;
+        work->timer--;
+    }
+}
+
+// The draw control of a filter's mode; other modes keep the one set last.
+static void FilterSetupDrawCtrl(GA_DRAWCTRL_DATA *ctrl, int mode)
+{
+    if (mode == FILTER_MODE_BLEND)
+        gaSetupDrawCtrlData(ctrl, FILTER_BLEND_DRAWCTRL_ARGS);
+    else if (mode == FILTER_MODE_ADD)
+        gaSetupDrawCtrlData(ctrl, FILTER_ADD_DRAWCTRL_ARGS);
+}
+
+// The fan's six vertices take one colour.
+static void FilterSetColor(SCREEN_FILTER_OBJ *obj, int first, u_long rgbaq)
+{
+    int i;
+    for (i = first; i < SCREEN_FILTER_VERTICES; i++)
+        obj->vtx[i].rgbaq = rgbaq;
+}
+
+// CT3 0x01853620: the panic vignette -- outside a pause and the events 0x26 / 0, while
+// TRIG_EVENT_PANIC_48 is set and the filter alpha is not negative: blue edges at filterAlpha over a
+// clear centre. The alpha climbs by Panicdef.filterUp to filterMax while PANIC_MODE_FULL, else falls by
+// filterDown (below 0 the filter is off until it climbs again).
 void PanicFilter(void)
 {
-    ALYSSAPAN_STUB("PanicFilter", 0x01853620);
+    if (pause != 0 || ssTrigCheckEvent(TRIG_EVENT_PANIC_26, 1, 0) != 0 || ssTrigCheckEvent(0, 1, 0) != 0 ||
+        ssTrigCheckEvent(TRIG_EVENT_PANIC_48, 1, 0) == 0 || PanicInfoData.filterAlpha < 0)
+        return;
+
+    gaSetupDrawCtrlData(&ScreenFilterDrawCtrl, FILTER_BLEND_DRAWCTRL_ARGS);
+    ScreenFilterObj.vtx[0].rgbaq = PANIC_FILTER_CENTER_RGBAQ;
+    FilterSetColor(&ScreenFilterObj, 1, (u_long)(int64_t)PanicInfoData.filterAlpha << 24 | PANIC_FILTER_EDGE_RGBAQ);
+    gaBGT_ExecDrawCtrlData_VIF1(&ScreenFilterDrawCtrl);
+    gaBGT_ExecDrawCommandData_VIF1((GA_DRAWCOMMAND_DATA *)&ScreenFilterObj);
+
+    if ((PanicInfoData.mode & PANIC_MODE_FULL) == 0)
+        PanicInfoData.filterAlpha -= Panicdef.filterDown;
+    else if (PanicInfoData.filterAlpha < Panicdef.filterMax)
+        PanicInfoData.filterAlpha += Panicdef.filterUp;
+    else
+        PanicInfoData.filterAlpha = Panicdef.filterMax;
+}
+
+// CT3 0x01858950: the demo filter (the skip's fade to black, main.c).
+void DemoScreenFilter(void)
+{
+    // callcheck: gaSetupDrawCtrlData (the ROM inlines the mode switch: FilterSetupDrawCtrl makes the call)
+    if (DemoFilterChangeWork.active == 0)
+        return;
+    FilterSetupDrawCtrl(&DemoScreenFilterDrawCtrl, DemoFilterChangeWork.mode);
+    FilterChangeStep(&DemoFilterChangeWork);
+    FilterSetColor(&DemoScreenFilterObj, 0, FilterRGBAQ(&DemoFilterChangeWork));
+    gaBGT_ExecDrawCtrlData_VIF1(&DemoScreenFilterDrawCtrl);
+    gaBGT_ExecDrawCommandData_VIF1((GA_DRAWCOMMAND_DATA *)&DemoScreenFilterObj);
+}
+
+// CT3 0x01858bc0: the X command filter's fade runs without drawing.
+void XcmdScreenFilterSkip(void)
+{
+    if (FilterChangeWork.active != 0)
+        FilterChangeStep(&FilterChangeWork);
+}
+
+// CT3 0x01858c90: the X command (script) filter, then the demo filter over it.
+void XcmdScreenFilter(void)
+{
+    // callcheck: gaSetupDrawCtrlData (the ROM inlines the mode switch: FilterSetupDrawCtrl makes the call)
+    if (FilterChangeWork.active != 0) {
+        FilterSetupDrawCtrl(&XcmdScreenFilterDrawCtrl, FilterChangeWork.mode);
+        FilterChangeStep(&FilterChangeWork);
+        FilterSetColor(&XcmdScreenFilterObj, 0, FilterRGBAQ(&FilterChangeWork));
+        gaBGT_ExecDrawCtrlData_VIF1(&XcmdScreenFilterDrawCtrl);
+        gaBGT_ExecDrawCommandData_VIF1((GA_DRAWCOMMAND_DATA *)&XcmdScreenFilterObj);
+    }
+    DemoScreenFilter();
 }
 
 // CT3 0x01854410: the player's panic state back to calm, and the panic tuning.
@@ -345,14 +513,14 @@ void PanicModeInit(void)
         PanicInfoData.w04[i] = 0;
     PanicInfoData.gauge = 0.0f;
     PanicInfoData.gaugeMax = 10000.0f;
-    PanicInfoData.w2c = -1;
+    PanicInfoData.filterAlpha = -1;
     Panicdef.f00 = 3.5f;
     Panicdef.f04 = 8.0f;
     Panicdef.beatFrom = 5000.0f;
     Panicdef.f0c = 2.0f;
-    Panicdef.w10 = 30;
-    Panicdef.w14 = 4;
-    Panicdef.w18 = 8;
+    Panicdef.filterMax = 30;
+    Panicdef.filterUp = 4;
+    Panicdef.filterDown = 8;
     ssTrigSetVariable(TRIG_VAR_PANIC, 0, 1, 0);
     ssTrigRemoveEvent(TRIG_EVENT_PANIC_3, 1, 0);
     ssTrigRemoveEvent(TRIG_EVENT_PANIC_26, 1, 0);
@@ -674,18 +842,6 @@ void ExecuteWarpObject(int mode, int chara, int part, int bank)
 void ExecuteWarpObject2(int mode, int bank, int chara, int bank2)
 {
     ALYSSAPAN_STUB("ExecuteWarpObject2", 0x0185ae90);
-}
-
-// stub of CT3 0x01858c90
-void XcmdScreenFilter(void)
-{
-    ALYSSAPAN_STUB("XcmdScreenFilter", 0x01858c90);
-}
-
-// stub of CT3 0x01858bc0
-void XcmdScreenFilterSkip(void)
-{
-    ALYSSAPAN_STUB("XcmdScreenFilterSkip", 0x01858bc0);
 }
 
 // CT3 0x0185b980: WARP_QUEUE appends cmd (the block grows by WARP_QUEUE_GROW in gHeapJunc);
@@ -1248,10 +1404,134 @@ void TexFileSetInit(int scene)
     ALYSSAPAN_STUB("TexFileSetInit", 0x01856070);
 }
 
-// stub of CT3 0x018532a0
+#define PANIC_SE_BANK "C_0000"          /* @3592: the common SE bank the panic loops play from */
+
+// CT3 0x018532a0: the panic sounds stop (the three loops by name, in the SE bank) and the heartbeat
+// restarts its count; EventSoundUpdate's next call is taken as following an "on" frame.
 void EventSoundEnd(void)
 {
-    ALYSSAPAN_STUB("EventSoundEnd", 0x018532a0);
+    sPanicBeforeFlg = 1;
+    sBeatCount = 0;
+    sHandleKeyONFinFin = 0;
+    SSStopSE(PANIC_SE_BANK, PANIC_SE_FINFIN, 1);
+    sHandleKeyONLavender = 0;
+    SSStopSE(PANIC_SE_BANK, PANIC_SE_LAVENDER, 1);
+    sHandleKeyONInvisible = 0;
+    SSStopSE(PANIC_SE_BANK, PANIC_SE_INVISIBLE, 1);
+}
+
+// ---- banks by name (slice 4) -----------------------------------------------------------------------
+// CT3 0x0185c220: the first four bytes of two names are the same (the ROM compares one word each).
+int ssStrCmp4Byte(const char *a, const char *b)
+{
+    u_int wa, wb;
+    memcpy(&wa, a, sizeof(wa));
+    memcpy(&wb, b, sizeof(wb));
+    return wa == wb;
+}
+
+// CT3 0x0185c190: the bank whose file name starts with name's first four bytes, a group counted once at
+// its first bank; -1 when none does.
+int ssGetBankID(const char *name)
+{
+    char key[16];
+    int i;
+
+    strcpy(key, name);
+    i = 0;
+    do {
+        if (ssStrCmp4Byte(BankInfo[i].name, key))
+            return i;
+        if (BankInfo[i].groupCount != 0)
+            i += BankInfo[i].groupCount - 1;
+        i++;
+    } while (i < BANK_MAX);
+    return -1;
+}
+
+// ---- the slide decoder (slice 4) ---------------------------------------------------------------------
+static int OutputCount;                         /* sbss 0x0193ce64: bytes written to dst */
+static int InputCount;                          /* sbss 0x0193ce68: the next byte of src */
+static int SlideFileSize;                       /* sbss 0x0193ce6c: src's first word: where it ends */
+static int outcount;                            /* sbss 0x0193ce70: cleared, not read */
+static u_char text[SLIDE_RING_SIZE + SLIDE_MATCH_MAX - 1]; /* bss 0x0194d3c0: the ring */
+
+// CT3 0x0185e6a0: unpack a slide file (LZSS after an 8-byte header) into dst.
+void tnSlideThawing(const u_char *src, u_char *dst)
+{
+    int size;
+
+    outcount = 0;
+    InputCount = 0;
+    OutputCount = 0;
+    memcpy(&size, src, sizeof(size));
+    SlideFileSize = size;
+    InputCount += SLIDE_HEADER_SIZE;
+    decode(src, dst);
+}
+
+// CT3 0x0185e6d0: Okumura's LZSS: a flag byte per eight items, 1 a literal, 0 a 12-bit ring position
+// and a 4-bit length (+ SLIDE_THRESHOLD + 1); the ring starts blank, written from N - F.
+void decode(const u_char *src, u_char *dst)
+{
+    int i, j, k, c;
+    int r;
+    u_int flags;
+
+    for (i = 0; i < SLIDE_RING_SIZE - SLIDE_MATCH_MAX; i++)
+        text[i] = 0;
+    r = SLIDE_RING_SIZE - SLIDE_MATCH_MAX;
+    flags = 0;
+    for (;;) {
+        flags >>= 1;
+        if ((flags & 0x100) == 0) {
+            c = tn_getc(src);
+            if (c == -1)
+                return;
+            flags = (u_int)c | 0xff00;
+        }
+        if (flags & 1) {
+            c = tn_getc(src);
+            if (c == -1)
+                return;
+            tn_putc(dst, (u_char)c);
+            text[r] = (u_char)c;
+            r = (r + 1) & (SLIDE_RING_SIZE - 1);
+        } else {
+            i = tn_getc(src);
+            if (i == -1)
+                return;
+            j = tn_getc(src);
+            if (j == -1)
+                return;
+            i |= (j & 0xf0) << 4;
+            j = (j & 0x0f) + SLIDE_THRESHOLD;
+            for (k = 0; k <= j; k++) {
+                c = text[(i + k) & (SLIDE_RING_SIZE - 1)];
+                tn_putc(dst, (u_char)c);
+                text[r] = (u_char)c;
+                r = (r + 1) & (SLIDE_RING_SIZE - 1);
+            }
+        }
+    }
+}
+
+// CT3 0x0185e8b0
+void tn_putc(u_char *dst, u_char c)
+{
+    dst[OutputCount] = c;
+    OutputCount++;
+}
+
+// CT3 0x0185e8d0: the next byte of src, or -1 at SlideFileSize.
+int tn_getc(const u_char *src)
+{
+    int c = -1;
+    if (InputCount != SlideFileSize) {
+        c = src[InputCount];
+        InputCount++;
+    }
+    return c;
 }
 
 // CT3 0x0185a650: the eye of matrix_global_view.
@@ -1881,4 +2161,16 @@ float asVectorDistance(const float *a, const float *b)
     d[2] = a[2] - b[2];
     d[3] = a[3];
     return gaInnerProductXYZ(d, d);
+}
+
+// stub of CT3 0x01857590
+void DistanceAttenuationUpdate(int bank, int a1)
+{
+    ALYSSAPAN_STUB("DistanceAttenuationUpdate", 0x01857590);
+}
+
+// stub of CT3 0x01857d10
+void LosHitFadeUpdate(int bank, int a1)
+{
+    ALYSSAPAN_STUB("LosHitFadeUpdate", 0x01857d10);
 }

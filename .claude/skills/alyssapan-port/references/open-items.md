@@ -589,6 +589,21 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    heartbeat's second SdSetParamSE argument (SD_SE_PARAM_30, level / 2) is unk30 until the Sd TU names it.
    Left (frontier): PanicUpdate, PanicFilter, XcmdScreenFilter / Skip, DemoScreenFilter, MonsterAIUpdate,
    FogAnimeUpdate, ExecuteWarpObject / 2, ssGetBankID, ssStrCmp4Byte and the brief's other ~70.
+   **game/QuatSlerp.c slice 4 (partial, 2026-11-10):** the screen filters (PanicFilter, DemoScreenFilter,
+   XcmdScreenFilter / Skip: SCREEN_FILTER_OBJ, the 0xa0-byte TRIFAN packets, and their draw controls from
+   the disassembly), EventSoundEnd, ssGetBankID / ssStrCmp4Byte, the slide decoder (tnSlideThawing,
+   decode, tn_getc, tn_putc: Okumura LZSS), AmbientAlphaUpdate. FILTER_CHANGE_WORK's +0x08 is the
+   **target** and +0x18 the **current** colour (renamed from from / to; main.c follows), A R G B; FILTER_ON
+   / FILTER_OFF_AT_END / FILTER_MODE_ADD / _BLEND named. PANIC_INFO +0x2c is filterAlpha, Panicdef +0x10 /
+   +0x14 / +0x18 filterMax / filterUp / filterDown. SCENE_ALPHA_ANIM is {on, steps, float target[3]}
+   (no vitof on the target words: floats). 15 s smoke run: no fault, shot black; AmbientAlphaUpdate now
+   reaches LosHitFadeUpdate / DistanceAttenuationUpdate / AngleAttenuationUpdate (stubs). Open: (fa) the
+   filter packets carry the GS's fixed 512x448 fan; a host draw module that takes them must cover the
+   DisplayGeometry frame (any aspect), not the packet's XYZ; (fb) PanicFilter's skip events 0x26 / 0 are
+   TRIG_EVENT_PANIC_26 / event 0 from this use only; (fc) the filters' mode 1 draw is the ROM's TEST_1
+   ATST 5 / AREF 0x7f with ATE 0 (no alpha test) -- kept. Next in this TU: AngleAttenuationUpdate (+
+   AngleAttenuationTarget, DistanceAttenuationUpdate, LosHitFadeUpdate), PanicUpdate, MonsterAIUpdate,
+   FogAnimeUpdate, TexFileSetInit, ExecuteWarpObject / 2.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
    class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~

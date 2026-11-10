@@ -416,7 +416,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 129..129, 4 functions keyed by their statics, 5 unkeyed; file name from the names"
   },
   "game/QuatSlerp.c": {
-   "notes": "15 s smoke run: no fault, 27360 frames, shot black (the ga draw path is stubbed and the texture packets are dropped by the host DMAC: a host texture module must decode SUN_TEX_ATTR at its source, open-items.md (ew)). Next in this TU: PanicUpdate and PanicFilter, XcmdScreenFilter and Skip, DemoScreenFilter, MonsterAIUpdate, FogAnimeUpdate, ExecuteWarpObject and ExecuteWarpObject2. open-items.md (ew)..(ez).",
+   "notes": "15 s smoke run: no fault, shot black (no host draw module takes the packets yet). FILTER_CHANGE_WORK +0x08 is the target, +0x18 the current colour (renamed, main.c follows). AmbientAlphaUpdate reaches the LosHit, Distance and Angle attenuation stubs. Next in this TU: AngleAttenuationUpdate with AngleAttenuationTarget, DistanceAttenuationUpdate, LosHitFadeUpdate; TexFileSetInit (texture pages: ALL_TABLE +0x8c, FSLoad or tnSlideThawing, patches the TEX_INFO words); PanicUpdate, MonsterAIUpdate, FogAnimeUpdate, ExecuteWarpObject and 2. open-items.md (fa)..(fc).",
    "ranges": [
     [
      "01851bf0",
@@ -438,6 +438,11 @@
      "date": "2026-11-10 09:56",
      "status": "partial",
      "summary": "slice 3: the texture buffers (sunSetupTBufferData, sunBGT_SetLoadGSEnv, sunBGT_LoadGSTexClutData_VIF1, sunBGT_ExecTBufferData_VIF1; SUN_TEX_ATTR, SUN_TBUFFER_DATA, TEX_INFO named), the panic sounds (EventSoundUpdate, PanicSound, LavenderSound, InvisibleSound), PanicCheck, ssMenuUpdate, PlayerControlUpdate"
+    },
+    {
+     "date": "2026-11-10 10:18",
+     "status": "partial",
+     "summary": "slice 4: the screen filters (PanicFilter, DemoScreenFilter, XcmdScreenFilter and Skip, SCREEN_FILTER_OBJ packets and draw controls), EventSoundEnd, ssGetBankID and ssStrCmp4Byte, the slide LZSS decoder (tnSlideThawing, decode, tn_getc, tn_putc), AmbientAlphaUpdate"
     }
    ],
    "status": "partial",

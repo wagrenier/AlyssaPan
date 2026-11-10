@@ -388,7 +388,7 @@ typedef struct PANIC_INFO {
     int w04[8];                         /* 0x04 */
     float gauge;                        /* 0x24: the panic gauge (PanicSound: heartbeat from Panicdef.beatFrom) */
     float gaugeMax;                     /* 0x28: its top (PanicModeInit: 10000.0) */
-    int w2c;                            /* 0x2c: PanicModeInit: -1 */
+    int filterAlpha;                    /* 0x2c: PanicFilter's vignette alpha (PanicModeInit: -1, off) */
 } PANIC_INFO;
 static_assert(sizeof(PANIC_INFO) == 0x30, "PANIC_INFO");
 static_assert(offsetof(MODEL_PARTS, kind) == 0x42, "MODEL_PARTS.kind");
@@ -563,18 +563,23 @@ static_assert(offsetof(PART_BLUR_OBJ, listIndex) == 0x110, "PART_BLUR_OBJ.listIn
 
 #define OS_OBJ_TABLE_BYTES 2000         /* osTotalObjTable: one scene's sort table, 3 x 86 of them */
 
-// A screen filter's fade (DemoFilterChangeWork, FilterChangeWork: 0x28 bytes). from[0] / to[0] are the
-// alpha main sets to 0xff or 0, the next three the colour; timer counts down to 0.
+// A screen filter's fade (DemoFilterChangeWork, FilterChangeWork: 0x28 bytes): a full-screen quad of one
+// colour, A R G B in [0..3]. Each frame current moves 1/timer of the way to target and timer counts down
+// (QuatSlerp.c's *ScreenFilter, 2026-11-10: +0x08 is the target, +0x18 what is drawn).
 typedef struct FILTER_CHANGE_WORK {
-    short active;                       /* 0x00 */
-    short mode;                         /* 0x02 */
-    int timer;                          /* 0x04 */
-    int from[4];                        /* 0x08 */
-    int to[4];                          /* 0x18 */
+    short active;                       /* 0x00: FILTER_* bits (0: off) */
+    short mode;                         /* 0x02: FILTER_MODE_* */
+    int timer;                          /* 0x04: frames left of the fade */
+    int target[4];                      /* 0x08: A, R, G, B the fade goes to */
+    int current[4];                     /* 0x18: A, R, G, B drawn */
 } FILTER_CHANGE_WORK;
+#define FILTER_ON 0x1                   /* FILTER_CHANGE_WORK.active: drawn */
+#define FILTER_OFF_AT_END 0x2           /* switched off when the fade ends */
+#define FILTER_MODE_ADD 0               /* FILTER_CHANGE_WORK.mode: Cs * As + Cd */
+#define FILTER_MODE_BLEND 1             /* (Cs - Cd) * As + Cd; other modes keep the last draw control */
 static_assert(sizeof(FILTER_CHANGE_WORK) == 0x28, "FILTER_CHANGE_WORK");
 static_assert(offsetof(FILTER_CHANGE_WORK, timer) == 0x04, "FILTER_CHANGE_WORK.timer");
-static_assert(offsetof(FILTER_CHANGE_WORK, to) == 0x18, "FILTER_CHANGE_WORK.to");
+static_assert(offsetof(FILTER_CHANGE_WORK, current) == 0x18, "FILTER_CHANGE_WORK.current");
 
 // One fog animation slot of FogAnimeBuff[86] (0x48 bytes): system_init clears its head.
 typedef struct FOG_ANIME {

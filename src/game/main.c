@@ -1978,17 +1978,17 @@ int main(int argc, char **argv)
                 case DEMO_SKIP_FADE_START:
                     DemoFilterChangeWork.timer = DEMO_SKIP_FADE_FRAMES;
                     pause_reservation = 1;
-                    DemoFilterChangeWork.from[0] = 0xff;
-                    DemoFilterChangeWork.active = 1;
+                    DemoFilterChangeWork.target[0] = 0xff;
+                    DemoFilterChangeWork.active = FILTER_ON;
                     DEMO_SKIP_FLAG = DEMO_SKIP_FADING;
-                    DemoFilterChangeWork.mode = 1;
-                    DemoFilterChangeWork.to[1] = 0;
-                    DemoFilterChangeWork.to[2] = 0;
-                    DemoFilterChangeWork.to[3] = 0;
-                    DemoFilterChangeWork.to[0] = 0;
-                    DemoFilterChangeWork.from[1] = 0;
-                    DemoFilterChangeWork.from[2] = 0;
-                    DemoFilterChangeWork.from[3] = 0;
+                    DemoFilterChangeWork.mode = FILTER_MODE_BLEND;
+                    DemoFilterChangeWork.current[1] = 0;
+                    DemoFilterChangeWork.current[2] = 0;
+                    DemoFilterChangeWork.current[3] = 0;
+                    DemoFilterChangeWork.current[0] = 0;
+                    DemoFilterChangeWork.target[1] = 0;
+                    DemoFilterChangeWork.target[2] = 0;
+                    DemoFilterChangeWork.target[3] = 0;
                     tiVibrationOff(0);
                     break;
                 case DEMO_SKIP_FADING:
@@ -2030,17 +2030,17 @@ int main(int argc, char **argv)
                     DemoFilterChangeWork.timer = DEMO_SKIP_FADE_FRAMES;
                     DemoSkip = 0;
                     pause_reservation = 1;
-                    DemoFilterChangeWork.to[0] = 0xff;
+                    DemoFilterChangeWork.current[0] = 0xff;
                     DEMO_SKIP_FLAG = DEMO_SKIP_END_FADING;
-                    DemoFilterChangeWork.active = 1;
-                    DemoFilterChangeWork.mode = 1;
-                    DemoFilterChangeWork.to[1] = 0;
-                    DemoFilterChangeWork.to[2] = 0;
-                    DemoFilterChangeWork.to[3] = 0;
-                    DemoFilterChangeWork.from[1] = 0;
-                    DemoFilterChangeWork.from[2] = 0;
-                    DemoFilterChangeWork.from[3] = 0;
-                    DemoFilterChangeWork.from[0] = 0;
+                    DemoFilterChangeWork.active = FILTER_ON;
+                    DemoFilterChangeWork.mode = FILTER_MODE_BLEND;
+                    DemoFilterChangeWork.current[1] = 0;
+                    DemoFilterChangeWork.current[2] = 0;
+                    DemoFilterChangeWork.current[3] = 0;
+                    DemoFilterChangeWork.target[1] = 0;
+                    DemoFilterChangeWork.target[2] = 0;
+                    DemoFilterChangeWork.target[3] = 0;
+                    DemoFilterChangeWork.target[0] = 0;
                     ssTrigRemoveEvent(EV_DEMO_SKIPPED, 1, 0);
                 }
             }
