@@ -185,6 +185,12 @@ int sceSifFreeIopHeap(void *addr)
     return alyssapan::iop::Kernel::instance().memory().free(addr) ? 0 : -1;
 }
 
+// sdremote's bind (sdk/sdremote.h): no sdrdrv on the host, nothing to wait for.
+int sceSdRemoteInit(void)
+{
+    return 0;
+}
+
 // sdremote's EE -> IOP copy (sdk/sdremote.h): the ROM's SIF DMA, done at once.
 int sceSdTransToIOP(const void *ee, u_int iopAddr, u_int size, int mode)
 {

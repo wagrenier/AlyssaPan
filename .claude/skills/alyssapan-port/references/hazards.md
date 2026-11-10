@@ -7,6 +7,14 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-10, movie.c slice 1) **Never delete a "FUN_" that a CW loop jumps into**: CodeWarrior lays a
+  while loop out as `b test; body; test: ...`, so Ghidra makes the function a thunk (body 8 bytes) onto a
+  FUN_ at the loop test (AA_ToSmall -> FUN_018bf05c). Deleting that FUN_ with `delete_function` deleted
+  AA_ToSmall too, and recreating it brings the thunk back (auto-analysis re-creates the target). Without
+  scripts (GHIDRA_MCP_ALLOW_SCRIPTS is off) the body cannot be widened: leave the split alone, write the
+  function as one in the source, and name no FUN_ there. (AA_ToSmall was recreated and re-tagged
+  `game-symbol`.)
+
 - (2026-11-10, SdMasterVolumeSetSE.c slice 2) **The ROM's inlined gReqRd search reads row -1 on a miss**
   (SdLoadSEProc: index -1 -> `gReqRd[-1].size / .packIdx`); the port's `SdFindReq` answers NULL and the
   step waits. And **a packed SE bank's error path frees an interior IOP address** (`iopHd = iopSdt +

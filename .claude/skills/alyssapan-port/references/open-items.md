@@ -724,6 +724,25 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    harmless only if the VU1 light code reads k columns; (gi) the memmove calls ahRelocateSunPs2ObjectArry.c
    writes in place of gaMemCopy32 / 128 (callcheck comments) could now call them: left as they are.
    **Queue empty after this TU**: the next run refills it from the smoke run's first reached stubs.
+   **game/movie.c (partial, 2026-11-10, slice 1): 16 of 20 functions** -- the front end (AA_OpenMovie,
+   AA_PlayMovieReady, AA_MovieProc, AA_StartMovie, AA_MovieIOPInit), the bank choice
+   (AA_AutoBank_Seelect, AA_MovieWorkCheck / Clean, AA_DeleteSceneBank), the memory map (AA_MemoryMapSet /
+   Free), the small ones. The object is SCE's ezmpegstr main.c: Claude's call (2026-11-10) is that it owns
+   the sample's globals (voBuf, AA_audioDec, AA_videoDec, AA_infile, AA_voBufTag / Data) and all of sbss
+   0x0193f0d4..0x0193f704 (movie.c's symtab locals run through it; the globals before AA_FileHandole stay
+   with AA_GetDataWord.c). **Next in this TU (slice 2): AA_movie, initAll, readMpeg, termAll** -- the
+   decode loop: decide first how the host plays it (sdk/libmpeg + the movie seam, RosePan's moviestream;
+   threads and the IPU DMA handler have no host meaning), then write them. Open: (gj) the caption file is
+   read to EE 0x200000 with no size limit; the host reads it to AA_MojiImage (1 MB, PORT) --
+   AA_GetDataWord.c's readers of AA_MojiData must use AA_MojiImage; (gk) AA_MovieWorkClean adds each
+   dropped group's size - 1 to the ROW index (ROM bug, kept): a pre-chosen layout whose banks hold groups
+   skips rows and leaves their *work unset; (gl) AudioDec / VideoDec / StrFile / VoBuf are opaque blocks of
+   the symtab's sizes in their owners' new headers (AA_SoundMonoSoart.h, AA_mpegTS.h, AA_videoCallback.h):
+   the owners name the fields; (gm) TRIG_EVENT_OMAKE_2 (0xc5) registered means AA_OpenMovie reads no
+   captions (the name is Character_Init's); (gn) sceGsSetDefDBuff is a stub in lib/unassigned_stubs.cpp
+   (the movie's GS reset: no host meaning until slice 2 picks the draw path); (go) callcheck lists FlProc /
+   FileSoundServer / SunAllocUsedBorderCheck as missing: the port factors the ROM's inlined frame wait and
+   heap-bank count into AA_WaitFrame / AA_GlobalHeapBanks.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
    class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~

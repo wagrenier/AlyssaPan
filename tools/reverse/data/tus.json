@@ -873,12 +873,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 104..104, 14 functions keyed by their statics, 4 unkeyed; file name from the names"
   },
   "game/movie.c": {
+   "notes": "Object is SCE ezmpegstr main.c and owns sbss 0x0193f0d4..0x0193f704. Slice 2 decides the host playback path first (libmpeg plus the movie seam). Captions read to the host block AA_MojiImage (PORT). AA_MovieWorkClean row-index bug kept. callcheck missing calls are the factored helpers AA_WaitFrame and AA_GlobalHeapBanks. Shot black as before: no movie in a smoke run. open-items (gj)-(go).",
    "ranges": [
     [
      "018bda90",
      "018bf9d0"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-10 16:41",
+     "status": "partial",
+     "summary": "slice 1: the movie front end, bank choice and memory map (16 of 20 functions); AA_movie, initAll, readMpeg, termAll left"
+    }
+   ],
+   "status": "partial",
    "why": "tumap.py (bootstrap 5): symtab local chunks 109..109, 15 functions keyed by their statics, 6 unkeyed; source string movie.c"
   },
   "game/sound.c": {
