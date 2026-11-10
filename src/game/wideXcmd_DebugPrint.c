@@ -10,6 +10,9 @@
 // distance stack, asSetCharacterIdentity, asInitPlayerBehaviorControler (it sets the motion table:
 // MotionRecord reads it), the stairway check, the delta move, the auto aim, the next-motion writer and
 // the small key-table entries (asPIA0_KEY_TBL_HAIHAI / WATER / LOCK / PMOVEEND / PRUN).
+// Slice 3 (2026-11-10): the motion request queue's consumer (asRequestExecute: slot 0 and the blend
+// slot 5), asResetCharacterPosition (the BasePoint's root through the motion's matrix), the ridden
+// part (asCharacterForceMoveOperate) and the cat walk's random events.
 //
 // PORT: CHARACTER.w300[0] (CHARA_TARGET) is an EE address no written TU sets yet (Character_All_Init
 // clears it): CharaTarget answers none until its writer decides the host form (open-items.md 1 h).
@@ -25,6 +28,7 @@
 #include "game/asUseArrow.h"
 #include "game/main.h"
 #include "game/ahalloc.h"
+#include "game/fileio.h"
 #include "game/main2.h"
 #include "game/sound.h"
 #include "game/ssGrpPortalCheck.h"
@@ -848,13 +852,383 @@ void ChrMoveControllerMode_init(void)
     controller_type = CONTROLLER_TYPE_DEFAULT;
 }
 
-// ---- stubs (tools/reverse/stubgen.py) ----
+// ---- slice 3 (2026-11-10): the request queue's consumer, the root reset, the cat walk ----
 
-// stub of CT3 0x018f4c60
-void asCharacterForceMoveOperate(CHARACTER *chr)
+static u_short iNowTime;                /* iNowTime$681, sbss 0x01944984 */
+static u_short iBeforeTime;             /* iBeforeTime$682, sbss 0x01944988 */
+static const u_short kCatWalkTimes[CATWALK_TIMES] = { /* @683, sdata 0x0193bad8 */
+    900, 1200, 1500, 1800, 2100, 2400, 2700,
+};
+
+static void SetCharaByte(CHARACTER *ch, int off, u_char v)
 {
-    ALYSSAPAN_STUB("asCharacterForceMoveOperate", 0x018f4c60);
+    ((u_char *)ch)[off] = v;
 }
+
+static short RecShort(const u_char *rec, int off)
+{
+    short v;
+    memcpy(&v, rec + off, sizeof(v));
+    return v;
+}
+
+static u_long RecHash(const u_char *rec)
+{
+    u_long v;
+    memcpy(&v, rec + CHARA_MOTION_BEHAVIOR, sizeof(v));
+    return v;
+}
+
+// PORT: asGetBehaviorPlayableTicks takes (bank, anim); the ROM passes the found behaviour.
+static int BehaviorPlayable(BEHAVIOR *bhv)
+{
+    int bank = BankOfHostPtr(bhv);
+    return asGetBehaviorPlayableTicks(bank, BankEeAddr(bank, bhv));
+}
+
+// CT3 0x018f7210
+void asResetCharacterPosition(CHARACTER *ch)
+{
+    ALL_TABLE *tbl;
+    u_char *hdr, *rec;
+    BEHAVIOR *bhv;
+    float one = 1.0f;
+    if (CharaShort(ch, CHARA_MOTION_SLOTS) == -1)
+        return;
+    if (ch->bank < 0 || (tbl = All_table_TBL[ch->bank]) == NULL)
+        return;     // PORT: the ROM reads All_table_TBL[bank] whatever it holds
+    hdr = BANK_PTR(u_char *, ch->bank, tbl->partsHeader);
+    rec = MotionRecord(ch, CharaShort(ch, CHARA_MOTION_SLOTS));
+    bhv = rec != NULL ? asFindBehaviorByCharacter(ch->id, RecHash(rec)) : NULL;
+    if (bhv != NULL) {
+        alignas(16) float m[4][4];
+        u_char *part;
+        int bank = BankOfHostPtr(bhv);
+        ExecuteAnimation(bank, BankEeAddr(bank, bhv), tbl, m, 0, 0, 1, 0);
+        part = hdr != NULL ? asFindModelParts(hdr, PARTS_HASH_BASE_POINT) : NULL;
+        if (part != NULL) {
+            // m[3][3]'s word holds ExecuteAnimation's done bytes; the VU0 product takes w = 1.0.
+            u_int done, rot;
+            int old;
+            memcpy(&done, &m[3][3], sizeof(done));
+            m[3][3] = 1.0f;
+            if (EA_DONE_ROT_BYTES(done) == 0)
+                rot = (u_int)CharaInt(ch, CHARA_BASE_ROT);
+            else
+                rot = (u_int)(int)((-asRadianByO(m[1], ROTATE_AXIS_Y) * ROT_FULL_TURN) / 6.2831855f) & 0xffff;
+            old = CharaInt(ch, CHARA_BASE_ROT);
+            SetCharaInt(ch, CHARA_BASE_ROT, (int)rot);
+            if (done != 0) {
+                float v[4], r[4];
+                int k;
+                memcpy(v, part + PARTS_REC_ROOT_VEC, sizeof(v));
+                for (k = 0; k < 4; k++)
+                    r[k] = m[0][k] * v[0] + m[1][k] * v[1] + m[2][k] * v[2] + m[3][k] * v[3];
+                memcpy((u_char *)ch + CHARA_MOTION_ROOT, r, sizeof(r));
+            }
+            asResetCharacterRotation(0, hdr + PARTS_RECORDS, (int)rot - old);
+        }
+    }
+    memcpy((u_char *)ch + CHARA_MOTION_ROOT_W, &one, sizeof(one));
+}
+
+// A slot's fade: length ticks * 100, the time left the same.
+static void SetSlotFade(CHARACTER *ch, int slot, int len)
+{
+    SetCharaInt(ch, CHARA_SLOT_FADE_LEN + slot * 4, len);
+    SetCharaInt(ch, CHARA_SLOT_FADE + slot * 4, len);
+}
+
+// The blend slot's motion gone (modes 0 and 4): its motion becomes its previous one.
+static void DropBlendSlot(CHARACTER *ch)
+{
+    SetCharaShort(ch, CHARA_SLOT_PREV + CHARA_SLOT_BLEND * 2, CharaShort(ch, CHARA_MOTION_SLOTS + CHARA_SLOT_BLEND * 2));
+    SetCharaShort(ch, CHARA_MOTION_SLOTS + CHARA_SLOT_BLEND * 2, -1);
+}
+
+// The slot's motion becomes `motion` (the old one its previous), marked changed, its length kept.
+static void SetSlotMotion(CHARACTER *ch, int slot, short motion, BEHAVIOR *bhv, u_char change, int keepPrev)
+{
+    if (keepPrev)
+        SetCharaShort(ch, CHARA_SLOT_PREV + slot * 2, CharaShort(ch, CHARA_MOTION_SLOTS + slot * 2));
+    SetCharaShort(ch, CHARA_MOTION_SLOTS + slot * 2, motion);
+    SetCharaByte(ch, CHARA_BEHAVIOR_CHANGE + slot, change);
+    SetCharaInt(ch, CHARA_SLOT_PLAYABLE + slot * 4, BehaviorPlayable(bhv));
+}
+
+// CT3 0x018fbc20
+// Runs the character's motion request queue (asCharacterMortionChangeRequest's) in order, each entry by
+// its mode, then empties it; CHARA_MOTION_GROUP follows slot 0's motion.
+// PORT: the behaviours are host pointers (asFindBehaviorByCharacter); a request whose record or
+// behaviour is missing goes the ROM's way (the as*Behavior* calls take NULL as nothing).
+void asRequestExecute(CHARACTER *ch)
+{
+    int q;
+    void *go;
+    // callcheck: asGetBehaviorPlayableTicks (through BehaviorPlayable, the (bank, anim) form)
+    if (CharaInt(ch, CHARA_MOTION_TABLE) == 0)
+        return;
+    go = ch->bank >= 0 ? pModelPartsHeader[ch->bank] : NULL;
+    for (q = 0; q < CHARA_MOTION_QUEUE_COUNT; q++) {
+        short motion = CharaShort(ch, CHARA_MOTION_QUEUE + q * 2);
+        short blendMotion = CharaShort(ch, CHARA_MOTION_SLOTS + CHARA_SLOT_BLEND * 2);
+        const u_char *rec;
+        BEHAVIOR *bhv, *blend = NULL;
+        int slot;
+        if (motion == -1)
+            break;
+        rec = MotionRecord(ch, motion);
+        if (rec == NULL)
+            break;  // PORT: no table on the host (the ROM reads through the word)
+        slot = rec[MOTION_REC_SLOT];
+        bhv = asFindBehaviorByCharacter(ch->id, RecHash(rec));
+        if (blendMotion != -1) {
+            const u_char *brec = MotionRecord(ch, blendMotion);
+            blend = brec != NULL ? asFindBehaviorByCharacter(ch->id, RecHash(brec)) : NULL;
+        }
+        switch (CharaShort(ch, CHARA_MOTION_QUEUE_MODE + q * 2)) {
+        case CHARA_MOTION_REQ_PLAY: {
+            short cur = CharaShort(ch, CHARA_MOTION_SLOTS + slot * 2);
+            if (slot == CHARA_SLOT_PANIC && ch->id == CHARA_ALYSSA &&
+                (ch->hp == 0 || ssTrigCheckEvent(TRIG_EVENT_BOSS_ALYS_DEAD, 1, 0) != 0))
+                break;
+            if (cur == motion)
+                break;
+            if (slot == CHARA_SLOT_BODY) {
+                SetCharaInt(ch, CHARA_SLOT_FADE_LEN + CHARA_SLOT_BLEND * 4, 0);
+                SetCharaInt(ch, CHARA_SLOT_FADE + CHARA_SLOT_BLEND * 4, 0);
+                SetSlotFade(ch, CHARA_SLOT_BODY, RecShort(rec, MOTION_REC_BLEND_IN) * 100);
+                if (blend != NULL) {
+                    asBehaviorStopAnimation(blend);
+                    DropBlendSlot(ch);
+                    SetCharaInt(ch, CHARA_SLOT_PLAYABLE + CHARA_SLOT_BLEND * 4, 0);
+                }
+                ch->keyTicks = 0;
+            } else {
+                SetSlotFade(ch, slot, RecShort(rec, MOTION_REC_BLEND_IN) * 100);
+            }
+            asBehaviorStartAnimationFromTop(bhv, go != NULL, 1);
+            asChangeBehaviorAnimationPlayRate(bhv, rec[MOTION_REC_PLAY_RATE]);
+            SetSlotMotion(ch, slot, motion, bhv, CHARA_SLOT_CHANGE_START, 1);
+            if (slot == CHARA_SLOT_BODY)
+                asResetCharacterPosition(ch);
+            if (rec[MOTION_REC_KIND2] == MOTION_REC_KIND2_RESET)
+                SetCharaInt(ch, CHARA_BHV_W51C, 0);
+            break;
+        }
+        case CHARA_MOTION_REQ_RESTART:
+            if (CharaShort(ch, CHARA_MOTION_SLOTS + slot * 2) == motion)
+                break;
+            // Slot 0 restarts without a fade while the blend slot fades (its fade left non-zero).
+            if (slot == CHARA_SLOT_BODY && CharaInt(ch, CHARA_SLOT_FADE + CHARA_SLOT_BLEND * 4) != 0)
+                SetSlotFade(ch, slot, 0);
+            else
+                SetSlotFade(ch, slot, RecShort(rec, MOTION_REC_BLEND_RESTART) * 100);
+            asBehaviorStartAnimationFromTop(bhv, go != NULL, 0);
+            asChangeBehaviorAnimationPlayRate(bhv, rec[MOTION_REC_PLAY_RATE]);
+            SetSlotMotion(ch, slot, motion, bhv, CHARA_SLOT_CHANGE_START, 0);
+            if (slot == CHARA_SLOT_BODY)
+                asResetCharacterPosition(ch);
+            break;
+        case CHARA_MOTION_REQ_STOP:
+            if (bhv != NULL) {
+                asBehaviorStopAnimation(bhv);
+                SetCharaShort(ch, CHARA_SLOT_PREV + slot * 2, CharaShort(ch, CHARA_MOTION_SLOTS + slot * 2));
+                SetCharaShort(ch, CHARA_MOTION_SLOTS + slot * 2, -1);
+                SetCharaInt(ch, CHARA_SLOT_PLAYABLE + slot * 4, 0);
+            }
+            break;
+        case CHARA_MOTION_REQ_RESUME:
+            if (CharaShort(ch, CHARA_MOTION_SLOTS + slot * 2) == motion)
+                break;
+            SetSlotFade(ch, slot, 0);
+            asBehaviorStartAnimation(bhv, go != NULL);
+            asChangeBehaviorAnimationPlayRate(bhv, rec[MOTION_REC_PLAY_RATE]);
+            SetSlotMotion(ch, slot, motion, bhv, CHARA_SLOT_CHANGE_RESUME, 1);
+            if (slot == CHARA_SLOT_BODY)
+                asResetCharacterPosition(ch);
+            if (rec[MOTION_REC_KIND2] == MOTION_REC_KIND2_RESET)
+                SetCharaInt(ch, CHARA_BHV_W51C, 0);
+            break;
+        case CHARA_MOTION_REQ_STOP_BLEND:
+            asBehaviorStopAnimation(blend);
+            DropBlendSlot(ch);
+            SetCharaInt(ch, CHARA_SLOT_PLAYABLE + CHARA_SLOT_BLEND * 4, 0);
+            SetCharaInt(ch, CHARA_SLOT_FADE_LEN + CHARA_SLOT_BLEND * 4, 0);
+            SetCharaInt(ch, CHARA_SLOT_FADE + CHARA_SLOT_BLEND * 4, 0);
+            break;
+        case CHARA_MOTION_REQ_BLEND: {
+            short body = CharaShort(ch, CHARA_MOTION_SLOTS);
+            if (body == motion || slot != CHARA_SLOT_BODY)
+                break;
+            if (motion == blendMotion) {
+                // Back to the motion slot 0 blends out of: the two swap, the fade turned round.
+                int len = RecShort(rec, MOTION_REC_BLEND_IN) * 100, t;
+                SetCharaShort(ch, CHARA_MOTION_SLOTS + CHARA_SLOT_BLEND * 2, body);
+                SetCharaShort(ch, CHARA_SLOT_PREV, body);
+                SetCharaShort(ch, CHARA_MOTION_SLOTS, motion);
+                SetCharaByte(ch, CHARA_BEHAVIOR_CHANGE, CHARA_SLOT_CHANGE_START);
+                SetSlotFade(ch, CHARA_SLOT_BODY, 0);
+                t = CharaInt(ch, CHARA_SLOT_PLAYABLE + CHARA_SLOT_BLEND * 4);
+                SetCharaInt(ch, CHARA_SLOT_PLAYABLE + CHARA_SLOT_BLEND * 4, CharaInt(ch, CHARA_SLOT_PLAYABLE));
+                SetCharaInt(ch, CHARA_SLOT_PLAYABLE, t);
+                SetCharaByte(ch, CHARA_BEHAVIOR_CHANGE + CHARA_SLOT_BLEND, CHARA_SLOT_CHANGE_START);
+                SetCharaInt(ch, CHARA_SLOT_FADE_LEN + CHARA_SLOT_BLEND * 4, len);
+                SetCharaInt(ch, CHARA_SLOT_FADE + CHARA_SLOT_BLEND * 4, -len);
+                asResetCharacterPosition(ch);
+                break;
+            }
+            if (body == -1) {
+                SetCharaInt(ch, CHARA_SLOT_FADE_LEN + CHARA_SLOT_BLEND * 4, 0);
+                SetCharaInt(ch, CHARA_SLOT_FADE + CHARA_SLOT_BLEND * 4, 0);
+                DropBlendSlot(ch);
+            } else {
+                // Slot 0's motion moves to the blend slot with its time and fades out there.
+                int len = RecShort(rec, MOTION_REC_BLEND_IN) * 100;
+                SetCharaInt(ch, CHARA_SLOT_FADE_LEN + CHARA_SLOT_BLEND * 4, len);
+                SetCharaInt(ch, CHARA_SLOT_FADE + CHARA_SLOT_BLEND * 4, -len);
+                SetCharaShort(ch, CHARA_SLOT_PREV + CHARA_SLOT_BLEND * 2, blendMotion);
+                SetCharaShort(ch, CHARA_MOTION_SLOTS + CHARA_SLOT_BLEND * 2, body);
+                SetCharaInt(ch, CHARA_SLOT_PLAYABLE + CHARA_SLOT_BLEND * 4, CharaInt(ch, CHARA_SLOT_PLAYABLE));
+                SetCharaInt(ch, CHARA_SLOT_TIME + CHARA_SLOT_BLEND * 4, CharaInt(ch, CHARA_SLOT_TIME));
+                SetCharaByte(ch, CHARA_BEHAVIOR_CHANGE + CHARA_SLOT_BLEND, CHARA_SLOT_CHANGE_START);
+            }
+            SetSlotFade(ch, CHARA_SLOT_BODY, 0);
+            asBehaviorStartAnimationFromTop(bhv, go != NULL, 1);
+            asChangeBehaviorAnimationPlayRate(bhv, rec[MOTION_REC_PLAY_RATE]);
+            SetSlotMotion(ch, CHARA_SLOT_BODY, motion, bhv, CHARA_SLOT_CHANGE_START, 1);
+            {
+                // The new motion starts as far in as the old one was (time / playable of the blend slot).
+                int bl = CharaInt(ch, CHARA_SLOT_PLAYABLE + CHARA_SLOT_BLEND * 4);
+                int bt = CharaInt(ch, CHARA_SLOT_TIME + CHARA_SLOT_BLEND * 4);
+                if (bl != 0 && bt < bl)
+                    asChangeBehaviorAnimationCurrent(bhv, bt * CharaInt(ch, CHARA_SLOT_PLAYABLE) / bl);
+            }
+            asResetCharacterPosition(ch);
+            break;
+        }
+        case CHARA_MOTION_REQ_BLEND_ONLY:
+            if (blendMotion == motion || slot != CHARA_SLOT_BODY)
+                break;
+            asBehaviorStartAnimationFromTop(bhv, go != NULL, 1);
+            asChangeBehaviorAnimationPlayRate(bhv, rec[MOTION_REC_PLAY_RATE]);
+            SetCharaShort(ch, CHARA_SLOT_PREV + CHARA_SLOT_BLEND * 2, blendMotion);
+            SetCharaShort(ch, CHARA_MOTION_SLOTS + CHARA_SLOT_BLEND * 2, motion);
+            SetCharaByte(ch, CHARA_BEHAVIOR_CHANGE + CHARA_SLOT_BLEND, CHARA_SLOT_CHANGE_START);
+            SetCharaInt(ch, CHARA_SLOT_PLAYABLE + CHARA_SLOT_BLEND * 4, BehaviorPlayable(bhv));
+            break;
+        }
+        SetCharaShort(ch, CHARA_MOTION_QUEUE + q * 2, -1);
+        SetCharaShort(ch, CHARA_MOTION_QUEUE_MODE + q * 2, -1);
+    }
+    {
+        short body = CharaShort(ch, CHARA_MOTION_SLOTS);
+        const u_char *rec = body != -1 ? MotionRecord(ch, body) : NULL;
+        SetCharaByte(ch, CHARA_MOTION_GROUP, rec != NULL ? rec[MOTION_REC_GROUP] : 0xff);
+    }
+}
+
+// CT3 0x018fb3b0
+int asCatWalkEventOperation(int mode)
+{
+    float r = rndf();   // drawn on every call, as the ROM does
+    int i;
+    if (mode == CATWALK_CHECK) {
+        for (i = 0; i < CATWALK_TIMES; i++) {
+            if (iBeforeTime < kCatWalkTimes[i] && kCatWalkTimes[i] <= iNowTime && (int)(r * 16.0f) <= i)
+                return 1;
+        }
+        return kCatWalkTimes[CATWALK_TIMES - 1] <= iNowTime;
+    }
+    if (mode == CATWALK_TICK) {
+        iBeforeTime = iNowTime;
+        iNowTime = (u_short)(iNowTime + gGlobalNextTicksInterval);
+    } else if (mode == CATWALK_RESET) {
+        iNowTime = 0;
+        iBeforeTime = 0;
+    }
+    return 0;
+}
+
+// CT3 0x018f4c60
+// The character rides the part it stands on (CHARA_TARGET's FORCE_MOVE_TARGET_PART of its lightBank)
+// in the one room that has such a part (FORCE_MOVE_ROOM_HASH): its position goes through the part's
+// move since last frame (world matrix * inverse of last frame's), its height kept; standing still
+// (CHARA_MOVE_DELTA zero), it keeps its distance to the part's centre in the ground plane; its rot
+// turns by the part's turn about Y.
+void asCharacterForceMoveOperate(CHARACTER *ch)
+{
+    const u_char *target;
+    short bank, idx;
+    const u_char *hdr;
+    const MODEL_PARTS *part;
+    alignas(16) float inv[4][4];
+    float *pos = (float *)&ch->pos;
+    float y, dist = 0.0f, keep[4] = {0, 0, 0, 0}, moved[4], dir[4], axis[4] = {1.0f, 0, 0, 0}, t[4], len;
+    float delta[3];
+    int still, k, turn;
+    if (ch->id == -1 || (ch->flags & CHARACTER_FLAG_REFRACTION) == 0 || asCheckAnimationExecutable_Character(ch->id) == 0)
+        return;
+    if (ch->roomHash != FORCE_MOVE_ROOM_HASH || (target = CharaTarget(ch)) == NULL)
+        return;
+    bank = ch->lightBank;
+    memcpy(&idx, target + FORCE_MOVE_TARGET_PART, sizeof(idx));
+    if (bank < 0 || idx < 0 || BankInfo[bank].state != BANK_STATE_LOADED)
+        return;
+    hdr = All_table_TBL[bank] != NULL ? BANK_PTR(const u_char *, bank, All_table_TBL[bank]->partsHeader) : NULL;
+    if (hdr == NULL)
+        return;     // PORT: the ROM reads through the word whatever it holds
+    part = (const MODEL_PARTS *)(hdr + idx * PARTS_REC_SIZE);
+    if (part->kind != PARTS_KIND_FORCE_MOVE)
+        return;
+    memcpy(inv, (const u_char *)part + PARTS_PREV_MATRIX, sizeof(inv));
+    gaInversMatrix(inv, inv);
+    y = pos[1];
+    pos[3] = 1.0f;
+    memcpy(delta, (const u_char *)ch + CHARA_MOVE_DELTA, sizeof(delta));
+    still = delta[0] == 0.0f && delta[1] == 0.0f && delta[2] == 0.0f;
+    if (still) {
+        float flat[4] = {pos[0], 0.0f, pos[2], pos[3]};
+        keep[0] = part->pos[0];
+        keep[2] = part->pos[2];
+        keep[3] = part->pos[3];
+        dist = asVectorDistance2(flat, keep);
+    }
+    // VU0: the position and the X axis through the inverse of last frame's matrix, then this frame's.
+    for (k = 0; k < 4; k++)
+        t[k] = inv[0][k] * pos[0] + inv[1][k] * pos[1] + inv[2][k] * pos[2] + inv[3][k] * pos[3];
+    for (k = 0; k < 4; k++)
+        moved[k] = part->matrix[0][k] * t[0] + part->matrix[1][k] * t[1] + part->matrix[2][k] * t[2] +
+                   part->matrix[3][k] * t[3];
+    memcpy(pos, moved, sizeof(moved));
+    for (k = 0; k < 4; k++)
+        t[k] = inv[0][k] * axis[0] + inv[1][k] * axis[1] + inv[2][k] * axis[2] + inv[3][k] * axis[3];
+    for (k = 0; k < 4; k++)
+        dir[k] = part->matrix[0][k] * t[0] + part->matrix[1][k] * t[1] + part->matrix[2][k] * t[2] +
+                 part->matrix[3][k] * t[3];
+    if (still) {
+        float d[4];
+        pos[1] = 0.0f;
+        for (k = 0; k < 4; k++)
+            d[k] = pos[k] - keep[k];
+        len = sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);   // VU0 vrsqrt of x + y + z squared
+        for (k = 0; k < 4; k++)
+            pos[k] = keep[k] + d[k] / len * dist;
+    }
+    pos[1] = y;
+    pos[3] = 0.0f;
+    // The turn: the X axis' ground-plane direction, its angle from X by the side of Z.
+    dir[1] = 0.0f;
+    dir[3] = 0.0f;
+    len = sqrtf(dir[0] * dir[0] + dir[2] * dir[2]);
+    turn = ahAcos(dir[0] / len);
+    if (dir[2] / len > 0.0f)
+        ch->rot += turn;
+    else if (dir[2] / len < 0.0f)
+        ch->rot -= turn;
+}
+
+// ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x018f55d0
 void asCharacterMortionFunctionOperation(CHARACTER *ch)
@@ -881,12 +1255,6 @@ void asPlayerInputAnalyze(CHARACTER *ch)
     ALYSSAPAN_STUB("asPlayerInputAnalyze", 0x018f79f0);
 }
 
-
-// stub of CT3 0x018fbc20
-void asRequestExecute(CHARACTER *ch)
-{
-    ALYSSAPAN_STUB("asRequestExecute", 0x018fbc20);
-}
 
 // stub of CT3 0x018fc2f0
 void asCheckCharacterHited(int chara)

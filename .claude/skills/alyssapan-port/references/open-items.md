@@ -95,9 +95,16 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    walks part records (PARTS_REC, as asResetCharacterPosition passes header + 0x40): type short at +0
    (MODEL_PARTS +0x40, 1 = turned), PARTS_FLAG43_WARPED also marks a placement change (as1CharacterPositioning,
    asCharacterPositioningOnlyDeltaPos): it may be a generic dirty bit (PARTS_ANIM_DIRTY is the same bit);
-   (af) asRequestExecute (the queue's consumer) waits on the behaviour API's host form: asFindBehaviorByCharacter
-   answers an EE behaviour of a bank, and the as*Behavior* calls take it (ExecuteAnimation's PORT form is
-   (bank, anim)): the slice that writes it picks the same (bank, anim) pair. **Next:**
+   ~~(af) the behaviour API's host form~~ (2026-11-10, slice 3): asFindBehaviorByCharacter answers a host
+   BEHAVIOR*; the (bank, anim) calls take it as (BankOfHostPtr(b), BankEeAddr(bank, b)) -- BankOfHostPtr
+   is now exported from ahRelocateSunPs2ObjectArry.c (PORT helper); (ag) the slot arrays are named from
+   asRequestExecute (wideXcmd_DebugPrint.h CHARA_SLOT_*: slot 0 the body, slot 5 the blend slot; fade /
+   fade length / prev / playable / time) -- CHARA_BHV_W35C..W470 stay as aliases until the readers
+   (asCharacterAnimationExecute, asMotionAdderByNowMotion) confirm them; (ah) asCharacterForceMoveOperate
+   needs CharaTarget (CHARA_TARGET's EE object, its +0x198 part index): it returns early on the host
+   until the target's writer decides the host form (with ac); asRequestExecute's slot-0 start clears
+   keyTicks (+0x520) and Alyssa's slot-4 starts need hp (+0x524) != 0: both read as the struct names
+   them, which fits hp being the current value (161's doubt). **Next:**
    ~~`ga/gaInitInterrupt.c`~~ (verify, 2026-11-09: main's frame loops now), then in the order a smoke
    run reaches the stubs: `main2` (game/main2.c: title and scene set-up), `IOPInit` / `Character_All_Init`
    (Character_Init.c), `FS_work_init` / `FileSoundServer` (fileio.c), `SunAllocInit` (ahalloc.c), the ga

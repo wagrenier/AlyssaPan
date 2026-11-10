@@ -86,6 +86,56 @@
 #define MOTION_FACING_BACK_MAX 0x12
 #define AIM_BACK_ROT 0x8000
 #define CHARA_BHV_W518 0x518            /* int: -1 at init */
+
+// ---- asRequestExecute / asResetCharacterPosition (slice 3, 2026-11-10) --------------------------------
+// The per-slot arrays (CHARA_BHV_SLOT_COUNT) by their use: slot 0 the body motion, CHARA_SLOT_BLEND (5)
+// the motion slot 0 blends out of (mode 5 moves slot 0's motion there and fades it over the record's
+// blend ticks; modes 4 / 6 stop / start it alone).
+#define CHARA_SLOT_BODY 0
+#define CHARA_SLOT_BLEND 5
+#define CHARA_SLOT_PANIC 4              /* Alyssa starts its motions only while she has hp and
+                                           TRIG_EVENT_BOSS_ALYS_DEAD is not set */
+#define CHARA_SLOT_FADE CHARA_BHV_W35C  /* int[6]: the fade left (ticks * 100); = CHARA_SLOT_FADE_LEN at start */
+#define CHARA_SLOT_FADE_LEN CHARA_BHV_W374 /* int[6]: the fade's length (the record's blend * 100), 0 none */
+#define CHARA_SLOT_PREV CHARA_BHV_H38C  /* short[6]: the motion the slot played before */
+#define CHARA_SLOT_PLAYABLE CHARA_BHV_W470 /* int[6]: the motion's playable ticks (asGetBehaviorPlayableTicks) */
+#define CHARA_SLOT_TIME CHARA_BHV_W458  /* int[6]: the slot's time (mode 5 carries slot 0's to the blend slot) */
+#define CHARA_SLOT_CHANGE_START 1       /* CHARA_BEHAVIOR_CHANGE: the slot's motion started */
+#define CHARA_SLOT_CHANGE_RESUME 3      /* ... resumed where it stood (CHARA_MOTION_REQ_RESUME) */
+#define CHARA_MOTION_GROUP 0x359        /* s_char (CHARA_BHV_BYTES[5]): slot 0's record MOTION_REC_GROUP, -1 none */
+#define CHARA_BHV_W51C 0x51c            /* int: cleared when a record of MOTION_REC_KIND2_RESET starts */
+#define CHARA_MOTION_ROOT 0x320         /* qword: the BasePoint's root vector through the motion's matrix
+                                           (asResetCharacterPosition); w = 1.0 (CHARA_MOTION_ROOT_W) */
+#define CHARA_MOTION_ROOT_W 0x32c
+// The motion record's fields asRequestExecute reads (names from this use).
+#define MOTION_REC_BLEND_IN 0x12        /* short: fade ticks of a start (modes 0, 5) */
+#define MOTION_REC_BLEND_RESTART 0x14   /* short: fade ticks of a restart (mode 1) */
+#define MOTION_REC_GROUP 0x16           /* u_char: copied to CHARA_MOTION_GROUP */
+#define MOTION_REC_SLOT 0x17            /* u_char: the slot the motion plays in */
+#define MOTION_REC_PLAY_RATE 0x18       /* u_char: asChangeBehaviorAnimationPlayRate's rate */
+#define MOTION_REC_KIND2 0x1e           /* u_char: MOTION_REC_KIND2_RESET clears CHARA_BHV_W51C */
+#define MOTION_REC_KIND2_RESET 10
+// The queue's modes (CHARA_MOTION_QUEUE_MODE); CHARA_MOTION_REQ_PLAY (0) and _STOP (2) above.
+#define CHARA_MOTION_REQ_RESTART 1      /* from the top, the time kept (resetTime 0) */
+#define CHARA_MOTION_REQ_RESUME 3       /* = CHARA_MOTION_REQUEST_INDEX: where it stands, no fade */
+#define CHARA_MOTION_REQ_STOP_BLEND 4   /* stop the blend slot */
+#define CHARA_MOTION_REQ_BLEND 5        /* slot 0 crossfades from its motion (or swaps with the blend slot) */
+#define CHARA_MOTION_REQ_BLEND_ONLY 6   /* start the motion in the blend slot alone */
+#define PARTS_REC_ROOT_VEC 0x20         /* part record: the vector asResetCharacterPosition carries through
+                                           the BasePoint's matrix */
+#define EA_DONE_ROT_BYTES(w) (((w) & 0xff) + (((w) >> 16) & 0xff)) /* the matrix's +0x3c done bytes 0 and 2 */
+#define ROT_FULL_TURN 65536.0f          /* rot units per turn */
+// asCatWalkEventOperation's modes and its times (@683, sdata 0x0193bad8: frames 900..2700 every 300).
+#define CATWALK_RESET 0
+#define CATWALK_TICK 1
+#define CATWALK_CHECK 2
+#define CATWALK_TIMES 7
+// asCharacterForceMoveOperate: the part a character rides (names from this use).
+#define FORCE_MOVE_ROOM_HASH 0x64c20b5ull /* CHARACTER.roomHash of the one room it runs in */
+#define FORCE_MOVE_TARGET_PART 0x198    /* CHARA_TARGET object: short, the ridden part's index in lightBank */
+#define PARTS_KIND_FORCE_MOVE 9         /* = PARTS_KIND_NO_DOF: the kind the ridden part must have */
+#define PARTS_PREV_MATRIX 0x200         /* MODEL_PARTS: float[4][4], last frame's world matrix (pad200) */
+#define CHARA_MOVE_DELTA 0x340          /* CHARACTER: float[3], this frame's own move; all 0 = standing */
 #define CHARA_NO_MOTION_TABLE 0x22      /* CHARACTER.id that gets no motion table (the last slot, 34) */
 #define MOTION_TABLE_H12 0x12           /* motion table: short, cleared for the CALH.BIN shape */
 
@@ -157,6 +207,9 @@ void asCharacterPositioning(CHARACTER *chr, int others, int player);            
 // the bank's matrix tree.
 void as1CharacterPositioning(CHARACTER *chr);                                            // CT3 0x018f7040
 // Turns every record of type 1 of `recs` (part records, PARTS_REC) by `rot` about Y; NULL: nothing.
+// Slot 0's motion at its key (ExecuteAnimation's matrix pass): the BasePoint's root vector through it
+// into CHARA_MOTION_ROOT and, when the matrix turns, CHARA_BASE_ROT from it (the parts turned by the change).
+void asResetCharacterPosition(CHARACTER *ch);                                            // CT3 0x018f7210
 void asResetCharacterRotation(int unused, u_char *recs, int rot);                        // CT3 0x018f73b0
 int asCharacterAnimationExecute(CHARACTER *ch);                                          // CT3 0x018f7430
 void asPlayerInputAnalyze(CHARACTER *ch);                                                // CT3 0x018f79f0
@@ -172,6 +225,9 @@ int asPIA0_KEY_TBL_PMOVEEND(CHARACTER *ch);                                     
 int asPIA0_KEY_TBL_PRUN(CHARACTER *ch);                                                  // CT3 0x018f86d0
 // The lever mash (ControllerClattering*): RLC_SET starts one with the four settings (< 0: default) and
 // answers its state (> 0: over, forgotten); RLC_FREE drops it.
+// The cat walk's random events: CATWALK_RESET / _TICK (the time on by this frame's ticks) / _CHECK (1
+// when one of the times was passed this frame, at a random chance, or the last one is past).
+int asCatWalkEventOperation(int mode);                                                   // CT3 0x018fb3b0
 int asRapidLeverChangeOperate(int mode, int time, int decay, int w08, int goal);         // CT3 0x018fb4c0
 int asMonsterDistanceStack_inPanic(int mode, int *id, float *dist);                      // CT3 0x018fb940
 // Alyssa's lock state (low byte of mode: LOCKED_*; the high byte is kept with the state).

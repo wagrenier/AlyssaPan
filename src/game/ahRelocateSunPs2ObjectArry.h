@@ -353,6 +353,9 @@ void asResetPassCheckarameter(BEHAVIOR_TRACK *track, int frame);                
 BEHAVIOR *asFindBehavior(u_char *image, u_long hash);                                    // CT3 0x0184ef10
 // The first of a character's behaviour banks (CHARACTER.behaviorBank, loaded) that has it.
 BEHAVIOR *asFindBehaviorByCharacter(int chara, u_long hash);                             // CT3 0x0184ef50
+// PORT (not ROM): the bank whose host image holds `host` (-1: none). The (bank, anim) calls
+// (ExecuteAnimation, asGetBehaviorPlayableTicks) take a found behaviour as (BankOfHostPtr(b), BankEeAddr(..)).
+int BankOfHostPtr(const void *host);
 // Every track of the behaviour to frame (playable * 100 - 1 when frame is not below playable).
 void asChangeBehaviorAnimationCurrent(BEHAVIOR *bhv, int frame);                         // CT3 0x01847c50
 void asChangeBehaviorAnimationPlayRate(BEHAVIOR *bhv, u_char rate);                     // CT3 0x01847cf0

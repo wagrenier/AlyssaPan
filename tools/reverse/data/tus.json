@@ -1022,7 +1022,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 140..140, 2 functions keyed by their statics, 6 unkeyed; file name from the names"
   },
   "game/wideXcmd_DebugPrint.c": {
-   "notes": "Next slice: asRequestExecute (0x6d0, the motion queue consumer) and asResetCharacterPosition need the behaviour API host form (open-items 1 af: asFindBehaviorByCharacter as a bank plus EE word, like ExecuteAnimation); then asCharacterAnimationExecute, asPlayerInputAnalyze, asMotionAdderByNowMotion, asCharacterForceMoveOperate, asCheckCharacterHited, asChainLengthCheck and asPIA0_KEY_TBL_PULLED (pBossInfo). The motion table is now set (open-items 1 aa): the CharaMotionTable helpers in ahRelocateSunPs2ObjectArry.c and QuatSlerp.c can read it through BankEePtr. The shot is black as before: nothing draws yet.",
+   "notes": "Next slice: asCharacterAnimationExecute (0x5b8) and asMotionAdderByNowMotion read the slot arrays now named CHARA_SLOT_* (fade, fade length, prev, playable, time; slot 5 the blend slot): confirm the names there; then asCharacterMortionFunctionOperation (0x1578), asPlayerInputAnalyze, asCheckCharacterHited, asChainLengthCheck, asPIA0_KEY_TBL_PULLED. asCharacterForceMoveOperate returns early on the host until CharaTarget has a host form (open-items 1 ah). The shot is black as before: nothing draws yet.",
    "ranges": [
     [
      "018f3f60",
@@ -1039,6 +1039,11 @@
      "date": "2026-11-10 17:38",
      "status": "partial",
      "summary": "slice 2: positioning (asCharacterPositioning, as1CharacterPositioning, OnlyDeltaPos, the pause review, asResetCharacterRotation), the panic / barrier / lock states, the lever mash, the monster distance stack, asSetCharacterIdentity, asInitPlayerBehaviorControler (sets the motion table), asCheckAlyssaOnStairway, asCharacterAutoAiming, asChangeMortionInfo_NextMortion, five asPIA0 key-table entries (22 functions)"
+    },
+    {
+     "date": "2026-11-10 17:56",
+     "status": "partial",
+     "summary": "slice 3: asRequestExecute (the motion queue consumer, body and blend slots), asResetCharacterPosition, asCharacterForceMoveOperate, asCatWalkEventOperation (4 functions); behaviour host form settled (BankOfHostPtr exported)"
     }
    ],
    "status": "partial",

@@ -1360,7 +1360,7 @@ void ExecuteAnimationHistory_Free(void)
 
 // PORT: the bank whose host image holds `host` (the image starting nearest below it). The ROM passes
 // a behaviour's address alone; its track words are EE addresses of that bank (decision h).
-static int BankOfHostPtr(const void *host)
+int BankOfHostPtr(const void *host)
 {
     const u_char *p = (const u_char *)host;
     int bank, best = -1;
