@@ -1449,8 +1449,8 @@ int SSPlaySQ2(const char *name, int vol)
         return printf(s_sqNotFound, name);
     }
     vol = SSVolumeAdjustSQ(name, vol);
-    return SdPlaySQ(s_sqDir, name, gFileSQ[index].sdArg2, vol, 0, gFileSQ[index].sdArg5,
-                    gFileSQ[index].sdArg6);
+    return SdPlaySQ(s_sqDir, name, gFileSQ[index].spuAddr, vol, 0, gFileSQ[index].effectType,
+                    gFileSQ[index].effectDepth);
 }
 
 // CT3 0x018cb460: a per-file volume hook; the ROM's answers vol unchanged.

@@ -1,6 +1,5 @@
 {
  "queue": [
-  "game/SdMasterVolumeSetSE.c",
   "ga/gaPadInit.c",
   "game/movie.c",
   "game/wideXcmd_DebugPrint.c",
@@ -540,7 +539,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 127..127, 1 functions keyed by their statics, 1 unkeyed; file name from the names"
   },
   "game/SdMasterVolumeSetSE.c": {
-   "notes": "Left: SdLoadSQProc only (0x018ce6c0, about 500 decompiled lines, the SQ twin of SdLoadSEProc; it names SD_SQ_LD arg2/arg4/arg5/arg6/iopSq/iopBd and the row swap); then the TU is complete. The CpCall_IOPSndDriver stub now answers a zero reply word (FSS_Thread reads it). IopLoadCapcomSound made 5 CpDivideEECom.c stubs (CpInit_Gloval_EE, CpCreateEEComRecieveThread, CpMakeSnddrvInitStr, CpEEInit_RpcClient, CpExchangeTransBuffer): that TU is the next sound blocker. callcheck MISSING on SdVolumeSQ / SdStopSQ is the SdFindSQ helper, on SdLoadSEProc its step helpers; memcpy extra in IopLoadCapcomSound is the ROM's inlined lq/sq copy. Screen stays black (nothing on the draw path).",
+   "notes": "All 61 functions written. callcheck MISSING on SdLoadSQProc is its step helpers (SdLoadSQOpen/Read/Send/Command), as for SdLoadSEProc. ROM slips kept: step 6 prints the SE DMA message, steps 3/6/9 keep fd after the close, 0x1b sends the stop twice. SND_CMD_SQ_0C/0D/17/18/START named by step only. Nothing sounds until game/CpDivideEECom.c (the IOP side EE half, 5 stubs) is written: the next sound blocker. Screen black (nothing on the draw path).",
    "ranges": [
     [
      "018cbf90",
@@ -572,9 +571,14 @@
      "date": "2026-11-10 15:35",
      "status": "partial",
      "summary": "slice 5: SdPlayADSProc (the stream player, SD_ADS_PHASE), IopLoadCapcomSound (the driver boot: FSS_Thread runs from boot now), SdSetParamSESDT, SdFindLoadSEInfo; SND_TRANS_ADS fields and SND_DRV_INIT (gArg_CpDriverInit), gSQHeapBD"
+    },
+    {
+     "date": "2026-11-10 15:53",
+     "status": "verify",
+     "summary": "slice 6: SdLoadSQProc, the SQ loader and player (SD_SQ_LD_STEP, SD_SQ_REGISTER, SND_CMD_SQ_*); SD_SQ_LD fields named (effectType/effectDepth/spuAddr/iopSq/iopHd/iopBd/sizes/fd/effectDelay/stopWait); gFileSQ words renamed; the TU is complete"
     }
    ],
-   "status": "partial",
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 121..121, 39 functions keyed by their statics, 22 unkeyed; file name from the names"
   },
   "game/ahRelocateSunPs2ObjectArry.c": {

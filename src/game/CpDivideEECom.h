@@ -51,6 +51,13 @@ static_assert(offsetof(EE_IOP_STAT, sndFlags) == 0x40, "EE_IOP_STAT.sndFlags");
 #define SND_CMD_INIT_08 0x80000u          /* gTransJSLCOM arg[0] 0: IopLoadCapcomSound, after the stream set-up */
 #define SND_CMD_INIT_07 0x70000u          /* gTransJSLCOM arg[0] 0, arg[1] 0xffffff (a 24-voice mask?) */
 #define SND_CMD_INIT_25 0x250000u         /* gTransJSLCOM arg[0] 0: IopLoadCapcomSound's last */
+// SdLoadSQProc's commands once an SQ's files are up, in its order (SD_SQ_LD.volCom, unk00 the player);
+// named by the step that sends them, the IOP side unread.
+#define SND_CMD_SQ_0C 0xc0000u            /* the first after the register record */
+#define SND_CMD_SQ_0D 0xd0000u
+#define SND_CMD_SQ_17 0x170000u
+#define SND_CMD_SQ_18 0x180000u           /* arg[0] 0 */
+#define SND_CMD_SQ_START 0x190000u        /* arg[0] 1: after the master volume and the reverb */
 
 // A JSL command record (gTransJSLCOM, and the Sd TU's seStopJSLCOM / effectJSLCOM): 8 words, the
 // arguments from +8. layout: ee.

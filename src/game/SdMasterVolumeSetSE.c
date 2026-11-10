@@ -5,7 +5,8 @@
 // (2026-11-10): SdProc, the SE bank loader (SdLoadSEProc, NextLoadSE), the SQ volume commands. Slice 4
 // (2026-11-10): the SE stops, the special SEs' request, the load waits, the SQ requests, the stream
 // request, sound on / off, stereo. Slice 5 (2026-11-10): the stream player (SdPlayADSProc), the driver's
-// boot (IopLoadCapcomSound), SdSetParamSESDT, SdFindLoadSEInfo. Left: SdLoadSQProc.
+// boot (IopLoadCapcomSound), SdSetParamSESDT, SdFindLoadSEInfo. Slice 6 (2026-11-10): the SQ loader and
+// player (SdLoadSQProc). The TU is complete.
 //
 // Every command goes the same way: take fss_sid, fill a command record (a JSL_COM, gTransJSLCOM or
 // gTransADS), queue (command word, record, reply pointer) on RingBuff with CpCall_IOPSndDriver_FIFO, and
@@ -908,9 +909,9 @@ void SdStopSQAllNow(void)
             sceGsSyncV(0);
         }
         SD_SQ_LD *sq = &gSQLd[gSQi];
-        if (sq->iopBd != 0) {
-            sceSifFreeIopHeap((void *)(uintptr_t)sq->iopBd);
-            sq->iopBd = 0;
+        if (sq->iopHd != 0) {
+            sceSifFreeIopHeap((void *)(uintptr_t)sq->iopHd);
+            sq->iopHd = 0;
         }
         if (sq->iopSq != 0) {
             sceSifFreeIopHeap((void *)(uintptr_t)sq->iopSq);
@@ -961,7 +962,8 @@ void SdStopSQ(const char *name)
 // CT3 0x018ce440 -- plays the SQ dir\name at vol. The SQ row 0 already plays (still before
 // SD_SQ_LD_STEP_REPLAY_MAX) keeps playing, at the new volume; otherwise the request goes into row 0, or into
 // row 1 while row 0 is told to stop. Answers 1 when it went into row 1.
-int SdPlaySQ(const char *dir, const char *name, u_int a2, int vol, int a4, int a5, int a6)
+int SdPlaySQ(const char *dir, const char *name, u_int spuAddr, int vol, int effectDelay, int effectType,
+             int effectDepth)
 {
     char upper[0x40];
     SD_SQ_LD *sq = &gSQLd[0];
@@ -984,21 +986,21 @@ int SdPlaySQ(const char *dir, const char *name, u_int a2, int vol, int a4, int a
     strcpy(sq->dir, dir);
     strupr(sq->dir);
     strcpy(sq->name, upper);
-    sq->arg5 = a5;
-    sq->arg6 = a6;
-    sq->arg2 = a2;
-    sq->unk88 = 0;
-    sq->unk90 = 0;
-    sq->unk8c = 0;
+    sq->effectType = effectType;
+    sq->effectDepth = effectDepth;
+    sq->spuAddr = spuAddr;
+    sq->sqSize = 0;
+    sq->bdSize = 0;
+    sq->hdSize = 0;
     sq->iopSq = 0;
-    sq->unk84 = 0;
     sq->iopBd = 0;
-    sq->unka8 = 0;
+    sq->iopHd = 0;
+    sq->stopWait = 0;
     sq->flags = 0;
     sq->vol = vol;
     sq->playVol = vol;
     sq->step = SD_SQ_LD_STEP_REQUEST;
-    sq->arg4 = a4;
+    sq->effectDelay = effectDelay;
     return busy;
 }
 
@@ -1405,14 +1407,6 @@ int SdFindLoadSEInfo(int by, ...)
     }
     va_end(ap);
     return found;
-}
-
-// ---- stubs (tools/reverse/stubgen.py) ----
-
-// stub of CT3 0x018ce6c0 (static: SdProc's step of the SQ loads)
-static void SdLoadSQProc(void)
-{
-    ALYSSAPAN_STUB("SdLoadSQProc", 0x018ce6c0);
 }
 
 // ---- slice 3 (2026-11-10): SE bank requests, SE play ------------------------------------------------------
@@ -1881,5 +1875,359 @@ static void SdPlaySESpProc(void)
             }
         }
         sp->lastTime = ga_main_timer;
+    }
+}
+
+// ---- slice 6 (2026-11-10): the SQ loader and player -----------------------------------------------------
+
+static int sSQTransedSize;                      /* sbss 0x01942f6c (sTransedSize$420): .BD bytes sent */
+static int sSQTransSize;                        /* sbss 0x01942f68 (sTransSize$421): this piece's bytes */
+static char sSQFname[0x38];                     /* bss  0x01942f30 (sFname$422) */
+
+static const char s_sq[] = ".SQ";               /* @2325 */
+static const char s_allocSq[] = "SD4";          /* 0x019366e8: SdAlloc's names (unread) */
+static const char s_allocSqHd[] = "SD5";        /* 0x01936730 */
+static const char s_allocSqBd[] = "SD6";        /* 0x01936780 */
+static const char s_errSqDma[] = "### ERR: SdLoadSQProc, CpSifDmaTransEEToIOP ###\n"; /* @2327 */
+static const char s_errSqTrans[] = "### ERR: SdLoadSQProc, sceSdTransToIOP ###\n";    /* @2333 */
+
+#define SD_SQ_BD_PIECE 0x3a000                  /* .BD bytes per SPU2 transfer (gSQHeapBD's size) */
+#define SD_SQ_STOP_WAIT 2                       /* frames between the stop command and the free */
+#define SD_SQ_START_ARG0 1                      /* SND_CMD_SQ_START's arg[0] (SND_CMD_SQ_18's is 0) */
+
+// Steps 1, 4, 7: open NAME<ext>, and go on once the file layer took the request.
+static void SdLoadSQOpen(SD_SQ_LD *sq, const char *ext)
+{
+    char path[0x40];
+    strcpy(path, sq->name);
+    strcat(path, ext);
+    sq->fd = FlReqOpen(sq->dir, path);
+    if (sq->fd != 0) {
+        sq->step++;
+    }
+}
+
+// Steps 2, 5, 8: once the size is known, sqAllocPtr for the whole file and the read.
+static void SdLoadSQRead(SD_SQ_LD *sq, int *size, const char *allocName)
+{
+    const FL_REQ_RD *req = SdFindReq(sq->fd);
+    int fileSize = req != NULL ? req->size : -1;
+    if (fileSize > 0) {
+        *size = fileSize;
+        sqAllocPtr = SdAlloc(*size, SD_FILE_ALIGN, allocName);
+        if (sqAllocPtr != NULL) {
+            FlReqRead(sq->fd, sqAllocPtr, -1, -1);
+            sq->step++;
+        }
+    }
+}
+
+// Steps 3 and 6: an IOP heap block for sqAllocPtr's `size` bytes, and the DMA; 0 on success. The block goes
+// to *iop (0 when the heap is full: then the step is ERROR and nothing is sent).
+static int SdLoadSQSend(SD_SQ_LD *sq, u_int *iop, int size, const char *err)
+{
+    *iop = SdIopHeapAlloc(size);
+    if (*iop == 0) {
+        sq->step = SD_SQ_LD_ERROR;
+        return -1;
+    }
+    if (CpSifDmaTransEEToIOP(sqAllocPtr, *iop, (u_int)(size + 0xf) & ~0xfu, 0, 0) != 0) {
+        printf(err);
+        sq->step = SD_SQ_LD_ERROR;
+        return -1;
+    }
+    return 0;
+}
+
+// Steps 0xe..0x11 and 0x14: one command with the player in volCom.
+static void SdLoadSQCommand(SD_SQ_LD *sq, u_int command, int setArg0, int arg0)
+{
+    WaitSema(fss_sid);
+    sq->volCom.unk00 = gSQi;
+    if (setArg0) {
+        sq->volCom.arg[0] = arg0;
+    }
+    CpCall_IOPSndDriver_FIFO(command, &sq->volCom, NULL);
+    SignalSema(fss_sid);
+}
+
+// CT3 0x018ce6c0 -- one step of the SQ player gSQi (SD_SQ_LD_STEP says what each does): its three files to
+// the IOP and SPU2 RAM, the driver's set-up and start, then volume changes and the stop; once stopped, row 1
+// moves into row 0. The ROM re-reads gSQLd[gSQi] after every call; nothing moves gSQi, so `sq` stands for it.
+static void SdLoadSQProc(void)
+{
+    SD_SQ_LD *sq = &gSQLd[gSQi];
+    switch (sq->step) {
+    case SD_SQ_LD_STEP_REQUEST:
+        SdLoadSQOpen(sq, s_sq);
+        break;
+
+    case SD_SQ_LD_READ_SQ:
+        SdLoadSQRead(sq, &sq->sqSize, s_allocSq);
+        break;
+
+    case SD_SQ_LD_SEND_SQ: {
+        if (FlIsExecute(sq->fd) != 0) {
+            break;
+        }
+        const FL_REQ_RD *req = SdFindReq(sq->fd);
+        int packIdx = req != NULL ? req->packIdx : -1;
+        if (SdLoadSQSend(sq, &sq->iopSq, sq->sqSize, s_errSqDma) == 0) {
+            if (packIdx < 0) {
+                sq->step++;
+            } else {
+                // A packed .SQ carries its .HD: both went up in one block, the HD steps are skipped.
+                int part = gFlPackInfo[packIdx].partSize;
+                sq->hdSize = sq->sqSize - part;
+                sq->sqSize = part;
+                sq->iopHd = sq->iopSq + (u_int)sq->sqSize;
+                sq->step = SD_SQ_LD_OPEN_BD;
+            }
+        }
+        // The ROM keeps fd after the close here and in steps 6 and 9 (SdLoadSEProc clears it).
+        SdFree(&sqAllocPtr);
+        FlReqClose(sq->fd);
+        break;
+    }
+
+    case SD_SQ_LD_OPEN_HD:
+        SdLoadSQOpen(sq, s_hd);
+        break;
+
+    case SD_SQ_LD_READ_HD:
+        SdLoadSQRead(sq, &sq->hdSize, s_allocSqHd);
+        break;
+
+    case SD_SQ_LD_SEND_HD:
+        if (FlIsExecute(sq->fd) != 0) {
+            break;
+        }
+        FlReqClose(sq->fd);
+        sq->iopHd = SdIopHeapAlloc(sq->hdSize);
+        if (sq->iopHd == 0) {
+            sq->step = SD_SQ_LD_ERROR; // the buffer stays: END frees it
+            break;
+        }
+        if (CpSifDmaTransEEToIOP(sqAllocPtr, sq->iopHd, (u_int)(sq->hdSize + 0xf) & ~0xfu, 0, 0) == 0) {
+            sq->step++;
+        } else {
+            printf(s_errDma); // the ROM prints SdLoadSEProc's message here (@2330)
+            sq->step = SD_SQ_LD_ERROR;
+        }
+        SdFree(&sqAllocPtr);
+        break;
+
+    case SD_SQ_LD_OPEN_BD:
+        SdLoadSQOpen(sq, s_bd);
+        break;
+
+    case SD_SQ_LD_READ_BD:
+        SdLoadSQRead(sq, &sq->bdSize, s_allocSqBd);
+        break;
+
+    case SD_SQ_LD_BD_READ_WAIT:
+        if (FlIsExecute(sq->fd) != 0) {
+            return;
+        }
+        FlReqClose(sq->fd);
+        sSQTransedSize = 0;
+        sq->step++;
+        // fall through: the first piece goes this frame
+    case SD_SQ_LD_BD_TRANS:
+        sq->iopBd = gSQHeapBD;
+        sSQTransSize = sq->bdSize - sSQTransedSize;
+        if (sSQTransSize > SD_SQ_BD_PIECE) {
+            sSQTransSize = SD_SQ_BD_PIECE;
+        }
+        if (sceSdTransToIOP((u_char *)sqAllocPtr + sSQTransedSize, gSQHeapBD, (u_int)sSQTransSize, 1) == 0) {
+            sq->step++;
+        } else {
+            printf(s_errSqTrans);
+            sq->step = SD_SQ_LD_ERROR;
+        }
+        break;
+
+    case SD_SQ_LD_BD_SPU:
+        if (gExecDriver_2 < 1) {
+            WaitSema(fss_sid);
+            sq->volCom.arg[0] = (int)gSQHeapBD;
+            sq->volCom.arg[1] = sSQTransedSize + (int)sq->spuAddr;
+            sq->volCom.arg[2] =
+                (int)((u_int)(sSQTransSize + SD_SPU_TRANS_ALIGN - 1) & ~(u_int)(SD_SPU_TRANS_ALIGN - 1));
+            CpCall_IOPSndDriver_2(SND_CMD_TRANS_SPU2, &sq->volCom);
+            SignalSema(fss_sid);
+            gExecDriver_2 = SD_SPU_TRANS_WAIT;
+            sq->step++;
+        } else {
+            gExecDriver_2--;
+        }
+        break;
+
+    case SD_SQ_LD_BD_SPU_WAIT:
+        if (CpCheckEE_IOPComEnd(SND_CMD_TRANS_SPU2, 1) == 0) {
+            gExecDriver_2 = 0;
+            sSQTransedSize += sSQTransSize;
+            if (sSQTransedSize < sq->bdSize) {
+                sq->step = SD_SQ_LD_BD_TRANS;
+            } else {
+                SdFree(&sqAllocPtr);
+                sq->step++;
+            }
+        }
+        break;
+
+    case SD_SQ_LD_REGISTER: {
+        char path[0x40];
+        strcpy(path, sq->dir);
+        for (int i = 0; path[i] != '\0'; i++) {
+            if (path[i] == '/') {
+                path[i] = '\\';
+            }
+        }
+        strcat(path, sq->name);
+        strupr(path);
+        strcpy(sSQFname, gDeviceName);
+        strcat(sSQFname, path);
+        WaitSema(fss_sid);
+        strcpy(sq->reg.path, sSQFname);
+        sq->reg.iopHd = sq->iopHd;
+        sq->reg.iopBd = sq->iopBd;
+        sq->reg.spuAddr = sq->spuAddr;
+        sq->reg.iopSq = sq->iopSq;
+        sq->reg.zero90 = 0;
+        sq->reg.bdSize = sq->bdSize;
+        sq->reg.zero9c = 0;
+        sq->reg.player = (u_char)gSQi;
+        sq->reg.zeroA9 = 0;
+        sq->reg.player2 = (u_char)gSQi;
+        sq->reg.zeroAb = 0;
+        CpCall_IOPSndDriver_FIFO((u_int)gSQi | SND_CMD_SE_REGISTER, &sq->reg, NULL);
+        SignalSema(fss_sid);
+        sq->step++;
+        break;
+    }
+
+    case SD_SQ_LD_CMD_0C:
+        SdLoadSQCommand(sq, SND_CMD_SQ_0C, 0, 0);
+        sq->step++;
+        break;
+
+    case SD_SQ_LD_CMD_0D:
+        SdLoadSQCommand(sq, SND_CMD_SQ_0D, 0, 0);
+        sq->step++;
+        break;
+
+    case SD_SQ_LD_CMD_17:
+        SdLoadSQCommand(sq, SND_CMD_SQ_17, 0, 0);
+        sq->step++;
+        break;
+
+    case SD_SQ_LD_CMD_18:
+        SdLoadSQCommand(sq, SND_CMD_SQ_18, 1, 0);
+        sq->step++;
+        break;
+
+    case SD_SQ_LD_MASTER_VOL:
+        SdMasterVolumeSetSQ(gMasterVolSQ);
+        sq->step++;
+        break;
+
+    case SD_SQ_LD_EFFECT:
+        if (sq->effectDelay-- < 1) {
+            SdSetEffect(0, sq->effectType, sq->effectDepth);
+            sq->step++;
+        }
+        break;
+
+    case SD_SQ_LD_START:
+        if ((sq->flags & SD_SQ_FLAG_STOP) == 0) {
+            SdLoadSQCommand(sq, SND_CMD_SQ_START, 1, SD_SQ_START_ARG0);
+            sq->step++;
+        } else {
+            sq->stopWait = 0;
+            sq->step = SD_SQ_LD_END;
+        }
+        break;
+
+    case SD_SQ_LD_VOLUME:
+        SdVolumeSetSQ(gSQi, sq->playVol);
+        sq->step++;
+        break;
+
+    case SD_SQ_LD_16:
+    case SD_SQ_LD_17:
+    case SD_SQ_LD_18:
+        sq->step = SD_SQ_LD_STEP_LOADED;
+        // fall through
+    case SD_SQ_LD_STEP_LOADED:
+        if ((sq->flags & SD_SQ_FLAG_VOLUME) != 0) {
+            sq->step = SD_SQ_LD_FADE;
+        } else if ((sq->flags & SD_SQ_FLAG_STOP) != 0) {
+            sq->step = SD_SQ_LD_STEP_REPLAY_MAX;
+        }
+        break;
+
+    case SD_SQ_LD_FADE:
+        if ((sq->flags & SD_SQ_FLAG_FADE) == 0) {
+            sq->playVol = sq->vol;
+            sq->flags &= ~SD_SQ_FLAG_VOLUME;
+            sq->step = SD_SQ_LD_STEP_LOADED;
+        } else if (sq->vol < sq->playVol) {
+            if (--sq->playVol <= sq->vol) {
+                sq->playVol = sq->vol;
+                sq->flags &= ~(SD_SQ_FLAG_VOLUME | SD_SQ_FLAG_FADE);
+                sq->step = SD_SQ_LD_STEP_LOADED;
+            }
+        } else {
+            if (sq->vol <= ++sq->playVol) {
+                sq->playVol = sq->vol;
+                sq->flags &= ~(SD_SQ_FLAG_VOLUME | SD_SQ_FLAG_FADE);
+                sq->step = SD_SQ_LD_STEP_LOADED;
+            }
+        }
+        SdVolumeSetSQ(gSQi, sq->playVol);
+        break;
+
+    case SD_SQ_LD_STOP:
+    case SD_SQ_LD_STEP_REPLAY_MAX:
+        WaitSema(fss_sid);
+        sq->volCom.unk00 = gSQi;
+        sq->volCom.arg[0] = 0;
+        sq->volCom.arg[1] = SD_SQ_STOP_NOW_ARG1;
+        CpCall_IOPSndDriver_FIFO(SND_CMD_STOP_SQ_NOW, &sq->volCom, NULL);
+        SignalSema(fss_sid);
+        sq->stopWait = SD_SQ_STOP_WAIT;
+        sq->step++;
+        break;
+
+    case SD_SQ_LD_END:
+        if (sq->stopWait-- > 0) {
+            return;
+        }
+        if (sq->iopHd != 0) {
+            sceSifFreeIopHeap((void *)(uintptr_t)sq->iopHd);
+            sq->iopHd = 0;
+        }
+        if (sq->iopSq != 0) {
+            sceSifFreeIopHeap((void *)(uintptr_t)sq->iopSq);
+            sq->iopSq = 0;
+        }
+        SdFree(&sqAllocPtr);
+        WaitSema(fss_sid);
+        CpCall_IOPSndDriver_FIFO((u_int)gSQi | SND_CMD_SE_PURGE, &sq->reg, NULL);
+        SignalSema(fss_sid);
+        memset(&sq->reg, 0, SD_SQ_REGISTER_CLEAR);
+        memset(&sq->volCom, 0, sizeof sq->volCom);
+        sq->step++;
+        // fall through
+    case SD_SQ_LD_SWAP:
+        memcpy(&gSQLd[0], &gSQLd[1], sizeof gSQLd[0]);
+        memset(&gSQLd[1], 0, sizeof gSQLd[1]);
+        break;
+
+    case SD_SQ_LD_ERROR:
+        sq->stopWait = 0;
+        sq->step = SD_SQ_LD_END;
+        break;
     }
 }

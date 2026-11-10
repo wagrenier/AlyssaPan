@@ -840,6 +840,17 @@ The auto-load at boot (MemorycardAutoLoad, xcmd_tn.c) has its own states (mcMain
   +0x0c word is below 1000, and clears `gPlaySESp1` rows of that slot (+0 is the slot, +8 below 1000).
 - SQ volumes: 0x1b0000 the master (`gTransJSLCOM`, unk00 0, arg[0]), 0x1c0000 one player
   (`gSQLd[i]` +0xc0 record: unk00 = i, arg[0] 0xff, arg[1] volume).
+- **An SQ (slice 6, 2026-11-10) is three files too**, `NAME.SQ`, `NAME.HD`, `NAME.BD`; `SdLoadSQProc`
+  (0x018ce6c0) walks `gSQLd[gSQi]` (gSQi is never written: row 0) through `SD_SQ_LD_STEP` with the SE
+  loader's steps (SdAlloc "SD4" / "SD5" / "SD6" into the one global `sqAllocPtr`; a packed .SQ carries its
+  .HD; the .BD in 0x3a000-byte pieces through `gSQHeapBD`, SPU2 address `gFileSQ.spuAddr` = 0x20000), then
+  `0xa0000 | player` with `SD_SQ_REGISTER` (+0x100: path, IOP HD, staging BD, SPU2 address, IOP SQ, BD
+  size, the player at +0xa8 / +0xaa), then one command a frame: 0xc0000, 0xd0000, 0x170000, 0x180000
+  (arg[0] 0), the SQ master volume, after `effectDelay` frames `SdSetEffect(0, effectType, effectDepth)`
+  (gFileSQ: type 4, or 5 for PIANO / MISSHORT / MISLONG), 0x190000 (arg[0] 1, the start), the player's
+  volume. PLAYING (0x19) waits for SdVolumeSQ (0x1a: to `vol` at once, or one unit a frame with FADE) or
+  the stop (0x1c: 0x1a0000 arg[1] 0xb, two frames, free the IOP blocks, `0xb0000 | player` with the
+  register record, clear it), then **row 1 is copied into row 0** and cleared: the queued SQ starts.
 
 
 ### Slice 3 (2026-11-10): SE requests and play

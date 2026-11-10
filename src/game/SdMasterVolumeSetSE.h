@@ -151,46 +151,116 @@ typedef struct SD_SE_LD {
 } SD_SE_LD;
 #define SD_SE_LD_COUNT 10
 
-// gSQLd's rows: the two SQ (sequenced music) players; row 0 is the one sound.c reads. SdPlaySQ fills
-// row 0, or row 1 while row 0 still plays (row 0 is then told to stop: SdLoadSQProc's swap, unread).
+// An SQ's register record (SD_SQ_LD +0x100 in the ROM): SdLoadSQProc hands it to the driver with
+// SND_CMD_SE_REGISTER | player once the three files are up, and with SND_CMD_SE_PURGE | player when the SQ
+// ends. SD_SE_REGISTER's layout with +0x8c / +0x90 used otherwise and the player at +0xa8. layout: ee --
+// the IOP side reads it. SdLoadSQProc clears +0x00..+0xb0 (SD_SQ_REGISTER_CLEAR).
+typedef struct SD_SQ_REGISTER {
+    char path[0x80];            // +0x00 gDeviceName + dir + name (no extension), '\' separated, upper case
+    u_int iopHd;                // +0x80 the .HD's IOP heap block
+    u_int iopBd;                // +0x84 where the .BD went (gSQHeapBD, the staging block)
+    u_int spuAddr;              // +0x88 the .BD's SPU2 address
+    u_int iopSq;                // +0x8c the .SQ's IOP heap block
+    int zero90;                 // +0x90 0
+    int unk94;                  // +0x94 unwritten
+    int bdSize;                 // +0x98
+    int zero9c;                 // +0x9c 0
+    u_char unka0[0x8];          // +0xa0 unwritten
+    u_char player;              // +0xa8 gSQi
+    u_char zeroA9;              // +0xa9 0
+    u_char player2;             // +0xaa gSQi again
+    u_char zeroAb;              // +0xab 0
+    u_char unkac[0x14];         // +0xac
+} SD_SQ_REGISTER;
+static_assert(sizeof(SD_SQ_REGISTER) == 0xc0, "SD_SQ_REGISTER");
+static_assert(offsetof(SD_SQ_REGISTER, iopSq) == 0x8c, "SD_SQ_REGISTER.iopSq");
+static_assert(offsetof(SD_SQ_REGISTER, player) == 0xa8, "SD_SQ_REGISTER.player");
+#define SD_SQ_REGISTER_CLEAR 0xb0       // the bytes SdLoadSQProc clears when the SQ ends
+
+// gSQLd's rows: the two SQ (sequenced music) players; SdLoadSQProc steps row gSQi (always 0: nothing
+// writes it). SdPlaySQ fills row 0, or row 1 while row 0 still plays (row 0 is then told to stop); once
+// row 0 has ended, SdLoadSQProc copies row 1 into it and clears row 1 (SD_SQ_LD_SWAP).
+// layout: ee -- ints and chars only (the SQ's file buffer is the global sqAllocPtr).
 typedef struct SD_SQ_LD {       // 0x1c0 bytes
     char dir[0x38];             // +0x00 SdPlaySQ's directory (upper case)
-    char name[0x38];            // +0x38 the playing SQ ("HINMIN"); '\0' = none
-    int arg5;                   // +0x70 SdPlaySQ's sixth argument (SdLoadSQProc reads it)
-    int arg6;                   // +0x74 its seventh
-    u_int arg2;                 // +0x78 its third
-    u_int iopSq;                // +0x7c an IOP heap block (SdStopSQAllNow frees it second)
-    u_int iopBd;                // +0x80 an IOP heap block (freed first)
-    int unk84;                  // +0x84 SdPlaySQ clears +0x84..+0x90
-    int unk88;                  // +0x88
-    int unk8c;                  // +0x8c
-    int unk90;                  // +0x90
-    int step;                   // +0x94 SD_SQ_LD_STEP_*: SdLoadSQProc's step; cleared with the name
-    u_char unk98[0x4];          // +0x98
-    int playVol;                // +0x9c the volume it was started at
+    char name[0x38];            // +0x38 the playing SQ ("HINMIN"), no extension; empty = none
+    int effectType;             // +0x70 the reverb type set once it plays (SdSetEffect, core 0)
+    int effectDepth;            // +0x74 its depth
+    u_int spuAddr;              // +0x78 the .BD's SPU2 address
+    u_int iopSq;                // +0x7c the .SQ's IOP heap block (0 = none)
+    u_int iopHd;                // +0x80 the .HD's (inside iopSq for a packed .SQ)
+    u_int iopBd;                // +0x84 gSQHeapBD once the .BD goes out
+    int sqSize;                 // +0x88
+    int hdSize;                 // +0x8c
+    int bdSize;                 // +0x90
+    int step;                   // +0x94 SD_SQ_LD_STEP; cleared with the name
+    int fd;                     // +0x98 the open FlReqOpen handle
+    int playVol;                // +0x9c the volume it plays at (SD_SQ_LD_FADE moves it to `vol`)
     u_int flags;                // +0xa0 SD_SQ_FLAG_*
-    int arg4;                   // +0xa4 SdPlaySQ's fifth argument
-    int unka8;                  // +0xa8 SdPlaySQ clears it
+    int effectDelay;            // +0xa4 frames before the reverb is set (SdPlaySQ's fifth argument)
+    int stopWait;               // +0xa8 frames between the stop command and the free
     int vol;                    // +0xac SdVolumeSQ's target volume
     u_char unkb0[0x10];         // +0xb0
-    SND_JSL_COM volCom;         // +0xc0 SdVolumeSetSQ's record: unk00 the player, arg[0] 0xff, arg[1] volume
-    u_char unke0[0xe0];         // +0xe0
+    SND_JSL_COM volCom;         // +0xc0 the player's command record: SdVolumeSetSQ's (unk00 the player,
+                                //       arg[0] 0xff, arg[1] volume) and SdLoadSQProc's (unk00 the player)
+    u_char unke0[0x20];         // +0xe0
+    SD_SQ_REGISTER reg;         // +0x100
 } SD_SQ_LD;
 static_assert(sizeof(SD_SQ_LD) == 0x1c0, "SD_SQ_LD");
 static_assert(offsetof(SD_SQ_LD, name) == 0x38, "SD_SQ_LD.name");
+static_assert(offsetof(SD_SQ_LD, spuAddr) == 0x78, "SD_SQ_LD.spuAddr");
+static_assert(offsetof(SD_SQ_LD, iopSq) == 0x7c, "SD_SQ_LD.iopSq");
+static_assert(offsetof(SD_SQ_LD, bdSize) == 0x90, "SD_SQ_LD.bdSize");
+static_assert(offsetof(SD_SQ_LD, step) == 0x94, "SD_SQ_LD.step");
 static_assert(offsetof(SD_SQ_LD, playVol) == 0x9c, "SD_SQ_LD.playVol");
+static_assert(offsetof(SD_SQ_LD, effectDelay) == 0xa4, "SD_SQ_LD.effectDelay");
 static_assert(offsetof(SD_SQ_LD, vol) == 0xac, "SD_SQ_LD.vol");
 static_assert(offsetof(SD_SQ_LD, volCom) == 0xc0, "SD_SQ_LD.volCom");
-static_assert(offsetof(SD_SQ_LD, iopSq) == 0x7c, "SD_SQ_LD.iopSq");
-static_assert(offsetof(SD_SQ_LD, step) == 0x94, "SD_SQ_LD.step");
-static_assert(offsetof(SD_SQ_LD, arg4) == 0xa4, "SD_SQ_LD.arg4");
+static_assert(offsetof(SD_SQ_LD, reg) == 0x100, "SD_SQ_LD.reg");
 #define SD_SQ_LD_COUNT 2
 #define SD_SQ_FLAG_STOP 0x1u            // SdStopSQ / SdStopSQAll / SdPlaySQ over a playing SQ
 #define SD_SQ_FLAG_VOLUME 0x2u          // SdVolumeSQ: move to `vol`
-#define SD_SQ_FLAG_FADE 0x4u            // SdVolumeSQ / SdStopSQAll(fade): gradually
-#define SD_SQ_LD_STEP_REQUEST 1         // SdPlaySQ's request
-#define SD_SQ_LD_STEP_LOADED 0x19       // from here the SQ is loaded (SdLoadSQEndWaitAll waits below it)
-#define SD_SQ_LD_STEP_REPLAY_MAX 0x1c   // SdPlaySQ of the playing SQ below this step only resets its volume
+#define SD_SQ_FLAG_FADE 0x4u            // SdVolumeSQ / SdStopSQAll(fade): gradually, one step a frame
+
+// SD_SQ_LD.step: SdLoadSQProc's steps, one a frame. An SQ is three files, NAME.SQ (the sequence), NAME.HD
+// and NAME.BD (its VAG header and body); a packed .SQ carries its .HD behind it, as an SE bank's .SDT does.
+// The .BD reaches SPU2 RAM in 0x3a000-byte pieces through gSQHeapBD. Then the driver is told, one command
+// a frame, to take the SQ and start it; the player waits in PLAYING for a volume change or the stop.
+enum SD_SQ_LD_STEP {
+    SD_SQ_LD_IDLE = 0,
+    SD_SQ_LD_STEP_REQUEST = 1,  // SdPlaySQ's request: open .SQ
+    SD_SQ_LD_READ_SQ = 2,       // the size known: SdAlloc "SD4", read
+    SD_SQ_LD_SEND_SQ = 3,       // read: to the IOP heap (a packed one skips to OPEN_BD)
+    SD_SQ_LD_OPEN_HD = 4,
+    SD_SQ_LD_READ_HD = 5,       // SdAlloc "SD5"
+    SD_SQ_LD_SEND_HD = 6,
+    SD_SQ_LD_OPEN_BD = 7,
+    SD_SQ_LD_READ_BD = 8,       // SdAlloc "SD6"
+    SD_SQ_LD_BD_READ_WAIT = 9,
+    SD_SQ_LD_BD_TRANS = 10,     // the next piece to gSQHeapBD
+    SD_SQ_LD_BD_SPU = 11,       // the driver moves it to SPU2 RAM (SND_CMD_TRANS_SPU2, gExecDriver_2's wait)
+    SD_SQ_LD_BD_SPU_WAIT = 12,  // done: the next piece, or REGISTER
+    SD_SQ_LD_REGISTER = 13,     // the register record (SND_CMD_SE_REGISTER | player)
+    SD_SQ_LD_CMD_0C = 14,       // SND_CMD_SQ_0C, then 0D, 17 and 18 (arg[0] 0), one a frame
+    SD_SQ_LD_CMD_0D = 15,
+    SD_SQ_LD_CMD_17 = 0x10,
+    SD_SQ_LD_CMD_18 = 0x11,
+    SD_SQ_LD_MASTER_VOL = 0x12, // SdMasterVolumeSetSQ(gMasterVolSQ)
+    SD_SQ_LD_EFFECT = 0x13,     // after effectDelay frames: SdSetEffect(0, effectType, effectDepth)
+    SD_SQ_LD_START = 0x14,      // SND_CMD_SQ_START (arg[0] 1), unless already told to stop
+    SD_SQ_LD_VOLUME = 0x15,     // SdVolumeSetSQ(player, playVol)
+    SD_SQ_LD_16 = 0x16,         // 0x16..0x18 go to PLAYING (the ROM's switch lists them; nothing sets them)
+    SD_SQ_LD_17 = 0x17,
+    SD_SQ_LD_18 = 0x18,
+    SD_SQ_LD_STEP_LOADED = 0x19, // PLAYING: from here the SQ is loaded (SdLoadSQEndWaitAll waits below it)
+    SD_SQ_LD_FADE = 0x1a,       // playVol to vol (with SD_SQ_FLAG_FADE one a frame), then PLAYING
+    SD_SQ_LD_STOP = 0x1b,       // SND_CMD_STOP_SQ_NOW (arg[1] 0xb), stopWait 2; from 0x1b it goes twice
+    SD_SQ_LD_STEP_REPLAY_MAX = 0x1c, // PLAYING's stop; SdPlaySQ of the playing SQ below this step only
+                                     // resets its volume
+    SD_SQ_LD_END = 0x1d,        // after stopWait frames: free the IOP blocks and the buffer, purge, clear
+    SD_SQ_LD_SWAP = 0x1e,       // row 1 into row 0, row 1 cleared
+    SD_SQ_LD_ERROR = 0x1f,      // stopWait 0, END
+};
 
 // gPlaySESp1's rows: the special SEs (SdReqPlaySESp1): one SE from a random range replayed at an interval
 // (SdPlaySESpProc), kept over a movie or a demo. layout: host -- +0x18 is an EE code word in the ROM (the
@@ -290,7 +360,7 @@ void SdVolumeSQ(const char *name, int vol, int a2);                             
 void SdStopSQAllNow(void);                                                               // CT3 0x018ce1e0
 void SdStopSQAll(int fade);                                                              // CT3 0x018ce310
 void SdStopSQ(const char *name);                                                         // CT3 0x018ce380
-int SdPlaySQ(const char *dir, const char *name, u_int a2, int vol, int a4, int a5, int a6); // CT3 0x018ce440
+int SdPlaySQ(const char *dir, const char *name, u_int spuAddr, int vol, int effectDelay, int effectType, int effectDepth); // CT3 0x018ce440
 void SdSoundEnable(void);                                                                // CT3 0x018d13d0
 void SdSoundDisable(void);                                                               // CT3 0x018d14d0
 void SdSetEffect(int core, int type, int depth);                                         // CT3 0x018d1600

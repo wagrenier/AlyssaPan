@@ -15,12 +15,12 @@ typedef struct SE_FILE {        // 0xc bytes on the EE; layout: host (the prefix
 } SE_FILE;
 
 // gFileSQ's rows: the SQ (sequenced music) files by name. The three words after the name go to SdPlaySQ
-// as they are; their meaning is the Sd driver TU's to name.
+// as they are (SdLoadSQProc reads them, 2026-11-10).
 typedef struct SQ_FILE {        // 0x14 bytes on the EE; layout: host (the name is a host pointer)
     const char *name;           // +0x0 "PIANO", "TUISEKI", ...; nullptr ends the table
-    u_int sdArg2;               // +0x4 SdPlaySQ's third argument (0x20000 in every row)
-    int sdArg5;                 // +0x8 SdPlaySQ's sixth argument (4, or 5 for PIANO / MISSHORT / MISLONG)
-    int sdArg6;                 // +0xc SdPlaySQ's seventh argument (0x2d..0x7f)
+    u_int spuAddr;              // +0x4 the .BD's SPU2 address (0x20000 in every row)
+    int effectType;             // +0x8 the reverb type SdSetEffect gets (4, or 5 for PIANO / MISSHORT / MISLONG)
+    int effectDepth;            // +0xc its depth (0x2d..0x7f)
     int unused10;               // +0x10 0x64 (0x28 for FUAN): SSPlaySQ2 does not read it
 } SQ_FILE;
 
