@@ -7,6 +7,14 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-10, game/Character_Init.c slice 5) **A void callee whose v0 the caller reads.** Ghidra types
+  MemorycardAutoLoadInsertedCheck / 2 / 3 and FreeCheck as void, yet MemorycardAutoLoad branches on their
+  result: each one calls its check, stores to SlotErr with a0 / a1 / v1 only, and returns with v0 still
+  the check's answer (mipsdis.py 018b5d00 018b5e00). The port returns int. When a caller tests a void
+  call's result, disassemble the callee and follow v0 to its jr ra.
+- (2026-11-10, game/Character_Init.c slice 5) **Offsets that look like a bug are often a struct field.**
+  data_load_set restores Character +0x90 / +0x98 / +0xa0 / +0x100 from image + 0x720 / 0x728 / 0x730 /
+  0x790: the image starts at 0x690, so the offsets are the same fields. Subtract the array base first.
 - (2026-11-10, game/Character_Init.c slice 4) **CharLightSet's actress path uses a buffer the ROM never
   allocates.** With ActressLightFlag[lightBank] set and chara 0 it copies the point lights into the
   stack word at sp+0x100 (Ghidra: aiStack_30) and _SunFree's it, but only three _SunAlloc calls exist

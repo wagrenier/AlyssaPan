@@ -5,3 +5,6 @@
 #include "sdk/scetypes.h"
 
 void tkXcmd_DoorTrigger_Init(void);                                                      // CT3 0x018ed880
+// From data_save_set / data_load_set (Character_Init.c, 2026-11-10).
+void tkXcmd_DoorFlagClear(u_char *eventFlags);                                           // CT3 0x018ed320
+void SceneDoorFlagClear(u_long roomHash);                                                // CT3 0x018eda60

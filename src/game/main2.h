@@ -12,3 +12,12 @@ void SwapDrawingDoor(void);                                                     
 // From mc_load_set's calls (Character_Init.c, 2026-11-10): the first arguments are 0 there.
 void TrgCharacterDraw(int mode, int chara);                                              // CT3 0x018b2300
 void TrgSceneDraw(int a0, int a1, int a2, char *name, int bank);                         // CT3 0x018b3590
+// From data_load_set's calls (Character_Init.c, 2026-11-10): names are 4-char bank names, -1 / -2
+// as the ROM passes them (-2: TrgSceneDraw places the bank at DrawOnPosSetVectorTemp).
+int TrgSceneLoad(char *name, int bank, int a2);                                          // CT3 0x018b38b0
+void TrgGLBLSceneLoad(char *name, int bank);                                             // CT3 0x018b3940
+void TrgGLBLSceneDraw(int mode, char *name, int bank);                                   // CT3 0x018b3990
+void TrgCharacterBehaviorLoad(int chara, char *name, int bank, int a3);                  // CT3 0x018b2d00
+void TrgCharacterBehaviorSet(int chara, char *name, int a2);                             // CT3 0x018b24c0
+void TrgCharacterShapeLoad(int chara, char *name, int bank, int a3);                     // CT3 0x018b2d60
+void TrgCharacterShapeSet(int chara, char *name, int a2, int a3, int a4);                // CT3 0x018b26f0

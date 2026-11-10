@@ -49,3 +49,16 @@ int asEyeForcusUP2CamMat(float proj, float (*view)[4], float *eye, float *focus,
     ALYSSAPAN_STUB("asEyeForcusUP2CamMat", 0x01883db0);
     return {};
 }
+
+// stub of CT3 0x01886dc0
+int CamChange_S(int cam, short cut, u_char a2, int a3)
+{
+    ALYSSAPAN_STUB("CamChange_S", 0x01886dc0);
+    return {};
+}
+
+// stub of CT3 0x018870c0
+void camera_init0(int cam, int mode)
+{
+    ALYSSAPAN_STUB("camera_init0", 0x018870c0);
+}

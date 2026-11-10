@@ -23,3 +23,15 @@ void ssAI_SceneInit(int scene)
 {
     ALYSSAPAN_STUB("ssAI_SceneInit", 0x018660a0);
 }
+
+// stub of CT3 0x018662d0
+void ssAI_MemLoadInit(u_char *data)
+{
+    ALYSSAPAN_STUB("ssAI_MemLoadInit", 0x018662d0);
+}
+
+// stub of CT3 0x018662a0
+void ssAI_MemSaveData(u_char *data)
+{
+    ALYSSAPAN_STUB("ssAI_MemSaveData", 0x018662a0);
+}

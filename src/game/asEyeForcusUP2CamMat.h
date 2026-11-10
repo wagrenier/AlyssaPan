@@ -11,4 +11,7 @@ void camera_destroy(int scene, int mode);                                       
 void camera_view(void);                                                                  // CT3 0x018875d0
 void camera_main(PAD_DATA *pad, int mode);                                               // CT3 0x018881a0
 void camera_init(void);                                                                  // CT3 0x01889c50
+// From data_load_set's calls (Character_Init.c, 2026-11-10).
+void camera_init0(int cam, int mode);                                                    // CT3 0x018870c0
+int CamChange_S(int cam, short cut, u_char a2, int a3);                                  // CT3 0x01886dc0
 int asEyeForcusUP2CamMat(float proj, float (*view)[4], float *eye, float *focus, float *up); // CT3 0x01883db0

@@ -172,7 +172,21 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    TrgSceneDraw(a0, a1, a2, name, bank) are declared from these calls (all leading arguments 0);
    (ay) MODEL_PARTS.attr is the EE address of the part's GA_LIGHT_WORK (BankEePtr), the word main_rtn
    copies to DRAW_OBJ_ATTR (+0x3c): gaSetLight's TU confirms the light block's other fields; ALL_TABLE.light
-   is now SCENE_LIGHT * (main.c reads charaScale), game/ArtoolDebugOpen.c, game/main2.c,
+   is now SCENE_LIGHT * (main.c reads charaScale); slice 5 (2026-11-10): data_save_set, data_load_set
+   (MC_SAVE_DATA, the save image; architecture.md "The save image"), mc_free_area, mc_check3,
+   mc_save_system_init, MemorycardAutoLoad (its own states and messages, MC_AUTO_*) with Init /
+   InsertedCheck / FreeCheck, ContinueBackupGet, the four mc_Getinfo_* readers, Set_AA_New_McAlloc_Mode
+   -- **Character_Init.c's code is complete, verify** (nothing on screen reaches the card yet). Open:
+   (az) the four MemorycardAutoLoad*Check functions now return int (the ROM's v0, hazards.md); (ba) the
+   save image's 0xd590..0xdef0 and 0xe5cc..0x105d4 are not written by data_save_set: ssAI_MemSaveData
+   (tiAvoidObject.c) and other savers fill them -- the TU that writes them names the ranges;
+   (bb) data_save_set does not bound its record count by 35 (the ROM's); (bc) MC_BANK_* (0/1 scene,
+   2 shape, 3 behaviour), TRIG_EVENT_CLEARED (0x0b), TRIG_EVENT_MC_LOADING (0x0c), TRIG_VAR_ROUND (0x59),
+   TRIG_EVENT_GLBL_LOADED / _UNLOADED (0x23 / 0x25), TRIG_EVENT_TITLE_CANCEL (0x10), the events a load
+   clears (9, 7, 8, 0x19, 10, 0x97, 0x9e, 0x15, 0x1a), MemorycardAutoLoad's answers 2 / 3, CAMERA.cut
+   (+0x178), MODEL_PARTS.drawOnPos (+0x2f0) and PANIC_INFO's fields are named from this use only;
+   (bd) CHARACTER.slot004[10] holds the character's behaviour banks (data_load_set compares the bank with
+   each): rename it when the character TU reads it. Next: game/ArtoolDebugOpen.c, game/main2.c,
    game/fileio.c.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a

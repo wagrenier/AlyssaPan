@@ -347,6 +347,30 @@ position (0xff = none). Overrides: AllOmniEffect[4] and CharOmniEffect[chara][4]
 cleared when the bank is gone); CharDirectLightSet[chara] forces directional parts, eased over its fade
 counter (or DirectLightCharaCounter[chara]).
 
+## The save image (game/Character_Init.c, 2026-11-10, slice 5)
+
+A save image is MC_DATA_SIZE (0x10610) bytes in EE layout (MC_SAVE_DATA, Character_Init.h), the same in
+the card's work buffer (mc_databuff[8]) and in continue_backup (the continue after a death).
+data_save_set writes it and data_load_set reads it back:
+
+- 0x0000: 35 bank records of 0x30 bytes (position, bank, character, name, type, loaded), ended by bank -1:
+  BankInfo[2] first (if loaded), then banks 6..85, one per group (BankInfo.groupCount skips the rest).
+  A load ends and reloads the global banks (INFO 5, E_GL 3, 0MH0 1, GAME 0), then the current scene's
+  record, then the others by type (0/1 scene, drawn at the saved part-0 position through
+  DrawOnPosSetVectorTemp; 2 character shape; 3 character behaviour).
+- 0x0690: Character[35], 0x580 bytes each, through mc_char_set's field list.
+- 0xc710: save_count, progress_time, the area (GetAreaNumber(0): mc_Getinfo_msg_num), the next /
+  current / camera scenes, the camera's cut (CAMERA +0x178).
+- 0xc72c: GlobalEventFlag (0x101 bytes, event e = bit e & 7 of byte e >> 3; McRegisterEvent writes it, and
+  mc_Getinfo_ClearFlag reads event 0x0b, the game-cleared event, which also picks the round on a load);
+  0xc830: GlobalVariable[256] (mc_Getinfo_BranchNo reads variable 0x1d, the stage).
+- 0xcc30: ItemData; 0xd590: 0x960 bytes not written here (the AI's ssAI_MemSaveData, probably);
+  0xdef0: LetterData; 0xe3a0: ItemList, KeyItemList, LetterList, ArrowData, ArrowList (to 0xe5cc).
+- 0x105d4: PanicInfoData (0x30 bytes). 0xe5cc..0x105d4 is not written by these two functions.
+
+The auto-load at boot (MemorycardAutoLoad, xcmd_tn.c) has its own states (mcMain_ID 0..200) and messages
+(MC_AUTO_ERR_*). It checks slot 1, then slot 2, and takes the first save whose header is the game's.
+
 ## Sound (game/sound.c, 2026-11-09)
 
 - The game's sound layer (`SS*`, `Sound_*`, `Branch*`) sits on the Sd driver's EE side

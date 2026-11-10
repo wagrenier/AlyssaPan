@@ -162,6 +162,19 @@ extern int LetterList[5][10];                   /* sbss 0x0193f870 */
 extern int ArrowData[3];                        /* sbss 0x0193f858 */
 extern int ArrowList[50];                       /* sbss 0x0193f790 */
 
+// The save image's state (Character_Init.c's data_save_set / data_load_set, 2026-11-10).
+#define GLOBAL_VARIABLE_COUNT 0x100
+#define GLOBAL_EVENT_FLAG_BYTES 0x101         /* event e is bit e & 7 of byte e >> 3 (McRegisterEvent) */
+extern int idNextScene;                         /* sbss 0x01940e38 */
+extern int backup_progress_time;                /* sbss 0x0193fa18: the play time ContinueBackupGet restores */
+extern int idCameraScene;                       /* sbss 0x01940e30: the bank whose camera is live */
+extern int TransparentBodyTime;                 /* sbss 0x01940e48: data_load_set: 360 */
+extern PANIC_INFO PanicInfoData;                /* sbss 0x01940e50 */
+extern int GlobalVariable[GLOBAL_VARIABLE_COUNT]; /* sbss 0x01941190 */
+extern u_char GlobalEventFlag[GLOBAL_EVENT_FLAG_BYTES]; /* sbss 0x01941590 */
+extern qword DrawOnPosSetVectorTemp;            /* sbss 0x01942540: TrgSceneDraw(.., -2, ..) places the bank here */
+extern u_char LetterData[100][0xc];             /* data 0x0192fad0: the letter table */
+
 // ---- sound (game/sound.c's slice 1 uses them; the Sd driver TU or the scene TU owns them) -----------
 extern u_int gBfoScene;                         /* sdata 0x0193a28c: a 4-char scene code, "Bxxx" at boot */
 extern u_int gNowScene;                         /* sdata 0x0193a290: a 4-char scene code, "Nxxx" at boot */

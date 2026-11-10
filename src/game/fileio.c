@@ -66,3 +66,9 @@ void FSMltSetDrawBank(int bank, char *name, int mode)
 {
     ALYSSAPAN_STUB("FSMltSetDrawBank", 0x018c40d0);
 }
+
+// stub of CT3 0x018c2df0
+void Round2ChangeChar(int round)
+{
+    ALYSSAPAN_STUB("Round2ChangeChar", 0x018c2df0);
+}

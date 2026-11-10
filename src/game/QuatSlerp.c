@@ -208,3 +208,24 @@ void CameraMatrix2CameraTrg3m(float *trg)
 {
     ALYSSAPAN_STUB("CameraMatrix2CameraTrg3m", 0x0185a5e0);
 }
+
+// stub of CT3 0x0185a400
+int BankID_TO_CharID(short bank)
+{
+    ALYSSAPAN_STUB("BankID_TO_CharID", 0x0185a400);
+    return {};
+}
+
+// stub of CT3 0x01852240
+int GetAreaNumber(int a0)
+{
+    ALYSSAPAN_STUB("GetAreaNumber", 0x01852240);
+    return {};
+}
+
+// stub of CT3 0x0185c2e0
+u_long GetRoomName_file(const char *name)
+{
+    ALYSSAPAN_STUB("GetRoomName_file", 0x0185c2e0);
+    return {};
+}

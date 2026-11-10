@@ -90,8 +90,12 @@ typedef struct CHARA_JUNC {
 typedef struct CAMERA {
     u_char pad000[0xf0];
     float focus[4];                     /* 0x0f0: the point looked at (ssHQDOF_DrawAllObject's focusPos) */
-    u_char pad100[0xc0];
+    u_char pad100[0x78];
+    short cut;                          /* 0x178: the camera's cut, CamChange_S's second argument (a save
+                                           keeps the live bank's; name from data_save_set) */
+    u_char pad17a[0x46];
 } CAMERA;
+static_assert(offsetof(CAMERA, cut) == 0x178, "CAMERA.cut");
 static_assert(sizeof(CAMERA) == 0x1c0, "CAMERA");
 static_assert(offsetof(CAMERA, focus) == 0x0f0, "CAMERA.focus");
 
@@ -244,14 +248,31 @@ typedef struct MODEL_PARTS {
     u_int flags;                        /* 0x50: PARTS_FLAG_* */
     u_char pad054[0xdc];
     float pos[4];                       /* 0x130: the part's position (SSGetPositional: a sound source) */
-    u_char pad140[0x1d0];
-    float lightColor[4];                /* 0x310: as a light source (SceneLightSet, CharLightSet) */
+    u_char pad140[0x1b0];
+    float drawOnPos[4];                 /* 0x2f0: part 0's: where the bank was placed (a save keeps it;
+                                           TrgSceneDraw(.., -2, ..) places it at DrawOnPosSetVectorTemp) */
+    u_char pad300[0x10];
+    float lightColor[4];              /* 0x310: as a light source (SceneLightSet, CharLightSet) */
     float lightPos[4];                  /* 0x320: as a light source; w: falloff (1 = Omni0/1_num) */
     u_char pad330[0x50];
 } MODEL_PARTS;
 static_assert(offsetof(MODEL_PARTS, lightColor) == 0x310, "MODEL_PARTS.lightColor");
 static_assert(offsetof(MODEL_PARTS, lightPos) == 0x320, "MODEL_PARTS.lightPos");
 static_assert(sizeof(MODEL_PARTS) == 0x380, "MODEL_PARTS");
+static_assert(offsetof(MODEL_PARTS, drawOnPos) == 0x2f0, "MODEL_PARTS.drawOnPos");
+
+// PanicInfoData (0x01940e50, 48 bytes): the player's panic state a save keeps whole. Fields by offset
+// (data_save_set / data_load_set copy them one by one; the load then sets b01 = 0xff, h02 = 0).
+typedef struct PANIC_INFO {
+    u_char mode;                        /* 0x00 */
+    u_char b01;                         /* 0x01: data_load_set: 0xff */
+    short h02;                          /* 0x02: data_load_set: 0 */
+    int w04[8];                         /* 0x04 */
+    int w24;                            /* 0x24 */
+    int w28;                            /* 0x28 */
+    int w2c;                            /* 0x2c */
+} PANIC_INFO;
+static_assert(sizeof(PANIC_INFO) == 0x30, "PANIC_INFO");
 static_assert(offsetof(MODEL_PARTS, kind) == 0x42, "MODEL_PARTS.kind");
 static_assert(offsetof(MODEL_PARTS, attr) == 0x44, "MODEL_PARTS.attr");
 static_assert(offsetof(MODEL_PARTS, flags) == 0x50, "MODEL_PARTS.flags");

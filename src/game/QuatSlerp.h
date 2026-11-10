@@ -38,3 +38,7 @@ void AmbientAlphaInit(int scene);                                               
 void asViewMatrix2PosRUF(float *view, float *pos, float *right, float *up, float *front); // CT3 0x0185a8a0
 void asViewMatrix2CamRUF(float (*view)[4], float *pos, float *right, float *up, float *forward); // CT3 0x0185a6f0
 void EventSoundEnd(void);                                                                // CT3 0x018532a0
+// From data_save_set / data_load_set (Character_Init.c, 2026-11-10).
+int GetAreaNumber(int a0);                                                               // CT3 0x01852240
+int BankID_TO_CharID(short bank);                                                        // CT3 0x0185a400
+u_long GetRoomName_file(const char *name);                                               // CT3 0x0185c2e0: ahGetHash of the first 4 chars

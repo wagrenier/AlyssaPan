@@ -5,6 +5,7 @@
 
 #include "sdk/scetypes.h"
 #include "game/ct3_types.h"
+#include "game/unassigned_data.h"
 
 #include <stddef.h>
 
@@ -50,16 +51,83 @@ static_assert(MC_LOAD_CHUNK * MC_LOAD_CHUNKS + MC_LOAD_TAIL == MC_BUFF_CLEAR, "m
 #define MC_RESULT_FAIL 1
 #define MC_RESULT_BUSY 2                /* the library refused the call: wait a vblank, try the step again */
 
-// One record of the MC_SAVE_RECORD_MAX at the start of each save image (mc_save_data_init: id = -1).
+// One record of the MC_SAVE_RECORD_MAX at the start of each save image: a bank loaded when the game was
+// saved (data_save_set), loaded again by data_load_set; id = -1 ends the list (mc_save_data_init: all).
 typedef struct MC_SAVE_RECORD {
-    u_char pad00[0x10];
-    int id;                             /* 0x10: -1 = empty */
-    u_char pad14[0x1c];
+    float pos[4];                       /* 0x00: type 1 (and bank 2): part 0's drawOnPos */
+    int id;                             /* 0x10: the bank (BankInfo index); -1 = end / empty */
+    int chara;                          /* 0x14: types 2 / 3: BankID_TO_CharID, else -1 */
+    char name[16];                      /* 0x18: BankInfo.name */
+    int type;                           /* 0x28: BankInfo.type (MC_BANK_*) */
+    int loaded;                         /* 0x2c: BankInfo.loaded (1: drawn / set again on a load) */
 } MC_SAVE_RECORD;
 static_assert(sizeof(MC_SAVE_RECORD) == 0x30, "MC_SAVE_RECORD");
 static_assert(offsetof(MC_SAVE_RECORD, id) == 0x10, "MC_SAVE_RECORD.id");
+static_assert(offsetof(MC_SAVE_RECORD, type) == 0x28, "MC_SAVE_RECORD.type");
 #define MC_SAVE_RECORD_MAX 35           /* 0x23 */
 #define MC_SAVE_RECORD_EMPTY (-1)
+
+// The bank types a save record restores (BankInfo.type; data_load_set's cases; names from this use).
+#define MC_BANK_SCENE0 0                /* TrgSceneLoad (like type 1) */
+#define MC_BANK_SCENE 1                 /* TrgSceneLoad, then TrgSceneDraw at the saved pos */
+#define MC_BANK_SHAPE 2                 /* a character's shape: TrgCharacterShapeLoad / Set */
+#define MC_BANK_BEHAVIOR 3              /* a character's behaviour: TrgCharacterBehaviorLoad / Set */
+
+#define MC_SAVE_GLOBAL_BANK 2           /* BankInfo[2]: saved first, as record type 2 with its position */
+#define MC_SAVE_BANK_FIRST 6            /* data_save_set scans banks 6..85 */
+#define MC_SAVE_CHARA_SIZE 0x580        /* one CHARACTER image (mc_char_set's fields) */
+
+// A save image (MC_DATA_SIZE bytes; card bytes, EE layout). data_save_set fills it from the game's state,
+// data_load_set rebuilds the game from it (slice 5, 2026-11-10).
+typedef struct MC_SAVE_DATA {
+    MC_SAVE_RECORD banks[MC_SAVE_RECORD_MAX];         /* 0x0000 */
+    u_char chara[CHARACTER_MAX][MC_SAVE_CHARA_SIZE];  /* 0x0690: Character[] through mc_char_set */
+    int saveCount;                      /* 0xc710: save_count (MC_DATA_USED: != 0 once saved) */
+    int progressTime;                   /* 0xc714: progress_time */
+    int area;                           /* 0xc718: GetAreaNumber(0) (not read back) */
+    int idNextScene;                    /* 0xc71c */
+    int idCurrentScene;                 /* 0xc720 */
+    int idCameraScene;                  /* 0xc724 */
+    int cameraCut;                      /* 0xc728: Cam[asCheckBankID(idCameraScene)].cut (read as short) */
+    u_char globalEventFlag[GLOBAL_EVENT_FLAG_BYTES]; /* 0xc72c: MC_DATA_EVENTS */
+    u_char padc82d[3];
+    int globalVariable[GLOBAL_VARIABLE_COUNT];        /* 0xc830 */
+    u_char itemData[100][0x18];         /* 0xcc30: ItemData */
+    u_char aiData[0x960];               /* 0xd590: not written here (ssAI_MemSaveData's, probably) */
+    u_char letterData[100][0xc];        /* 0xdef0: LetterData */
+    int itemList[12];                   /* 0xe3a0 */
+    int keyItemList[24];                /* 0xe3d0 */
+    int letterList[5][10];              /* 0xe430 */
+    int arrowData[3];                   /* 0xe4f8 */
+    int arrowList[50];                  /* 0xe504 */
+    u_char pade5cc[0x105d4 - 0xe5cc];   /* not written here */
+    PANIC_INFO panic;                   /* 0x105d4: PanicInfoData */
+    u_char pad10604[MC_DATA_SIZE - 0x10604];
+} MC_SAVE_DATA;
+static_assert(sizeof(MC_SAVE_DATA) == MC_DATA_SIZE, "MC_SAVE_DATA");
+static_assert(offsetof(MC_SAVE_DATA, saveCount) == 0xc710, "MC_SAVE_DATA.saveCount");
+static_assert(offsetof(MC_SAVE_DATA, globalEventFlag) == 0xc72c, "MC_SAVE_DATA.globalEventFlag");
+static_assert(offsetof(MC_SAVE_DATA, itemData) == 0xcc30, "MC_SAVE_DATA.itemData");
+static_assert(offsetof(MC_SAVE_DATA, letterData) == 0xdef0, "MC_SAVE_DATA.letterData");
+static_assert(offsetof(MC_SAVE_DATA, arrowList) == 0xe504, "MC_SAVE_DATA.arrowList");
+static_assert(offsetof(MC_SAVE_DATA, panic) == 0x105d4, "MC_SAVE_DATA.panic");
+
+// data_load_set's fixed global banks, ended then loaded again in this order (bank, name).
+#define MC_GLBL_BANK_INFO 5             /* "INFO" */
+#define MC_GLBL_BANK_E_GL 3             /* "E_GL" */
+#define MC_GLBL_BANK_0MH0 1             /* "0MH0" */
+#define MC_GLBL_BANK_GAME 0             /* "GAME" */
+#define MC_LOAD_TRANSPARENT_TIME 360    /* TransparentBodyTime after a load */
+#define MC_LOAD_CAMERAS 6               /* camera_init0(0..5, 0); camera 6 gets mode 1 */
+
+// The trigger events and variables data_load_set sets (names from this use only).
+#define TRIG_EVENT_MC_LOADING 0x0c      /* registered on every load */
+#define TRIG_VAR_CURRENT_SCENE 0x5b     /* idCurrentScene */
+#define TRIG_VAR_TITLE_SELECT 0x4c      /* TITLE_SELECT_NUM */
+#define TRIG_EVENT_CLEARED 0x0b         /* the game was cleared once: a load starts the next round (Round2ChangeChar(TRIG_VAR_ROUND)); mc_Getinfo_ClearFlag */
+#define TRIG_VAR_ROUND 0x59             /* the round, at least 1 */
+#define TRIG_EVENT_GLBL_LOADED 0x23     /* registered once the global banks are loaded again */
+#define TRIG_EVENT_GLBL_UNLOADED 0x25   /* removed then */
 
 // mc_check's retry limits: sceMcGetInfo refused more than this many times, sceMcSync failed more than
 // this many times; the same card type MC_CHECK_STABLE_READS reads in a row settles it.
@@ -155,10 +223,10 @@ static_assert(offsetof(MC_HEADER, vibration) == 0x71, "MC_HEADER.vibration");
 #define TRIG_VAR_BGM_VOLUME 0x4e
 #define TRIG_VAR_SE_VOLUME 0x4f
 
-// A save image's word at +0xc710: non-zero once the image holds a save (the save flow asks before
-// writing over it). Named from MemorycardUpdate's use only.
+// A save image's word at +0xc710: MC_SAVE_DATA.saveCount, non-zero once the image holds a save (the save
+// flow asks before writing over it).
 #define MC_DATA_USED 0xc710
-#define MC_DATA_C714 0xc714             /* a word the game-end save clears (unread so far) */
+#define MC_DATA_C714 0xc714             /* MC_SAVE_DATA.progressTime: the game-end save clears it */
 #define MC_DATA_EVENTS 0xc72c           /* the image's event bits (McRegisterEvent: bit e & 7 of byte e >> 3) */
 #define MC_EVENT_GAME_END 0x9d          /* McRegisterEvent'd by the game-end save */
 
@@ -222,6 +290,47 @@ extern u_char continue_backup[MC_DATA_SIZE]; /* bss 0x01a31450: the image Contin
 #define MC_SLOT_COUNT 2                 /* SlotErr[] */
 #define MC_SLOT_ERR_NO_CARD 1           /* mc_check3 found no card */
 #define MC_SLOT_ERR_UNFORMATTED 4       /* mc_formatcheck said unformatted */
+#define MC_SLOT_ERR_NO_ROOM 3           /* MemorycardAutoLoadFreeCheck: mc_free_area said no room */
+
+// mc_free_area: a new save needs the two icon files (rounded up to MC_CLUSTER_SIZE) and MC_SAVE_CLUSTERS.
+#define MC_CLUSTER_SIZE 0x400
+#define MC_SAVE_CLUSTERS 0x212
+
+#define MC_AUTO_LOAD_DRAW_WAIT 30       /* MemorycardAutoLoadInit: DrawWaitCounter */
+#define TRIG_EVENT_TITLE_CANCEL 0x10    /* removed with TITLE_CANCEL_FLAG (MemorycardAutoLoadInit) */
+
+// MemorycardAutoLoad's states (mcMain_ID; the ROM's numbers).
+#define MC_AUTO_WAIT 0                  /* MC_AUTO_LOAD_DRAW_WAIT frames of the "checking" message */
+#define MC_AUTO_CHECK 1                 /* check the slot: card, format, load the save */
+#define MC_AUTO_NEXT_SLOT 10            /* slot 1 done: slot 2; slot 2 done: decide */
+#define MC_AUTO_DECIDE 100              /* no save in either slot: no card / no room -> ask, else no save */
+#define MC_AUTO_ASK 0x65                /* wait for the player's answer (or for a card) */
+#define MC_AUTO_NO_SAVE 0x66            /* go on without a save: mc_save_system_init */
+#define MC_AUTO_RESTART 0x67            /* check both slots again */
+#define MC_AUTO_BROKEN 0x6e             /* the save is not the game's / is broken */
+#define MC_AUTO_LOADED 0x96             /* a save was loaded: say from which slot */
+#define MC_AUTO_SHOW 0xa0               /* show the message MC_AUTO_SHOW_FRAMES frames */
+#define MC_AUTO_FADE 0xa1
+#define MC_AUTO_END 200                 /* answer 1 and free the buffer; next call: idle */
+#define MC_FLOW_IDLE (-1)
+#define MC_AUTO_SHOW_FRAMES 90
+#define MC_AUTO_POLL_WAIT 3             /* MC_AUTO_ASK checks a card every 4th frame */
+
+// MemorycardAutoLoad's answer argument (the player's choice under the message; names from this use).
+#define MC_AUTO_ANSWER_CONTINUE 2       /* go on without saving */
+#define MC_AUTO_ANSWER_RETRY 3          /* check the cards again */
+
+// MemorycardAutoLoad's messages (mcErr_ID; their own numbering, unlike the card menus' MC_ERR_*).
+#define MC_AUTO_ERR_NO_CARD 3           /* no card in either slot */
+#define MC_AUTO_ERR_FULL_1 4            /* slot 1 has no room, slot 2 no card */
+#define MC_AUTO_ERR_FULL_2 5            /* slot 1 no card, slot 2 has no room */
+#define MC_AUTO_ERR_FULL_BOTH 6         /* no room in either */
+#define MC_AUTO_ERR_LOADED_1 7          /* loaded from slot 1 */
+#define MC_AUTO_ERR_LOADED_2 8          /* loaded from slot 2 */
+#define MC_AUTO_ERR_BROKEN_1 9          /* slot 1's save is broken */
+#define MC_AUTO_ERR_BROKEN_2 10         /* slot 2's save is broken */
+#define MC_SLOT_ERR_BROKEN 2            /* SlotErr: a save that is not the game's (header id / broken) */
+#define MC_SLOT_ERR_LOADED 5            /* SlotErr: the save was loaded from this slot */
 
 // CharDirectLightSet[chara] (0x0c bytes each): a directional light set forced on a character.
 #define CHAR_DLS_ON 0                   /* != 0: dir[] replaces the light bank's charaDir */
@@ -236,8 +345,8 @@ void IOPInit(char **argv);                                                      
 void SceneLightSet(int scene);                                                           // CT3 0x018b4480
 void CharLightSet(int chara);                                                            // CT3 0x018b49f0
 int MemorycardAutoLoadFormatCheck(void);                                                 // CT3 0x018b5cc0
-void MemorycardAutoLoadInsertedCheck3(void);                                             // CT3 0x018b5d00
-void MemorycardAutoLoadInsertedCheck2(void);                                             // CT3 0x018b5d40
+int MemorycardAutoLoadInsertedCheck3(void);                                              // CT3 0x018b5d00
+int MemorycardAutoLoadInsertedCheck2(void);                                              // CT3 0x018b5d40
 void ContinueBackupSet(void);                                                            // CT3 0x018b5e70
 int mc_CheckMcWorkAllocc(void);                                                          // CT3 0x018b5e80
 int mc_Getinfo_mc_type(void);                                                            // CT3 0x018b5e90
@@ -269,3 +378,13 @@ void mc_save_system_init(void);                                                 
 int mc_check3(void);                                                                     // CT3 0x018bb2d0
 int mc_check(void);                                                                      // CT3 0x018bb460
 int McInit(void);                                                                        // CT3 0x018bb5c0
+int MemorycardAutoLoad(int answer);                                                      // CT3 0x018b5740
+void MemorycardAutoLoadInit(void);                                                       // CT3 0x018b5c60
+int MemorycardAutoLoadInsertedCheck(void);                                               // CT3 0x018b5d80
+int MemorycardAutoLoadFreeCheck(void);                                                   // CT3 0x018b5dc0
+void ContinueBackupGet(void);                                                            // CT3 0x018b5e00
+int mc_Getinfo_ClearFlag(int file);                                                      // CT3 0x018b5ea0
+int mc_Getinfo_BranchNo(int file);                                                       // CT3 0x018b5f00
+int mc_Getinfo_msg_num(int file);                                                        // CT3 0x018b5f60
+int mc_Getinfo_time(int file);                                                           // CT3 0x018b5fc0
+void Set_AA_New_McAlloc_Mode(void);                                                      // CT3 0x018bb600

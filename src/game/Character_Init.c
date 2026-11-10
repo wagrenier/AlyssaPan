@@ -23,7 +23,11 @@
 #include "game/SdMasterVolumeSetSE.h"
 #include "game/ahRelocateSunPs2ObjectArry.h"
 #include "game/ahalloc.h"
+#include "game/LinkMatrixTree.h"
+#include "game/asEyeForcusUP2CamMat.h"
 #include "game/asMothPause.h"
+#include "game/tiAvoidObject.h"
+#include "game/tkXDTrg_GetSceneHash.h"
 #include "game/fileio.h"
 #include "game/main.h"
 #include "game/main2.h"
@@ -60,7 +64,9 @@ static int mc_load_new_end_size;        /* 0x0193efc4 */
 static int mc_load_new_loop_count;      /* 0x0193efc8 */
 static int mc_load_new_loop_count_max;  /* 0x0193efcc */
 static int mc_broke_data[MC_BROKE_COUNT]; /* 0x0193f050 */
-static int AA_New_McAlloc_Mode;         /* 0x0193ef74: != 0 keeps the buffer between flows (nothing sets it yet) */
+static int AA_New_McAlloc_Mode;         /* 0x0193ef74: != 0 keeps the buffer between flows (Set_AA_New_McAlloc_Mode) */
+static int DrawWaitCounter;             /* 0x0193efb8: MemorycardAutoLoadInit: MC_AUTO_LOAD_DRAW_WAIT */
+static int FadeOutCounter;              /* 0x0193efbc: MemorycardAutoLoad's frame count */
 static int mc_menuid;                   /* 0x0193ef7c: a flow's sub-step */
 static int AA_Phase_Step;               /* 0x0193ef88: the menus' format-check / save sub-step */
 static int AA_UnFormatCk;               /* AA_UnFormatCk$1304, 0x0193efc0: the first format check said unformatted */
@@ -713,11 +719,14 @@ void mc_check_always(int clearError)
 }
 
 // CT3 0x018b5d00: the auto-load's third insertion check: mark the slot when mc_check3 finds no card.
-void MemorycardAutoLoadInsertedCheck3(void)
+int MemorycardAutoLoadInsertedCheck3(void)
 {
-    if (mc_check3() != 0) {
+    int result = mc_check3();
+
+    if (result != 0) {
         SlotErr[mcSlot_ID] = MC_SLOT_ERR_NO_CARD;
     }
+    return result;
 }
 
 // CT3 0x018b5cc0: the auto-load's format check: mark the slot when the card is unformatted. Answers
@@ -1828,11 +1837,14 @@ void mc_check_always2(int clearError)
 }
 
 // CT3 0x018b5d40: the auto-load's second insertion check: mark the slot when mc_check2 finds no card.
-void MemorycardAutoLoadInsertedCheck2(void)
+int MemorycardAutoLoadInsertedCheck2(void)
 {
-    if (mc_check2() != 0) {
+    int result = mc_check2();
+
+    if (result != 0) {
         SlotErr[mcSlot_ID] = MC_SLOT_ERR_NO_CARD;
     }
+    return result;
 }
 
 // CT3 0x018b6020: save image file's MC_DATA_USED word (0 for a file out of range or no work buffer).
@@ -2369,24 +2381,368 @@ int mc_save_new(int alt)
 // ---- stubs (tools/reverse/stubgen.py) ----
 
 
-// stub of CT3 0x018bb2d0
+// CT3 0x018bb2d0: whether slot mcSlot_ID lacks a usable card (1): the library refused, the sync failed,
+// or a card that is not a PS2 card; a PS2 card is then checked through mc_check.
 int mc_check3(void)
 {
-    ALYSSAPAN_STUB("mc_check3", 0x018bb2d0);
-    return {};
+    int type = 0;
+    int result;
+
+    if (sceMcGetInfo(mcSlot_ID, 0, &type, NULL, NULL) < 0) {
+        return 1;
+    }
+    sceMcSync(0, NULL, &result);
+    if (result < 0 || type != sceMcTypePS2) {
+        return 1;
+    }
+    return mc_check() != 0;
 }
 
-// stub of CT3 0x018badd0
+// CT3 0x018badd0: write the system data into the header without touching the uid or the save count
+// (mc_save_set's header half): id, last file, the extras, the skip-event flags, the screen position, the
+// key map and the options; the sound options also go to the trigger system.
 void mc_save_system_init(void)
 {
-    ALYSSAPAN_STUB("mc_save_system_init", 0x018badd0);
+    MC_HEADER *header = (MC_HEADER *)mc_header;
+    int i;
+
+    header->id = MC_HEADER_ID;
+    header->uidFile &= ~MC_HEADER_FILE_MASK;
+    header->uidFile |= mcFile_ID;
+    header->omake = OMAKE_FLAG;
+    for (i = 0; i < MC_SKIP_EVENT_COUNT; i++) {
+        header->skipEvent[i] = SkipEventFlag[i];
+    }
+    memcpy(&header->display, &ga_disp.display, sizeof(header->display));
+    for (i = 0; i < MC_KEY_MAP_COUNT; i++) {
+        header->keyMap[i] = KEY_MAP[i];
+    }
+    header->vibration = fVibration;
+    header->stereo = SOUND_STEREO_MONAURAL_BUFF;
+    header->bgmVolume = BGM_MASTER_VOLUME_BUFF;
+    header->seVolume = SE_MASTER_VOLUME_BUFF;
+    if (SOUND_STEREO_MONAURAL_BUFF == 0) {
+        ssTrigRemoveEvent(TRIG_EVENT_MONAURAL, 1, 0);
+    } else {
+        ssTrigRegisterEvent(TRIG_EVENT_MONAURAL, 1, 0);
+    }
+    ssTrigSetVariable(TRIG_VAR_BGM_VOLUME, BGM_MASTER_VOLUME_BUFF, 1, 0);
+    ssTrigSetVariable(TRIG_VAR_SE_VOLUME, SE_MASTER_VOLUME_BUFF, 1, 0);
 }
 
-// stub of CT3 0x018baac0
+// CT3 0x018baac0: whether slot mcSlot_ID has too little room for a new save (1): its free clusters (1 KB),
+// read with mc_check's retries and settled once MC_CHECK_STABLE_READS reads agree, against the two icon
+// files rounded up to clusters plus MC_SAVE_CLUSTERS. A refused or failed read counts as no room.
 int mc_free_area(void)
 {
-    ALYSSAPAN_STUB("mc_free_area", 0x018baac0);
-    return {};
+    int iconS = (FlGetLen(s_mcIconDir, s_iconFiles[0], 1) + MC_CLUSTER_SIZE - 1) / MC_CLUSTER_SIZE;
+    int iconD = (FlGetLen(s_mcIconDir, s_iconFiles[2], 1) + MC_CLUSTER_SIZE - 1) / MC_CLUSTER_SIZE;
+    int freeClusters = 0;
+    int result;
+    int tries;
+    int fails = 0;
+    int same = 0;
+    int seen[MC_CHECK_STABLE_READS];
+
+    for (;;) {
+        tries = 0;
+        while (sceMcGetInfo(mcSlot_ID, 0, NULL, &freeClusters, NULL) != 0) {
+            if (tries > MC_CHECK_INFO_RETRIES) {
+                freeClusters = 0;
+                goto settled;
+            }
+            tries++;
+            fails = 0;
+            same = 0;
+            sceGsSyncV(0);
+        }
+        sceMcSync(0, NULL, &result);
+        if (result < 0) {
+            freeClusters = 0;
+            if (fails > MC_CHECK_SYNC_RETRIES) {
+                goto settled;
+            }
+            fails++;
+            same = 0;
+        } else {
+            /* mc_check's order, kept (a mismatch restarts the count without moving the answer). */
+            seen[same] = freeClusters;
+            if (same > 0) {
+                if (seen[same - 1] == seen[same]) {
+                    if (same == MC_CHECK_STABLE_READS - 1) {
+                        goto settled;
+                    }
+                } else {
+                    fails = 0;
+                    same = 0;
+                }
+            }
+            same++;
+        }
+        sceGsSyncV(0);
+    }
+
+settled:
+    return freeClusters < iconS + iconD + MC_SAVE_CLUSTERS;
+}
+
+// CT3 0x018b5d80: the auto-load's insertion check: mark the slot when mc_check finds no PS2 card.
+int MemorycardAutoLoadInsertedCheck(void)
+{
+    int result = mc_check();
+
+    if (result != 0) {
+        SlotErr[mcSlot_ID] = MC_SLOT_ERR_NO_CARD;
+    }
+    return result;
+}
+
+// CT3 0x018b5dc0: the auto-load's room check: mark the slot when a new save would not fit.
+int MemorycardAutoLoadFreeCheck(void)
+{
+    int result = mc_free_area();
+
+    if (result != 0) {
+        SlotErr[mcSlot_ID] = MC_SLOT_ERR_NO_ROOM;
+    }
+    return result;
+}
+
+// CT3 0x018b5c60: start the auto-load (xcmd_tn.c): take the work buffer, slot 1 and the first state,
+// the "checking" message after MC_AUTO_LOAD_DRAW_WAIT frames; the title selection is cleared.
+void MemorycardAutoLoadInit(void)
+{
+    mc_alloc();
+    mcMain_ID = 0;
+    mcSlot_ID = 0;
+    DrawWaitCounter = MC_AUTO_LOAD_DRAW_WAIT;
+    mcErr_ID = MC_ERR_CHECKING;
+    ssTrigSetVariable(TRIG_VAR_TITLE_SELECT, 0, 1, 0);
+    TITLE_SELECT_NUM = 0;
+    ssTrigRemoveEvent(TRIG_EVENT_TITLE_CANCEL, 1, 0);
+    TITLE_CANCEL_FLAG = 0;
+}
+
+// CT3 0x018b5e00: continue after a death: the game comes back from continue_backup (data_load_set) with
+// the play time kept, the panic mode reset, the AI, menu and player control restarted, the trigger
+// system told (TRIG_EVENT_MC_RELOADED), and a fade in while main skips four frames (mc_load_set's end).
+void ContinueBackupGet(void)
+{
+    data_load_set(continue_backup);
+    progress_time = backup_progress_time;
+    PanicModeInit();
+    MonsterAIUpdate(1);
+    ssMenuUpdate(1);
+    PlayerControlUpdate(1);
+    ssTrigRegisterEvent(TRIG_EVENT_MC_RELOADED, 1, -1);
+    asMothPause(1);
+    tiFade_Start(0.0f, FADE_TYPE_MC_LOAD);
+    SkipMain = MC_LOAD_SKIP_FRAMES;
+}
+
+// CT3 0x018b5ea0: whether save image file was saved after the game was cleared once (its event
+// TRIG_EVENT_CLEARED; PicPaz.c's file list). 0 for a file out of range or no work buffer.
+int mc_Getinfo_ClearFlag(int file)
+{
+    const MC_SAVE_DATA *save;
+
+    if (file < 0 || file > MC_INFO_COUNT - 1 || alloc_flag == 0) {
+        return 0;
+    }
+    save = (const MC_SAVE_DATA *)mc_databuff[file];
+    return (save->globalEventFlag[TRIG_EVENT_CLEARED >> 3] >> (TRIG_EVENT_CLEARED & 7)) & 1;
+}
+
+// CT3 0x018b5f00: save image file's branch (its trigger variable TRIG_VAR_STAGE); 1 for a file out of
+// range or no work buffer.
+int mc_Getinfo_BranchNo(int file)
+{
+    if (file < 0 || file > MC_INFO_COUNT - 1 || alloc_flag == 0) {
+        return 1;
+    }
+    return ((const MC_SAVE_DATA *)mc_databuff[file])->globalVariable[TRIG_VAR_STAGE];
+}
+
+// CT3 0x018b5f60: save image file's area message (GetAreaNumber(0) when saved); 0 if out of range.
+int mc_Getinfo_msg_num(int file)
+{
+    if (file < 0 || file > MC_INFO_COUNT - 1 || alloc_flag == 0) {
+        return 0;
+    }
+    return ((const MC_SAVE_DATA *)mc_databuff[file])->area;
+}
+
+// CT3 0x018b5fc0: save image file's play time (progress_time, frames); 0 if out of range.
+int mc_Getinfo_time(int file)
+{
+    if (file < 0 || file > MC_INFO_COUNT - 1 || alloc_flag == 0) {
+        return 0;
+    }
+    return ((const MC_SAVE_DATA *)mc_databuff[file])->progressTime;
+}
+
+// CT3 0x018b5740: the auto-load at boot (xcmd_tn.c's tnXcmd_AutoLoad, once per frame; answer: the
+// player's answer to the message on screen, MC_AUTO_ANSWER_*). Each slot in turn is checked (card,
+// format, the save loaded); a save with the game's header is taken (its system data), from slot 1 first.
+// Without one, the message says why (no card, no room, broken data) and waits: for a card to appear,
+// for the player to go on without saving (the system data written to the header) or to check again.
+// Answers 1 once the flow ends (the work buffer is freed then).
+int MemorycardAutoLoad(int answer)
+{
+    if (mcMain_ID == MC_AUTO_END) {
+        mcMain_ID = MC_FLOW_IDLE;
+        mcSlot_ID = -1;
+        mcFile_ID = -1;
+        mcErr_ID = -1;
+        mcAccess_ID = MC_ACCESS_NONE;
+    } else if (mcMain_ID == MC_AUTO_FADE) {
+        if (FadeOutCounter == 0) {
+            mcMain_ID = MC_AUTO_END;
+        } else {
+            FadeOutCounter--;
+        }
+    } else if (mcMain_ID == MC_AUTO_SHOW) {
+        mcMain_ID = MC_AUTO_FADE;
+        FadeOutCounter = MC_AUTO_SHOW_FRAMES;
+    } else if (mcMain_ID == MC_AUTO_LOADED) {
+        if (SlotErr[0] == MC_SLOT_ERR_LOADED) {
+            mcErr_ID = MC_AUTO_ERR_LOADED_1;
+            LOAD_SLOT_NUM = 0;
+            ssTrigRemoveEvent(TRIG_EVENT_LOAD_SLOT2, 1, 0);
+        }
+        if (SlotErr[1] == MC_SLOT_ERR_LOADED) {
+            mcErr_ID = MC_AUTO_ERR_LOADED_2;
+            LOAD_SLOT_NUM = 1;
+            ssTrigRegisterEvent(TRIG_EVENT_LOAD_SLOT2, 1, 0);
+        }
+        mcMain_ID = MC_AUTO_SHOW;
+    } else if (mcMain_ID == MC_AUTO_BROKEN) {
+        if (SlotErr[0] == MC_SLOT_ERR_BROKEN) {
+            mcErr_ID = MC_AUTO_ERR_BROKEN_1;
+        }
+        if (SlotErr[1] == MC_SLOT_ERR_BROKEN) {
+            mcErr_ID = MC_AUTO_ERR_BROKEN_2;
+        }
+        mcMain_ID = MC_AUTO_SHOW;
+    } else if (mcMain_ID == MC_AUTO_RESTART) {
+        mcSlot_ID = 0;
+        mcErr_ID = MC_ERR_CHECKING;
+        mcMain_ID = MC_AUTO_WAIT;
+    } else if (mcMain_ID == MC_AUTO_NO_SAVE) {
+        mc_save_system_init();
+        mcMain_ID = MC_AUTO_END;
+    } else if (mcMain_ID == MC_AUTO_ASK) {
+        if (answer == MC_AUTO_ANSWER_CONTINUE) {
+            mcMain_ID = MC_AUTO_NO_SAVE;
+        }
+        if (answer == MC_AUTO_ANSWER_RETRY) {
+            mcMain_ID = MC_AUTO_RESTART;
+        }
+        if (mcErr_ID == MC_AUTO_ERR_NO_CARD) {
+            // No card anywhere: look in each slot in turn, every MC_AUTO_POLL_WAIT + 1 frames.
+            if (FadeOutCounter == 0) {
+                FadeOutCounter = MC_AUTO_POLL_WAIT;
+                mcSlot_ID ^= 1;
+                if (MemorycardAutoLoadInsertedCheck3() == 0) {
+                    mcMain_ID = MC_AUTO_RESTART;
+                }
+            } else {
+                FadeOutCounter--;
+            }
+        } else {
+            if (mcErr_ID == MC_AUTO_ERR_FULL_1) {
+                mcSlot_ID = 0;
+            }
+            if (mcErr_ID == MC_AUTO_ERR_FULL_2) {
+                mcSlot_ID = 1;
+            }
+            if (mcErr_ID == MC_AUTO_ERR_FULL_BOTH) {
+                mcSlot_ID ^= 1;
+            }
+            if (mcErr_ID == MC_AUTO_ERR_FULL_1 || mcErr_ID == MC_AUTO_ERR_FULL_2 ||
+                mcErr_ID == MC_AUTO_ERR_FULL_BOTH) {
+                // A full card: start again once it is taken out.
+                if (FadeOutCounter == 0) {
+                    FadeOutCounter = MC_AUTO_POLL_WAIT;
+                    if (MemorycardAutoLoadInsertedCheck2() != 0) {
+                        mcMain_ID = MC_AUTO_RESTART;
+                    }
+                } else {
+                    FadeOutCounter--;
+                }
+            }
+        }
+    } else if (mcMain_ID == MC_AUTO_DECIDE) {
+        mcMain_ID = MC_AUTO_NO_SAVE;
+        if (SlotErr[0] == MC_SLOT_ERR_NO_CARD && SlotErr[1] == MC_SLOT_ERR_NO_CARD) {
+            FadeOutCounter = 0;
+            mcErr_ID = MC_AUTO_ERR_NO_CARD;
+            mcMain_ID = MC_AUTO_ASK;
+        }
+        if (SlotErr[0] == MC_SLOT_ERR_NO_ROOM && SlotErr[1] == MC_SLOT_ERR_NO_CARD) {
+            mcErr_ID = MC_AUTO_ERR_FULL_1;
+            mcMain_ID = MC_AUTO_ASK;
+        }
+        if (SlotErr[0] == MC_SLOT_ERR_NO_CARD && SlotErr[1] == MC_SLOT_ERR_NO_ROOM) {
+            mcErr_ID = MC_AUTO_ERR_FULL_2;
+            mcMain_ID = MC_AUTO_ASK;
+        }
+        if (SlotErr[0] == MC_SLOT_ERR_NO_ROOM && SlotErr[1] == MC_SLOT_ERR_NO_ROOM) {
+            mcErr_ID = MC_AUTO_ERR_FULL_BOTH;
+            mcMain_ID = MC_AUTO_ASK;
+        }
+    } else if (mcMain_ID == MC_AUTO_NEXT_SLOT) {
+        if (mcSlot_ID == 0) {
+            mcSlot_ID = 1;
+            mcErr_ID = MC_ERR_NO_CARD;
+            mcMain_ID = MC_AUTO_WAIT;
+        } else {
+            mcMain_ID = MC_AUTO_DECIDE;
+        }
+    } else if (mcMain_ID == MC_AUTO_CHECK) {
+        SlotErr[mcSlot_ID] = 0;
+        if (MemorycardAutoLoadInsertedCheck() != 0) {
+            mcMain_ID = MC_AUTO_NEXT_SLOT;
+        } else if (MemorycardAutoLoadFormatCheck() != 0) {
+            MemorycardAutoLoadInsertedCheck();
+            mcMain_ID = MC_AUTO_NEXT_SLOT;
+        } else if (mc_load_new() != 0) {
+            // No save on the card: is there room for one?
+            if (MemorycardAutoLoadInsertedCheck() == 0) {
+                MemorycardAutoLoadFreeCheck();
+            }
+            mcMain_ID = MC_AUTO_NEXT_SLOT;
+        } else if (mc_broke_data[MC_BROKE_SYSTEM] == 0 && *(const int *)mc_header == MC_HEADER_ID) {
+            system_data_load_set(SYSTEM_LOAD_ALL);
+            SlotErr[mcSlot_ID] = MC_SLOT_ERR_LOADED;
+            mcMain_ID = MC_AUTO_LOADED;
+            ssTrigSetVariable(TRIG_VAR_TITLE_SELECT, 1, 1, 0);
+            TITLE_SELECT_NUM = 1;
+        } else {
+            if (MemorycardAutoLoadInsertedCheck() == 0) {
+                SlotErr[mcSlot_ID] = MC_SLOT_ERR_BROKEN;
+            }
+            mcMain_ID = MC_AUTO_BROKEN;
+        }
+    } else if (mcMain_ID == MC_AUTO_WAIT) {
+        if (DrawWaitCounter == 0) {
+            mcMain_ID = MC_AUTO_CHECK;
+            DrawWaitCounter = MC_AUTO_LOAD_DRAW_WAIT;
+        } else {
+            DrawWaitCounter--;
+        }
+    }
+    if (mcMain_ID == MC_AUTO_END) {
+        mc_free();
+        return 1;
+    }
+    return 0;
+}
+
+// CT3 0x018bb600: keep the card work buffer between flows (PicPaz.c).
+void Set_AA_New_McAlloc_Mode(void)
+{
+    AA_New_McAlloc_Mode = 1;
 }
 
 // CT3 0x018b7930: after a load, take the world down and build it again from the save: each drawn
@@ -2432,10 +2788,215 @@ void mc_load_set(void)
     SkipMain = MC_LOAD_SKIP_FRAMES;
 }
 
-// stub of CT3 0x018b7b50
+// The global banks' names (the symtab's locals @2606..@2609, 5 bytes each at 0x01935250..0x01935268).
+static char s_glblInfo[5] = "INFO";
+static char s_glblEGl[5] = "E_GL";
+static char s_glblOmh0[5] = "0MH0";
+static char s_glblGame[5] = "GAME";
+
+// Trigger events a load removes (data_load_set; numbers only, named from this use: none yet read).
+#define TRIG_EVENT_LOAD_CLEAR_9E 0x9e   /* removed right after the scene variable is set */
+#define TRIG_EVENT_LOAD_CLEAR_15 0x15   /* removed after the title selection is set */
+#define TRIG_EVENT_LOAD_CLEAR_1A 0x1a   /* removed last, after TransparentBodyTime */
+static const int s_loadClearEvents[] = {9, 7, 8, 0x19, 10, 0x97}; /* removed after the camera returns */
+
+// Copy one CHARACTER field (by its offset) out of a save's character image (data_load_set's restore
+// after the banks are loaded again).
+#define MC_CHARA_FIELD(dst, img, field) \
+    memcpy(&(dst).field, (img) + offsetof(CHARACTER, field), sizeof((dst).field))
+
+// CT3 0x018b7b50: rebuild the game from a save image (mc_load_set: the card's; ContinueBackupGet: the
+// continue backup). The counters, scenes, items, letters, arrows, event flags and variables come back
+// first, then the trigger system's view of the system data, the round, the sound state and the
+// characters (Character_All_Init, then each image through mc_char_set). The global banks are ended and
+// loaded again (INFO 5, E_GL 3, 0MH0 1, GAME 0), the cameras reset, the current scene's bank is loaded
+// (and drawn at its saved place when it was drawn), then every other saved bank by its type. Once the
+// loads end, the fields the shape / behaviour set-up reset come back from the images, the camera returns
+// to its saved cut, the panic state comes back, and a few events are cleared.
 void data_load_set(u_char *data)
 {
-    ALYSSAPAN_STUB("data_load_set", 0x018b7b50);
+    MC_SAVE_DATA *save = (MC_SAVE_DATA *)data;
+    MC_SAVE_RECORD *rec;
+    char name[0x100];
+    char glblName[0x10];
+    int i;
+    int j;
+    int bank;
+    int chara;
+    int round;
+
+    MC_NOW_LOADING = 1;
+    save_count = save->saveCount;
+    progress_time = save->progressTime;
+    idNextScene = save->idNextScene;
+    idCurrentScene = save->idCurrentScene;
+    idCameraScene = save->idCameraScene;
+    memcpy(ItemList, save->itemList, sizeof(ItemList));
+    memcpy(ItemData, save->itemData, sizeof(ItemData));
+    memcpy(KeyItemList, save->keyItemList, sizeof(KeyItemList));
+    memcpy(LetterList, save->letterList, sizeof(LetterList));
+    memcpy(LetterData, save->letterData, sizeof(LetterData));
+    memcpy(ArrowList, save->arrowList, sizeof(ArrowList));
+    memcpy(ArrowData, save->arrowData, sizeof(ArrowData));
+    memcpy(GlobalEventFlag, save->globalEventFlag, sizeof(GlobalEventFlag));
+    memcpy(GlobalVariable, save->globalVariable, sizeof(GlobalVariable));
+
+    ssTrigRegisterEvent(TRIG_EVENT_MC_LOADING, 1, 0);
+    ssTrigSetVariable(TRIG_VAR_CURRENT_SCENE, idCurrentScene, 1, 0);
+    ssTrigRemoveEvent(TRIG_EVENT_LOAD_CLEAR_9E, 1, 0);
+    if ((OMAKE_FLAG & OMAKE_1) == 0) {
+        ssTrigRemoveEvent(TRIG_EVENT_OMAKE_1, 1, 0);
+    } else {
+        ssTrigRegisterEvent(TRIG_EVENT_OMAKE_1, 1, 0);
+    }
+    if ((OMAKE_FLAG & OMAKE_2) == 0) {
+        ssTrigRemoveEvent(TRIG_EVENT_OMAKE_2, 1, 0);
+    } else {
+        ssTrigRegisterEvent(TRIG_EVENT_OMAKE_2, 1, 0);
+    }
+    if (SOUND_STEREO_MONAURAL_BUFF == 0) {
+        ssTrigRemoveEvent(TRIG_EVENT_MONAURAL, 1, 0);
+    } else {
+        ssTrigRegisterEvent(TRIG_EVENT_MONAURAL, 1, 0);
+    }
+    ssTrigSetVariable(TRIG_VAR_BGM_VOLUME, BGM_MASTER_VOLUME_BUFF, 1, 0);
+    ssTrigSetVariable(TRIG_VAR_SE_VOLUME, SE_MASTER_VOLUME_BUFF, 1, 0);
+    ssTrigSetVariable(TRIG_VAR_TITLE_SELECT, TITLE_SELECT_NUM, 1, 0);
+    ssTrigRemoveEvent(TRIG_EVENT_LOAD_CLEAR_15, 1, 0);
+    if (ssTrigCheckEvent(TRIG_EVENT_CLEARED, 1, 0) == 0) {
+        Round2ChangeChar(0);
+    } else {
+        round = ssTrigGetVariable(TRIG_VAR_ROUND, 1, 0);
+        if (round < 1) {
+            round = 1;
+        }
+        Round2ChangeChar(round);
+    }
+    Sound_data_load_set();
+    Character_All_Init();
+    for (i = 0; i < CHARACTER_MAX; i++) {
+        mc_char_set((u_char *)&Character[i], save->chara[i]);
+    }
+
+    // The global banks: end what is loaded, then load and draw them again.
+    if (BankInfo[MC_GLBL_BANK_GAME].loaded != 0) {
+        strcpy(glblName, BankInfo[MC_GLBL_BANK_GAME].name);
+        glblName[4] = '\0';
+        TrgGLBLSceneDraw(0, glblName, MC_GLBL_BANK_GAME);
+    }
+    if (BankInfo[MC_GLBL_BANK_INFO].loaded != 0) {
+        TrgGLBLSceneDraw(0, s_glblInfo, MC_GLBL_BANK_INFO);
+        SceneEndBank(MC_GLBL_BANK_INFO, 1);
+    }
+    if (BankInfo[MC_GLBL_BANK_E_GL].loaded != 0) {
+        TrgGLBLSceneDraw(0, s_glblEGl, MC_GLBL_BANK_E_GL);
+        SceneEndBank(MC_GLBL_BANK_E_GL, 1);
+    }
+    if (BankInfo[MC_GLBL_BANK_0MH0].loaded != 0) {
+        TrgGLBLSceneDraw(0, s_glblOmh0, MC_GLBL_BANK_0MH0);
+        SceneEndBank(MC_GLBL_BANK_0MH0, 1);
+    }
+    ssTrigRegisterEvent(TRIG_EVENT_GLBL_LOADED, 1, 0);
+    ssTrigRemoveEvent(TRIG_EVENT_GLBL_UNLOADED, 1, 0);
+    TrgGLBLSceneLoad(s_glblInfo, MC_GLBL_BANK_INFO);
+    TrgGLBLSceneDraw(1, s_glblInfo, MC_GLBL_BANK_INFO);
+    TrgGLBLSceneLoad(s_glblEGl, MC_GLBL_BANK_E_GL);
+    TrgGLBLSceneDraw(1, s_glblEGl, MC_GLBL_BANK_E_GL);
+    TrgGLBLSceneLoad(s_glblOmh0, MC_GLBL_BANK_0MH0);
+    TrgGLBLSceneDraw(1, s_glblOmh0, MC_GLBL_BANK_0MH0);
+    TrgGLBLSceneLoad(s_glblGame, MC_GLBL_BANK_GAME);
+    TrgGLBLSceneDraw(1, s_glblGame, MC_GLBL_BANK_GAME);
+
+    for (i = 0; i < MC_LOAD_CAMERAS; i++) {
+        camera_init0(i, 0);
+        CamChange_S(i, 0, 0, 0);
+    }
+    camera_init0(MC_LOAD_CAMERAS, 1);
+    BranchSELoad();
+
+    // The current scene's bank first.
+    for (i = 0; i < MC_SAVE_RECORD_MAX; i++) {
+        rec = &save->banks[i];
+        bank = rec->id;
+        if (bank == idCurrentScene) {
+            SceneDoorFlagClear(GetRoomName_file(rec->name));
+            strcpy(name, rec->name);
+            name[4] = '\0';
+            TrgSceneLoad(name, bank, -1);
+            if (rec->loaded == 1) {
+                memcpy(DrawOnPosSetVectorTemp, rec->pos, sizeof(DrawOnPosSetVectorTemp));
+                TrgSceneDraw(1, 0, -2, name, bank);
+            }
+            break;
+        }
+    }
+    // Then every other saved bank, by its type.
+    for (i = 0; i < MC_SAVE_RECORD_MAX; i++) {
+        rec = &save->banks[i];
+        bank = rec->id;
+        if (bank == MC_SAVE_RECORD_EMPTY) {
+            break;
+        }
+        if (idCurrentScene == bank) {
+            continue;
+        }
+        chara = rec->chara;
+        strcpy(name, rec->name);
+        name[4] = '\0';
+        if (rec->type == MC_BANK_BEHAVIOR) {
+            TrgCharacterBehaviorLoad(chara, name, bank, -1);
+            if (rec->loaded == 1) {
+                for (j = 0; j < 10; j++) {
+                    if (bank == Character[chara].slot004[j]) {
+                        TrgCharacterBehaviorSet(chara, name, -1);
+                        break;
+                    }
+                }
+            }
+        } else if (rec->type == MC_BANK_SHAPE) {
+            TrgCharacterShapeLoad(chara, name, bank, -1);
+            if (rec->loaded == 1) {
+                Character[chara].bank = -1;
+                Character[chara].w090 = 0;
+                Character[chara].w098 = 0;
+                Character[chara].lightBank = -1;
+                TrgCharacterShapeSet(chara, name, -1, 0, 0);
+                InitMatrixTree(pModelPartsHeader[bank]);
+                LinkMatrixTree(All_table_TBL[bank]->objOpaque, pModelPartsHeader[bank]);
+            }
+        } else if (rec->type == MC_BANK_SCENE || rec->type == MC_BANK_SCENE0) {
+            TrgSceneLoad(name, bank, -1);
+            if (rec->loaded == 1) {
+                memcpy(DrawOnPosSetVectorTemp, rec->pos, sizeof(DrawOnPosSetVectorTemp));
+                TrgSceneDraw(1, 0, -2, name, bank);
+            }
+        }
+    }
+    FSMltLoadEndWaitAll();
+
+    // The fields the shape set-up reset come back from the images.
+    for (i = 0; i < CHARACTER_MAX; i++) {
+        MC_CHARA_FIELD(Character[i], save->chara[i], w090);
+        MC_CHARA_FIELD(Character[i], save->chara[i], w098);
+        MC_CHARA_FIELD(Character[i], save->chara[i], lightBank);
+        MC_CHARA_FIELD(Character[i], save->chara[i], h100);
+    }
+    pad[0].cnt = 0;
+    pad[0].pad02 = 0;
+    pad[0].trg = 0;
+    pad[0].key = 0;
+    camera_main(&pad[0], 4);
+    CamChange_S(idCameraScene, (short)save->cameraCut, 0, 0);
+    memcpy(&PanicInfoData, &save->panic, sizeof(PanicInfoData));
+    for (i = 0; i < (int)(sizeof(s_loadClearEvents) / sizeof(s_loadClearEvents[0])); i++) {
+        ssTrigRemoveEvent(s_loadClearEvents[i], 1, 0);
+    }
+    TransparentBodyTime = MC_LOAD_TRANSPARENT_TIME;
+    ssTrigRemoveEvent(TRIG_EVENT_LOAD_CLEAR_1A, 1, 0);
+    PanicInfoData.b01 = 0xff;
+    PanicInfoData.h02 = 0;
+    ssAI_MemLoadInit(data);
+    MC_NOW_LOADING = 0;
 }
 
 // The byte ranges of a CHARACTER a save keeps (mc_char_set). The ROM copies them field by field (bytes,
@@ -2462,8 +3023,80 @@ void mc_char_set(u_char *dst, u_char *src)
 }
 
 
-// stub of CT3 0x018b9ee0
+// One bank's save record (data_save_set): its name, type and state; characters' banks take their
+// character (no character: not set again on a load), scene banks part 0's place.
+static void mc_save_bank_record(MC_SAVE_RECORD *rec, int bank)
+{
+    rec->id = bank;
+    rec->chara = -1;
+    strcpy(rec->name, BankInfo[bank].name);
+    rec->type = BankInfo[bank].type;
+    rec->loaded = BankInfo[bank].loaded;
+}
+
+// CT3 0x018b9ee0: keep the game's state as a save image (mc_save_set: the card's; ContinueBackupSet: the
+// continue backup): the counters and scenes with the live camera's cut, the items, letters, arrows,
+// event flags and variables; the banks loaded (bank 2 first, then banks 6..85 group by group, ended by
+// id -1); every character through mc_char_set; the panic state; the AI's part; then the image's door
+// flags are cleared.
 void data_save_set(u_char *data)
 {
-    ALYSSAPAN_STUB("data_save_set", 0x018b9ee0);
+    MC_SAVE_DATA *save = (MC_SAVE_DATA *)data;
+    MC_SAVE_RECORD *rec;
+    u_int count;
+    int i;
+
+    // callcheck: BankID_TO_CharID, FSMltLoadEndWaitAll, GetAreaNumber, asCheckBankID, mc_char_set, ssAI_MemSaveData, strcpy, tkXcmd_DoorFlagClear (the ROM inlines the record twice: mc_save_bank_record makes the strcpy)
+    FSMltLoadEndWaitAll();
+    save->saveCount = save_count;
+    save->progressTime = progress_time;
+    save->area = GetAreaNumber(0);
+    save->idNextScene = idNextScene;
+    save->idCurrentScene = idCurrentScene;
+    save->idCameraScene = idCameraScene;
+    save->cameraCut = Cam[asCheckBankID(idCameraScene)].cut;
+    memcpy(save->itemList, ItemList, sizeof(save->itemList));
+    memcpy(save->itemData, ItemData, sizeof(save->itemData));
+    memcpy(save->keyItemList, KeyItemList, sizeof(save->keyItemList));
+    memcpy(save->letterList, LetterList, sizeof(save->letterList));
+    memcpy(save->letterData, LetterData, sizeof(save->letterData));
+    memcpy(save->arrowList, ArrowList, sizeof(save->arrowList));
+    memcpy(save->arrowData, ArrowData, sizeof(save->arrowData));
+    memcpy(save->globalEventFlag, GlobalEventFlag, sizeof(save->globalEventFlag));
+    memcpy(save->globalVariable, GlobalVariable, sizeof(save->globalVariable));
+
+    count = 0;
+    if (BankInfo[MC_SAVE_GLOBAL_BANK].count > 0) {
+        rec = &save->banks[0];
+        mc_save_bank_record(rec, MC_SAVE_GLOBAL_BANK);
+        memcpy(rec->pos, ((MODEL_PARTS *)pModelPartsHeader[MC_SAVE_GLOBAL_BANK])->drawOnPos, sizeof(rec->pos));
+        count = 1;
+    }
+    // The ROM does not bound count by MC_SAVE_RECORD_MAX (no more than 35 groups are ever loaded).
+    for (i = MC_SAVE_BANK_FIRST; i < BANK_MAX; i++) {
+        if (BankInfo[i].count > 0) {
+            rec = save->banks + count;
+            mc_save_bank_record(rec, i);
+            if (rec->type == MC_BANK_BEHAVIOR || rec->type == MC_BANK_SHAPE) {
+                rec->chara = BankID_TO_CharID((short)i);
+                if (rec->chara < 0) {
+                    rec->loaded = 0;
+                }
+            } else if (rec->type == MC_BANK_SCENE) {
+                memcpy(rec->pos, ((MODEL_PARTS *)pModelPartsHeader[i])->drawOnPos, sizeof(rec->pos));
+            }
+            count++;
+            if (BankInfo[i].groupCount != 0) {
+                i += BankInfo[i].groupCount - 1;
+            }
+        }
+    }
+    save->banks[count].id = MC_SAVE_RECORD_EMPTY;
+
+    for (i = 0; i < CHARACTER_MAX; i++) {
+        mc_char_set(save->chara[i], (u_char *)&Character[i]);
+    }
+    memcpy(&save->panic, &PanicInfoData, sizeof(save->panic));
+    ssAI_MemSaveData(data);
+    tkXcmd_DoorFlagClear(save->globalEventFlag);
 }

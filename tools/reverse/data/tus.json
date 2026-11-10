@@ -1,6 +1,5 @@
 {
  "queue": [
-  "game/Character_Init.c",
   "game/ArtoolDebugOpen.c",
   "game/main2.c",
   "game/fileio.c"
@@ -309,7 +308,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 91..91, 8 functions keyed by their statics, 3 unkeyed; file name from the names"
   },
   "game/Character_Init.c": {
-   "notes": "Left: data_load_set and data_save_set together next (they share the save image layout: ItemList, ItemData, KeyItemList, LetterList/Data, ArrowList/Data, GlobalEventFlag, GlobalVariable, bank records from word 4, Character images via mc_char_set at word 0x1a4 + 0x160 each, PanicInfoData), then mc_free_area, mc_check3, mc_save_system_init, ContinueBackupGet. tiFade_Start now takes (time, type). CharLightSet allocates the actress buffer the ROM never allocates (hazards.md). open-items av-ay hold the doubts. Shot black as before (main2 is still a stub).",
+   "notes": "All 49 functions written; nothing on screen reaches the card yet (main2 is a stub), shot black as before. The save image layout is in architecture.md (The save image); MemorycardAutoLoad*Check now return int, the ROM's v0 (hazards.md). Open-items az..bd hold the doubts: the image ranges no function here writes, the one-use names (MC_BANK_*, trigger events, CAMERA.cut, MODEL_PARTS.drawOnPos, PANIC_INFO), CHARACTER.slot004 as behaviour banks. Next in the queue: game/ArtoolDebugOpen.c, main2.c, fileio.c.",
    "ranges": [
     [
      "018b3a60",
@@ -336,9 +335,14 @@
      "date": "2026-11-10 00:59",
      "status": "partial",
      "summary": "slice 4: SceneLightSet, CharLightSet (the bank light tables SCENE_LIGHT / LIGHT_SET / GA_LIGHT_WORK, part light fields), mc_load_set, mc_char_set, mc_CheckMcWorkAllocc, mc_Getinfo_mc_type; data_load_set stubbed"
+    },
+    {
+     "date": "2026-11-10 01:22",
+     "status": "verify",
+     "summary": "slice 5: data_save_set and data_load_set over the save image (MC_SAVE_DATA), mc_free_area, mc_check3, mc_save_system_init, MemorycardAutoLoad with its Init / InsertedCheck / FreeCheck, ContinueBackupGet, the mc_Getinfo readers, Set_AA_New_McAlloc_Mode: the TU's code is complete"
     }
    ],
-   "status": "partial",
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 105..105, 36 functions keyed by their statics, 13 unkeyed; file name from the names"
   },
   "game/Clipping_Portal.c": {
