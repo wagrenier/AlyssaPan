@@ -193,7 +193,7 @@ void tiWindInit(int scene)
 }
 
 // stub of CT3 0x0188d3c0
-void tiFade_Start(float time)
+void tiFade_Start(float time, int type)
 {
     ALYSSAPAN_STUB("tiFade_Start", 0x0188d3c0);
 }

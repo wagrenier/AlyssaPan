@@ -35,3 +35,15 @@ void SwapDrawingDoor(void)
 {
     ALYSSAPAN_STUB("SwapDrawingDoor", 0x018b22f0);
 }
+
+// stub of CT3 0x018b2300
+void TrgCharacterDraw(int mode, int chara)
+{
+    ALYSSAPAN_STUB("TrgCharacterDraw", 0x018b2300);
+}
+
+// stub of CT3 0x018b3590
+void TrgSceneDraw(int a0, int a1, int a2, char *name, int bank)
+{
+    ALYSSAPAN_STUB("TrgSceneDraw", 0x018b3590);
+}

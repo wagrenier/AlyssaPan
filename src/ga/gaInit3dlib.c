@@ -23,3 +23,15 @@ void gaSet3dlibStruct(float clipZ, void *work, void *drawbuffer, void *fogctrl, 
 {
     ALYSSAPAN_STUB("gaSet3dlibStruct", 0x018a7db8);
 }
+
+// stub of CT3 0x018a7900
+void gaMulMatrix(float (*dst)[4], float (*a)[4], float (*b)[4])
+{
+    ALYSSAPAN_STUB("gaMulMatrix", 0x018a7900);
+}
+
+// stub of CT3 0x018a8258
+void gaSetLight(void *lightWork, float (*view)[4])
+{
+    ALYSSAPAN_STUB("gaSetLight", 0x018a8258);
+}

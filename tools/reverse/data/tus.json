@@ -309,7 +309,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 91..91, 8 functions keyed by their statics, 3 unkeyed; file name from the names"
   },
   "game/Character_Init.c": {
-   "notes": "Left: SceneLightSet, CharLightSet (main.c calls both: next slice), data_save_set (stubbed, takes continue_backup or an image), mc_load_set, mc_char_set, mc_free_area, mc_check3, mc_save_system_init, ContinueBackupGet. FlLoad and FlGetLen are stubs in ArtoolDebugOpen.c, declared from the calls. open-items aq-au hold this slice's doubts (uid shift, OMAKE masks on load, KEY_MAP pair copy, trigger event names, mc_save_new's ROM quirks). Shot black as before (main2 is still a stub).",
+   "notes": "Left: data_load_set and data_save_set together next (they share the save image layout: ItemList, ItemData, KeyItemList, LetterList/Data, ArrowList/Data, GlobalEventFlag, GlobalVariable, bank records from word 4, Character images via mc_char_set at word 0x1a4 + 0x160 each, PanicInfoData), then mc_free_area, mc_check3, mc_save_system_init, ContinueBackupGet. tiFade_Start now takes (time, type). CharLightSet allocates the actress buffer the ROM never allocates (hazards.md). open-items av-ay hold the doubts. Shot black as before (main2 is still a stub).",
    "ranges": [
     [
      "018b3a60",
@@ -331,6 +331,11 @@
      "date": "2026-11-10 00:36",
      "status": "partial",
      "summary": "slice 3: the save path (mc_save_new with its icons and icon.sys, mc_save_normal, mc_save_set, McRegisterEvent, ContinueBackupSet), system_data_load_set with MC_HEADER, mc_check2, mc_check_always2, mc_Getinfo_count, MemorycardAutoLoadInsertedCheck2"
+    },
+    {
+     "date": "2026-11-10 00:59",
+     "status": "partial",
+     "summary": "slice 4: SceneLightSet, CharLightSet (the bank light tables SCENE_LIGHT / LIGHT_SET / GA_LIGHT_WORK, part light fields), mc_load_set, mc_char_set, mc_CheckMcWorkAllocc, mc_Getinfo_mc_type; data_load_set stubbed"
     }
    ],
    "status": "partial",

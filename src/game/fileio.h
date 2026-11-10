@@ -6,6 +6,7 @@
 
 void CharacterSort(void);                                                                // CT3 0x018c2170
 void SceneEndBank(int first, int count);                                                 // CT3 0x018c5780
+void FSMltSetDrawBank(int bank, char *name, int mode);                                   // CT3 0x018c40d0 (mc_load_set: mode 0)
 void FSMltLoadEndWaitAll(void);                                                          // CT3 0x018c60a0
 void FileSoundServer(void);                                                              // CT3 0x018c7dc0
 void FS_work_init(void);                                                                 // CT3 0x018c7e00

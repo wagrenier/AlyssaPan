@@ -332,6 +332,21 @@ servers, the SPU2 model and voices, the audio device, libmpeg on FFmpeg. Left in
 rena model renderer, smooth motion, the frame passes, the teleport panel. The build's only game code is
 the stub `gameMain` (`main`, CT3 0x01839d10) in `src/lib/unassigned_stubs.cpp`.
 
+## Lights (game/Character_Init.c, 2026-11-10)
+
+Light sources are model parts: MODEL_PARTS.lightPos (+0x320, w a falloff; 1.0 for the bank's
+Omni0_num / Omni1_num parts) and lightColor (+0x310); bit 0 of the part's flags switches one off. Each
+bank's ALL_TABLE.light (EE +0x28) is a SCENE_LIGHT: [part, set] pairs ended by -2, LIGHT_SET records
+(0x14: four directional parts, four point parts, -2 = the next nearest of an optional list), the
+character scale main_rtn reads (+8), a character's default directional parts (+0xc) and the point lights
+characters choose from (+0x10). A lit part's MODEL_PARTS.attr is the EE address of its GA_LIGHT_WORK
+(dirColor +0x90, omniColor +0xd0, dirPos +0x110, omniPos +0x150), which gaSetLight loads under
+matrix_global_view (scenes) or mrr_ReverseGlobalView = matrix_global_view x mrr_ReverseMatrix
+(characters). gaSearchNearLight4(nearest, pos, n, lights, count) answers four light indices per
+position (0xff = none). Overrides: AllOmniEffect[4] and CharOmniEffect[chara][4] ([bank, part] pairs,
+cleared when the bank is gone); CharDirectLightSet[chara] forces directional parts, eased over its fade
+counter (or DirectLightCharaCounter[chara]).
+
 ## Sound (game/sound.c, 2026-11-09)
 
 - The game's sound layer (`SS*`, `Sound_*`, `Branch*`) sits on the Sd driver's EE side

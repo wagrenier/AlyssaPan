@@ -160,7 +160,19 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    TRIG_VAR_*_VOLUME are named in Character_Init.h, main.c's system_init still uses the raw numbers;
    (au) mc_save_new writes the icons again even when sceMcChdir finds the directory (step 2, not 10) and
    frees the icon buffer before a close that may be refused: both the ROM's, kept; FlGetLen(dir, name,
-   mode) is declared from the call (mode 1)), game/ArtoolDebugOpen.c, game/main2.c,
+   mode) is declared from the call (mode 1)); slice 4 (2026-11-10): SceneLightSet, CharLightSet (SCENE_LIGHT / LIGHT_SET / GA_LIGHT_WORK in
+   ct3_types.h, MODEL_PARTS.lightColor / lightPos), mc_load_set, mc_char_set (a range table),
+   mc_CheckMcWorkAllocc, mc_Getinfo_mc_type; data_load_set stubbed (next: it and data_save_set together,
+   the save image's layout), left also mc_free_area, mc_check3, mc_save_system_init, ContinueBackupGet.
+   Open: (av) MemorycardUpdate calls tiFade_Start(10.0f) with a0 (the fade type) unset: the port passes
+   0, the fade TU says which types exist; (aw) PARTS_FLAG_FOG (bit 0) also switches a light part off in
+   SceneLightSet / CharLightSet: probably a general hidden / off bit, rename when the parts loader is
+   read; (ax) mc_load_set unregisters characters whose flags have 0xc0000000 (CHARACTER_FLAG_REFRACTION |
+   _SHADOW, both named from one use): likely one in-use meaning; TrgCharacterDraw(mode, chara) and
+   TrgSceneDraw(a0, a1, a2, name, bank) are declared from these calls (all leading arguments 0);
+   (ay) MODEL_PARTS.attr is the EE address of the part's GA_LIGHT_WORK (BankEePtr), the word main_rtn
+   copies to DRAW_OBJ_ATTR (+0x3c): gaSetLight's TU confirms the light block's other fields; ALL_TABLE.light
+   is now SCENE_LIGHT * (main.c reads charaScale), game/ArtoolDebugOpen.c, game/main2.c,
    game/fileio.c.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a

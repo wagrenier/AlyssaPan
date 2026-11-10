@@ -246,7 +246,7 @@ void main_rtn_GHOST_DOF(int bank, int mode, int chara, int pass, int charaIndex,
                 if (tex->kind == TEX_KIND_LIGHT)
                     *light = All_table_TBL[bank]->partsLight[ent->parts];
             } else if (tex->kind == TEX_KIND_LIGHT && lightBank != -1 && BankInfo[lightBank].loaded == 1) {
-                float target = All_table_TBL[lightBank]->light[2] * All_table_TBL[bank]->partsLight[ent->parts];
+                float target = All_table_TBL[lightBank]->light->charaScale * All_table_TBL[bank]->partsLight[ent->parts];
 
                 if (lightFrames == 0.0f)
                     *light = target;
@@ -364,7 +364,7 @@ void main_rtn_GHOST(int bank, int mode, int chara, u_int flags, int charaIndex, 
                 if (tex->kind == TEX_KIND_LIGHT)
                     *light = All_table_TBL[bank]->partsLight[ent->parts];
             } else if (tex->kind == TEX_KIND_LIGHT && lightBank != -1 && BankInfo[lightBank].loaded == 1) {
-                float target = All_table_TBL[lightBank]->light[2] * All_table_TBL[bank]->partsLight[ent->parts];
+                float target = All_table_TBL[lightBank]->light->charaScale * All_table_TBL[bank]->partsLight[ent->parts];
 
                 if (lightFrames == 0.0f)
                     *light = target;
@@ -1264,7 +1264,7 @@ void main_rtn(int bank, int mode, int chara, u_int flags, int charaIndex, void *
                 if (tex->kind == TEX_KIND_LIGHT)
                     *light = All_table_TBL[bank]->partsLight[ent->parts];
             } else if (tex->kind == TEX_KIND_LIGHT && lightBank != -1 && BankInfo[lightBank].loaded == 1) {
-                float target = All_table_TBL[lightBank]->light[2] * All_table_TBL[bank]->partsLight[ent->parts];
+                float target = All_table_TBL[lightBank]->light->charaScale * All_table_TBL[bank]->partsLight[ent->parts];
 
                 if (lightFrames == 0.0f)
                     *light = target;
@@ -1455,7 +1455,7 @@ void main_rtn_DOF(int bank, int mode, int chara, int pass, int charaIndex, void 
                 if (tex->kind == TEX_KIND_LIGHT)
                     *light = All_table_TBL[bank]->partsLight[ent->parts];
             } else if (tex->kind == TEX_KIND_LIGHT && lightBank != -1 && BankInfo[lightBank].loaded == 1) {
-                float target = All_table_TBL[lightBank]->light[2] * All_table_TBL[bank]->partsLight[ent->parts];
+                float target = All_table_TBL[lightBank]->light->charaScale * All_table_TBL[bank]->partsLight[ent->parts];
 
                 if (lightFrames == 0.0f)
                     *light = target;

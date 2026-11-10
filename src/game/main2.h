@@ -9,3 +9,6 @@ void CharacterAllFree(void);                                                    
 void SelfDiscardSceneLoadUpdate(void);                                                   // CT3 0x018b2e60
 void SelfDiscardSceneLoadInit(void);                                                     // CT3 0x018b3480
 void SwapDrawingDoor(void);                                                              // CT3 0x018b22f0
+// From mc_load_set's calls (Character_Init.c, 2026-11-10): the first arguments are 0 there.
+void TrgCharacterDraw(int mode, int chara);                                              // CT3 0x018b2300
+void TrgSceneDraw(int a0, int a1, int a2, char *name, int bank);                         // CT3 0x018b3590

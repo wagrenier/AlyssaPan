@@ -60,3 +60,9 @@ void FSInit(void)
 {
     ALYSSAPAN_STUB("FSInit", 0x018c7eb0);
 }
+
+// stub of CT3 0x018c40d0
+void FSMltSetDrawBank(int bank, char *name, int mode)
+{
+    ALYSSAPAN_STUB("FSMltSetDrawBank", 0x018c40d0);
+}

@@ -150,6 +150,7 @@ static_assert(offsetof(MC_HEADER, vibration) == 0x71, "MC_HEADER.vibration");
 // Trigger events and variables the system data drives (main.c's system_init sets the same numbers).
 #define TRIG_EVENT_OMAKE_1 0xa7         /* OMAKE_FLAG's OMAKE_1 (set by the game-end save) */
 #define TRIG_EVENT_MONAURAL 0xa8        /* registered while SOUND_STEREO_MONAURAL_BUFF != 0 */
+#define TRIG_EVENT_MC_RELOADED 0xca    /* mc_load_set registers it (with -1) after rebuilding from a save */
 #define TRIG_EVENT_OMAKE_2 0xc5         /* OMAKE_FLAG != 0 after a full load */
 #define TRIG_VAR_BGM_VOLUME 0x4e
 #define TRIG_VAR_SE_VOLUME 0x4f
@@ -210,6 +211,8 @@ extern u_char continue_backup[MC_DATA_SIZE]; /* bss 0x01a31450: the image Contin
 #define MC_RETRY_WAIT 5
 #define MC_FORMAT_WAIT 3
 
+#define MC_LOAD_SKIP_FRAMES 4           /* mc_load_set: SkipMain after the reload */
+
 // fream_counter's preset after a load: mc_check_always polls at once.
 #define MC_FRAME_COUNTER_NOW 1000
 
@@ -219,6 +222,11 @@ extern u_char continue_backup[MC_DATA_SIZE]; /* bss 0x01a31450: the image Contin
 #define MC_SLOT_COUNT 2                 /* SlotErr[] */
 #define MC_SLOT_ERR_NO_CARD 1           /* mc_check3 found no card */
 #define MC_SLOT_ERR_UNFORMATTED 4       /* mc_formatcheck said unformatted */
+
+// CharDirectLightSet[chara] (0x0c bytes each): a directional light set forced on a character.
+#define CHAR_DLS_ON 0                   /* != 0: dir[] replaces the light bank's charaDir */
+#define CHAR_DLS_FADE 1                 /* frames left to ease into it (CharLightSet counts it down) */
+#define CHAR_DLS_DIR 2                  /* short[LIGHT_SLOTS] light parts; LIGHT_NONE: take charaDir's */
 
 #define CHAR_INIT_MAX_HP_COUNT 41       /* Char_Init_MAX_HP: 164 bytes; Character_All_Init reads 35 */
 extern int Char_Init_MAX_HP[CHAR_INIT_MAX_HP_COUNT]; /* data 0x01939000 */
@@ -231,6 +239,8 @@ int MemorycardAutoLoadFormatCheck(void);                                        
 void MemorycardAutoLoadInsertedCheck3(void);                                             // CT3 0x018b5d00
 void MemorycardAutoLoadInsertedCheck2(void);                                             // CT3 0x018b5d40
 void ContinueBackupSet(void);                                                            // CT3 0x018b5e70
+int mc_CheckMcWorkAllocc(void);                                                          // CT3 0x018b5e80
+int mc_Getinfo_mc_type(void);                                                            // CT3 0x018b5e90
 void mc_save_set(int alt);                                                               // CT3 0x018b9a80
 void McRegisterEvent(u_int event);                                                       // CT3 0x018b9e90
 void data_save_set(u_char *data);                                                        // CT3 0x018b9ee0
@@ -240,6 +250,8 @@ void MemorycardUpdate(void);                                                    
 void mc_check_always2(int clearError);                                                   // CT3 0x018b7870
 void mc_check_always(int clearError);                                                    // CT3 0x018b78d0
 void mc_load_set(void);                                                                  // CT3 0x018b7930
+void data_load_set(u_char *data);                                                        // CT3 0x018b7b50
+void mc_char_set(u_char *dst, u_char *src);                                              // CT3 0x018ba4c0
 void system_data_load_set(int mode);                                                     // CT3 0x018b8680
 int mc_save_new(int alt);                                                                // CT3 0x018b8eb0
 int mc_save_normal(int alt);                                                             // CT3 0x018b9790

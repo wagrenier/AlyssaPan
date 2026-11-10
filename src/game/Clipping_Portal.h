@@ -14,7 +14,9 @@ void tiWindUpdate(void);                                                        
 void tiVibrationTimer(void);                                                             // CT3 0x0188cd70
 void tiVibrationOff(int mode);                                                           // CT3 0x0188cdc0
 void tiDrawShadingOff(void);                                                             // CT3 0x0188ced0
-void tiFade_Start(float time);                                                           // CT3 0x0188d3c0 (MemorycardUpdate passes 10.0f in f12)
+// time: seconds (f12; x30 frames), type: Fade_Type (a0, a byte). MemorycardUpdate leaves a0 unset (open-items.md).
+#define FADE_TYPE_MC_LOAD 4             /* mc_load_set (name from that use) */
+void tiFade_Start(float time, int type);                                                 // CT3 0x0188d3c0
 void tiFade_Draw(void);                                                                // CT3 0x0188d160
 void tiXFadeOut_Draw(void);                                                              // CT3 0x0188d3f0
 void tiDrawLensFlares(void);                                                             // CT3 0x0188df70

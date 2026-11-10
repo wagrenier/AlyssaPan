@@ -128,6 +128,55 @@ static_assert(offsetof(BANK_INFO, flags) == 0x28, "BANK_INFO.flags");
 #define BANK_FLAG_NO_MIRROR 0x10        /* AllDrawObject: a character of this bank is not mirrored
                                            (name from that use) */
 
+// A bank's light table (ALL_TABLE.light; Character_Init.c's SceneLightSet / CharLightSet, main_rtn).
+// layout: ee -- bank data; the u_int words are relocated EE addresses (BankEePtr, open-items.md 1 h).
+// Light sources are model parts of the bank (MODEL_PARTS.lightPos / lightColor).
+typedef struct SCENE_LIGHT {
+    u_int pairs;                        /* 0x00: short [part, set] pairs, ended by part LIGHT_PAIRS_END:
+                                           the lit part and its LIGHT_SET (LIGHT_NONE: unlit) */
+    u_int sets;                         /* 0x04: LIGHT_SET[] */
+    float charaScale;                   /* 0x08: main_rtn: scales a character's TEX_KIND_LIGHT parts */
+    u_int charaDir;                     /* 0x0c: short[LIGHT_SLOTS]: the directional light parts of a
+                                           character lit by this bank (CharLightSet) */
+    u_int omniList;                     /* 0x10: LIGHT_LIST: the point lights a character lit by this
+                                           bank picks its nearest four from (CharLightSet) */
+} SCENE_LIGHT;
+static_assert(offsetof(SCENE_LIGHT, charaScale) == 0x08, "SCENE_LIGHT.charaScale");
+static_assert(offsetof(SCENE_LIGHT, omniList) == 0x10, "SCENE_LIGHT.omniList");
+
+// One light set of SCENE_LIGHT.sets (0x14 bytes): the parts lighting a scene part. layout: ee.
+typedef struct LIGHT_SET {
+    short dir[4];                       /* 0x00: directional light parts, LIGHT_NONE = slot off */
+    short omni[4];                      /* 0x08: point light parts, LIGHT_NONE = off, LIGHT_OMNI_NEAREST =
+                                           the next nearest of omniList (SceneLightSet) */
+    u_int omniList;                     /* 0x10: LIGHT_LIST, LIGHT_LIST_NONE: omni[] are all parts */
+} LIGHT_SET;
+static_assert(sizeof(LIGHT_SET) == 0x14, "LIGHT_SET");
+static_assert(offsetof(LIGHT_SET, omniList) == 0x10, "LIGHT_SET.omniList");
+// A LIGHT_LIST is a short count followed by that many part indices.
+
+#define LIGHT_SLOTS 4                   /* directional and point lights per lit part (gaSetLight) */
+#define LIGHT_NONE (-1)                 /* a part / set index: none */
+#define LIGHT_PAIRS_END (-2)            /* SCENE_LIGHT.pairs: the end */
+#define LIGHT_OMNI_NEAREST (-2)         /* LIGHT_SET.omni: the next of gaSearchNearLight4's answer */
+#define LIGHT_LIST_NONE 0xffffffffu     /* LIGHT_SET.omniList: no list */
+#define NEAR_LIGHT_NONE 0xff            /* gaSearchNearLight4's answer: no light for this slot */
+#define LIGHT_ACTRESS_FALLOFF 300.0f    /* CharLightSet, actress lighting: w' = 1 / (1 / w + 300) */
+
+// The light block gaSetLight reads (MODEL_PARTS.attr's EE address: the part's draw object attribute).
+// layout: ee. Only the fields SceneLightSet / CharLightSet write; gaInit3dlib.c owns the rest.
+typedef struct GA_LIGHT_WORK {
+    u_char pad000[0x90];
+    float dirColor[LIGHT_SLOTS][4];     /* 0x090: from MODEL_PARTS.lightColor */
+    float omniColor[LIGHT_SLOTS][4];    /* 0x0d0 */
+    float dirPos[LIGHT_SLOTS][4];       /* 0x110: from MODEL_PARTS.lightPos */
+    float omniPos[LIGHT_SLOTS][4];      /* 0x150: off = (0, 0, 0, 1) */
+} GA_LIGHT_WORK;
+static_assert(offsetof(GA_LIGHT_WORK, dirColor) == 0x090, "GA_LIGHT_WORK.dirColor");
+static_assert(offsetof(GA_LIGHT_WORK, omniColor) == 0x0d0, "GA_LIGHT_WORK.omniColor");
+static_assert(offsetof(GA_LIGHT_WORK, dirPos) == 0x110, "GA_LIGHT_WORK.dirPos");
+static_assert(offsetof(GA_LIGHT_WORK, omniPos) == 0x150, "GA_LIGHT_WORK.omniPos");
+
 // A loaded scene's object tables (All_table_TBL[86], a record of the scene's bank): each list is a
 // NULL-terminated array of draw objects. Only the fields main.c reads; fileio.c owns the layout.
 // layout: host -- pointers (EE offsets in the comments); the file TU decides whether the bank's
@@ -139,7 +188,7 @@ typedef struct ALL_TABLE {
     int baseobjCount;                   /* EE 0x14: scene_init -> BaseobjCount[bank] */
     void **objOpaque;                   /* EE 0x18: GlobalDrawObject's first main_rtn list */
     void **objTrans;                    /* EE 0x1c: main_rtn mode 1; scene_draw_init sorts it */
-    float *light;                       /* EE 0x28: [2] (+8) scales a character's lit parts (main_rtn) */
+    SCENE_LIGHT *light;                 /* EE 0x28: the bank's light table (charaScale: main_rtn) */
     u_char *partsHeader;                /* EE 0x2c: the MODEL_PARTS header (scene_init -> pModelPartsHeader;
                                            InitMatrixTree, asBuildMirrorMatrixTree / _Back) */
     struct SOUND_OBJ_TABLE *sound;      /* EE 0x54: the scene's sound objects (sound.c's SSFindSoundObj) */
@@ -189,13 +238,19 @@ typedef struct MODEL_PARTS {
     u_char pad000[0x42];
     u_char kind;                        /* 0x42: PARTS_KIND_NO_DOF: main_rtn_DOF skips the part */
     u_char pad043;
-    int attr;                           /* 0x44: copied into the part's draw object (+0x3c) every draw */
+    int attr;                           /* 0x44: copied into the part's draw object (+0x3c) every draw:
+                                           the EE address of its GA_LIGHT_WORK (BankEePtr) */
     u_char pad048[8];
     u_int flags;                        /* 0x50: PARTS_FLAG_* */
     u_char pad054[0xdc];
     float pos[4];                       /* 0x130: the part's position (SSGetPositional: a sound source) */
-    u_char pad140[0x240];
+    u_char pad140[0x1d0];
+    float lightColor[4];                /* 0x310: as a light source (SceneLightSet, CharLightSet) */
+    float lightPos[4];                  /* 0x320: as a light source; w: falloff (1 = Omni0/1_num) */
+    u_char pad330[0x50];
 } MODEL_PARTS;
+static_assert(offsetof(MODEL_PARTS, lightColor) == 0x310, "MODEL_PARTS.lightColor");
+static_assert(offsetof(MODEL_PARTS, lightPos) == 0x320, "MODEL_PARTS.lightPos");
 static_assert(sizeof(MODEL_PARTS) == 0x380, "MODEL_PARTS");
 static_assert(offsetof(MODEL_PARTS, kind) == 0x42, "MODEL_PARTS.kind");
 static_assert(offsetof(MODEL_PARTS, attr) == 0x44, "MODEL_PARTS.attr");

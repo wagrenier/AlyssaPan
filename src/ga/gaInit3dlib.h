@@ -8,3 +8,7 @@ void gaInit3dlib(void);                                                         
 void gaSetZRollMatrix(int roll);                                                         // CT3 0x018a8548
 // clipZ: main_rtn passes 50000.0f ($f12); screen: screen_0's twelve floats.
 void gaSet3dlibStruct(float clipZ, void *work, void *drawbuffer, void *fogctrl, void *screen); // CT3 0x018a7db8
+// dst = a * b (Character_Init.c's CharLightSet: mrr_ReverseGlobalView = matrix_global_view * mrr_ReverseMatrix).
+void gaMulMatrix(float (*dst)[4], float (*a)[4], float (*b)[4]);                        // CT3 0x018a7900
+// Loads a part's lights (GA_LIGHT_WORK, ct3_types.h) for drawing under the view matrix view.
+void gaSetLight(void *lightWork, float (*view)[4]);                                      // CT3 0x018a8258

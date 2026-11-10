@@ -7,6 +7,17 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-10, game/Character_Init.c slice 4) **CharLightSet's actress path uses a buffer the ROM never
+  allocates.** With ActressLightFlag[lightBank] set and chara 0 it copies the point lights into the
+  stack word at sp+0x100 (Ghidra: aiStack_30) and _SunFree's it, but only three _SunAlloc calls exist
+  (sp+0x10c, 0xe0, 0xf0): the PS2 writes through whatever the slot held. The port allocates it (PORT
+  comment). Count the allocations in the listing before trusting a decompiled buffer.
+- (2026-11-10, game/Character_Init.c slice 4) **A fifth argument in t0 that Ghidra's call drops.**
+  SceneLightSet's gaSearchNearLight4 call shows four arguments; t0 still holds the list count from the
+  loop compare just before the jal (CharLightSet's call shows it). Read the listing above every jal.
+- (2026-11-10, game/Character_Init.c slice 4) **tiFade_Start takes (float time in f12, u_char type in a0).**
+  mc_load_set sets a0 = 4 in the delay slot; MemorycardUpdate's two calls leave a0 unset (the port passes
+  0 there, open-items.md item 1 av).
 - (2026-11-09, game/sound.c slice 2) **CodeWarrior passes leftover registers as arguments.** Where the
   source's call has fewer arguments than the callee reads (old-style C, no prototype), the callee gets
   whatever the register holds: the decompiler then shows the call short (`SSStopSQ(name)`) or with a stray

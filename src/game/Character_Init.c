@@ -12,16 +12,21 @@
 #include "common/alyssapan_stub.h"
 #include "game/Character_Init.h"
 
+#include "ga/gaInit3dlib.h"
 #include "ga/gaPadInit.h"
+#include "ga/gaSearchNearLight4.h"
 #include "ga/gaInitInterrupt.h"
 #include "game/ArtoolDebugOpen.h"
 #include "game/Clipping_Portal.h"
 #include "game/ssGrpPortalCheck.h"
+#include "game/QuatSlerp.h"
 #include "game/SdMasterVolumeSetSE.h"
 #include "game/ahRelocateSunPs2ObjectArry.h"
 #include "game/ahalloc.h"
+#include "game/asMothPause.h"
 #include "game/fileio.h"
 #include "game/main.h"
+#include "game/main2.h"
 #include "game/movie.h"
 #include "game/sound.h"
 #include "game/unassigned_data.h"
@@ -155,6 +160,400 @@ void IOPInit(char **argv)
     FSInit();
     SSInit();
     AA_MovieIOPInit();
+}
+
+// The light helpers SceneLightSet / CharLightSet inline (one quadword move or VU0 ease each in the ROM).
+static void LightCopy(float *dst, const float *src)
+{
+    dst[0] = src[0];
+    dst[1] = src[1];
+    dst[2] = src[2];
+    dst[3] = src[3];
+}
+
+static void LightClear(float *dst)
+{
+    dst[0] = dst[1] = dst[2] = dst[3] = 0.0f;
+}
+
+// vf0: (0, 0, 0, 1), an unused point light's position.
+static void LightClearPos(float *dst)
+{
+    dst[0] = dst[1] = dst[2] = 0.0f;
+    dst[3] = 1.0f;
+}
+
+// VU0 vdiv / vsub / vmulq / vadd: v += (target - v) / frames.
+static void LightEase(float *v, const float *target, float frames)
+{
+    float q = 1.0f / frames;
+    int k;
+
+    for (k = 0; k < 4; k++) {
+        v[k] = (target[k] - v[k]) * q + v[k];
+    }
+}
+
+static const float s_lightZero[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+
+// The point-light overrides of AllOmniEffect (and CharOmniEffect): [bank, part] pairs; a pair whose bank
+// is gone is cleared, a live one replaces point light slot i.
+static void LightOmniOverride(GA_LIGHT_WORK *lw, u_short *pair, int i)
+{
+    short bank = (short)pair[0];
+
+    if (bank == LIGHT_NONE || BankInfo[bank].loaded != 1) {
+        pair[0] = 0xffff;
+        pair[1] = 0xffff;
+    } else {
+        MODEL_PARTS *src = &((MODEL_PARTS *)pModelPartsHeader[bank])[(short)pair[1]];
+
+        LightCopy(lw->omniPos[i], src->lightPos);
+        LightCopy(lw->omniColor[i], src->lightColor);
+    }
+}
+
+// CT3 0x018b4480: give every lit part of a scene bank its lights (SCENE_LIGHT.pairs): up to four
+// directional and four point lights from the set's parts, a set with an omni list choosing its
+// LIGHT_OMNI_NEAREST slots by gaSearchNearLight4; a switched-off light part (PARTS_FLAG_FOG, bit 0) is
+// skipped; banks of type other than 0 take AllOmniEffect's overrides. Then gaSetLight under the view.
+void SceneLightSet(int scene)
+{
+    SCENE_LIGHT *sl = All_table_TBL[scene]->light;
+    short *pairs = (short *)BankEePtr(scene, sl->pairs);
+    LIGHT_SET *sets = (LIGHT_SET *)BankEePtr(scene, sl->sets);
+    MODEL_PARTS *parts = (MODEL_PARTS *)pModelPartsHeader[scene];
+    int maxCount = -1;
+    int *off = NULL;
+    float (*pos)[4] = NULL;
+    float (*col)[4] = NULL;
+    u_char nearest[32];
+    int i;
+    int k;
+
+    // the longest omni list sizes the work buffers
+    for (i = 0; pairs[i] != LIGHT_PAIRS_END; i += 2) {
+        short set = pairs[i + 1];
+
+        if (set != LIGHT_NONE && sets[set].omniList != LIGHT_LIST_NONE) {
+            short *list = (short *)BankEePtr(scene, sets[set].omniList);
+
+            if (maxCount < list[0]) {
+                maxCount = list[0];
+            }
+        }
+    }
+    if (maxCount > 0) {
+        off = (int *)_SunAlloc(&gHeapJunc, maxCount * 4, 0x40);
+        pos = (float (*)[4])_SunAlloc(&gHeapJunc, maxCount * 16, 0x40);
+        col = (float (*)[4])_SunAlloc(&gHeapJunc, maxCount * 16, 0x40);
+    }
+
+    for (i = 0; pairs[i] != LIGHT_PAIRS_END; i += 2) {
+        short p = pairs[i];
+        short s = pairs[i + 1];
+        GA_LIGHT_WORK *lw = (GA_LIGHT_WORK *)BankEePtr(scene, (u_int)parts[p].attr);
+
+        for (k = 0; k < LIGHT_SLOTS; k++) {
+            LightClear(lw->dirPos[k]);
+            LightClear(lw->dirColor[k]);
+            LightClearPos(lw->omniPos[k]);
+            LightClear(lw->omniColor[k]);
+        }
+
+        if (s != LIGHT_NONE) {
+            LIGHT_SET *set = &sets[s];
+
+            for (k = 0; k < LIGHT_SLOTS; k++) {
+                short d = set->dir[k];
+
+                if (d != LIGHT_NONE && !(parts[d].flags & PARTS_FLAG_FOG)) {
+                    LightCopy(lw->dirPos[k], parts[d].lightPos);
+                    LightCopy(lw->dirColor[k], parts[d].lightColor);
+                }
+            }
+            if (set->omniList == LIGHT_LIST_NONE) {
+                for (k = 0; k < LIGHT_SLOTS; k++) {
+                    short o = set->omni[k];
+
+                    if (o != LIGHT_NONE && !(parts[o].flags & PARTS_FLAG_FOG)) {
+                        LightCopy(lw->omniPos[k], parts[o].lightPos);
+                        LightCopy(lw->omniColor[k], parts[o].lightColor);
+                    }
+                }
+            } else {
+                short *list = (short *)BankEePtr(scene, set->omniList);
+                int n;
+
+                for (n = 0; n < list[0]; n++) {
+                    MODEL_PARTS *l = &parts[list[n + 1]];
+
+                    off[n] = l->flags & PARTS_FLAG_FOG;
+                    LightCopy(pos[n], l->lightPos);
+                    LightCopy(col[n], l->lightColor);
+                }
+                memset(nearest, NEAR_LIGHT_NONE, sizeof(nearest)); // PORT: a stubbed search writes nothing
+                gaSearchNearLight4(nearest, (float (*)[4])parts[p].pos, 1, pos, list[0]);
+                n = 0;
+                for (k = 0; k < LIGHT_SLOTS; k++) {
+                    u_int m = nearest[n];
+                    short o = set->omni[k];
+
+                    if (o == LIGHT_NONE) {
+                        continue;
+                    }
+                    if (o == LIGHT_OMNI_NEAREST) {
+                        if (m != NEAR_LIGHT_NONE && off[m] == 0) {
+                            LightCopy(lw->omniPos[k], pos[m]);
+                            LightCopy(lw->omniColor[k], col[m]);
+                        }
+                        n++;
+                    } else if (!(parts[o].flags & PARTS_FLAG_FOG)) {
+                        LightCopy(lw->omniPos[k], parts[o].lightPos);
+                        LightCopy(lw->omniColor[k], parts[o].lightColor);
+                    }
+                }
+            }
+        }
+
+        if (BankInfo[scene].type != BANK_TYPE_0) {
+            for (k = 0; k < LIGHT_SLOTS; k++) {
+                LightOmniOverride(lw, &AllOmniEffect[k * 2], k);
+            }
+        }
+        gaSetLight(lw, matrix_global_view);
+    }
+
+    if (maxCount > 0) {
+        _SunFree(&gHeapJunc, (void **)&off);
+        _SunFree(&gHeapJunc, (void **)&pos);
+        _SunFree(&gHeapJunc, (void **)&col);
+    }
+}
+
+// One directional light slot of CharLightSet: toward target (NULL: dark), at once, or eased over
+// DirectLightCharaCounter's frames, or over CharDirectLightSet's fade while a set is on.
+static void CharDirLight(GA_LIGHT_WORK *lw, int k, const float *pos, const float *color, float charaFrames,
+                         int setOn, float setFrames)
+{
+    if (charaFrames == 0.0f) {
+        if (!setOn || setFrames == 0.0f) {
+            LightCopy(lw->dirPos[k], pos);
+            LightCopy(lw->dirColor[k], color);
+        } else {
+            LightEase(lw->dirPos[k], pos, setFrames);
+            LightEase(lw->dirColor[k], color, setFrames);
+        }
+    } else {
+        LightEase(lw->dirPos[k], pos, charaFrames);
+        LightEase(lw->dirColor[k], color, charaFrames);
+    }
+}
+
+// CharLightSet's point light slot from the nearest search: light m, or off when there is none or the
+// light part is switched off.
+static void CharOmniNearest(GA_LIGHT_WORK *lw, int k, u_int m, const int *off, float (*pos)[4],
+                            float (*col)[4])
+{
+    if (m == NEAR_LIGHT_NONE || off[m] == 1) {
+        LightClearPos(lw->omniPos[k]);
+        LightClear(lw->omniColor[k]);
+    } else {
+        LightCopy(lw->omniPos[k], pos[m]);
+        LightCopy(lw->omniColor[k], col[m]);
+    }
+}
+
+// CT3 0x018b49f0: light a character's parts from its light bank (CHARACTER.lightBank, -1 = none): the
+// directional lights of the bank's charaDir (or the character's CharDirectLightSet, its LIGHT_NONE slots
+// filled from charaDir), eased over DirectLightCharaCounter / the set's fade; the four point lights
+// nearest the part from the bank's omniList. Actress lighting (ActressLightFlag[bank], the player only)
+// keeps the bank's Omni0_num / Omni1_num lights in slots 0 and 1 and weakens the others' falloff.
+// CharOmniEffect and AllOmniEffect override the point lights; gaSetLight runs under the mirror's view.
+void CharLightSet(int chara)
+{
+    CHARACTER *chr = &Character[chara];
+    short lightBank = chr->lightBank;
+    int bank = chr->bank;
+    MODEL_PARTS *parts = (MODEL_PARTS *)pModelPartsHeader[bank];
+    short *pairs = (short *)BankEePtr(bank, All_table_TBL[bank]->light->pairs);
+    LIGHT_SET *sets = (LIGHT_SET *)BankEePtr(bank, All_table_TBL[bank]->light->sets);
+    u_short *dlSet = CharDirectLightSet[chara];
+    int actress;
+    short *dir;
+    short *list;
+    int count;
+    int *off = NULL;
+    float (*pos)[4] = NULL;
+    float (*col)[4] = NULL;
+    float (*posFar)[4] = NULL;
+    u_char nearest[32];
+    MODEL_PARTS *lparts;
+    SCENE_LIGHT *lsl;
+    int i;
+    int k;
+
+    if (lightBank < 0) {
+        return;
+    }
+    lsl = All_table_TBL[lightBank]->light;
+    lparts = (MODEL_PARTS *)pModelPartsHeader[lightBank];
+    if (dlSet[CHAR_DLS_ON] == 0) {
+        dir = (short *)BankEePtr(lightBank, lsl->charaDir);
+    } else {
+        short *charaDir = (short *)BankEePtr(lightBank, lsl->charaDir);
+
+        dir = (short *)&dlSet[CHAR_DLS_DIR];
+        for (k = 0; k < LIGHT_SLOTS; k++) {
+            if (dir[k] == LIGHT_NONE) {
+                dir[k] = charaDir[k];
+            }
+        }
+    }
+    list = (short *)BankEePtr(lightBank, lsl->omniList);
+    count = list[0];
+    actress = ActressLightFlag[lightBank] != 0 && chara == 0;
+    if (count != 0) {
+        off = (int *)_SunAlloc(&gHeapJunc, count * 4, 0x40);
+        pos = (float (*)[4])_SunAlloc(&gHeapJunc, count * 16, 0x40);
+        col = (float (*)[4])_SunAlloc(&gHeapJunc, count * 16, 0x40);
+        if (actress) {
+            // PORT: the ROM never allocates this buffer (sp+0x100 is written and freed uninitialised;
+            // hazards.md "AlyssaPan" 2026-11-10); the host gives it the same size.
+            posFar = (float (*)[4])_SunAlloc(&gHeapJunc, count * 16, 0x40);
+        }
+    }
+
+    for (i = 0; pairs[i] != LIGHT_PAIRS_END; i += 2) {
+        short p = pairs[i];
+        short s = pairs[i + 1];
+        GA_LIGHT_WORK *lw = (GA_LIGHT_WORK *)BankEePtr(bank, (u_int)parts[p].attr);
+
+        if (s == LIGHT_NONE) {
+            for (k = 0; k < LIGHT_SLOTS; k++) {
+                LightClear(lw->dirPos[k]);
+                LightClear(lw->dirColor[k]);
+                LightClearPos(lw->omniPos[k]);
+                LightClear(lw->omniColor[k]);
+            }
+        } else {
+            float charaFrames = (float)DirectLightCharaCounter[chara];
+            float setFrames = (float)(short)dlSet[CHAR_DLS_FADE];
+
+            for (k = 0; k < LIGHT_SLOTS; k++) {
+                MODEL_PARTS *l = NULL;
+
+                if (dir[k] != LIGHT_NONE && sets[s].dir[k] != LIGHT_NONE) {
+                    l = &lparts[dir[k]];
+                    if (l->flags & PARTS_FLAG_FOG) {
+                        l = NULL;
+                    }
+                }
+                // a missing or switched-off light fades to dark the same way
+                CharDirLight(lw, k, l != NULL ? l->lightPos : s_lightZero, l != NULL ? l->lightColor : s_lightZero,
+                             charaFrames, dlSet[CHAR_DLS_ON] != 0, setFrames);
+            }
+
+            if (count == 0) {
+                for (k = 0; k < LIGHT_SLOTS; k++) {
+                    LightClearPos(lw->omniPos[k]);
+                    LightClear(lw->omniColor[k]);
+                }
+            } else {
+                int omni0 = -1;
+                int omni1 = -1;
+                int n;
+
+                for (n = 0; n < count; n++) {
+                    short lp = list[n + 1];
+                    MODEL_PARTS *l = &lparts[lp];
+
+                    off[n] = l->flags & PARTS_FLAG_FOG;
+                    LightCopy(pos[n], l->lightPos);
+                    if (!actress) {
+                        if (lp == Omni0_num[lightBank]) {
+                            pos[n][3] = 1.0f;
+                        }
+                        if (lp == Omni1_num[lightBank]) {
+                            pos[n][3] = 1.0f;
+                        }
+                    } else {
+                        LightCopy(posFar[n], pos[n]);
+                        posFar[n][3] = 1.0f / (1.0f / posFar[n][3] + LIGHT_ACTRESS_FALLOFF);
+                        if (lp == Omni0_num[lightBank]) {
+                            posFar[n][3] = 1.0f;
+                            omni0 = n;
+                        }
+                        if (lp == Omni1_num[lightBank]) {
+                            posFar[n][3] = 1.0f;
+                            omni1 = n;
+                        }
+                    }
+                    LightCopy(col[n], l->lightColor);
+                }
+                memset(nearest, NEAR_LIGHT_NONE, sizeof(nearest)); // PORT: a stubbed search writes nothing
+                gaSearchNearLight4(nearest, (float (*)[4])parts[p].pos, 1, actress ? posFar : pos, count);
+
+                if (!actress) {
+                    for (k = 0; k < LIGHT_SLOTS; k++) {
+                        CharOmniNearest(lw, k, nearest[k], off, pos, col);
+                    }
+                } else {
+                    float frames = (float)DirectLightCharaCounter[chara];
+                    int slot = 0;
+
+                    // slots 0 and 1: the actress lights when the bank lists them, else the nearest
+                    if (omni0 < 0) {
+                        CharOmniNearest(lw, 0, nearest[slot], off, pos, col);
+                        slot = 1;
+                    } else {
+                        LightCopy(lw->omniPos[0], pos[omni0]);
+                        if (frames == 0.0f) {
+                            LightCopy(lw->omniColor[0], col[omni0]);
+                        } else {
+                            LightEase(lw->omniColor[0], col[omni0], frames);
+                        }
+                    }
+                    if (omni1 < 0) {
+                        CharOmniNearest(lw, 1, nearest[slot], off, pos, col);
+                        slot++;
+                    } else {
+                        LightCopy(lw->omniPos[1], pos[omni1]);
+                        if (frames == 0.0f) {
+                            LightCopy(lw->omniColor[1], col[omni1]);
+                        } else {
+                            LightEase(lw->omniColor[1], col[omni1], frames);
+                        }
+                    }
+                    // slots 2 and 3: the next nearest (the ROM advances only past a light it used)
+                    CharOmniNearest(lw, 2, nearest[slot], off, pos, col);
+                    if (nearest[slot] != NEAR_LIGHT_NONE && off[nearest[slot]] != 1) {
+                        slot++;
+                    }
+                    CharOmniNearest(lw, 3, nearest[slot], off, pos, col);
+                }
+            }
+
+            for (k = 0; k < LIGHT_SLOTS; k++) {
+                LightOmniOverride(lw, &CharOmniEffect[chara][k * 2], k);
+                LightOmniOverride(lw, &AllOmniEffect[k * 2], k);
+            }
+            gaMulMatrix(mrr_ReverseGlobalView, matrix_global_view, mrr_ReverseMatrix);
+            gaSetLight(lw, mrr_ReverseGlobalView);
+        }
+    }
+
+    if ((short)dlSet[CHAR_DLS_FADE] != 0) {
+        dlSet[CHAR_DLS_FADE]--;
+    }
+    if (count != 0) {
+        _SunFree(&gHeapJunc, (void **)&off);
+        _SunFree(&gHeapJunc, (void **)&pos);
+        _SunFree(&gHeapJunc, (void **)&col);
+        if (actress) {
+            _SunFree(&gHeapJunc, (void **)&posFar);
+        }
+    }
 }
 
 // ---- the memory card ----
@@ -1091,7 +1490,7 @@ static void mc_update_load_menu(void)
         }
         break;
     case 8:
-        tiFade_Start(10.0f);
+        tiFade_Start(10.0f, 0); // PORT: the ROM leaves a0 (the fade type) unset here (open-items.md)
         mcMain_ID = 9;
         break;
     case 9:
@@ -1307,7 +1706,7 @@ static void mc_update_auto_load(void)
         mc_menuid = 0;
         break;
     case 3:
-        tiFade_Start(10.0f);
+        tiFade_Start(10.0f, 0); // PORT: the ROM leaves a0 (the fade type) unset here (open-items.md)
         mcMain_ID = 4;
         break;
     case 4:
@@ -1460,6 +1859,18 @@ void McRegisterEvent(u_int event)
 void ContinueBackupSet(void)
 {
     data_save_set(continue_backup);
+}
+
+// CT3 0x018b5e80: whether mc_alloc's work buffer is held (PicPaz.c).
+int mc_CheckMcWorkAllocc(void)
+{
+    return alloc_flag;
+}
+
+// CT3 0x018b5e90: the last card check's answer: 0 = the card holds the save, 1 = a new one is made.
+int mc_Getinfo_mc_type(void)
+{
+    return mc_type;
 }
 
 // CT3 0x018b9a80: fill the work buffer for a save into file mcFile_ID: the header (id, file, the extras,
@@ -1958,18 +2369,6 @@ int mc_save_new(int alt)
 // ---- stubs (tools/reverse/stubgen.py) ----
 
 
-// stub of CT3 0x018b4480
-void SceneLightSet(int scene)
-{
-    ALYSSAPAN_STUB("SceneLightSet", 0x018b4480);
-}
-
-// stub of CT3 0x018b49f0
-void CharLightSet(int chara)
-{
-    ALYSSAPAN_STUB("CharLightSet", 0x018b49f0);
-}
-
 // stub of CT3 0x018bb2d0
 int mc_check3(void)
 {
@@ -1990,10 +2389,76 @@ int mc_free_area(void)
     return {};
 }
 
-// stub of CT3 0x018b7930
+// CT3 0x018b7930: after a load, take the world down and build it again from the save: each drawn
+// character and every loaded bank past the scene banks is unregistered (its draw / scene teardown by
+// bank type), all banks are marked unloaded and ended, then system_init, the system data, the chosen
+// save image (data_load_set), the continue backup; the AI, menu and player control restart, the trigger
+// system hears TRIG_EVENT_MC_RELOADED, and the screen fades in while main skips four frames.
 void mc_load_set(void)
 {
-    ALYSSAPAN_STUB("mc_load_set", 0x018b7930);
+    int i;
+
+    for (i = 0; i < CHARACTER_MAX; i++) {
+        if (Character[i].flags & (CHARACTER_FLAG_REFRACTION | CHARACTER_FLAG_SHADOW)) {
+            TrgCharacterDraw(0, i);
+        }
+    }
+    for (i = BANK_SCENE_MAX; i < BANK_MAX; i++) {
+        if (BankInfo[i].loaded == 1) {
+            if (BankInfo[i].type == BANK_TYPE_NO_ROOM_SOUND) {
+                FSMltSetDrawBank(i, BankInfo[i].name, 0);
+            } else if (BankInfo[i].type == BANK_TYPE_2) {
+                FSMltSetDrawBank(i, BankInfo[i].name, 0);
+            } else if (BankInfo[i].type == BANK_TYPE_SHADOW) {
+                TrgSceneDraw(0, 0, 0, BankInfo[i].name, i);
+            }
+            BankInfo[i].count = 0;
+        }
+    }
+    for (i = 0; i < BANK_MAX; i++) {
+        BankInfo[i].loaded = 0;
+    }
+    SceneEndBank(0, BANK_MAX);
+    system_init();
+    system_data_load_set(SYSTEM_LOAD_ALL);
+    data_load_set(mc_databuff[mcFile_ID]);
+    ContinueBackupSet();
+    MonsterAIUpdate(1);
+    ssMenuUpdate(1);
+    PlayerControlUpdate(1);
+    ssTrigRegisterEvent(TRIG_EVENT_MC_RELOADED, 1, -1);
+    asMothPause(1);
+    tiFade_Start(0.0f, FADE_TYPE_MC_LOAD);
+    SkipMain = MC_LOAD_SKIP_FRAMES;
+}
+
+// stub of CT3 0x018b7b50
+void data_load_set(u_char *data)
+{
+    ALYSSAPAN_STUB("data_load_set", 0x018b7b50);
+}
+
+// The byte ranges of a CHARACTER a save keeps (mc_char_set). The ROM copies them field by field (bytes,
+// shorts, words, quadwords: 0x00, 0x02, 0x04[10], 0x18[10], 0x22[10][10], 0x88, 0x90, 0x98, 0xa0, 0xb0..
+// 0xec, 0xf8, 0xfc, 0x100, 0x102, 0x310, 0x320, 0x340..0x359, 0x38c[6], 0x398[6], 0x3a4[6], 0x3aa[6],
+// 0x3b0[42], 0x404[42], 0x458[6], 0x4d0, 0x4e0, 0x524, 0x528); adjacent fields are merged here.
+static const struct {
+    u_short offset;
+    u_short size;
+} s_mcCharFields[] = {
+    {0x000, 0x01}, {0x002, 0x84}, {0x088, 0x04}, {0x090, 0x12}, {0x0b0, 0x40}, {0x0f8, 0x0b},
+    {0x310, 0x20}, {0x340, 0x1a}, {0x38c, 0xe4}, {0x4d0, 0x04}, {0x4e0, 0x10}, {0x524, 0x08},
+};
+
+// CT3 0x018ba4c0: copy the saved fields of one character (dst and src: CHARACTER records or their
+// images in a save; data_load_set / data_save_set).
+void mc_char_set(u_char *dst, u_char *src)
+{
+    u_int i;
+
+    for (i = 0; i < sizeof(s_mcCharFields) / sizeof(s_mcCharFields[0]); i++) {
+        memcpy(dst + s_mcCharFields[i].offset, src + s_mcCharFields[i].offset, s_mcCharFields[i].size);
+    }
 }
 
 
