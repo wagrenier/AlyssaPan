@@ -43,8 +43,15 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    ControllerMain, tiItemInit, scene_end, the small draw passes; 15 functions); slice 2 (2026-11-09):
    `GlobalDrawObject`, `scene_draw_init`, `system_end`, `get_draw_obj`; slice 3 (2026-11-09): `main_rtn`, `main_rtn_Particle`; slice 4 (2026-11-09):
    `DrawObjectRefraction`, `main_rtn_DOF`; slice 5 (2026-11-09): `AllDrawObject`,
-   `ssHQDOF_DrawAllObject`, `main_rtn_GHOST`, `main_rtn_GHOST_DOF`. Left in main.c: `main_rtn_Particle2`
-   (blocked by (h)) and `scene_init` (0x3f8 bytes, next). Open from slice 5: (n) the mirror arguments
+   `ssHQDOF_DrawAllObject`, `main_rtn_GHOST`, `main_rtn_GHOST_DOF`; slice 6 (2026-11-09): `scene_init`
+   (ALL_TABLE +0x14 / +0xb8 / +0xbc, `DRAW_OBJ_ENTRY.drawCtrlArgs`, `GA_DRAWCTRL_ARGS` and `TEX_INFO`
+   passed by value, hazards.md). Left in main.c: `main_rtn_Particle2` only (blocked by (h)). Open from
+   slice 6: (q) `gaSetupDBufferData` takes 14 argument slots, FirstInitialization passes 7 (hazards.md):
+   fix with gaInitDrawObject.c's TU; (r) `BANK_TYPE_0` (type 0 takes the fog record) and
+   `PARTS_HEADER_ANIMATED` (the parts header's first byte == 1) are named from one use; type 1's fog
+   colour clears the frame, so `BANK_TYPE_SHADOW` is likely the stage bank (with (j)); (s)
+   `PARTICLE_ENTRY.drawCtrlId` (+4) is probably a `GA_DRAWCTRL_ARGS *` like the draw list's (not
+   changed: no use seen). Open from slice 5: (n) the mirror arguments
    (`asEnumMirror(ALL_TABLE *)`, `asMirrorPlaneCalc(planeVec, planePoint)`, tbl +0x2c `matrixTree`) and
    `tiChara_Translucence_End(float alpha, int fbuf)` / `_End2(int fbuf, int chara)` come from the call
    sites: confirm them in their TUs; (o) `BANK_FLAG_NO_MIRROR` (0x10) and `EV_SHADOW_AFTER_MIRROR`

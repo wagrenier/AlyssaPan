@@ -54,3 +54,15 @@ void ssTrigSetVariable(int var, int value, int a2, int a3)
 {
     ALYSSAPAN_STUB("ssTrigSetVariable", 0x018d9470);
 }
+
+// stub of CT3 0x018d3d90
+void InitTriggerDetectorShape(int scene)
+{
+    ALYSSAPAN_STUB("InitTriggerDetectorShape", 0x018d3d90);
+}
+
+// stub of CT3 0x018d4c80
+void Trigger_init(void)
+{
+    ALYSSAPAN_STUB("Trigger_init", 0x018d4c80);
+}

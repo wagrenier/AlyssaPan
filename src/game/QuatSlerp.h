@@ -3,6 +3,7 @@
 #pragma once
 
 #include "sdk/scetypes.h"
+#include "game/ct3_types.h"
 
 void ControllerClatteringUpdate(void);                                                   // CT3 0x01852f90
 void ControllerClatteringInit(void);                                                     // CT3 0x01853220
@@ -29,6 +30,8 @@ void tnInit3dlibWork(void *work, void *spr);                                    
 int OneMaxObjectDrawZOnly(int bank, int index);                                          // CT3 0x01858f20
 void sunBGT_LoadGSTexClutData_VIF1(void *tbuffer);                                      // CT3 0x018590b0
 void sunBGT_ExecTBufferData_VIF1(void *tbuffer);                                        // CT3 0x01859520
-void sunSetupTBufferData(void *tbuffer, u_int *tim, int a2, int a3, int a4, int a5, int a6, int a7); // CT3 0x01859530
+void sunSetupTBufferData(void *tbuffer, TEX_INFO tex);                                   // CT3 0x01859530 (tex by value, 0x2c bytes)
+void TexFileSetInit(int scene);                                                          // CT3 0x01856070
+void AmbientAlphaInit(int scene);                                                        // CT3 0x01856e70
 void asViewMatrix2PosRUF(float *view, float *pos, float *right, float *up, float *front); // CT3 0x0185a8a0
 void asViewMatrix2CamRUF(float (*view)[4], float *pos, float *right, float *up, float *forward); // CT3 0x0185a6f0

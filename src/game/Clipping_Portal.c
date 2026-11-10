@@ -161,3 +161,33 @@ void tiChara_Translucence_Start2(void)
 {
     ALYSSAPAN_STUB("tiChara_Translucence_Start2", 0x0188dbd0);
 }
+
+// stub of CT3 0x018933f0
+void tiHurikoInit(int scene)
+{
+    ALYSSAPAN_STUB("tiHurikoInit", 0x018933f0);
+}
+
+// stub of CT3 0x0188e4a0
+void tiLensFlaresInit(int scene)
+{
+    ALYSSAPAN_STUB("tiLensFlaresInit", 0x0188e4a0);
+}
+
+// stub of CT3 0x0188b050
+void tiLightBelt2Init(int scene)
+{
+    ALYSSAPAN_STUB("tiLightBelt2Init", 0x0188b050);
+}
+
+// stub of CT3 0x01890350
+void tiParticleInit(int scene)
+{
+    ALYSSAPAN_STUB("tiParticleInit", 0x01890350);
+}
+
+// stub of CT3 0x0188ccb0
+void tiWindInit(int scene)
+{
+    ALYSSAPAN_STUB("tiWindInit", 0x0188ccb0);
+}

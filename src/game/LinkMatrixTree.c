@@ -17,3 +17,15 @@ void ahTimeMaintenance(int paused)
 {
     ALYSSAPAN_STUB("ahTimeMaintenance", 0x018517d0);
 }
+
+// stub of CT3 0x018516a0
+void InitMatrixTree(u_char *partsHeader)
+{
+    ALYSSAPAN_STUB("InitMatrixTree", 0x018516a0);
+}
+
+// stub of CT3 0x018514d0
+void LinkMatrixTree(void **objList, u_char *partsHeader)
+{
+    ALYSSAPAN_STUB("LinkMatrixTree", 0x018514d0);
+}

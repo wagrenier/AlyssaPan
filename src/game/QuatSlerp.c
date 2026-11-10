@@ -162,7 +162,7 @@ void sunBGT_LoadGSTexClutData_VIF1(void *tbuffer)
 }
 
 // stub of CT3 0x01859530
-void sunSetupTBufferData(void *tbuffer, u_int *tim, int a2, int a3, int a4, int a5, int a6, int a7)
+void sunSetupTBufferData(void *tbuffer, TEX_INFO tex)
 {
     ALYSSAPAN_STUB("sunSetupTBufferData", 0x01859530);
 }
@@ -177,4 +177,16 @@ void tnInit3dlibWork(void *work, void *spr)
 void asViewMatrix2CamRUF(float (*view)[4], float *pos, float *right, float *up, float *forward)
 {
     ALYSSAPAN_STUB("asViewMatrix2CamRUF", 0x0185a6f0);
+}
+
+// stub of CT3 0x01856e70
+void AmbientAlphaInit(int scene)
+{
+    ALYSSAPAN_STUB("AmbientAlphaInit", 0x01856e70);
+}
+
+// stub of CT3 0x01856070
+void TexFileSetInit(int scene)
+{
+    ALYSSAPAN_STUB("TexFileSetInit", 0x01856070);
 }

@@ -12,3 +12,5 @@ int ssTrigCheckEvent(int event, int a1, int a2);                                
 void ssTrigSetVariable(int var, int value, int a2, int a3);                              // CT3 0x018d9470
 void ssTrigRemoveEvent(int event, int a1, int a2);                                       // CT3 0x018d9560
 void ssTrigRegisterEvent(int event, int a1, int a2);                                     // CT3 0x018d95e0
+void InitTriggerDetectorShape(int scene);                                                // CT3 0x018d3d90
+void Trigger_init(void);                                                                 // CT3 0x018d4c80

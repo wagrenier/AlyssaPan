@@ -29,3 +29,9 @@ void main2(void)
 {
     ALYSSAPAN_STUB("main2", 0x018b20f0);
 }
+
+// stub of CT3 0x018b22f0
+void SwapDrawingDoor(void)
+{
+    ALYSSAPAN_STUB("SwapDrawingDoor", 0x018b22f0);
+}

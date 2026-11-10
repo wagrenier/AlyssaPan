@@ -30,3 +30,8 @@ void tiChara_Translucence_End2(int fbuf, int chara);                            
 void tiChara_Translucence_Start2(void);                                                  // CT3 0x0188dbd0
 void tiChara_Translucence_End(float alpha, int fbuf);                                    // CT3 0x0188dca0
 void tiChara_Translucence_Start(void);                                                   // CT3 0x0188dd40
+void tiLightBelt2Init(int scene);                                                        // CT3 0x0188b050
+void tiWindInit(int scene);                                                              // CT3 0x0188ccb0
+void tiLensFlaresInit(int scene);                                                        // CT3 0x0188e4a0
+void tiParticleInit(int scene);                                                          // CT3 0x01890350
+void tiHurikoInit(int scene);                                                            // CT3 0x018933f0

@@ -4,7 +4,7 @@
 // Written 2026-11-09: slice 1 (the boot, the loop, the small draw passes), slice 2 (GlobalDrawObject,
 // scene_draw_init, system_end, get_draw_obj), slice 3 (main_rtn, main_rtn_Particle), slice 4
 // (DrawObjectRefraction, main_rtn_DOF), slice 5 (AllDrawObject, ssHQDOF_DrawAllObject, main_rtn_GHOST /
-// _GHOST_DOF); main_rtn_Particle2 and scene_init are the TU's later slices.
+// _GHOST_DOF), slice 6 (scene_init); main_rtn_Particle2 is the TU's last slice.
 #include "game/main.h"
 #include "common/alyssapan_stub.h"
 
@@ -83,6 +83,13 @@ int gArgc;                                      /* sbss 0x01942b44 */
 #define ALL_DRAW_DOF_FIRST 2                    /* AllDrawObject / main_rtn_DOF: the farthest DOF slice clip-checks */
 #define ALL_DRAW_DOF_NEXT 3                     /* the nearer slices reuse the stored clip byte */
 #define MAIN_RTN_CLIP_FAR 50000.0f              /* gaSet3dlibStruct's far clip */
+#define DRAW_CTRL_NONE ((GA_DRAWCTRL_ARGS *)-1) /* main_rtn's "no draw control yet" (the ROM's -1) */
+// FirstInitialization's frame-clear draw control (the ROM's 29 argument slots, 0x01835708).
+static const GA_DRAWCTRL_ARGS FRAMECLEAR_DRAWCTRL_ARGS = {
+    {0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0}, 0};
+#define SCENE_INIT_LISTS 3                      /* scene_init: objTrans, objOpaque, objAfter */
+#define PARTS_HEADER_ANIMATED 1                 /* scene_init: the parts header's first byte: restart
+                                                   the scene's behaviour animations (name from that use) */
 #define BANK_NAME_MENU "MENU.BIN"               /* @2324: bank 0 is the menu -> every texture restarts the BGT ring */
 
 #define FRAMECLEAR_RGBAQ 0x3f80000080000000ull  /* Q = 1.0f, A = 0x80, RGB = 0 */
@@ -137,7 +144,9 @@ enum DEMO_SKIP {                                /* DEMO_SKIP_FLAG: the demo skip
 // differences (the current scene's character fog, one fixed draw control, GHOST_DRAWCTRL_ARGS).
 // CT3 0x01834440
 
-#define GHOST_DRAWCTRL_ARGS 1, 1, 1, 1, 0, 0, 0 /* gaSetupDrawCtrlData's arguments for every ghost part */
+// gaSetupDrawCtrlData's settings for every ghost part (the ROM's 29 argument slots, 0x01834fd8).
+static const GA_DRAWCTRL_ARGS GHOST_DRAWCTRL_ARGS = {
+    {1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 0, 3, 0, 0, 1, 2, 2, 2, 2, 0, 0, 0, 1, 2, 1, 1, 0, 0}, 0};
 
 void main_rtn_GHOST_DOF(int bank, int mode, int chara, int pass, int charaIndex, void **lastTex)
 {
@@ -211,8 +220,7 @@ void main_rtn_GHOST_DOF(int bank, int mode, int chara, int pass, int charaIndex,
             continue;
 
         if (texNow != tex && tex != NULL && tex->tim != timNow && tex->tim != NULL) {
-            sunSetupTBufferData(ent->tbuffer, tex->tim, tex->tbuf[0], tex->tbuf[1], tex->tbuf[2],
-                                tex->tbuf[3], tex->tbuf[4], tex->tbuf[5]);
+            sunSetupTBufferData(ent->tbuffer, *tex);
             sunBGT_LoadGSTexClutData_VIF1(ent->tbuffer);
         }
         if (ssDOF_ClipObjectFromZRange(obj, (u_int)ent->dofMode) == 0)
@@ -332,8 +340,7 @@ void main_rtn_GHOST(int bank, int mode, int chara, u_int flags, int charaIndex, 
             continue;
 
         if (texNow != tex && tex != NULL && tex->tim != timNow && tex->tim != NULL) {
-            sunSetupTBufferData(ent->tbuffer, tex->tim, tex->tbuf[0], tex->tbuf[1], tex->tbuf[2],
-                                tex->tbuf[3], tex->tbuf[4], tex->tbuf[5]);
+            sunSetupTBufferData(ent->tbuffer, *tex);
             sunBGT_LoadGSTexClutData_VIF1(ent->tbuffer);
         }
         *(int *)(obj + DRAW_OBJ_ATTR) = parts->attr;
@@ -410,7 +417,7 @@ void FirstInitialization(void)
     SunAllocInit(&gHeapSound, gSoundAllocArea, sizeof gSoundAllocArea, HEAP_NAME_SOUND);
     SunAllocInit(&gHeapGlobalScene, gGlobalBankArea, 0x300000, HEAP_NAME_GLOBAL);
     gaSetupDBufferData(&drawbuffer_frameclear, 0, 0x200, 0, 0, 0, 0, 0);
-    gaSetupDrawCtrlData(&drawctrl_frameclear, 0, 0, 0, 1, 0, 0, 0);
+    gaSetupDrawCtrlData(&drawctrl_frameclear, FRAMECLEAR_DRAWCTRL_ARGS);
     gaSetupDBufferData(&drawbuffer_0, 0, 0x200, 0, 0, 0, 0, 0);
     DemoFilterChangeWork.active = 0;
     SkipMain = 4;
@@ -822,7 +829,7 @@ void AllDrawObject(int mode)
             asMirrorPlaneCalc(planeVec, planePoint);
             asMakeMirrorMatrixByPlane(planeVec, planePoint);
             asMirrorCulling(0);
-            asBuildMirrorMatrixTree(tbl->matrixTree);
+            asBuildMirrorMatrixTree(tbl->partsHeader);
             asGAobjectControlPolygonDisplayRotateFlagReverse(tbl);
             AllDrawCharacter(c, mode, &lastTex);
             asMirrorCulling(1);
@@ -835,7 +842,7 @@ void AllDrawObject(int mode)
             ALL_TABLE *tbl = All_table_TBL[Character[c].bank];
 
             asGAobjectControlPolygonDisplayRotateFlagReverse(tbl);
-            asBuildMirrorMatrixTreeBack(tbl->matrixTree);
+            asBuildMirrorMatrixTreeBack(tbl->partsHeader);
         }
     }
     if (ssTrigCheckEvent(EV_SHADOW_AFTER_MIRROR, 1, 0) != 0)
@@ -1067,7 +1074,7 @@ void main_rtn(int bank, int mode, int chara, u_int flags, int charaIndex, void *
     FOG_INFO *fog;
     TEX_INFO *texNow;
     u_int *timNow = NULL;
-    int ctrlNow = -1;
+    GA_DRAWCTRL_ARGS *ctrlNow = DRAW_CTRL_NONE;
     int zonlyParts = -1;
     u_int pass = flags & MAIN_RTN_PASS_MASK;
     int i;
@@ -1136,20 +1143,19 @@ void main_rtn(int bank, int mode, int chara, u_int flags, int charaIndex, void *
             continue;
         if ((parts->flags & PARTS_FLAG_ZONLY_FIRST) && zonlyParts != ent->parts) {
             zonlyParts = OneMaxObjectDrawZOnly(bank, i);
-            ctrlNow = -1;
+            ctrlNow = DRAW_CTRL_NONE;
         }
         clip = (flags & MAIN_RTN_NO_CLIP) == 0 ? gaObjectClippingCheck(obj) : 0;
         if (clip < 0)
             continue;
 
         if (texNow != tex && tex != NULL && tex->tim != timNow && tex->tim != NULL) {
-            sunSetupTBufferData(ent->tbuffer, tex->tim, tex->tbuf[0], tex->tbuf[1], tex->tbuf[2],
-                                tex->tbuf[3], tex->tbuf[4], tex->tbuf[5]);
+            sunSetupTBufferData(ent->tbuffer, *tex);
             sunBGT_LoadGSTexClutData_VIF1(ent->tbuffer);
         }
-        if (ctrlNow != ent->drawCtrlId && ent->drawCtrlId != 0) {
+        if (ctrlNow != ent->drawCtrlArgs && ent->drawCtrlArgs != NULL) {
             gaBGT_ExecDrawCtrlData_VIF1((GA_DRAWCTRL_DATA *)ent->drawCtrl);
-            ctrlNow = ent->drawCtrlId;
+            ctrlNow = ent->drawCtrlArgs;
         }
         *(int *)(obj + DRAW_OBJ_ATTR) = parts->attr;
         if (tex != NULL) {
@@ -1259,7 +1265,7 @@ void main_rtn_DOF(int bank, int mode, int chara, int pass, int charaIndex, void 
     FOG_INFO *fog;
     TEX_INFO *texNow;
     u_int *timNow = NULL;
-    int ctrlNow = -1;
+    GA_DRAWCTRL_ARGS *ctrlNow = DRAW_CTRL_NONE;
     int zonlyParts = -1;
     int i;
 
@@ -1325,7 +1331,7 @@ void main_rtn_DOF(int bank, int mode, int chara, int pass, int charaIndex, void 
             continue;
         if ((parts->flags & PARTS_FLAG_ZONLY_FIRST) && zonlyParts != ent->parts) {
             zonlyParts = OneMaxObjectDrawZOnly(bank, i);
-            ctrlNow = -1;
+            ctrlNow = DRAW_CTRL_NONE;
         }
         if (pass == ALL_DRAW_DOF_FIRST)
             obj[DRAW_OBJ_CLIP] = (u_char)gaObjectClippingCheck(obj);
@@ -1333,15 +1339,14 @@ void main_rtn_DOF(int bank, int mode, int chara, int pass, int charaIndex, void 
             continue;
 
         if (texNow != tex && tex != NULL && tex->tim != timNow && tex->tim != NULL) {
-            sunSetupTBufferData(ent->tbuffer, tex->tim, tex->tbuf[0], tex->tbuf[1], tex->tbuf[2],
-                                tex->tbuf[3], tex->tbuf[4], tex->tbuf[5]);
+            sunSetupTBufferData(ent->tbuffer, *tex);
             sunBGT_LoadGSTexClutData_VIF1(ent->tbuffer);
         }
         if (ssDOF_ClipObjectFromZRange(obj, (u_int)ent->dofMode) == 0)
             continue;
-        if (ctrlNow != ent->drawCtrlId && ent->drawCtrlId != 0) {
+        if (ctrlNow != ent->drawCtrlArgs && ent->drawCtrlArgs != NULL) {
             gaBGT_ExecDrawCtrlData_VIF1((GA_DRAWCTRL_DATA *)ent->drawCtrl);
-            ctrlNow = ent->drawCtrlId;
+            ctrlNow = ent->drawCtrlArgs;
         }
         *(int *)(obj + DRAW_OBJ_ATTR) = parts->attr;
         if (tex != NULL) {
@@ -1442,6 +1447,74 @@ void scene_draw_init(int scene)
     else
         objSort(scene, n + 1, osTotalObjTable[1][scene]);
     asForceOperateAnimation_Scene(scene, 0);
+}
+
+static u_long FogClearColor(const u_char *fog);
+
+// ──────────────────────────────────────────────────────────────────────
+// A bank's set-up once its file is loaded (FSMltLoadProc): the triggers, the bank's tables out of its
+// ALL_TABLE (object count, parts header, behaviours, fog), its fog packet (cleared) and the 3dlib, the
+// matrix tree, the scene's animations, then each subsystem's init, and every draw list entry's texture
+// buffer and draw control packets (the transparent, opaque and after-particle lists).
+// CT3 0x01839270
+
+void scene_init(int scene)
+{
+    ALL_TABLE **tbl;
+    int list, i;
+    void **objs = NULL;
+
+    Trigger_init();
+    tbl = &All_table_TBL[scene];
+    BaseobjCount[scene] = (*tbl)->baseobjCount;
+    pModelPartsHeader[scene] = (*tbl)->partsHeader;
+    pBehaviorHeader[scene] = (*tbl)->behavior;
+    gaSetupFogCtrlData(&fogctrl[scene], 0.0f, 0.0f, 0.0f, 0, 0, 0);
+    if (BankInfo[scene].type == BANK_TYPE_SHADOW || BankInfo[scene].type == BANK_TYPE_0)
+        FogCtrlAddr[scene] = (*tbl)->fog;
+    if (BankInfo[scene].type == BANK_TYPE_SHADOW)
+        drawcom_frameclear.rgbaq = FogClearColor(FogCtrlAddr[scene]);
+    gaSet3dlibStruct(MAIN_RTN_CLIP_FAR, ga3dlibwork, &drawbuffer_0, &fogctrl[scene], screen_0);
+    InitMatrixTree(pModelPartsHeader[scene]);
+    LinkMatrixTree((*tbl)->objOpaque, pModelPartsHeader[scene]);
+    if ((s_char)pModelPartsHeader[scene][0] == PARTS_HEADER_ANIMATED) {
+        asBehaviorStopAnimation(pBehaviorHeader[scene]);
+        asSceneAutoStartAnimation(pBehaviorHeader[scene]);
+    }
+    SwapDrawingDoor();
+    BuildMatrixTree(scene, 1, 1);
+    ssParticleInit(scene);
+    ssSetAmbColorToAllObj(scene);
+    tiHurikoInit(scene);
+    tiParticleInit(scene);
+    tiLensFlaresInit(scene);
+    asShadowDrawing_Init(scene);
+    asSeatArrange_Init(scene);
+
+    for (list = 0; list < SCENE_INIT_LISTS; list++) {
+        if (list == 2)
+            objs = (*tbl)->objAfter;
+        else if (list == 1)
+            objs = (*tbl)->objOpaque;
+        else if (list == 0)
+            objs = (*tbl)->objTrans;
+        for (i = 0; objs[i] != NULL; i++) {
+            DRAW_OBJ_ENTRY *ent = (DRAW_OBJ_ENTRY *)objs[i];
+            TEX_INFO *tex = ent->tex;
+            GA_DRAWCTRL_DATA *ctrl = (GA_DRAWCTRL_DATA *)ent->drawCtrl;
+            GA_DRAWCTRL_ARGS *args = ent->drawCtrlArgs;
+
+            if (tex != NULL)
+                sunSetupTBufferData(ent->tbuffer, *tex);
+            gaSetupDrawCtrlData(ctrl, *args);
+        }
+    }
+    AmbientAlphaInit(scene);
+    InitTriggerDetectorShape(scene);
+    TexFileSetInit(scene);
+    tiWindInit(scene);
+    tiLightBelt2Init(scene);
+    asSeekBarInitializeForX(scene);
 }
 
 // ──────────────────────────────────────────────────────────────────────

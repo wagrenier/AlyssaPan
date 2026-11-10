@@ -149,6 +149,14 @@ the TU map's evidence.
   type 0 banks `M<digit>*`; finds the parts `ACTRESS_OMNI_1` / `_2` / `_BASE` (`ahGetHash` +
   `asFindModelPartsID`) into `Omni0_num` / `Omni1_num` / `ACTRESS_LIGHT_BASE_MAX_ID`; sorts the +0x1c list
   into `osTotalObjTable` (bss 0x01a59870, 516000 bytes = [3][86][2000]; `objSort` gets [1][scene]).
+- **A bank's set-up, scene_init (slice 6, 2026-11-09):** `FSMltLoadProc` calls `scene_init(bank)` once a
+  bank's file is in: it copies the All_table record's +0x14 / +0x2c / +0xbc into `BaseobjCount` /
+  `pModelPartsHeader` / `pBehaviorHeader` (sbss 0x01940750 / 0x01940380 / 0x01940208), clears the bank's
+  `fogctrl`, takes +0xb8 into `FogCtrlAddr` for bank types 0 and 1 (type 1 also sets the frame clear's
+  RGBAQ from the fog colour), sets the 3dlib (far 50000), inits and links the matrix tree, restarts the
+  behaviour animations when the parts header's first byte is 1, then the subsystems' inits, and builds
+  each draw list entry's (+0x1c, +0x18, +0x60) texture buffer (`sunSetupTBufferData(entry +0x14, *tex)`)
+  and draw control (`gaSetupDrawCtrlData(entry +0x18, *entry +0x4)`: a 0x78-byte settings record).
 - **The list draw, main_rtn (slice 3, 2026-11-09):** `main_rtn(bank, mode, chara, flags, charaIndex,
   lastTex)`: banks >= 6 switch the view matrix, `asViewMatrix2PosRUF(matrix_global_view, CameraPos, 0,
   0, 0)`; an empty list (`get_draw_obj` == 1) returns at once. Mode 1 lists are sorted into

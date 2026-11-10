@@ -79,7 +79,9 @@ static_assert(offsetof(BANK_INFO, loaded) == 0x20, "BANK_INFO.loaded");
 static_assert(offsetof(BANK_INFO, flags) == 0x28, "BANK_INFO.flags");
 
 #define BANK_MAX 86                     /* 0x56: BankInfo[], the per-scene tables (FogCtrlAddr, ...) */
-#define BANK_TYPE_SHADOW 1              /* main: banks of this type cast shadow polygons */
+#define BANK_TYPE_SHADOW 1              /* main: banks of this type cast shadow polygons; scene_init:
+                                           their fog colour clears the frame (a stage bank?) */
+#define BANK_TYPE_0 0                   /* scene_init: takes the table's fog record, like type 1 */
 #define BANK_SCENE_MAX 6                /* asCheckBankID: banks 0..5 have their own view matrix, the
                                            rest share bank 6's; GlobalDrawObject draws banks 0..5 */
 #define BANK_FLAG_DRAW_FIRST 0x2        /* scene_draw_init: ARRW.BIN, "E_*" and "M<digit>*" banks;
@@ -96,15 +98,19 @@ typedef struct ALL_TABLE {
     u_char pad00[0x10];
     float (*partsPos)[4];               /* EE 0x10: per model part; main_rtn draws a part only while
                                            its w > PARTS_POS_HIDDEN_W; main_rtn_Particle2 starts from it */
+    int baseobjCount;                   /* EE 0x14: scene_init -> BaseobjCount[bank] */
     void **objOpaque;                   /* EE 0x18: GlobalDrawObject's first main_rtn list */
     void **objTrans;                    /* EE 0x1c: main_rtn mode 1; scene_draw_init sorts it */
     float *light;                       /* EE 0x28: [2] (+8) scales a character's lit parts (main_rtn) */
-    void *matrixTree;                   /* EE 0x2c: asBuildMirrorMatrixTree / _Back's argument */
+    u_char *partsHeader;                /* EE 0x2c: the MODEL_PARTS header (scene_init -> pModelPartsHeader;
+                                           InitMatrixTree, asBuildMirrorMatrixTree / _Back) */
     void **particles;                   /* EE 0x58: main_rtn_Particle's list */
     void **objAfter;                    /* EE 0x60: after the particles; non-empty -> ExportDrawToTex */
     float *partsLight;                  /* EE 0x70: per model part: TEX_KIND_LIGHT parts' DRAW_OBJ_LIGHT */
     void **particles2;                  /* EE 0x78: main_rtn_Particle2 mode 0 */
     void **particles2After;             /* EE 0x7c: main_rtn_Particle2 mode 1; non-empty -> ExportDrawToTex */
+    u_char *fog;                        /* EE 0xb8: FOG_INFO (scene_init -> FogCtrlAddr, bank types 0 / 1) */
+    void *behavior;                     /* EE 0xbc: scene_init -> pBehaviorHeader[bank] */
 } ALL_TABLE;
 static_assert(offsetof(ALL_TABLE, partsPos) == 0x10, "ALL_TABLE.partsPos");
 
@@ -158,7 +164,8 @@ typedef struct TEX_INFO {
 // One entry of a draw list (ALLobject[bank][i], NULL-terminated; objSort's tables). layout: host.
 typedef struct DRAW_OBJ_ENTRY {
     u_char *obj;                        /* EE 0x00: the ga draw object (DRAW_OBJ_* offsets below) */
-    int drawCtrlId;                     /* EE 0x04: non-zero: the draw control to switch to */
+    struct GA_DRAWCTRL_ARGS *drawCtrlArgs; /* EE 0x04: the entry's draw control settings (scene_init sets
+                                           drawCtrl from them); non-NULL and new: switch to drawCtrl */
     TEX_INFO *tex;                      /* EE 0x08 */
     int parts;                          /* EE 0x0c: MODEL_PARTS index */
     int dofMode;                        /* EE 0x10: ssDOF_ClipObjectFromZRange's mode (< 2: test the

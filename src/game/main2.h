@@ -8,3 +8,4 @@ void main2(void);                                                               
 void CharacterAllFree(void);                                                             // CT3 0x018b23f0
 void SelfDiscardSceneLoadUpdate(void);                                                   // CT3 0x018b2e60
 void SelfDiscardSceneLoadInit(void);                                                     // CT3 0x018b3480
+void SwapDrawingDoor(void);                                                              // CT3 0x018b22f0

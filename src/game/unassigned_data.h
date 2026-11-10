@@ -85,6 +85,8 @@ extern void **ALLobject[BANK_MAX];              /* sbss 0x01940cd0: the list mai
 extern u_char *pModelPartsHeader[BANK_MAX];     /* sbss 0x01940380 */
 extern u_char osTotalObjTable[3][BANK_MAX][OS_OBJ_TABLE_BYTES]; /* bss 0x01a59870: [1] = objSort's */
 extern u_char *FogCtrlAddr[BANK_MAX];           /* sbss 0x019405f0: fog colour bytes at +4, +8, +0xc */
+extern void *pBehaviorHeader[BANK_MAX];         /* sbss 0x01940208: ALL_TABLE.behavior (scene_init) */
+extern int BaseobjCount[BANK_MAX];              /* sbss 0x01940750: ALL_TABLE.baseobjCount (scene_init) */
 extern FOG_ANIME FogAnimeBuff[BANK_MAX];        /* bss  0x01a58040 */
 
 // ---- characters --------------------------------------------------------------------------------------

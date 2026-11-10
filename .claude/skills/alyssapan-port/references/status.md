@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-09 19:28 at commit `f681183` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-09 19:39 at commit `0fa4a24` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **30**; stubs: **201**
+- reconstructed CT3 functions: **31**; stubs: **220**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -44,10 +44,10 @@ Least-named game-code regions (64 KB blocks):
 | `src/ga/pad_button_read.c` | 0 | 1 |
 | `src/game/ArtoolDebugOpen.c` | 0 | 1 |
 | `src/game/Character_Init.c` | 0 | 5 |
-| `src/game/Clipping_Portal.c` | 0 | 26 |
-| `src/game/LinkMatrixTree.c` | 0 | 2 |
-| `src/game/QuatSlerp.c` | 0 | 28 |
-| `src/game/ahRelocateSunPs2ObjectArry.c` | 0 | 23 |
+| `src/game/Clipping_Portal.c` | 0 | 31 |
+| `src/game/LinkMatrixTree.c` | 0 | 4 |
+| `src/game/QuatSlerp.c` | 0 | 30 |
+| `src/game/ahRelocateSunPs2ObjectArry.c` | 0 | 28 |
 | `src/game/ahalloc.c` | 0 | 2 |
 | `src/game/asEyeForcusUP2CamMat.c` | 0 | 7 |
 | `src/game/asMothPause.c` | 0 | 1 |
@@ -56,13 +56,13 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/asXcmd.c` | 0 | 1 |
 | `src/game/fileio.c` | 0 | 7 |
 | `src/game/gaInitMeter.c` | 0 | 3 |
-| `src/game/main.c` | 27 | 1 |
-| `src/game/main2.c` | 0 | 4 |
+| `src/game/main.c` | 28 | 1 |
+| `src/game/main2.c` | 0 | 5 |
 | `src/game/movie.c` | 0 | 1 |
 | `src/game/sound.c` | 0 | 4 |
-| `src/game/ssGrpPortalCheck.c` | 0 | 8 |
+| `src/game/ssGrpPortalCheck.c` | 0 | 10 |
 | `src/game/ssHitCheckAttackToScn.c` | 0 | 3 |
-| `src/game/ssSetTexUVforCubeMap.c` | 0 | 28 |
+| `src/game/ssSetTexUVforCubeMap.c` | 0 | 30 |
 | `src/game/tiAvoidObject.c` | 0 | 3 |
 | `src/game/tkXDTrg_GetSceneHash.c` | 0 | 1 |
 | `src/game/wideXcmd_DebugPrint.c` | 0 | 12 |
@@ -72,11 +72,12 @@ Least-named game-code regions (64 KB blocks):
 - 65 TUs: todo 65, partial 1, verify 1
 - next: **game/main.c** (pinned in the queue)
 - pinned queue: game/main.c, alyssapan/core/window.cpp, sdk/libmc.cpp
-- partial: `game/main.c` 27/29 -- Smoke run: build green, layoutcheck OK; screenshot black, main2 is still a stub so no bank loads and no draw pass runs. callcheck flags AllDrawObject like Globa
+- partial: `game/main.c` 28/29 -- Smoke run: build green, layoutcheck OK, screenshot black (main2 still a stub, so no bank loads and scene_init is not reached yet). callcheck: scene_init matches
 - verify: `ga/gaInitInterrupt.c` 3/3 -- GCC object; wait_vsync_state (data 0x0192e790), ga_main_timer, ga_down_timer defined here. gaWaitVSync takes no argument and returns the CSR FIELD bit; main.c c
 
 Recent sessions:
 
+- 2026-11-09 19:39 `game/main.c` partial: main.c slice 6: scene_init (a bank's set-up after load: BaseobjCount / pModelPartsHeader / pBehaviorHeader / FogCtrlAddr from ALL_TABLE +0x14 / +0x2c / +0xbc / 
 - 2026-11-09 19:28 `game/main.c` partial: main.c slice 5: AllDrawObject (the scene draw: banks, sorted characters, mirrors, translucent banks, particles, translucent and ghost characters), ssHQDOF_DrawA
 - 2026-11-09 19:11 `game/main.c` partial: main.c slice 4: DrawObjectRefraction (the refraction pass over type-1 banks 6..85 and refracting characters) and main_rtn_DOF (main_rtn for one depth-of-field s
 - 2026-11-09 18:58 `game/main.c` partial: main.c slice 3: main_rtn (the bank list draw: sort, fog, 3dlib set-up, per-part texture / draw-ctrl / light / clip) and main_rtn_Particle (particle rings); DRAW
@@ -86,17 +87,17 @@ Recent sessions:
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `game/QuatSlerp.c` | todo | 0/28/177 | 50.3 | 143 | 14 |
-| `ga/gaInitDrawObject.c` | todo | 0/13/24 | 5.5 | 118 | 11 |
-| `game/Clipping_Portal.c` | todo | 0/26/73 | 44.8 | 108 | 12 |
-| `game/ssGrpPortalCheck.c` | todo | 0/8/59 | 26.4 | 80 | 7 |
+| `game/QuatSlerp.c` | todo | 0/30/177 | 50.3 | 146 | 14 |
+| `ga/gaInitDrawObject.c` | todo | 0/13/24 | 5.5 | 120 | 11 |
+| `game/Clipping_Portal.c` | todo | 0/31/73 | 44.8 | 113 | 12 |
+| `game/ssGrpPortalCheck.c` | todo | 0/10/59 | 26.4 | 82 | 7 |
+| `game/ahRelocateSunPs2ObjectArry.c` | todo | 0/28/93 | 76.0 | 82 | 9 |
 | `game/wideXcmd_DebugPrint.c` | todo | 0/12/109 | 40.6 | 80 | 12 |
-| `game/ahRelocateSunPs2ObjectArry.c` | todo | 0/23/93 | 76.0 | 76 | 9 |
-| `game/ssSetTexUVforCubeMap.c` | todo | 0/28/96 | 35.3 | 62 | 5 |
+| `game/ssSetTexUVforCubeMap.c` | todo | 0/30/96 | 35.3 | 64 | 5 |
 | `game/asEyeForcusUP2CamMat.c` | todo | 0/7/30 | 23.6 | 38 | 4 |
 | `game/fileio.c` | todo | 0/7/40 | 23.3 | 31 | 3 |
 | `game/Character_Init.c` | todo | 0/5/49 | 30.6 | 25 | 3 |
-| `game/main2.c` | todo | 0/4/18 | 6.2 | 20 | 3 |
+| `game/main2.c` | todo | 0/5/18 | 6.2 | 21 | 3 |
 | `game/sound.c` | todo | 0/4/69 | 15.5 | 19 | 3 |
 
 ## Frontier (called by reconstructed code, not written yet)
@@ -110,30 +111,31 @@ Recent sessions:
 | `0185e360` | asCheckBankID | 10 | sym | stub | game/QuatSlerp.c |
 | `01837570` | main_rtn_Particle2 | 10 | sym | stub | game/main.c |
 | `018d9100` | ssTrigCheckEvent | 10 | sym | stub | game/ssGrpPortalCheck.c |
+| `018a22c8` | gaSetupFogCtrlData | 9 | sym | stub | ga/gaInitDrawObject.c |
 | `018d95e0` | ssTrigRegisterEvent | 9 | sym | stub | game/ssGrpPortalCheck.c |
 | `0188ced0` | tiDrawShadingOff | 9 | sym | stub | game/Clipping_Portal.c |
-| `018a22c8` | gaSetupFogCtrlData | 8 | sym | stub | ga/gaInitDrawObject.c |
 | `018a22b0` | gaBGT_ExecDrawCtrlData_VIF1 | 8 | sym | stub | ga/gaInitDrawObject.c |
 | `01893cf0` | ExportDrawToTex | 8 | sym | stub | game/Clipping_Portal.c |
 | `01858c90` | XcmdScreenFilter | 8 | sym | stub | game/QuatSlerp.c |
+| `018a7db8` | gaSet3dlibStruct | 6 | sym | stub | ga/gaInit3dlib.c |
 | `018d9560` | ssTrigRemoveEvent | 6 | sym | stub | game/ssGrpPortalCheck.c |
 | `0183e200` | SunAllocInit | 6 | sym | stub | game/ahalloc.c |
 | `0185e380` | asCheckBankType | 5 | sym | stub | game/QuatSlerp.c |
 | `01896920` | ssGetNumBlurDrawObjForScene | 5 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `018c23b0` | objSortWithBlurIdx | 5 | sym | stub | game/fileio.c |
 | `018c2880` | objSort | 5 | sym | stub | game/fileio.c |
-| `018a7db8` | gaSet3dlibStruct | 5 | sym | stub | ga/gaInit3dlib.c |
 | `01854560` | tnInit3dlibWork | 5 | sym | stub | game/QuatSlerp.c |
 | `018a2358` | gaBGT_ExecFogCtrlData_VIF1 | 5 | sym | stub | ga/gaInitDrawObject.c |
 | `018a3078` | gaObjectClippingCheck | 5 | sym | stub | ga/gaObjectClippingCheck.c |
+| `01859530` | sunSetupTBufferData | 5 | sym | stub | game/QuatSlerp.c |
 | `018590b0` | sunBGT_LoadGSTexClutData_VIF1 | 5 | sym | stub | game/QuatSlerp.c |
 | `01859520` | sunBGT_ExecTBufferData_VIF1 | 5 | sym | stub | game/QuatSlerp.c |
 | `018a3150` | gaBGT_DrawObject | 5 | sym | stub | ga/gaBGT_DrawObject.c |
 | `01896a90` | ssPartMotionBlurInsertObjToDrawTable | 4 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `01889cd0` | Clipping_Portal | 4 | sym | stub | game/Clipping_Portal.c |
 | `01858f20` | OneMaxObjectDrawZOnly | 4 | sym | stub | game/QuatSlerp.c |
-| `01859530` | sunSetupTBufferData | 4 | sym | stub | game/QuatSlerp.c |
 | `018a3d20` | gaBGT_DrawObject_NoClippingCheck2 | 4 | sym | stub | ga/gaBGT_DrawObject.c |
+| `018a1fd8` | gaSetupDrawCtrlData | 4 | sym | stub | ga/gaInitDrawObject.c |
 | `018db340` | asXcmd_AddForLockToTargChara | 3 | sym | stub | game/asXcmd.c |
 | `0188df70` | tiDrawLensFlares | 3 | sym | stub | game/Clipping_Portal.c |
 | `01853620` | PanicFilter | 3 | sym | stub | game/QuatSlerp.c |
@@ -142,5 +144,4 @@ Recent sessions:
 | `018a2e70` | gaBGT_ExecDrawCommandData_VIF1 | 3 | sym | stub | ga/gaInitDrawObject.c |
 | `0188cdc0` | tiVibrationOff | 3 | sym | stub | game/Clipping_Portal.c |
 | `018f4fc0` | asCharacterOperate | 3 | sym | stub | game/wideXcmd_DebugPrint.c |
-| `018fb940` | asMonsterDistanceStack_inPanic | 3 | sym | stub | game/wideXcmd_DebugPrint.c |
 

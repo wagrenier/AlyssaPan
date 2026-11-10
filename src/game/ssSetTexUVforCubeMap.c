@@ -175,3 +175,15 @@ void ssBGT_HQDOF_WriteBackFB(int alpha)
 {
     ALYSSAPAN_STUB("ssBGT_HQDOF_WriteBackFB", 0x0189b390);
 }
+
+// stub of CT3 0x0189a9d0
+void ssParticleInit(int scene)
+{
+    ALYSSAPAN_STUB("ssParticleInit", 0x0189a9d0);
+}
+
+// stub of CT3 0x01895f00
+void ssSetAmbColorToAllObj(int scene)
+{
+    ALYSSAPAN_STUB("ssSetAmbColorToAllObj", 0x01895f00);
+}

@@ -32,3 +32,5 @@ void ssBGT_ZBufferClear(void);                                                  
 void ssPartMotionBlurInsertObjToDrawTable(int bank, void *table, void **list, int count, int mode); // CT3 0x01896a90
 void ssBGT_HQDOF_WriteBackFB(int alpha);                                                 // CT3 0x0189b390
 void ssBGT_HQDOF_SetDrawEnvPreRend(void);                                                // CT3 0x0189b510
+void ssSetAmbColorToAllObj(int scene);                                                   // CT3 0x01895f00
+void ssParticleInit(int scene);                                                          // CT3 0x0189a9d0

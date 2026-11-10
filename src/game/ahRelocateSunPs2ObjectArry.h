@@ -28,3 +28,8 @@ void asMirrorPlaneCalc(float *planeVec, float *planePoint);                     
 int asEnumMirror(ALL_TABLE *tbl);                                                        // CT3 0x0184fb40
 void asInitMirrorMatrix(void);                                                           // CT3 0x0184fd00
 void asBuildDOFMatrixTree(u_char *partsHeader);                                          // CT3 0x0184f020
+void asSeekBarInitializeForX(int scene);                                                 // CT3 0x018430d0
+void asSeatArrange_Init(int scene);                                                      // CT3 0x018436a0
+void asShadowDrawing_Init(int scene);                                                    // CT3 0x01847b10
+void asBehaviorStopAnimation(void *behavior);                                            // CT3 0x01847dc0
+void asSceneAutoStartAnimation(void *behavior);                                          // CT3 0x01847fd0

@@ -104,6 +104,8 @@ void **ALLobject[BANK_MAX];                     /* sbss 0x01940cd0 */
 u_char *pModelPartsHeader[BANK_MAX];            /* sbss 0x01940380 */
 u_char osTotalObjTable[3][BANK_MAX][OS_OBJ_TABLE_BYTES]; /* bss 0x01a59870 */
 u_char *FogCtrlAddr[BANK_MAX];                  /* sbss 0x019405f0 */
+void *pBehaviorHeader[BANK_MAX];                /* sbss 0x01940208 */
+int BaseobjCount[BANK_MAX];                     /* sbss 0x01940750 */
 FOG_ANIME FogAnimeBuff[BANK_MAX];               /* bss  0x01a58040 */
 
 CHARACTER Character[CHARACTER_MAX];             /* bss  0x01a4bfc0 */

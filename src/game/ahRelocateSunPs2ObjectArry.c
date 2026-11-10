@@ -145,3 +145,33 @@ void asBuildDOFMatrixTree(u_char *partsHeader)
 {
     ALYSSAPAN_STUB("asBuildDOFMatrixTree", 0x0184f020);
 }
+
+// stub of CT3 0x01847dc0
+void asBehaviorStopAnimation(void *behavior)
+{
+    ALYSSAPAN_STUB("asBehaviorStopAnimation", 0x01847dc0);
+}
+
+// stub of CT3 0x01847fd0
+void asSceneAutoStartAnimation(void *behavior)
+{
+    ALYSSAPAN_STUB("asSceneAutoStartAnimation", 0x01847fd0);
+}
+
+// stub of CT3 0x018436a0
+void asSeatArrange_Init(int scene)
+{
+    ALYSSAPAN_STUB("asSeatArrange_Init", 0x018436a0);
+}
+
+// stub of CT3 0x018430d0
+void asSeekBarInitializeForX(int scene)
+{
+    ALYSSAPAN_STUB("asSeekBarInitializeForX", 0x018430d0);
+}
+
+// stub of CT3 0x01847b10
+void asShadowDrawing_Init(int scene)
+{
+    ALYSSAPAN_STUB("asShadowDrawing_Init", 0x01847b10);
+}

@@ -61,7 +61,7 @@ void gaSetupDBufferData(GA_DBUFFER_DATA *dbuf, int a1, int a2, int a3, int a4, i
 }
 
 // stub of CT3 0x018a1fd8
-void gaSetupDrawCtrlData(GA_DRAWCTRL_DATA *ctrl, int a1, int a2, int a3, int a4, int a5, int a6, int a7)
+void gaSetupDrawCtrlData(GA_DRAWCTRL_DATA *ctrl, GA_DRAWCTRL_ARGS args)
 {
     ALYSSAPAN_STUB("gaSetupDrawCtrlData", 0x018a1fd8);
 }
