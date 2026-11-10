@@ -712,6 +712,15 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    0x018a77a8 / 0x018a7808 are dead and not written (named nowhere: no symbol, no Ghidra function);
    (gf) gaSetZRollMatrix returns early (PORT) when GA_SPR_WORK.work3dlibEE is not a scratchpad address --
    the ROM would read EE memory there; boot sets it to 0x70000400 before any frame.
+   **ga/gaSinCos.c (verify, 2026-11-10): all 13 functions** from the disassembly and VU0 micro 0x020 /
+   0x028 / 0x038 (architecture.md "The ga helpers"); ga_sincos_table embedded from the ELF. A 15 s smoke
+   run: no fault, ~26,700 frames, shot black (no host draw module). Open: (gg) gaProjectScreen's per-point
+   formula assumes the micro's DIV result is the one its MADDQ uses 7 instructions later (the intended
+   pipeline); a count of 0 never ends in the ROM, the host returns; (gh) gaSetPointLight's omniView
+   columns past the last light keep the view matrix's entries, as the ROM's registers leave them --
+   harmless only if the VU1 light code reads k columns; (gi) the memmove calls ahRelocateSunPs2ObjectArry.c
+   writes in place of gaMemCopy32 / 128 (callcheck comments) could now call them: left as they are.
+   **Queue empty after this TU**: the next run refills it from the smoke run's first reached stubs.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
    class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~

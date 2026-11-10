@@ -1,7 +1,5 @@
 {
- "queue": [
-  "ga/gaSinCos.c"
- ],
+ "queue": [],
  "settings": {
   "data_dir": "C:/Users/willi/Documents/Decomp/Clocl Tower 3",
   "frontier_ignore": [],
@@ -180,12 +178,21 @@
    "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 1 unkeyed; file name from the names"
   },
   "ga/gaSinCos.c": {
+   "notes": "15 s smoke run: no fault, about 26700 frames, shot black (no host draw module yet). ga_sincos_table.inc generated from the ELF (the ROM floats differ from sinf). Open (gg)-(gi) in open-items.md. The pinned queue is now empty: the next run refills it.",
    "ranges": [
     [
      "018a6b70",
      "018a7538"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-10 13:14",
+     "status": "verify",
+     "summary": "all 13 functions from the disassembly: gaSinCos and the X/Y/Z rotation matrices over the embedded ga_sincos_table, gaInt/gaFloat, the word/dword/qword copies and the byte fill, gaProjectScreen (VU0 micro 0x20/0x28/0x38), gaSetPointLight, gaContApplyMatrix"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 13 unkeyed; file name from the names"
   },
   "ga/gaVifInit.c": {

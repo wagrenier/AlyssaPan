@@ -308,6 +308,31 @@ the TU map's evidence.
   sy), for the VU1 renderer. gaCopyObject (0x018a8140) is a no-op in the ROM (it stores into its own stack
   copy); gaCopyObject2 is the copy the game uses.
 
+## The ga helpers, ga/gaSinCos.c (2026-11-10)
+
+- A hand-written asm object 0x018a6b70..0x018a7538 (13 symtab functions), its .data the global
+  `ga_sincos_table` (0x0190e640, 0x20000 bytes): 0x4000 {sin, cos} float pairs, entry i = angle i * 4 in
+  the ga unit (0x10000 = a full turn). The ROM's floats are not bit-equal to a host sinf (about half
+  differ in the last bit; cos at the quarter turn is 1.79e-9), so the port embeds them
+  (`src/ga/ga_sincos_table.inc`, generated from the ELF like ah_acos_table.inc).
+- **The index**: `((angle + 2) & 0xfffc) >> 2` -- the nearest entry, any int wrapped by its low 16 bits.
+  gaSinCos(s, c, angle). gaSetRotMatrixX/Y/Z(m, angle) write the identity, then c / s / -s (the sine's
+  sign bit flipped) in the axis's 2x2 (X: [1][1] c, [1][2] s, [2][1] -s, [2][2] c; Y: [0][0] c, [0][2] s,
+  [2][0] -s; Z: [0][0] c, [0][1] s, [1][0] -s); an angle that rounds to entry 0 branches to the plain
+  identity (no -0.0).
+- gaInt / gaFloat are VFTOI0 / VITOF0; gaMemCopy32 / 64 / 128(dst, src, count) are memmove in words /
+  dwords / qwords (backwards when dst > src); gaMemFill8(dst, byte, count) is memset.
+- **gaProjectScreen(out, m, in, count)** runs the VU0 micro routines 0x020 / 0x028 / 0x038 (`vudis.py
+  18fe500 f3 20 28 38`), two points a call, pipelined: p = in * m (w as 1), Q = SPR+0x8c / p.z, out =
+  (SPR+0x70 / 16 - 2048 + SPR+0x60 / 16 * p * Q for x, y; SPR+0x78 / 16 + SPR+0x68 * Q; 1) -- GA_SPR_WORK's
+  work21 / work22 / work23x16 / work26 / work27 and work6b, i.e. the GS 12.4 coordinates back in pixels
+  around the screen centre. count is rounded up to even.
+- **gaSetPointLight(lw, m, pos, color, index[4])**: GA_LIGHT_WORK.omniView / omniColor for the lights
+  index[] names until NEAR_LIGHT_NONE; omniView's unused columns keep m's rows (rows 0..2) and 1.0 (row
+  3); with no light only row 3 = (1, 1, 1, 1) is stored. gaContApplyMatrix(out, m, in, n): out = in * m,
+  all four components. gaProjectScreen, gaSetPointLight, gaContApplyMatrix, gaInt, gaFloat,
+  gaMemCopy64 and gaMemFill8 have no ROM caller.
+
 ## SunAlloc, game/ahalloc.c (2026-11-09)
 
 - The game's heaps: `SUN_HEAP` (EE 0x34 bytes; +0 name, +4 area size, +8 first block, +0xc blocks in use,
