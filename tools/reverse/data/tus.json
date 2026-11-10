@@ -1,5 +1,6 @@
 {
  "queue": [
+  "game/ct3_types.h",
   "game/ahRelocateSunPs2ObjectArry.c",
   "game/fileio.c"
  ],
@@ -435,12 +436,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 121..121, 39 functions keyed by their statics, 22 unkeyed; file name from the names"
   },
   "game/ahRelocateSunPs2ObjectArry.c": {
+   "notes": "Slice 1 (2026-11-10) wrote the relocator only (not the brief's auto-slice): the global bank relocates without a fault and scene_init now faults reading ALL_TABLE.partsHeader as a host pointer (it reads the counts at +0x38 / +0x3c, 8 and 0xc: real data). Next for this TU: the brief's slice (asShadowDrawing_Init, Shadow_OnceInit, ExecuteAnimationHistory_init, BuildMatrixTree and BMT_*, the mirror and shadow-volume functions, asForceOperateAnimation_*). Blocker first: the host task game/ct3_types.h (ALL_TABLE and its lists in EE layout, queued at the top). The relocator is unproven against a known image: a wrong offset shows as garbage once scene_init reads the tables; the ALL_TABLE slot map is in architecture.md The file relocator.",
    "ranges": [
     [
      "0183e280",
      "018514d0"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-10 02:55",
+     "status": "partial",
+     "summary": "slice 1: the file relocator -- ahRelocateFileObject (0x3b80 bytes), ahRelocateBehavior, ahRelocateSunPs2ObjectArry; words stay EE addresses relocated to BankImageEE (decision h)"
+    }
+   ],
+   "status": "partial",
    "why": "tumap.py (bootstrap 5): symtab local chunks 69..69, 15 functions keyed by their statics, 77 unkeyed; file name from the names"
   },
   "game/ahalloc.c": {
@@ -523,6 +533,9 @@
     ]
    ],
    "why": "tumap.py (bootstrap 5): symtab local chunks 111..111, 2 functions keyed by their statics, 0 unkeyed; file name from the names"
+  },
+  "game/ct3_types.h": {
+   "task": "Host task: ALL_TABLE and its lists in EE layout (open-items.md item 1 bv): ALL_TABLE fields to u_int words read through BankEePtr in main.c, Character_Init.c, sound.c, main2.c, fileio.c; ALLobject and LinkMatrixTree / asBuildMirrorMatrixTree lists as u_int EE words; DRAW_OBJ_ENTRY, TEX_INFO, PARTICLE_ENTRY, PARTICLE2_ENTRY to EE layout with u_int pointer words at the offsets ahRelocateFileObject relocates (architecture.md The file relocator). Done when scene_init runs past the global bank load."
   },
   "game/fileio.c": {
    "notes": "Written: FSMltLoadProc (steps FSMLT_*), ReserveBank, Extract; FQUE +0 is dir. The first global bank now loads and the run crashes in scene_init (main.c) reading ALL_TABLE as host pointers from EE-layout bank data; ahRelocateFileObject is a stub. Blocker: open-items item 1 (bv), game/ahRelocateSunPs2ObjectArry.c queued first. Left here: SceneEndBankMovie, CharacterSort, objSort, objSortWithBlurIdx, SortAlphaObjects, Round2Change*. Extract untested against a known image (bw).",

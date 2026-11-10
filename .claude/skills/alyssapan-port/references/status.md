@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-10 02:34 at commit `003eed9` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-10 02:55 at commit `b47c414` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **282**; stubs: **247**
+- reconstructed CT3 functions: **285**; stubs: **246**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -55,7 +55,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/LinkMatrixTree.c` | 0 | 4 |
 | `src/game/QuatSlerp.c` | 0 | 39 |
 | `src/game/SdMasterVolumeSetSE.c` | 0 | 34 |
-| `src/game/ahRelocateSunPs2ObjectArry.c` | 0 | 30 |
+| `src/game/ahRelocateSunPs2ObjectArry.c` | 3 | 29 |
 | `src/game/ahalloc.c` | 7 | 0 |
 | `src/game/asEyeForcusUP2CamMat.c` | 0 | 9 |
 | `src/game/asMothPause.c` | 0 | 1 |
@@ -77,9 +77,10 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 52, partial 1, verify 12, done 2
-- next: **game/ahRelocateSunPs2ObjectArry.c** (pinned in the queue)
-- pinned queue: game/ahRelocateSunPs2ObjectArry.c, game/fileio.c
+- 65 TUs: todo 52, partial 2, verify 12, done 2
+- next: **game/ct3_types.h** (pinned in the queue)
+- pinned queue: game/ct3_types.h, game/ahRelocateSunPs2ObjectArry.c, game/fileio.c
+- partial: `game/ahRelocateSunPs2ObjectArry.c` 3/93 -- Slice 1 (2026-11-10) wrote the relocator only (not the brief's auto-slice): the global bank relocates without a fault and scene_init now faults reading ALL_TABL
 - partial: `game/fileio.c` 33/40 -- Written: FSMltLoadProc (steps FSMLT_*), ReserveBank, Extract; FQUE +0 is dir. The first global bank now loads and the run crashes in scene_init (main.c) reading
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaInitDrawObject.c` 24/24 -- No ROM caller for the texture three (the game uses its sun* copies in QuatSlerp.c): complete, nothing on screen can show them. Shot black as before: packets go 
@@ -96,6 +97,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-10 02:55 `game/ahRelocateSunPs2ObjectArry.c` partial: slice 1: the file relocator -- ahRelocateFileObject (0x3b80 bytes), ahRelocateBehavior, ahRelocateSunPs2ObjectArry; words stay EE addresses relocated to BankIma
 - 2026-11-10 02:34 `game/fileio.c` partial: slice 2: the bank loader - FSMltLoadProc, ReserveBank, Extract (the CT3X unpacker)
 - 2026-11-10 02:21 `game/fileio.c` partial: slice 1: the bank queue and table, the FSLoad queue, the file server (32 of 40)
 - 2026-11-10 01:57 `game/main2.c` verify: all 18 functions: main2, InitLoadSceneChar, the scene, global, shape and behaviour triggers, CharacterAllFree, the self-discard queue
@@ -103,7 +105,6 @@ Recent sessions:
 - 2026-11-10 01:22 `game/Character_Init.c` verify: slice 5: data_save_set and data_load_set over the save image (MC_SAVE_DATA), mc_free_area, mc_check3, mc_save_system_init, MemorycardAutoLoad with its Init / In
 - 2026-11-10 00:59 `game/Character_Init.c` partial: slice 4: SceneLightSet, CharLightSet (the bank light tables SCENE_LIGHT / LIGHT_SET / GA_LIGHT_WORK, part light fields), mc_load_set, mc_char_set, mc_CheckMcWor
 - 2026-11-10 00:36 `game/Character_Init.c` partial: slice 3: the save path (mc_save_new with its icons and icon.sys, mc_save_normal, mc_save_set, McRegisterEvent, ContinueBackupSet), system_data_load_set with MC_
-- 2026-11-10 00:15 `game/Character_Init.c` partial: slice 2: MemorycardUpdate (the four card flows: save menu, load menu, auto save, auto load), mc_save_init, mc_formatcheck, mc_formatcheck2, mc_check4, Memorycar
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
@@ -111,13 +112,13 @@ Recent sessions:
 | `game/QuatSlerp.c` | todo | 0/39/177 | 50.3 | 135 | 3 |
 | `game/SdMasterVolumeSetSE.c` | todo | 0/34/61 | 22.9 | 134 | 9 |
 | `game/wideXcmd_DebugPrint.c` | todo | 0/13/109 | 40.6 | 61 | 8 |
-| `game/ahRelocateSunPs2ObjectArry.c` | todo | 0/30/93 | 76.0 | 61 | 4 |
 | `game/Clipping_Portal.c` | todo | 0/33/73 | 44.8 | 60 | 0 |
+| `game/ahRelocateSunPs2ObjectArry.c` | partial | 3/29/93 | 76.0 | 55 | 3 |
 | `game/ssSetTexUVforCubeMap.c` | todo | 0/30/96 | 35.3 | 44 | 1 |
 | `ga/gaDmaSync_VIF1.c` | todo | 0/3/5 | 0.5 | 35 | 3 |
 | `game/asEyeForcusUP2CamMat.c` | todo | 0/9/30 | 23.6 | 32 | 1 |
-| `ga/gaInit3dlib.c` | todo | 0/5/25 | 3.6 | 17 | 1 |
 | `game/LinkMatrixTree.c` | todo | 0/4/4 | 1.0 | 17 | 2 |
+| `ga/gaInit3dlib.c` | todo | 0/5/25 | 3.6 | 17 | 1 |
 | `game/fileio.c` | partial | 33/4/40 | 23.3 | 13 | 0 |
 
 ## Frontier (called by reconstructed code, not written yet)

@@ -377,6 +377,34 @@ queued, the old bank undrawn and ended, the new one loaded, then drawn at the sa
   scene_init, flags |= 1, (scene) sFirstCheck = 0, BuildMatrixTree(bank, 1, 1), (global / scene)
   SSLoadSEfromLoadPoint(image). A read error ("LOAD RETRY %s") frees the banks and starts over.
 
+## The file relocator, game/ahRelocateSunPs2ObjectArry.c (2026-11-10, slice 1)
+
+`ahRelocateFileObject` (0x0183e710, 0x3b80 bytes), `ahRelocateBehavior` (0x0183e440) and
+`ahRelocateSunPs2ObjectArry` (0x0183e280) relocate a loaded CT3X file in place. Header: +4 the kind
+(`BHVR` 0x52564842, `SHPE` 0x45504853, `ROOM` 0x4d4f4f52; anything else is left alone), +8 the EE base the
+file's pointers are linked for; the relocator adds (load address - base) to every non-zero pointer word,
+walking through the pointers it has just fixed, then writes the load address to +8 (a second call is a
+no-op). BHVR: a 0-ended list of behaviours from +0x40. SHPE / ROOM: the ALL_TABLE at +0x80; every
+ALL_TABLE word 0x10..0xe0 it touches is a pointer except the counts +0x14 (baseobjCount, the count of
+the +0x48 word list), +0x38 / +0x3c (the counts of the +0x30 / +0x34 lists) -- so the whole table is EE
+words. Slots (ALL_TABLE offsets): 0x10 partsPos, 0x18 / 0x1c objOpaque / objTrans (0-ended lists of
+sun object records: +0 the ga draw object, whose +0x50, +0x60..+0x6c are pointers; +4, +8, +0x14, +0x18),
+0x20 a record with a persona form (0x2c0 bytes for scenes, short form with byte counts +0x18 / +0x19 for
+shape / behaviour files), 0x24, 0x28 light, 0x2c partsHeader (short(+2) MODEL_PARTS of 0x380, +0x44 attr),
+0x30 / 0x34 / 0x40 / 0x44 / 0x48, 0x4c, 0x50, 0x54 sound, 0x58 particles (PARTICLE_ENTRY: +0 draw object,
++0xc a record whose +0x2c points to a shared block relocated once, flagged by its +4 = 1), 0x5c, 0x60
+objAfter, 0x64, 0x68 and 0xa0 (grids of u_short(+4) x u_short(+6) cells), 0x6c (seven words and eight
+{count, list} key tables of 0x10 records), 0x70 partsLight, 0x74 / 0x80 / 0x84 (-1-ended records of 0x28 /
+0x28 / 0x24), 0x78 / 0x7c particles2 / particles2After (records with a ring of u_short(+0x44) 0x80-byte
+records at +0x5c, each with a draw object at +0x68; +0x30 a shared block flagged at its +0xc; only the
+After list's records relocate +0x64), 0x88, 0x8c, 0x90, 0x94, 0x98; scenes only: 0xb8 fog, 0xbc behavior
+(ahRelocateBehavior), 0xc0, 0xc4, 0xcc, 0xd4, 0xd8, 0xdc, 0xe0, and +0xe8 cleared; shape / behaviour files
+relocate 0xb8 and a different 0xc0 record. A behaviour: short(+8) groups of 8 bytes from +0x10, each
+u_short(+2) tracks of 0x20 bytes at its +4; a track's +9 byte is its kind ('H', '>', '=') and its keys
+(0x18 bytes: +4 length, +8 pointer) are walked by the lengths. PORT: the host relocates to
+BankImageEE[bank] (the bank found by its BankImage[]), so the words stay EE addresses (open-items.md 1 h);
+`RelocPtr` maps them back into the image during the walk.
+
 ## The IOP side (2026-11-09)
 
 The EE loads `cdrom0:\IOP\IOPRP255.IMG;1` (an IOP reboot), then `SIO2MAN`, `PADMAN`, `MCMAN`, `MCSERV`,

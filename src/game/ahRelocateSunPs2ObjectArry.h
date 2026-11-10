@@ -18,9 +18,21 @@ void ExecuteAnimationHistory_init(void);                                        
 void asCopyDoubleBuffer(void);                                                           // CT3 0x01851150
 void ExecuteAnimationHistory_Free(void);                                                 // CT3 0x0184eed0
 void BuildMatrixTree(int scene, int a1, int a2);                                         // CT3 0x0184fd30
+// A CT3X file's header (a bank image; FSMltLoadProc reads it, ahRelocateFileObject relocates it).
+#define CT3X_MAGIC 0x04                 /* u_int: the file kind */
+#define CT3X_BASE 0x08                  /* u_int: the EE address the file's pointers are linked for */
+#define CT3X_BHVR_LIST 0x40             /* BHVR: a 0-ended list of behaviour pointers */
+#define CT3X_MAGIC_BHVR 0x52564842      /* "BHVR": a behaviour file */
+#define CT3X_MAGIC_SHPE 0x45504853      /* "SHPE": a shape file (ALL_TABLE at BANK_ALL_TABLE_OFFSET) */
+#define CT3X_MAGIC_ROOM 0x4d4f4f52      /* "ROOM": a scene file (the same) */
+
+// PORT: the list / behaviour and both bases are EE addresses inside the image ahRelocateFileObject is
+// relocating (its words stay EE addresses, open-items.md 1 h).
+void ahRelocateSunPs2ObjectArry(u_int arry, u_int image, u_int base);                    // CT3 0x0183e280
+void ahRelocateBehavior(u_int behavior, u_int image, u_int base);                        // CT3 0x0183e440
 // FSMltLoadProc's call: (image, the file is a shape or behaviour file). PORT: the host image; the EE
 // address its words are relocated to is BankImageEE[] of the bank holding it.
-void ahRelocateFileObject(u_char *image, int persona);
+void ahRelocateFileObject(u_char *image, int persona);                                   // CT3 0x0183e710
 void asDrawShadowVolumeLoop(void);                                                       // CT3 0x018443c0
 void asBuildMirrorMatrixTreeBack(void *tree);                                            // CT3 0x0184f120
 void asBuildMirrorMatrixTree(void *tree);                                                // CT3 0x0184f220

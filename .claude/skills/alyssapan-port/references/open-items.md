@@ -234,7 +234,17 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    written; the first global bank loads (TrgGLBLSceneLoad) and the run now crashes in scene_init
    (main.c, reading (*tbl)->baseobjCount) -- THE BLOCKER, item 1 (bv).** Left in fileio.c:
    SceneEndBankMovie, the sorts (CharacterSort, objSort*, SortAlphaObjects) and Round2Change*.
-   (bv) **Next: ahRelocateFileObject (game/ahRelocateSunPs2ObjectArry.c, CT3 0x0183e710, a stub) and
+   (bv) ~~ahRelocateFileObject~~ written 2026-11-10 (game/ahRelocateSunPs2ObjectArry.c slice 1, with
+   ahRelocateBehavior and ahRelocateSunPs2ObjectArry; architecture.md "The file relocator"): the global
+   bank now relocates without a fault, and scene_init faults one step later (main.c, reading
+   (*tbl)->partsHeader as a host pointer: it gets the counts at ALL_TABLE +0x38 / +0x3c, 8 and 0xc --
+   real data, so the relocation is plausible). **THE BLOCKER is now the EE-layout conversion below**: one
+   session, as a host task on game/main.c (queued at the top): ALL_TABLE's fields become u_int (the
+   relocator proves every word 0x10..0xe0 but +0x14 / +0x38 / +0x3c is a pointer), every reader goes
+   through BankEePtr (main.c ~45 sites, Character_Init.c 5, sound.c 3, main2.c 2, fileio.c 1); ALLobject[]
+   and LinkMatrixTree / asBuildMirrorMatrixTree* take u_int lists; DRAW_OBJ_ENTRY (the sun object record,
+   +0 draw object, +4, +8, +0x14, +0x18 pointers), TEX_INFO, PARTICLE_ENTRY and PARTICLE2_ENTRY go to EE
+   layout with u_int pointer words (the relocator's offsets are their pointer fields). Was: **Next: ahRelocateFileObject (game/ahRelocateSunPs2ObjectArry.c, CT3 0x0183e710, a stub) and
    ALL_TABLE in EE layout ((f) settled by (h)'s rule, Claude's call 2026-11-10, the user may overrule):
    the bank image keeps the EE layout, so All_table_TBL[bank] = image + 0x80 must be read as u_int words
    through BankEePtr; ALL_TABLE's pointer fields become u_int and every reader (main.c, Character_Init.c,

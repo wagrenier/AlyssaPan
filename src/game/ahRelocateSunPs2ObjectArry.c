@@ -4,6 +4,593 @@
 #include "common/alyssapan_stub.h"
 #include "game/ahRelocateSunPs2ObjectArry.h"
 
+// ---- the file relocator (CT3 0x0183e280..0x01842290) ----
+//
+// A CT3X file (a bank image, fileio.c's FSMltLoadProc) is linked for the EE address in its word +8; the
+// relocator adds (the address it was loaded at - that base) to every pointer word, walking the image
+// through the pointers it has just fixed, then stores the new base at +8 so a second call does nothing.
+// PORT (open-items.md 1 h / bv): the image keeps its EE layout and is relocated to the EE address the
+// host gave its bank (BankImageEE[]), so its words stay EE addresses; the walk maps each one back into
+// the host image (RelocPtr). The ROM recomputes (image - image[+8]) at every word; +8 changes only at the
+// end, so the host takes the difference once.
+
+static u_char *sRelocImage;             /* PORT: the host image being relocated */
+static u_int sRelocBase;                /* PORT: the EE address it is relocated to */
+
+// PORT: the host address of an EE address inside the image being relocated.
+static u_char *RelocPtr(u_int ee)
+{
+    return sRelocImage + (int)(ee - sRelocBase);
+}
+#define RW(ee) (*(u_int *)RelocPtr(ee))         /* a word of the image, by EE address */
+#define RH(ee) (*(u_short *)RelocPtr(ee))       /* a halfword */
+#define RB(ee) (*RelocPtr(ee))                  /* a byte */
+
+// The ROM's inline step: a non-zero word is moved by `delta`; 0 stays 0. Answers the word.
+static u_int RelocWord(u_int ee, int delta)
+{
+    u_int *w = (u_int *)RelocPtr(ee);
+    if (*w != 0)
+        *w += delta;
+    return *w;
+}
+
+// The 0x10-byte records of the shape header's eight key tables (ALL_TABLE +0xec: {count, list} pairs
+// from +0x1c): a key list at +0xc of u_short(+8) words, of which only two when +4 is 0.
+static void RelocKeyTable(u_int list, int count, int delta)
+{
+    int i, k;
+    for (i = 0; i < count; i++) {
+        u_int e = list + i * 0x10;
+        RelocWord(e + 4, delta);
+        RelocWord(e + 0xc, delta);
+        for (k = 0; k < RH(e + 8); k++) {
+            RelocWord(RW(e + 0xc) + k * 4, delta);
+            if (RW(e + 4) == 0 && k == 1)
+                break;
+        }
+    }
+}
+
+// A 0x80-byte sun object list record as ahRelocateSunPs2ObjectArry relocates it: +0 the ga draw object
+// (its +0x50 / +0x60..+0x6c words), +4, +8, +0x14, +0x18.
+#define GA_OBJ_RELOC(g, R) do { R((g) + 0x50); R((g) + 0x60); R((g) + 0x64); R((g) + 0x68); R((g) + 0x6c); } while (0)
+
+// CT3 0x0183e280
+// A 0-ended list of sun object records (the ALL_TABLE draw lists objOpaque / objTrans).
+// PORT: the list and both bases are EE addresses inside the image being relocated.
+void ahRelocateSunPs2ObjectArry(u_int arry, u_int image, u_int base)
+{
+    int d = (int)(image - base);
+#define R(ee) RelocWord((ee), d)
+    for (; RW(arry) != 0; arry += 4) {
+        u_int o = R(arry);
+        u_int g;
+        R(o + 4);
+        R(o + 8);
+        g = R(o);
+        GA_OBJ_RELOC(g, R);
+        R(o + 0x14);
+        R(o + 0x18);
+    }
+#undef R
+}
+
+// The kinds of a behaviour track (its +9 byte, ahRelocateBehavior).
+#define BEHAVIOR_TRACK_H 'H'            /* keys from (data + its +4) for u_short(+0xc) runs */
+#define BEHAVIOR_TRACK_GT '>'           /* keys from data for u_short(+0xc) + 1 runs */
+#define BEHAVIOR_TRACK_EQ '='           /* the same, the run length in +4's low 25 bits */
+#define BEHAVIOR_TRACK_EQ_FLAG 0x4000000 /* '=' tracks: the ROM tests it, both paths do the same */
+#define BEHAVIOR_TRACK_EQ_LEN 0x1ffffff
+#define BEHAVIOR_KEY_SIZE 0x18          /* a key: +4 its length, +8 a pointer */
+
+// CT3 0x0183e440
+// A behaviour (ALL_TABLE +0xbc, or a BHVR file's entries): short(+8) groups of 8 bytes from +0x10, each
+// u_short(+2) tracks of 0x20 bytes at its +4; a track's keys hold one pointer each (+8).
+// PORT: EE addresses inside the image being relocated, as ahRelocateSunPs2ObjectArry.
+void ahRelocateBehavior(u_int behavior, u_int image, u_int base)
+{
+    int d = (int)(image - base);
+    int g, t, run;
+#define R(ee) RelocWord((ee), d)
+    for (g = 0; g < (short)RH(behavior + 8); g++) {
+        u_int grp = behavior + g * 8;
+        u_int tracks = R(grp + 0x14);
+        for (t = 0; t < (short)RH(grp + 0x12); t++) {
+            u_int tr = tracks + t * 0x20;
+            u_int key = R(tr);
+            char kind = (char)RB(tr + 9);
+            if (kind == BEHAVIOR_TRACK_H) {
+                key += RW(tr + 4);
+                for (run = 0; run < RH(tr + 0xc); run++) {
+                    int left;
+                    for (left = (int)RW(tr + 4); left > 0; ) {
+                        u_int len;
+                        R(key + 8);
+                        len = key + 4;
+                        key += BEHAVIOR_KEY_SIZE;
+                        left -= (int)RW(len);
+                    }
+                }
+            } else if (kind == BEHAVIOR_TRACK_GT) {
+                for (run = 0; run < RH(tr + 0xc) + 1; run++) {
+                    int left;
+                    for (left = (int)RW(tr + 4); left > 0; ) {
+                        u_int len;
+                        R(key + 8);
+                        len = key + 4;
+                        key += BEHAVIOR_KEY_SIZE;
+                        left -= (int)RW(len);
+                    }
+                }
+            } else if (kind == BEHAVIOR_TRACK_EQ) {
+                // The ROM branches on BEHAVIOR_TRACK_EQ_FLAG into two identical loops.
+                for (run = 0; run < RH(tr + 0xc) + 1; run++) {
+                    u_int left = RW(tr + 4) & BEHAVIOR_TRACK_EQ_LEN;
+                    if (left != 0) {
+                        do {
+                            R(key + 8);
+                            left -= RW(key + 4);
+                            key += BEHAVIOR_KEY_SIZE;
+                        } while ((int)left > 0);
+                    }
+                }
+            }
+        }
+    }
+#undef R
+}
+
+// CT3 0x0183e710
+// FSMltLoadProc's call: relocate a loaded file. BHVR: a 0-ended list of behaviours from +0x40. SHPE /
+// ROOM: the ALL_TABLE at +0x80 and everything it points to; `persona` (a shape or behaviour load, not a
+// scene) picks the shorter forms of its +0x20 and +0xc0 records and skips the behaviour.
+// PORT: `image` is the host image; it is relocated to BankImageEE[] of the bank holding it.
+void ahRelocateFileObject(u_char *image, int persona)
+{
+    u_int img = 0, base, t, l, e, o;
+    int d, i, k, n, bank;
+
+    for (bank = 0; bank < BANK_MAX; bank++) {
+        if (BankImage[bank] == image) {
+            img = BankImageEE[bank];
+            break;
+        }
+    }
+    if (bank == BANK_MAX)
+        return;                                         /* PORT: not a bank image: nothing to map */
+    sRelocImage = image;
+    sRelocBase = img;
+    base = RW(img + CT3X_BASE);
+    if (base == img)
+        return;
+    d = (int)(img - base);
+#define R(ee) RelocWord((ee), d)
+#define AT(off) (img + BANK_ALL_TABLE_OFFSET + (off))   /* an ALL_TABLE word, by its EE offset */
+
+    if (RW(img + CT3X_MAGIC) == CT3X_MAGIC_BHVR) {
+        for (o = img + CT3X_BHVR_LIST; RW(o) != 0; o += 4) {
+            R(o);
+            ahRelocateBehavior(RW(o), img, base);
+        }
+        RW(img + CT3X_BASE) = img;
+        return;
+    }
+    if (RW(img + CT3X_MAGIC) != CT3X_MAGIC_SHPE && RW(img + CT3X_MAGIC) != CT3X_MAGIC_ROOM)
+        return;
+
+    R(AT(0x10));                                        /* partsPos */
+    R(AT(0x18));                                        /* objOpaque */
+    ahRelocateSunPs2ObjectArry(RW(AT(0x18)), img, base);
+    R(AT(0x1c));                                        /* objTrans */
+    ahRelocateSunPs2ObjectArry(RW(AT(0x1c)), img, base);
+
+    t = R(AT(0x28));                                    /* light (SCENE_LIGHT) */
+    R(t);
+    R(t + 4);
+    for (i = 0; i < (int)RW(t + 0x14); i++) {
+        e = RW(t + 4) + i * 0x14 + 0x10;
+        if (RW(e) != (u_int)-1)
+            R(e);
+    }
+    R(t + 0xc);
+    R(t + 0x10);
+
+    t = R(AT(0x2c));                                    /* partsHeader: short(+2) MODEL_PARTS */
+    for (i = 0; i < (short)RH(t + 2); i++)
+        R(t + i * 0x380 + 0x44);                        /* MODEL_PARTS.attr */
+
+    R(AT(0x30));
+    for (i = 0; i < (int)RW(AT(0x38)); i++) {
+        e = R(RW(AT(0x30)) + i * 4);
+        R(e + 0x1c);
+        R(e + 0x20);
+        R(e + 0x24);
+        R(e + 0x28);
+        R(e + 0x30);
+        for (k = 0; (u_int)k < RW(e + 0x2c); k++)
+            R(RW(e + 0x30) + k * 4);
+    }
+    R(AT(0x34));
+    for (i = 0; i < (int)RW(AT(0x3c)); i++) {
+        e = R(RW(AT(0x34)) + i * 4);
+        R(e);
+    }
+    R(AT(0x40));
+    R(AT(0x44));
+    R(AT(0x48));
+    for (i = 0; i < (int)RW(AT(0x14)); i++)             /* baseobjCount words */
+        R(RW(AT(0x48)) + i * 4);
+    R(AT(0x24));
+    for (o = 0; RW(RW(AT(0x24)) + o) != 0; o += 4) {
+        e = R(RW(AT(0x24)) + o);
+        R(e + 0x10);
+        R(e + 0x14);
+    }
+
+    t = R(AT(0x20));
+    if (!persona) {
+        l = R(t);
+        for (o = 0; RW(l + o) != 0; o += 4)
+            R(l + o);
+        R(t + 4);
+        for (i = 0; i < 0x40; i++)
+            R(t + 0x10 + i * 4);
+        l = R(t + 0x2a0);
+        n = (int)RW(t + 0x2a4);
+        for (i = 0; i < n; i++) {
+            e = R(l + i * 4);
+            R(e + 0xd0);
+            R(e + 0xd4);
+        }
+        l = R(t + 0x2a8);
+        n = (int)RW(t + 0x2ac);
+        for (i = 0; i < n; i++)
+            R(l + i * 4);
+        R(t + 0x2b4);
+        R(t + 0x2bc);
+    } else {
+        l = R(t);
+        n = RB(t + 0x18);
+        for (i = 0; i < n; i++)
+            R(l + i * 4);
+        R(t + 4);
+        l = R(t + 8);
+        n = RB(t + 0x19);
+        for (i = 0; i < n; i++) {
+            e = R(l + i * 4);
+            R(e + 0xd0);
+            R(e + 0xd4);
+        }
+        R(t + 0xc);
+        R(t + 0x10);
+        R(t + 0x14);
+        R(t + 0x20);
+        R(t + 0x28);
+    }
+
+    t = R(AT(0x4c));
+    R(t + 4);
+    R(t + 8);
+    R(t);
+
+    t = R(AT(0x50));
+    if (t != 0) {
+        R(t);
+        for (i = 0; i < RH(t + 4); i++) {
+            u_int r = RW(t) + i * 0x10;
+            R(r + 0xc);
+            if (RW(r + 0xc) != 0) {
+                for (o = 0; RW(RW(r + 0xc) + o) != 0; o += 0x10) {
+                    e = RW(r + 0xc) + o;
+                    R(e);
+                    R(e + 4);
+                    R(e + 8);
+                    R(e + 0xc);
+                }
+            }
+        }
+    }
+
+    if (RW(AT(0x54)) != 0) {                            /* sound (SOUND_OBJ_TABLE) */
+        t = R(AT(0x54));
+        R(t + 4);                                       /* objs */
+        R(t);                                           /* loadSE */
+        for (o = 0; RW(RW(t) + o) != 0; o += sizeof(SE_LOAD_POINT))
+            R(RW(t) + o);
+    }
+
+    R(AT(0x58));                                        /* particles */
+    for (o = 0; RW(RW(AT(0x58)) + o) != 0; o += 4) {
+        u_int p = R(RW(AT(0x58)) + o);
+        u_int g = R(p);
+        u_int s;
+        GA_OBJ_RELOC(g, R);
+        R(p + 4);
+        R(p + 8);
+        s = R(p + 0xc);
+        if (RW(s + 0x2c) != 0) {
+            u_int v = R(s + 0x2c);
+            if (RW(v + 4) == 0) {                       /* shared: relocated once */
+                R(v + 8);
+                RW(v + 4) = 1;
+            }
+        }
+        R(s + 0x30);
+        R(s + 0x34);
+        R(s + 0x38);
+        R(s + 0x3c);
+        R(p + 0x14);
+        R(p + 0x18);
+        R(p + 0x1c);
+        R(p + 0x20);
+        R(p + 0x24);
+    }
+
+    R(AT(0x5c));
+    for (o = 0; RW(RW(AT(0x5c)) + o) != 0; o += 4) {
+        e = R(RW(AT(0x5c)) + o);
+        n = RB(e + 2);
+        R(e + 4);
+        for (i = 0; i < n; i++) {
+            u_int r = RW(e + 4) + i * 0x1c;
+            R(r);
+            R(r + 0x14);
+        }
+    }
+
+    if (RW(AT(0x60)) != 0) {                            /* objAfter */
+        R(AT(0x60));
+        for (o = 0; RW(RW(AT(0x60)) + o) != 0; o += 4) {
+            u_int p = R(RW(AT(0x60)) + o);
+            u_int g = R(p);
+            R(g + 0x50);
+            R(g + 0x58);
+            R(g + 0x5c);
+            R(g + 0x60);
+            R(g + 0x64);
+            R(g + 0x68);
+            R(g + 0x6c);
+            R(p + 4);
+            R(p + 0x14);
+            R(p + 0x18);
+        }
+    }
+    if (RW(AT(0x64)) != 0)
+        R(AT(0x64));
+    if (RW(AT(0x68)) != 0) {
+        l = R(AT(0x68));
+        for (o = 0; RW(l + o) != 0; o += 4) {
+            e = R(l + o);
+            R(e + 0x10);
+            R(e + 0x14);
+            n = (int)RH(e + 4) * (int)RH(e + 6);
+            for (i = 0; i < n; i++) {
+                u_int c = R(RW(e + 0x10) + i * 4);
+                if (c != 0) {
+                    u_int a = R(c);
+                    u_int b = R(c + 4);
+                    int m = (int)RW(c + 8);
+                    for (k = 0; k < m; k++) {
+                        R(a + k * 4);
+                        R(b + k * 4);
+                    }
+                }
+            }
+            for (k = 0; RW(RW(e + 0x14) + k) != 0; k += 4)
+                R(RW(e + 0x14) + k);
+        }
+    }
+    if (RW(AT(0x90)) != 0) {
+        l = R(AT(0x90));
+        for (o = 0; RW(l + o) != 0; o += 4) {
+            e = R(l + o);
+            R(e + 0xc);
+            R(e + 0x10);
+        }
+    }
+    if (RW(AT(0x6c)) != 0) {
+        t = R(AT(0x6c));
+        for (k = 0; k < 7; k++)
+            R(t + k * 4);
+        for (k = 0; k < 8; k++) {                       /* the key tables: {count +0x1c, list +0x20}... */
+            u_int list = R(t + 0x20 + k * 8);
+            RelocKeyTable(list, (int)RW(t + 0x1c + k * 8), d);
+        }
+    }
+    if (RW(AT(0x70)) != 0)                              /* partsLight */
+        R(AT(0x70));
+    if (RW(AT(0x74)) != 0) {
+        R(AT(0x74));
+        for (o = 0; RW(RW(AT(0x74)) + o) != (u_int)-1; o += 0x28)
+            for (k = 4; k <= 9; k++)
+                R(RW(AT(0x74)) + o + k * 4);
+    }
+    if (RW(AT(0x80)) != 0) {
+        R(AT(0x80));
+        for (o = 0; RW(RW(AT(0x80)) + o) != (u_int)-1; o += 0x28)
+            for (k = 5; k <= 9; k++)
+                R(RW(AT(0x80)) + o + k * 4);
+    }
+    if (RW(AT(0x84)) != 0) {
+        R(AT(0x84));
+        for (o = 0; RW(RW(AT(0x84)) + o) != (u_int)-1; o += 0x24)
+            for (k = 5; k <= 8; k++)
+                R(RW(AT(0x84)) + o + k * 4);
+    }
+    for (k = 0; k < 2; k++) {                           /* particles2, particles2After */
+        u_int slot = AT(0x78 + k * 4);
+        if (RW(slot) == 0)
+            continue;
+        l = R(slot);
+        for (o = 0; RW(l + o) != 0; o += 4) {
+            u_int p = R(l + o);
+            if (RW(p + 0x30) != 0) {
+                u_int v = R(p + 0x30);
+                if (RW(v + 0xc) == 0) {                 /* shared: relocated once */
+                    R(v + 0x10);
+                    R(v + 0x14);
+                    RW(v + 0xc) = 1;
+                }
+            }
+            R(p + 0x50);
+            R(p + 0x54);
+            R(p + 0x5c);
+            R(p + 0x74);
+            R(p + 0x78);
+            n = RH(p + 0x44);
+            for (i = 0; i < n; i++) {
+                u_int r = RW(p + 0x5c) + i * 0x80;      /* PARTICLE2 ring records */
+                u_int g = R(r + 0x68);
+                GA_OBJ_RELOC(g, R);
+                R(r + 0x6c);
+            }
+            R(p + 0x60);
+            if (k == 1)                                 /* only the After list's records have +0x64 */
+                R(p + 0x64);
+            R(p + 0x68);
+            R(p + 0x6c);
+            R(p + 0x70);
+        }
+    }
+    if (RW(AT(0x88)) != 0) {
+        l = R(AT(0x88));
+        for (o = 0; RW(l + o) != 0; o += 4) {
+            u_int a;
+            int m;
+            e = R(l + o);
+            a = R(e + 0x10);
+            m = (int)RW(e + 0xc);
+            for (i = 0; i < m; i++) {
+                u_int r = a + i * 0x14;
+                R(r);
+                R(r + 4);
+                R(r + 0x10);
+            }
+        }
+    }
+    if (RW(AT(0x8c)) != 0) {
+        t = R(AT(0x8c));
+        l = R(t);
+        for (o = 0; RW(l + o) != 0; o += 0x14)
+            R(l + o);
+        l = R(t + 4);
+        for (o = 0; RW(l + o) != (u_int)-1; o += 8) {
+            u_int a = R(l + o + 4);
+            for (i = 0; i < (int)RW(l + o); i++)
+                R(a + i * 4);
+        }
+        l = R(t + 8);
+        for (o = 0; RW(l + o) != (u_int)-1; o += 8) {
+            R(l + o + 4);
+            for (i = 0; i < (int)RW(l + o); i++) {
+                u_int r = RW(l + o + 4) + i * 0x18;
+                R(r + 4);
+                R(r + 8);
+                R(r + 0xc);
+                R(r + 0x10);
+                R(r + 0x14);
+            }
+        }
+    }
+    R(AT(0x94));
+    for (o = 0; RW(RW(AT(0x94)) + o) != 0; o += 4) {
+        e = R(RW(AT(0x94)) + o);
+        R(e + 8);
+    }
+    if (RW(AT(0x98)) != 0) {
+        l = R(AT(0x98));
+        for (o = 0; RW(l + o) != 0; o += 4)
+            R(l + o);
+    }
+    if (RW(AT(0xa0)) != 0) {
+        l = R(AT(0xa0));
+        for (o = 0; RW(l + o) != 0; o += 4) {
+            e = R(l + o);
+            R(e + 0x10);
+            R(e + 8);
+            n = (int)RH(e + 4) * (int)RH(e + 6);
+            for (i = 0; i < n; i++) {
+                u_int c = R(RW(e + 8) + i * 4);
+                R(c);
+                R(c + 4);
+                for (k = 0; k < (int)RW(c + 8); k++) {
+                    R(RW(c) + k * 4);
+                    R(RW(c + 4) + k * 4);
+                }
+            }
+        }
+    }
+
+    if (!persona) {
+        R(AT(0xb8));                                    /* fog */
+        R(AT(0xbc));                                    /* behavior */
+        ahRelocateBehavior(RW(AT(0xbc)), img, base);
+        t = R(AT(0xc4));
+        R(t);
+        l = R(t + 8);
+        R(t + 0x10);
+        for (i = 0; i < (int)RW(t + 0xc); i++) {
+            R(l + i * 0x14);
+            R(l + i * 0x14 + 0xc);
+        }
+        t = R(AT(0xc0));
+        if (t != 0) {
+            R(t);
+            R(t + 4);
+            R(t + 8);
+            for (i = 0; i < RB(t + 0xe); i++)
+                R(RW(t + 8) + i * 8);
+        }
+        t = R(AT(0xcc));
+        if (t != 0)
+            R(t);
+        if (RW(AT(0xd8)) != 0) {
+            t = R(AT(0xd8));
+            R(t + 4);
+            for (i = 0; i < (int)RW(t); i++) {
+                u_int r = RW(t + 4) + i * 0x50;
+                R(r);
+                R(r + 4);
+                R(r + 8);
+                R(r + 0x2c);
+            }
+        }
+        R(AT(0xd4));
+        for (o = 0; RW(RW(AT(0xd4)) + o) != 0; o += 4) {
+            u_int p = R(RW(AT(0xd4)) + o);
+            R(p);
+        }
+        if (RW(AT(0xdc)) != 0) {
+            t = R(AT(0xdc));
+            R(t + 4);
+            for (i = 0; i < (int)RW(t); i++) {
+                R(RW(t + 4) + i * 0x10);
+                R(RW(t + 4) + i * 0x10 + 4);
+            }
+        }
+        R(AT(0xe0));
+        for (o = 0; RW(RW(AT(0xe0)) + o) != 0; o += 4)
+            R(RW(AT(0xe0)) + o);
+        RW(AT(0xe8)) = 0;
+    } else {
+        R(AT(0xb8));                                    /* fog */
+        t = R(AT(0xc0));
+        l = R(t + 4);
+        for (i = 0; i < (int)RW(t); i++) {
+            u_int r = l + i * 0x10;
+            u_int a;
+            R(r + 4);
+            a = R(r + 0xc);
+            for (k = 0; k < (int)RW(r + 8); k++)
+                R(a + k * 8 + 4);
+        }
+    }
+    RW(img + CT3X_BASE) = img;
+#undef AT
+#undef R
+}
+
 // ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x0184ef00
@@ -180,10 +767,4 @@ void asShadowDrawing_Init(int scene)
 void asForceOperateAnimation_Character(int chara, int mode)
 {
     ALYSSAPAN_STUB("asForceOperateAnimation_Character", 0x018423c0);
-}
-
-// stub of CT3 0x0183e710
-void ahRelocateFileObject(u_char *image, int persona)
-{
-    ALYSSAPAN_STUB("ahRelocateFileObject", 0x0183e710);
 }
