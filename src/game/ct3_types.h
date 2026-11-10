@@ -116,11 +116,20 @@ typedef struct ALL_TABLE {
 static_assert(offsetof(ALL_TABLE, partsPos) == 0x10, "ALL_TABLE.partsPos");
 
 // A bank's sound objects (ALL_TABLE.sound): the sources the trigger actions and room-in start play.
-// layout: ee -- bank data; objs is a relocated word (BankEePtr, open-items.md item 1 h).
+// layout: ee -- bank data; loadSE and objs are relocated words (BankEePtr, open-items.md item 1 h).
 typedef struct SOUND_OBJ_TABLE {
-    int unk00;                          /* 0x00 */
+    u_int loadSE;                       /* 0x00: EE address of SE_LOAD_POINT[SE_LOAD_POINT_MAX], the SE
+                                           banks SSLoadSEfromLoadPoint loads with the bank */
     u_int objs;                         /* 0x04: EE address of SOUND_OBJ[], ended by id 0 */
 } SOUND_OBJ_TABLE;
+// One row of a bank's SE load list (SOUND_OBJ_TABLE.loadSE). layout: ee.
+typedef struct SE_LOAD_POINT {          /* 0x0c bytes */
+    u_int name;                         /* 0x00: EE address of the SE bank's file name; 0 ends the list */
+    u_char pad04[8];                    /* 0x04: not read by sound.c */
+} SE_LOAD_POINT;
+static_assert(sizeof(SE_LOAD_POINT) == 0xc, "SE_LOAD_POINT");
+#define SE_LOAD_POINT_MAX 5             /* SSLoadSEfromLoadPoint's row bound */
+#define BANK_ALL_TABLE_OFFSET 0x80      /* FSMltLoadProc: All_table_TBL[bank] = bank image + 0x80 */
 static_assert(sizeof(SOUND_OBJ_TABLE) == 0x8, "SOUND_OBJ_TABLE");
 static_assert(offsetof(SOUND_OBJ_TABLE, objs) == 0x4, "SOUND_OBJ_TABLE.objs");
 typedef struct SOUND_OBJ {              /* 0x28 bytes */

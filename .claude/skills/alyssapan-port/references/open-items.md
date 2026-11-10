@@ -115,7 +115,13 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    compares 0x3161c34c2 and 0x74dda77d0cbcf0c2, so main.c's Omni lookups pass 64-bit hashes too -- confirm
    when QuatSlerp.c's hash functions are written; (ad) `ALL_TABLE.sound` (EE 0x54) is a host pointer like
    its neighbours, its `objs` an EE word read with BankEePtr (decision h); (ae) `ADS_FILE.loop` is named
-   from the table's pattern only),
+   from the table's pattern only), slice 3 (2026-11-09: SSLoadSEfromLoadPoint -- **sound.c's code is
+   complete, verify**: the "+0xd4 record" was the bank image + 0x80 (the ALL_TABLE, FSMltLoadProc sets
+   All_table_TBL[bank] to it) + 0x54 (`ALL_TABLE.sound`), whose word 0 is now `SOUND_OBJ_TABLE.loadSE`,
+   the EE address of up to 5 `SE_LOAD_POINT` rows. Open: (af) the ROM passes the bank's image (BankInfo
+   +0x1c, still `pad1c` in BANK_INFO) with no bank index; the host finds the bank by matching
+   `BankImage[]` (PORT `SoundBankOfImage`) -- fileio.c's TU must fill BankImage before it calls this, or
+   may change the call to pass the bank),
    game/Character_Init.c, game/ArtoolDebugOpen.c, game/main2.c,
    game/fileio.c.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like

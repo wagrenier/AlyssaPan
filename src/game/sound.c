@@ -4,8 +4,8 @@
 // stages' SQ rules (Branch1..5 SSPlaySQ / SSStopSQ), the movie and demo mute, the angle helpers.
 // Slice 2 (2026-11-09, 30 functions): the BGM state machines (SSProc, SSBGMProc, Branch1..5BGMProc), the
 // sound objects and trigger actions, the positional updates, the volume save / restore around demos and
-// pauses, SSPlayADS, SSPlaySESp1 / SSStopSESp1, SceneSELoad / BranchSELoad. Still a stub:
-// SSLoadSEfromLoadPoint (it reads fileio.c's load-point record, +0xd4).
+// pauses, SSPlayADS, SSPlaySESp1 / SSStopSESp1, SceneSELoad / BranchSELoad. Slice 3 (2026-11-09):
+// SSLoadSEfromLoadPoint (the bank's SE load list, SOUND_OBJ_TABLE.loadSE) -- the TU's code is complete.
 //
 // The source string "sound.c" is fs_error's file argument in SSLoadSE (line 674). Every Sd* call goes to
 // game/SdMasterVolumeSetSE.c, the EE side of the IOP sound driver.
@@ -175,6 +175,57 @@ void SSAutoStartSoundRoomIn(int bank)
                          0, obj->id, bank, SetPositionalParam_Alys);
             SetPositionalParam_Alys(handle);
         }
+    }
+}
+
+// PORT: the bank whose host image is image (BankImage, ct3_types.h), or -1. The ROM needs no bank index:
+// its words are addresses; the host resolves them per bank (BankEePtr).
+static int SoundBankOfImage(const u_char *image)
+{
+    int bank;
+
+    for (bank = 0; bank < BANK_MAX; bank++) {
+        if (BankImage[bank] == image) {
+            return bank;
+        }
+    }
+    return -1;
+}
+
+// CT3 0x018c8140: a bank of type 0 or 1 has just loaded (FSMltLoadProc passes its image, BankInfo +0x1c):
+// start loading the SE banks its sound table lists -- up to SE_LOAD_POINT_MAX rows, a null name ends them;
+// no wait. The ROM reads the table at image + BANK_ALL_TABLE_OFFSET (the bank's ALL_TABLE) + 0x54 and
+// tests that ALL_TABLE address, not the image, for null.
+void SSLoadSEfromLoadPoint(u_char *image)
+{
+    SOUND_OBJ_TABLE *table;
+    SE_LOAD_POINT *rows;
+    int bank;
+    int i;
+
+    if (image == nullptr) {
+        return;
+    }
+    bank = SoundBankOfImage(image);                     // PORT: All_table_TBL[bank] is image + 0x80
+    if (bank < 0 || All_table_TBL[bank] == nullptr) {
+        return;
+    }
+    table = All_table_TBL[bank]->sound;
+    if (table == nullptr) {
+        return;
+    }
+    rows = (SE_LOAD_POINT *)BankEePtr(bank, table->loadSE);
+    for (i = 0; i < SE_LOAD_POINT_MAX; i++) {
+        const char *name;
+
+        if (rows == nullptr) {
+            return;
+        }
+        name = (const char *)BankEePtr(bank, rows[i].name);
+        if (name == nullptr) {
+            return;
+        }
+        SSLoadSE(name, 0);
     }
 }
 

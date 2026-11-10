@@ -101,6 +101,7 @@ void Branch1BGMProc(int sceneChange);                                           
 extern const ADS_FILE gFileADS[31];            /* data 0x0193a020 */
 SOUND_OBJ *SSFindSoundObj(int bank, int id);                                             // CT3 0x018c7fb0
 void SSAutoStartSoundRoomIn(int bank);                                                   // CT3 0x018c8020
+void SSLoadSEfromLoadPoint(u_char *image);                                               // CT3 0x018c8140
 void SSActVolume(int bank, int id);                                                      // CT3 0x018c81c0
 int SSActStopSound(int bank, int id);                                                    // CT3 0x018c81d0
 int SSActPlaySound(int bank, int id);                                                    // CT3 0x018c8230

@@ -1,6 +1,5 @@
 {
  "queue": [
-  "game/sound.c",
   "game/Character_Init.c",
   "game/ArtoolDebugOpen.c",
   "game/main2.c",
@@ -583,7 +582,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 109..109, 15 functions keyed by their statics, 6 unkeyed; source string movie.c"
   },
   "game/sound.c": {
-   "notes": "68 of 69 written; only SSLoadSEfromLoadPoint is left: it reads fileio.c's load-point record (+0xd4, up to 5 rows of 0xc bytes, name pointer first), write it with fileio.c. Callers of the slice (SSProc, SceneSELoad, BranchSELoad, the SSAct trigger actions) are in unwritten TUs, so no smoke run reaches them yet. Open-items (aa)..(ae): the SD_SE callback word vs host function pointers (Sd driver TU decides), trigger event names from sound.c only, ahGetHash and asFindModelPartsID now take a 64-bit hash, ALL_TABLE.sound at EE 0x54. Screenshot black as before: sound is not on the drawing path.",
+   "notes": "All 69 written. SSLoadSEfromLoadPoint takes the bank image (BankInfo +0x1c); All_table_TBL[bank] is image + 0x80, so the old +0xd4 record is ALL_TABLE.sound, word 0 the SE load rows. Host finds the bank via BankImage (open-items af): fileio.c must fill BankImage first. No smoke run reaches sound.c's callers yet; screenshot black (not a drawing TU). Sd driver TU (SdMasterVolumeSetSE.c) is the next sound blocker.",
    "ranges": [
     [
      "018c7fb0",
@@ -600,9 +599,14 @@
      "date": "2026-11-09 23:18",
      "status": "partial",
      "summary": "slice 2: 30 functions - SSProc, SSBGMProc and Branch1..5BGMProc (scene codes, chase BGM, T_BREAK), sound objects and trigger actions, positional SEs, volume save and restore, SSPlayADS, SSPlaySESp1, SceneSELoad, BranchSELoad; Sd driver records (gSdSE, gSELd, gSQLd, gPlaySESp1, gPlayADS) typed"
+    },
+    {
+     "date": "2026-11-09 23:29",
+     "status": "verify",
+     "summary": "slice 3: SSLoadSEfromLoadPoint - the bank's SE load list (SOUND_OBJ_TABLE.loadSE, SE_LOAD_POINT rows); sound.c's 69 functions are written"
     }
    ],
-   "status": "partial",
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 119..119, 24 functions keyed by their statics, 43 unkeyed; source string sound.c"
   },
   "game/ssBrain_ChgHideAtk1.c": {

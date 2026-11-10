@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-09 23:18 at commit `6f09b49` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-09 23:29 at commit `4a5af04` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **167**; stubs: **229**
+- reconstructed CT3 functions: **168**; stubs: **229**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -63,7 +63,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/main.c` | 29 | 0 |
 | `src/game/main2.c` | 0 | 5 |
 | `src/game/movie.c` | 0 | 1 |
-| `src/game/sound.c` | 72 | 0 |
+| `src/game/sound.c` | 73 | 0 |
 | `src/game/ssGrpPortalCheck.c` | 0 | 11 |
 | `src/game/ssHitCheckAttackToScn.c` | 0 | 3 |
 | `src/game/ssSetTexUVforCubeMap.c` | 0 | 30 |
@@ -73,10 +73,9 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 56, partial 1, verify 8, done 2
-- next: **game/sound.c** (pinned in the queue)
-- pinned queue: game/sound.c, game/Character_Init.c, game/ArtoolDebugOpen.c, game/main2.c, game/fileio.c
-- partial: `game/sound.c` 68/69 -- 68 of 69 written; only SSLoadSEfromLoadPoint is left: it reads fileio.c's load-point record (+0xd4, up to 5 rows of 0xc bytes, name pointer first), write it wit
+- 65 TUs: todo 56, verify 9, done 2
+- next: **game/Character_Init.c** (pinned in the queue)
+- pinned queue: game/Character_Init.c, game/ArtoolDebugOpen.c, game/main2.c, game/fileio.c
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaInitDrawObject.c` 24/24 -- No ROM caller for the texture three (the game uses its sun* copies in QuatSlerp.c): complete, nothing on screen can show them. Shot black as before: packets go 
 - verify: `ga/gaInitInterrupt.c` 3/3 -- GCC object; wait_vsync_state (data 0x0192e790), ga_main_timer, ga_down_timer defined here. gaWaitVSync takes no argument and returns the CSR FIELD bit; main.c c
@@ -85,9 +84,11 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/AlignedNum.c` 4/4 -- WaitLoop is split in Ghidra: WaitLoop 0x0189f650 plus WaitLoop_body 0x0189f680 (game-inferred), one C function. The j at 0x0189f718 belongs to the next object (
 - verify: `game/ahalloc.c` 7/7 -- Host block header is 0x20 bytes (EE 0x10). SunAllocInit runs at boot; nothing calls _SunAlloc yet. AlignedNum is a stub answering 0, so game/AlignedNum.c is que
 - verify: `game/main.c` 29/29 -- Smoke run: build green, layoutcheck OK, callcheck: main_rtn_Particle2 matches the ROM (extra BankEePtr only); AllDrawObject / GlobalDrawObject / DrawObjectRefra
+- verify: `game/sound.c` 69/69 -- All 69 written. SSLoadSEfromLoadPoint takes the bank image (BankInfo +0x1c); All_table_TBL[bank] is image + 0x80, so the old +0xd4 record is ALL_TABLE.sound, wo
 
 Recent sessions:
 
+- 2026-11-09 23:29 `game/sound.c` verify: slice 3: SSLoadSEfromLoadPoint - the bank's SE load list (SOUND_OBJ_TABLE.loadSE, SE_LOAD_POINT rows); sound.c's 69 functions are written
 - 2026-11-09 23:18 `game/sound.c` partial: slice 2: 30 functions - SSProc, SSBGMProc and Branch1..5BGMProc (scene codes, chase BGM, T_BREAK), sound objects and trigger actions, positional SEs, volume sav
 - 2026-11-09 22:53 `game/sound.c` partial: slice 1: 38 of 69 functions - boot and end, SE and SQ entry points, the stage SQ rules (Branch1..5 SSPlaySQ/SSStopSQ), movie and demo mute, angle helpers; gFile
 - 2026-11-09 22:29 `game/AlignedNum.c` verify: AlignedNum, WaitLoop and IopLoadModule reconstructed (3 functions, the whole object)
@@ -95,7 +96,6 @@ Recent sessions:
 - 2026-11-09 22:10 `ga/gaInitMeter.c` verify: ga/gaInitMeter.c: all 6 functions (gaInitMeter, gaStartMeter, gaEndCpuMeter, gaEndGSMeter, gaGetCpuTimer, gaGetEEcoreTimer) and its 3 data words; TU renamed fro
 - 2026-11-09 21:53 `ga/gaInitDrawObject.c` verify: slice 2: the texture three -- gaSetupTBufferData (TEX0, CLAMP, MIPTBP1/2, TEXFLUSH and the upload record, GA_TEX_DESC / GA_TBUFFER_DATA), gaBGT_SetLoadGSEnv (BI
 - 2026-11-09 21:42 `ga/gaInitDrawObject.c` partial: slice 1: 21 of 24 functions -- the ga packet builders (gsinit, dbuffer with its 14 values, drawctrl with GA_DRAWCTRL_ARGS fields named, fogctrl), the scratchpad
-- 2026-11-09 21:11 `ga/gaVifInit.c` verify: gaVifInit, gaVUSync_VU0, gaVifcodeFlush_VIF1, gaVifcodeFlushe_VIF1, gaVIFSync_VIF0, gaVIFSync_VIF1 and the 18 vifcode qwords of .data 0x0192e640..0x0192e790 rec
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
