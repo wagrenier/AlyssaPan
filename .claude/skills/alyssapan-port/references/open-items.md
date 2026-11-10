@@ -89,7 +89,9 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~
    (done 2026-11-09; pause in the background is written but no run has exercised it: smoke windows sit
    in the background, so turning it on there would freeze the run); (b) exclusive fullscreen, window position and presets; (c) the HDR swapchain,
-   MSAA, anisotropy, GPU driver choice; (d) the real memory card (RosePan's libmc), reverb and volume
+   MSAA, anisotropy, GPU driver choice; (d) ~~the real memory card~~ (done 2026-11-09: `io::MemoryCards` behind
+   sdk/libmc.cpp; a scratch test wrote, listed and read a save through sceMc* calls; no smoke run reaches
+   McInit yet, so the game's own mc_* code has not exercised it), reverb and volume
    groups (YamiPan's SPU2 is next to them), the audio dump; (e) `libsdr` (CT3 calls `sceSdRemote`), newlib
    `rand`; (f) .iso reading, save import / export; (g) RmlUi menus and translations; (h) CI and AlyssaPan's
    own `extern/`. A shim CT3's boot needs earlier (libsdr, the card) moves ahead of TUs when a run hits it.

@@ -6,6 +6,9 @@
  *  sceMcMkdir, sceMcDelete, sceMcFormat), plus the seven Rule of Rose's
  *  McdMan also calls (sceMcGetSlotMax, sceMcSeek, sceMcFlush, sceMcUnformat,
  *  sceMcChdir, sceMcRename, sceMcGetEntSpace; RoR 0x24d570..0x24e948).
+ *  CT3's game calls eleven of them (no GetDir / Delete: it finds a save by
+ *  opening it); src/sdk/libmc.cpp lists its callers.  The host card behind
+ *  them is alyssapan::io::MemoryCards.
  *
  *  The library is asynchronous: every request returns immediately with 0 when
  *  it was accepted, and the caller then polls sceMcSync() until it reports
@@ -74,7 +77,7 @@ typedef struct                          /* 0x8 */
  * out at the ROM's 0x4c0 rather than 0x484 -- with 18 entries plus a short, the
  * struct's own alignment supplies 0x3c bytes of tail, and ZERO2.MAP shows the
  * same 0x3c gap in front of mc_dir_info in mc_check_dir.o's .bss. */
-typedef struct alignas(64)              /* 0x40 */
+typedef struct alignas(64) sceMcTblGetDir /* 0x40; named so the host card can forward-declare it */
 {
     /* 0x00 */ sceMcStDateTime _Create;
     /* 0x08 */ sceMcStDateTime _Modify;

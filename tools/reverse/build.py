@@ -100,6 +100,8 @@ if '--run' in sys.argv:
     every = sys.argv[sys.argv.index('--shot-every') + 1] if '--shot-every' in sys.argv else '60'
     run_env = dict(env, ALYSSAPAN_SHOT_DIR=str(shots), ALYSSAPAN_SHOT_EVERY=every)
     run_env.setdefault('ALYSSAPAN_DATA_DIR', str(alyssapan.GAME_DATA))
+    # Smoke runs save to a card of their own (work/memcard/mc<port>-<slot>/), never the user's.
+    run_env.setdefault('ALYSSAPAN_MEMCARD_DIR', str(alyssapan.WORK / 'memcard'))
     if '--pad' in sys.argv:
         pad = sys.argv[sys.argv.index('--pad') + 1]
         if pad == 'none':

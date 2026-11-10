@@ -1,7 +1,5 @@
 {
- "queue": [
-  "sdk/libmc.cpp"
- ],
+ "queue": [],
  "settings": {
   "data_dir": "C:/Users/willi/Documents/Decomp/Clocl Tower 3",
   "frontier_ignore": [],
@@ -655,6 +653,15 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 139..139, 17 functions keyed by their statics, 40 unkeyed; source string xcmd_tn.c"
   },
   "sdk/libmc.cpp": {
+   "notes": "A scratch test (not committed) wrote, listed and read back a save through sceMcInit/GetInfo/Mkdir/Open/Write/Close/GetDir/Seek/Read/Delete/Format: all checks pass. CT3 sceMcInit checks mcserv 0x20a / mcman 0x20e; the host answers 0. ALYSSAPAN_MEMCARD_DIR overrides the card root; build.py smoke runs use work/memcard. No smoke run reaches McInit yet, so the game mc_* step machines have not exercised it; the shot stays black (nothing draws until main2).",
+   "sessions": [
+    {
+     "date": "2026-11-09 20:31",
+     "status": "done",
+     "summary": "the real memory card: io::MemoryCards (RosePan libmc as a class, folders memcard/mc<port>-<slot>/, the async sceMcSync handshake kept) behind every sceMc entry point"
+    }
+   ],
+   "status": "done",
    "task": "Host task, the siblings' shims (d1): a real memory card. RosePan sdk/libmc.cpp (folders under memcard/mc<port>-<slot>/, the async sceMcSync handshake kept; a missing directory answers -4; listings start with . and ..; sceMcGetDir's table 64-byte aligned), rewritten as an alyssapan:: class behind SCE's API (cpp-port.md). CT3's libmc checks mcserv / mcman versions (string 0x01932010): answer what the ROM expects. Done when a scratch test writes, lists and reads a save through sceMc* calls."
   }
  }

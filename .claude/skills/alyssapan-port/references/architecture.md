@@ -222,6 +222,17 @@ stack; `SDRDRV` serves the EE's sdremote client; `SNDDRV.IRX` (151 KB) is presum
 driver and `FSYS_IOP.IRX` its file server. None is read yet. No sibling met modhsyn (MioPan, ReiPan,
 RosePan, YamiPan all ran a game's own driver over libsd).
 
+**The memory card (2026-11-09, sdk/libmc.cpp's host task).** CT3 links libmc's EE side at
+0x01826d38..0x01828530. Its `sceMcInit` binds `MCSERV` and refuses an IOP side older than mcserv 0x20a /
+mcman 0x20e (returns -120 / -121, strings 0x01932010 / 0x01932038): the host answers 0. The game calls
+eleven entry points (feat_ct3.json's call graph): `sceMcInit` (McInit), `sceMcGetInfo` (mc_check,
+mc_check2..4, mc_formatcheck, mc_formatcheck2, mc_free_area), `sceMcOpen` / `sceMcClose` (mc_load_new,
+mc_save_new, mc_save_normal), `sceMcRead` / `sceMcSeek` (mc_load_new), `sceMcWrite` / `sceMcMkdir` /
+`sceMcChdir` (mc_save_new / mc_save_normal), `sceMcFormat` (MemorycardUpdate), `sceMcSync` (all of them).
+No `sceMcGetDir` or `sceMcDelete`: a save is found by opening it. `mc_check` polls `sceMcGetInfo` until
+four syncs in a row agree on the type and answers 0 only for type 2 (PS2 card); `mc_save_new`'s step 0x15
+builds icon.sys in place (`sceMcIconSys`, 0x3c4 bytes, OffsLF at +6, TransRate 0x60) and writes it whole.
+
 ## PC platform layer (bootstrap 6, 2026-11-09)
 
 YamiPan's Pan layer, carried over and renamed (cpp-port.md has the map): window, render thread, 2D

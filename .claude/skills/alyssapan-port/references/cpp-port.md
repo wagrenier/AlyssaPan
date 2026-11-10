@@ -66,7 +66,8 @@ src/alyssapan/
            TextureStore          TIM2 pictures decoded at their source to RGBA8, cached by content
            PresentPass           grade + HDR output; Screenshotter the smoke shots
   media/   MpegStream, MpegDecoder  libmpeg on the host: PSS demux, FFmpeg MPEG-2
-  io/      InputSystem (keyboard + gamepad -> DualShock 2, bindings), HostFiles, Disc
+  io/      InputSystem (keyboard + gamepad -> DualShock 2, bindings), HostFiles, Disc, MemoryCards (the
+           two card slots as folders behind sdk/libmc.cpp)
   ui/      Overlay, Panel family (display, audio, controls, performance, game data), Theme (CT3's colours)
 ```
 
@@ -120,7 +121,9 @@ Platform, game-independent (1-5 carried over 2026-11-09, host task `alyssapan/co
 12. Profiler phases and stutter attribution: RosePan `rosepan_profiler.cpp:103`, `rosepan_ui.cpp:2327`.
 
 PS2 platform, generic across games:
-13. A real memory card (folders, the async `sceMcSync` handshake): RosePan `sdk/libmc.cpp`.
+13. ~~A real memory card~~ done 2026-11-09: `io::MemoryCards` (RosePan's `sdk/libmc.cpp` as a class; folders
+    `memcard/mc<port>-<slot>/`, the async `sceMcSync` handshake kept, `ALYSSAPAN_MEMCARD_DIR` overrides the
+    root and smoke runs use `work/memcard/`).
 14. Reverb: RosePan `sdk/iop_reverb.cpp`. 15. Volume groups applied to the mix: RosePan `sdk/iop_voice.cpp`
     (`SetUserVolume`), `rosepan_config.cpp`. 16. Audio dump and `audiocheck.py`: RosePan.
 17. Playing from a disc image (.iso): MioPan `miopan/io/miopan_iso9660.cpp`, MikuPan
