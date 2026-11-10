@@ -193,4 +193,4 @@ extern int gStereo;                             /* sdata 0x0193a4dc: 1 = stereo 
 extern int gMasterVolSE;                        /* sdata 0x0193a4e0: 0..255 */
 extern int gMasterVolSQ;                        /* sdata 0x0193a4e4: 0..255 */
 extern int gMasterVolADS;                       /* sdata 0x0193a4e8: 0..255 */
-// gPlaySESp1, gSQLd, gSdSE, gSELd: declared in game/SdMasterVolumeSetSE.h (their owner), defined in lib/unassigned_data.cpp.
+// gPlaySESp1, gSQLd, gSdSE, gSELd: declared in game/SdMasterVolumeSetSE.h, defined in game/SdMasterVolumeSetSE.c (their owner).

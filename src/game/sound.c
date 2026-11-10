@@ -937,16 +937,16 @@ void SSBGMProc(void)
             SSStopSE("T_0010", 0xf, 0);
             SSStopSE(SE_BANK_COMMON, 0x4b, 0);
             // the ROM passes gPlayADS as SSStopADS's first argument, which it does not read
-            if (memcmp(gPlayADS, "22", 2) == 0) {
+            if (memcmp(gPlayADS.name, "22", 2) == 0) {
                 SSStopADS(0, 1);
-            } else if (memcmp(gPlayADS, "29", 2) == 0) {
+            } else if (memcmp(gPlayADS.name, "29", 2) == 0) {
                 SSStopADS(0, 1);
-            } else if (memcmp(gPlayADS, "30", 2) == 0) {
+            } else if (memcmp(gPlayADS.name, "30", 2) == 0) {
                 SSStopADS(0, 1);
             }
         }
         if (gPlayTbreak == 0) {
-            if (memcmp(gPlayADS + 1, "_BREAK", 6) == 0) {
+            if (memcmp(gPlayADS.name + 1, "_BREAK", 6) == 0) {
                 if (ssTrigGetVariable(TRIG_VAR_TBREAK_SHORT, 1, 0) == 1) {
                     gPlayTbreak = TBREAK_FRAMES_SHORT;
                     SSStopSE("T_0010", 0xf, 0);
@@ -960,7 +960,7 @@ void SSBGMProc(void)
                 }
             }
         } else if (--gPlayTbreak < 1) {
-            if (memcmp(gPlayADS + 1, "_BREAK", 6) == 0) {
+            if (memcmp(gPlayADS.name + 1, "_BREAK", 6) == 0) {
                 SdStopStream(0);
             }
             if ((char)ssTrigCheckEvent(TRIG_EVENT_96, 1, 0) != 1
@@ -1194,7 +1194,7 @@ int SSReturnVolumeSE_CheckLoopSE(int jls, int seNo)
     int k;
 
     for (i = 0; i < SD_SE_LD_COUNT; i++) {
-        if (gSELd[i].used == 0 || gSELd[i].jls != jls) {
+        if (gSELd[i].handle == 0 || gSELd[i].jls != jls) {
             continue;
         }
         strcpy(upper, gSELd[i].name);
@@ -1255,7 +1255,7 @@ void SSEnemyPauseOnOff(int on)
     int i;
 
     for (i = 0; i < SD_SE_LD_COUNT; i++) {
-        if (gSELd[i].used == 0) {
+        if (gSELd[i].handle == 0) {
             continue;
         }
         if (memcmp(gSELd[i].name, SE_BANK_E_RYU, 5) == 0) {

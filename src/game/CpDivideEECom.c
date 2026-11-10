@@ -15,3 +15,10 @@ EE_IOP_STAT * CpGetEEIOPStatus(void)
     ALYSSAPAN_STUB("CpGetEEIOPStatus", 0x018d1e70);
     return &s_idle;
 }
+
+// stub of CT3 0x018d2250
+int * CpCall_IOPSndDriver(u_int command, void *data)
+{
+    ALYSSAPAN_STUB("CpCall_IOPSndDriver", 0x018d2250);
+    return {};
+}

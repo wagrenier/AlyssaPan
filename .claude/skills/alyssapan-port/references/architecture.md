@@ -795,6 +795,27 @@ The auto-load at boot (MemorycardAutoLoad, xcmd_tn.c) has its own states (mcMain
   of the bank (`MODEL_PARTS.pos`, +0x130), heard from the player's `posBefore` (or the camera), volume
   0x7f minus 3 per 55 units, pan 0..0x7f from the angle to the camera's view.
 
+## The sound driver's EE side, game/SdMasterVolumeSetSE.c (2026-11-10, slice 1)
+
+- **One command path.** Every Sd* that talks to the IOP takes `fss_sid` (sbss 0x01943020), fills a
+  command record, queues (command word, record, reply pointer) on `RingBuff` (bss 0x01943030, 64 x 12
+  bytes, write index `wp` 0x01942ee8, read index `rp` 0x01942eec) through `CpCall_IOPSndDriver_FIFO`
+  (0x018d1c60, wakes `fss_tid`), and releases the semaphore. `FSS_Thread` (0x018d1bd0, priority 2, a 0x1000
+  stack `fss_stack$75` at 0x01c838c0) sleeps until `rp != wp`, then sends the oldest entry through
+  `CpCall_IOPSndDriver` (game/CpDivideEECom.c, 0x018d2250) and copies the reply word if asked.
+  `FSS_Thread_Init` (0x018d1b40) raises its caller to priority 3 and creates both; `FSS_Thread_Sync`
+  waits for an idle semaphore and an empty ring. `IopLoadCapcomSound` is the init's likely caller (unread).
+- **Command words** (CpDivideEECom.h `SND_CMD_*`): 0x150000 reverb (`effectJSLCOM$121` +8 core, +0xc type,
+  +0x10 / +0x14 depth word, +0x18 type changed), 0x240000 SE master volume (`gTransJSLCOM` +8), 0x290000 stop
+  an SE's channels (`seStopJSLCOM$1185` +0xc channel bits, +0x10 0x80000000 or 0x4000000d), 0x310000 the
+  ADS volume (`gTransADS` +0x68, v | v << 16, v = vol * gMasterVolADS / 255). The JSL records are 8 words.
+- **Reverb** (`SdSetEffect`): per core, depth clamped to 0x7f, stored as depth << 7 | 0x7f in
+  `gSdEffectDepth[2]` beside `gSdEffectType[2]`; resent only on a change; core 1 maps types 4..8 to 3.
+- `SD_SE` +0x14 is the voice channel bits; `SD_SE_LD` +0x00 is the load's handle (not a used flag) and
+  +0x94 is non-zero while loading; `gPlayADS` is `SD_PLAY_ADS` (+0x38 volume, +0x44 SdStopStream's argument);
+  `EE_IOP_STAT` +0x20 non-zero while a stream plays. `SdAlloc` hands out gHeapSound's one block
+  (`gUseSoundAlloc`); `SdRnd` is an LCG (x * 0x7d2b89dd + 0xbc614e, seed 0x12345678).
+
 ## The shadow overlay, frame-pass checks and the replay pass, game/ahRelocateSunPs2ObjectArry.c (2026-11-10, slice 14)
 
 - **asShadowEnd** ends a bank's shadow pass. The shadow buffer (0xc0000, cleared to 0x80) holds the

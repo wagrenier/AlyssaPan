@@ -97,7 +97,7 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    game/sound.c (partial 2026-11-09, slice 1: 38 of 69 functions -- boot / end, SE and SQ entry points,
    the stages' SQ rules, movie / demo mute, angle helpers; Sound_system_init now asks SdReqLoadSE for
    C_0000, T_0000, E_HAMMER, Z_REI; open: (w) the Sd driver TU (game/SdMasterVolumeSetSE.c, 0x018cbf90..)
-   is the next sound blocker: every Sd* is a stub, so nothing sounds; its prototypes in
+   is the next sound blocker (slice 1 written 2026-11-10: the FSS command ring and thread, volumes, reverb, SE stop / lookup, load-end wait, SdAlloc / SdFree, SdRnd; left: SdProc and its five procs, SE play / load / supply, SdSetParamSE, SQ and the stream's play; the IOP side, CpCall_IOPSndDriver, is a stub, and FSS_Thread_Init runs only once IopLoadCapcomSound is written), so nothing sounds; its prototypes in
    SdMasterVolumeSetSE.h come from sound.c's call sites; (x) gFileSQ's words +4 / +8 / +0xc are
    SdPlaySQ arguments named sdArg2 / sdArg5 / sdArg6 until that TU reads them; (y) TRIG_VAR_STAGE (0x1d),
    TRIG_EVENT_SE_MUTE (0xb7), the stage-1 SQ events 0x3b1 / 0x3ba / 0x3bd / 0x3bf and STAGE_BGM_* are

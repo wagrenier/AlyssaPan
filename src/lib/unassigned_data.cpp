@@ -3,6 +3,7 @@
 // SLUS_206.33 at the address given); everything else is .sbss / .bss, zero. Each moves to its TU.
 #include "game/unassigned_data.h"
 #include "game/SdMasterVolumeSetSE.h"
+#include "game/CpDivideEECom.h"
 #include "game/IOPGetFileSize.h"
 
 #include <string.h>
@@ -411,9 +412,6 @@ int gStereo = 1;                                /* sdata 0x0193a4dc */
 int gMasterVolSE = 0xff;                          /* sdata 0x0193a4e0 */
 int gMasterVolSQ = 0xff;                          /* sdata 0x0193a4e4 */
 int gMasterVolADS = 0xff;                         /* sdata 0x0193a4e8 */
-PLAY_SE_SP1 gPlaySESp1[PLAY_SE_SP1_COUNT];      /* bss  0x019436d0 (SdMasterVolumeSetSE.c) */
-SD_SQ_LD gSQLd[SD_SQ_LD_COUNT];                 /* bss  0x01943340 (SdMasterVolumeSetSE.c) */
-char gPlayADS[0x90];                            /* bss  0x019437f0 (SdMasterVolumeSetSE.c) */
-SD_SE gSdSE[SD_SE_COUNT];                       /* bss  0x01c848c0 (SdMasterVolumeSetSE.c) */
-SD_SE_LD gSELd[SD_SE_LD_COUNT];                 /* bss  0x01c85400 (SdMasterVolumeSetSE.c) */
-int gADSOpenSync;                               /* sbss 0x01943888 (SdMasterVolumeSetSE.c) */
+// game/CpDivideEECom.c's command records, until that TU is written (game/SdMasterVolumeSetSE.c writes them).
+SND_JSL_COM gTransJSLCOM;                       /* bss  0x01943c40 (CpDivideEECom.c) */
+SND_TRANS_ADS gTransADS;                        /* bss  0x01943b40 (CpDivideEECom.c) */

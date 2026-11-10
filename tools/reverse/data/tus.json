@@ -540,12 +540,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 127..127, 1 functions keyed by their statics, 1 unkeyed; file name from the names"
   },
   "game/SdMasterVolumeSetSE.c": {
+   "notes": "Left: SdProc and its five procs (SdLoadSEProc 0x12a0, SdLoadSQProc 0x138c, SdPlaySEProc, SdPlaySESpProc, SdPlayADSProc), SdPlaySE, SdPlaySEUpdate, SdSupplyCHSE, NextPlaySE, NextLoadSE, SdReqPlaySE, SdSetParamSE, the SQ and stream play side, IopLoadCapcomSound (creates the FSS thread). CpCall_IOPSndDriver is a new stub in CpDivideEECom.c (returns NULL; FSS_Thread derefs it only for a reply pointer, none yet). SND_CMD words and the JSL record arg meanings are named from the EE side only. The screen stays black as before (sound draws nothing); last.png was empty this run, shot_26400 is black.",
    "ranges": [
     [
      "018cbf90",
      "018d1cb0"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-10 14:15",
+     "status": "partial",
+     "summary": "slice 1: the FSS command ring and thread (FIFO, FSS_Thread, _Init, _Sync), SE master and stream volumes, reverb, SE stop and lookup, load-end wait, SdAlloc, SdFree, SdRnd (20 functions); TU data moved here from lib/unassigned_data.cpp"
+    }
+   ],
+   "status": "partial",
    "why": "tumap.py (bootstrap 5): symtab local chunks 121..121, 39 functions keyed by their statics, 22 unkeyed; file name from the names"
   },
   "game/ahRelocateSunPs2ObjectArry.c": {
