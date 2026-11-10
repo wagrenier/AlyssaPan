@@ -92,12 +92,21 @@
    "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 25 unkeyed; file name from the names"
   },
   "ga/gaInitDrawObject.c": {
+   "notes": "Slice 2: gaSetupTBufferData (0x5f0), gaBGT_SetLoadGSEnv, gaBGT_LoadGSTexClutData_VIF1 (no caller a smoke run reaches yet). Shot black as before: the packets go to gaBGT_DmaSendN_fromSPR_VIF1, stubbed until ga/gaDmaSync_VIF1.c, and no host draw module consumes them yet. The scratchpad keeps EE layout with EE-address words (open-items.md); vu1_object_draw_program is a zeroed stand-in. VC_* and VU_MPG_ENTRY_* moved to gaVifInit.h; three host registers added to sdk/eeregs.h.",
    "ranges": [
     [
      "018a1a48",
      "018a3078"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-09 21:42",
+     "status": "partial",
+     "summary": "slice 1: 21 of 24 functions -- the ga packet builders (gsinit, dbuffer with its 14 values, drawctrl with GA_DRAWCTRL_ARGS fields named, fogctrl), the scratchpad work area GA_SPR_WORK, gaInitDrawObject, gaInit3dlibWork, the BGT ring start/status/sync/end, marks, DR_ST/DR_Q; main.c calls gaSetupDBufferData with the ROM's 14 values (open item q fixed)"
+    }
+   ],
+   "status": "partial",
    "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 24 unkeyed; file name from the names"
   },
   "ga/gaInitInterrupt.c": {

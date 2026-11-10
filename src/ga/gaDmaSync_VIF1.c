@@ -17,3 +17,9 @@ void gaDmaSync_VIF1(void)
 {
     ALYSSAPAN_STUB("gaDmaSync_VIF1", 0x018a1740);
 }
+
+// stub of CT3 0x018a17f8
+void gaBGT_DmaSendN_fromSPR_VIF1(void *addr, int qwc)
+{
+    ALYSSAPAN_STUB("gaBGT_DmaSendN_fromSPR_VIF1", 0x018a17f8);
+}

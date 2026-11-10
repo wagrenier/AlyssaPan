@@ -239,6 +239,34 @@ the TU map's evidence.
 - **Host:** VIF0_STAT / VIF1_STAT are host variables that stay 0 (sdk/eeregs.h): the polls return at once.
   The packets go through gaDmaSendN_VIF1 (ga/gaDmaSync_VIF1.c, stubbed until its TU) and are dropped.
 
+## The ga library's draw set-up, ga/gaInitDrawObject.c (2026-11-09, slice 1)
+
+- A GCC object 0x018a1a48..0x018a3078, 24 functions: the GS register packets, the scratchpad work area
+  the VU1 renderer reads, and the BGT ("background transfer") ring's start / sync / end.
+- **Every ga packet has one shape:** +0x00 DMAtag CNT (qwc = qwords after the tag), +0x08 a kind mark
+  `0xeeee000N` in the tag's upper half (0 gsinit and the mark packet, 1 dbuffer, 3 drawctrl, 5 fogctrl),
+  +0x10 VIFcodes {NOP, NOP, NOP, DIRECT qwc-1}, +0x20 a GIFtag (PACKED A+D, EOP, NLOOP = pairs), +0x30 the
+  A+D pairs. gsinit: COLCLAMP 1, PRMODECONT 0, SCANMSK 0, PABE 0. dbuffer: FRAME_1, ZBUF_1, SCISSOR_1,
+  XYOFFSET_1 (written 0x8000 - offset), DTHE; its send rewrites FBP / ZBP from `ga_draw_fbuf_address` /
+  `ga_zbuf_address` >> 11. drawctrl: PRMODE, TEST_1, ALPHA_1, FBA_1, TEX1_1, TEXA from 28 words + TEXA
+  (`GA_DRAWCTRL_ARGS`, fields named). fogctrl: FOGCOL, plus the three fog floats at +0x40 (not sent).
+- `gaSetupDBufferData` takes 14 values (FirstInitialization: a 512-wide PSMCT32 frame at 0, Z at 0,
+  scissor 0..511 x 0..447, offset 0); `gaBGT_Start(ring, size)` forwards both to gaDmaOpen_MFIFO_VIF1.
+- **The scratchpad layout** (`GA_SPR_WORK`, ga/gaInitDrawObject.h): 0x000.. the renderer's constants
+  (view scale, Z scale / offset from the 3dlib work's [10] / [11], 255.0, +-0.5), two triangle GIFtags
+  (0x90, 0xa0), +0x14 `ga_div_redraw_gspacket_work` (0x01957e40, 0xb0000 bytes) uncached, +0xec the 3dlib
+  work's address, +0xf0 the BGT packet area (0x70000a00), 0x110..0x190 eight VIFcode qwords (MSCAL 6 / 8 /
+  0xa, FLUSH / MSCNT / FLUSHE runs); 0x400 the 3dlib work copy (main), 0x800 the mark / sync packet, 0xa00
+  the BGT packets. gaInitDrawObject also sends the VU1 microprogram (`vu1_object_draw_program`, .vutext
+  0x018ff430, 0x335 qwords).
+- `gaBGT_Status` is busy while VIF1_STAT & 0x01f0300f or fromSPR's MADR != VIF1's TADR; `gaBGT_Sync`
+  sends an empty REF tag and waits for it.
+- **Host:** the packets are built as the ROM builds them and go to gaBGT_DmaSendN_fromSPR_VIF1 (stub until
+  ga/gaDmaSync_VIF1.c); the scratchpad keeps its EE layout and its address words hold EE addresses (u_int);
+  the microprogram is a zeroed stand-in of its size. MADR / TADR / VIF1_STAT are host variables that read
+  idle. Not written yet: gaSetupTBufferData, gaBGT_SetLoadGSEnv, gaBGT_LoadGSTexClutData_VIF1 (no caller a
+  smoke run reaches; gaSetupTBufferData is the texture upload packet: slice 2).
+
 ## Data (2026-11-09)
 
 - `DATA\CT3PACK.DAT` (the ELF names `DATA\CT3PACK.DAT;1` and `\DATA\CT3PACK.DAT;1` at 0x01934b90,

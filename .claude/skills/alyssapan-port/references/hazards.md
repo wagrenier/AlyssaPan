@@ -11,8 +11,8 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
   caller stores each further argument as an 8-byte slot (`sd`) at sp+0, +8, ...; the decompiler shows only
   the eight register arguments. `gaSetupDrawCtrlData` takes 29 slots (28 words + one doubleword: the port's
   `GA_DRAWCTRL_ARGS` by value), `sunSetupTBufferData` 11 (`TEX_INFO` by value); slices 1-5 had passed 7 and
-  the ghost / frame-clear settings were incomplete. **`gaSetupDBufferData` still has the same flaw** (14
-  slots: FirstInitialization stores 0, 0, 0x1ff, 0x1bf, 0, 0, 0 on the stack). Fix: before trusting a
+  the ghost / frame-clear settings were incomplete. `gaSetupDBufferData` had the same flaw (14 values;
+  fixed 2026-11-09 with gaInitDrawObject.c's slice 1). Fix: before trusting a
   prototype from the decompiler, look in the listing for `sd ...,N(sp)` just before the `jal`.
 - (2026-11-09, bootstrap) **Two games in one Ghidra process.** CT3 (`SLUS_206.33`) is open beside FS2's
   `SCES_538.51` and `rxsnddrv.elf`: a call without `program=` errors out or, through an old endpoint, can

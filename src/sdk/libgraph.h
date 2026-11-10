@@ -39,6 +39,7 @@
 #define SCE_GS_XYOFFSET_2 0x19
 #define SCE_GS_PRMODECONT 0x1a
 #define SCE_GS_PRMODE     0x1b
+#define SCE_GS_SCANMSK    0x22
 #define SCE_GS_TEXA       0x3b
 #define SCE_GS_FOGCOL     0x3d
 #define SCE_GS_TEXFLUSH   0x3f

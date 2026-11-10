@@ -7,3 +7,5 @@
 
 void gaDmaSync_VIF1(void);                  // CT3 0x018a1740
 void gaDmaSendN_VIF1(void *addr, int qwc);  // CT3 0x018a1778
+// The BGT ring's send: a packet (scratchpad or memory: the ROM tests addr - 0x70000000) into the MFIFO.
+void gaBGT_DmaSendN_fromSPR_VIF1(void *addr, int qwc); // CT3 0x018a17f8

@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-09 21:11 at commit `57ac634` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-09 21:42 at commit `a0bf4d3` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,15 +30,15 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **54**; stubs: **215**
+- reconstructed CT3 functions: **75**; stubs: **203**
 
 | file | reconstructed | stubs |
 |---|---|---|
 | `src/ga/gaBGT_DrawObject.c` | 0 | 2 |
 | `src/ga/gaDma.c` | 16 | 0 |
-| `src/ga/gaDmaSync_VIF1.c` | 0 | 2 |
+| `src/ga/gaDmaSync_VIF1.c` | 0 | 3 |
 | `src/ga/gaInit3dlib.c` | 0 | 3 |
-| `src/ga/gaInitDrawObject.c` | 0 | 13 |
+| `src/ga/gaInitDrawObject.c` | 21 | 0 |
 | `src/ga/gaInitInterrupt.c` | 3 | 0 |
 | `src/ga/gaObjectClippingCheck.c` | 0 | 1 |
 | `src/ga/gaVifInit.c` | 6 | 0 |
@@ -70,9 +70,10 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 61, verify 4, done 2
+- 65 TUs: todo 60, partial 1, verify 4, done 2
 - next: **ga/gaInitDrawObject.c** (pinned in the queue)
 - pinned queue: ga/gaInitDrawObject.c, game/gaInitMeter.c, game/ahalloc.c, game/sound.c, game/Character_Init.c, game/ArtoolDebugOpen.c, game/main2.c, game/fileio.c
+- partial: `ga/gaInitDrawObject.c` 21/24 -- Slice 2: gaSetupTBufferData (0x5f0), gaBGT_SetLoadGSEnv, gaBGT_LoadGSTexClutData_VIF1 (no caller a smoke run reaches yet). Shot black as before: the packets go 
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaInitInterrupt.c` 3/3 -- GCC object; wait_vsync_state (data 0x0192e790), ga_main_timer, ga_down_timer defined here. gaWaitVSync takes no argument and returns the CSR FIELD bit; main.c c
 - verify: `ga/gaVifInit.c` 6/6 -- GCC object. VIF0/VIF1 STAT are host variables that read idle (sdk/eeregs.h), so the polls return at once and main frame loop passes the FLUSH wait. gaDmaSendN_V
@@ -80,6 +81,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-09 21:42 `ga/gaInitDrawObject.c` partial: slice 1: 21 of 24 functions -- the ga packet builders (gsinit, dbuffer with its 14 values, drawctrl with GA_DRAWCTRL_ARGS fields named, fogctrl), the scratchpad
 - 2026-11-09 21:11 `ga/gaVifInit.c` verify: gaVifInit, gaVUSync_VU0, gaVifcodeFlush_VIF1, gaVifcodeFlushe_VIF1, gaVIFSync_VIF0, gaVIFSync_VIF1 and the 18 vifcode qwords of .data 0x0192e640..0x0192e790 rec
 - 2026-11-09 20:50 `ga/gaDma.c` verify: ga DMA wrappers: all 16 functions; host scratchpad buffer, libdma SPR transfers, D_CTRL and D_ENABLEW registers
 - 2026-11-09 20:31 `sdk/libmc.cpp` done: the real memory card: io::MemoryCards (RosePan libmc as a class, folders memcard/mc<port>-<slot>/, the async sceMcSync handshake kept) behind every sceMc entry 
@@ -87,18 +89,17 @@ Recent sessions:
 - 2026-11-09 19:50 `game/main.c` verify: main.c slice 7: main_rtn_Particle2 (the second particle list: ring records placed at their model part position plus an offset, w scaled around 128); PARTICLE2_E
 - 2026-11-09 19:39 `game/main.c` partial: main.c slice 6: scene_init (a bank's set-up after load: BaseobjCount / pModelPartsHeader / pBehaviorHeader / FogCtrlAddr from ALL_TABLE +0x14 / +0x2c / +0xbc / 
 - 2026-11-09 19:28 `game/main.c` partial: main.c slice 5: AllDrawObject (the scene draw: banks, sorted characters, mirrors, translucent banks, particles, translucent and ghost characters), ssHQDOF_DrawA
-- 2026-11-09 19:11 `game/main.c` partial: main.c slice 4: DrawObjectRefraction (the refraction pass over type-1 banks 6..85 and refracting characters) and main_rtn_DOF (main_rtn for one depth-of-field s
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
 | `game/QuatSlerp.c` | todo | 0/30/177 | 50.3 | 151 | 14 |
-| `ga/gaInitDrawObject.c` | todo | 0/13/24 | 5.5 | 126 | 11 |
 | `game/Clipping_Portal.c` | todo | 0/31/73 | 44.8 | 113 | 12 |
-| `game/ahRelocateSunPs2ObjectArry.c` | todo | 0/28/93 | 76.0 | 82 | 9 |
 | `game/ssGrpPortalCheck.c` | todo | 0/10/59 | 26.4 | 82 | 7 |
+| `game/ahRelocateSunPs2ObjectArry.c` | todo | 0/28/93 | 76.0 | 82 | 9 |
 | `game/wideXcmd_DebugPrint.c` | todo | 0/12/109 | 40.6 | 80 | 12 |
 | `game/ssSetTexUVforCubeMap.c` | todo | 0/30/96 | 35.3 | 64 | 5 |
 | `game/asEyeForcusUP2CamMat.c` | todo | 0/7/30 | 23.6 | 39 | 4 |
+| `ga/gaDmaSync_VIF1.c` | todo | 0/3/5 | 0.5 | 31 | 3 |
 | `game/fileio.c` | todo | 0/7/40 | 23.3 | 31 | 3 |
 | `game/Character_Init.c` | todo | 0/5/49 | 30.6 | 25 | 3 |
 | `game/main2.c` | todo | 0/5/18 | 6.2 | 21 | 3 |
@@ -109,21 +110,17 @@ Recent sessions:
 | CT3 addr | name | call sites | provenance | state | inferred file |
 |---|---|---|---|---|---|
 | `018d9470` | ssTrigSetVariable | 16 | sym | stub | game/ssGrpPortalCheck.c |
-| `018a3000` | gaBGT_End | 14 | sym | stub | ga/gaInitDrawObject.c |
-| `018a2f30` | gaBGT_Start | 14 | sym | stub | ga/gaInitDrawObject.c |
 | `01886690` | asChangeViewMatrix_forTheBank | 12 | sym | stub | game/asEyeForcusUP2CamMat.c |
 | `0185e360` | asCheckBankID | 11 | sym | stub | game/QuatSlerp.c |
-| `018a22c8` | gaSetupFogCtrlData | 11 | sym | stub | ga/gaInitDrawObject.c |
 | `018d9100` | ssTrigCheckEvent | 10 | sym | stub | game/ssGrpPortalCheck.c |
-| `018a22b0` | gaBGT_ExecDrawCtrlData_VIF1 | 9 | sym | stub | ga/gaInitDrawObject.c |
 | `018d95e0` | ssTrigRegisterEvent | 9 | sym | stub | game/ssGrpPortalCheck.c |
 | `0188ced0` | tiDrawShadingOff | 9 | sym | stub | game/Clipping_Portal.c |
+| `018a17f8` | gaBGT_DmaSendN_fromSPR_VIF1 | 8 | sym | stub | ga/gaDmaSync_VIF1.c |
 | `01893cf0` | ExportDrawToTex | 8 | sym | stub | game/Clipping_Portal.c |
 | `01858c90` | XcmdScreenFilter | 8 | sym | stub | game/QuatSlerp.c |
 | `018a7db8` | gaSet3dlibStruct | 7 | sym | stub | ga/gaInit3dlib.c |
 | `0185e380` | asCheckBankType | 6 | sym | stub | game/QuatSlerp.c |
 | `01854560` | tnInit3dlibWork | 6 | sym | stub | game/QuatSlerp.c |
-| `018a2358` | gaBGT_ExecFogCtrlData_VIF1 | 6 | sym | stub | ga/gaInitDrawObject.c |
 | `018a3078` | gaObjectClippingCheck | 6 | sym | stub | ga/gaObjectClippingCheck.c |
 | `018590b0` | sunBGT_LoadGSTexClutData_VIF1 | 6 | sym | stub | game/QuatSlerp.c |
 | `01859520` | sunBGT_ExecTBufferData_VIF1 | 6 | sym | stub | game/QuatSlerp.c |
@@ -138,14 +135,18 @@ Recent sessions:
 | `01889cd0` | Clipping_Portal | 4 | sym | stub | game/Clipping_Portal.c |
 | `01858f20` | OneMaxObjectDrawZOnly | 4 | sym | stub | game/QuatSlerp.c |
 | `018a3d20` | gaBGT_DrawObject_NoClippingCheck2 | 4 | sym | stub | ga/gaBGT_DrawObject.c |
-| `018a1fd8` | gaSetupDrawCtrlData | 4 | sym | stub | ga/gaInitDrawObject.c |
+| `018a1778` | gaDmaSendN_VIF1 | 4 | sym | stub | ga/gaDmaSync_VIF1.c |
+| `018a1740` | gaDmaSync_VIF1 | 4 | sym | stub | ga/gaDmaSync_VIF1.c |
 | `018db340` | asXcmd_AddForLockToTargChara | 3 | sym | stub | game/asXcmd.c |
 | `0188df70` | tiDrawLensFlares | 3 | sym | stub | game/Clipping_Portal.c |
 | `01853620` | PanicFilter | 3 | sym | stub | game/QuatSlerp.c |
 | `018b4480` | SceneLightSet | 3 | sym | stub | game/Character_Init.c |
-| `018a1f60` | gaBGT_ExecDBufferData_VIF1 | 3 | sym | stub | ga/gaInitDrawObject.c |
-| `018a2e70` | gaBGT_ExecDrawCommandData_VIF1 | 3 | sym | stub | ga/gaInitDrawObject.c |
 | `0188cdc0` | tiVibrationOff | 3 | sym | stub | game/Clipping_Portal.c |
 | `018f4fc0` | asCharacterOperate | 3 | sym | stub | game/wideXcmd_DebugPrint.c |
 | `018fb940` | asMonsterDistanceStack_inPanic | 3 | sym | stub | game/wideXcmd_DebugPrint.c |
+| `0183d9e0` | CheckAllocNum0 | 3 | sym | stub | game/ahalloc.c |
+| `0185e580` | ahGetHash | 3 | sym | stub | game/QuatSlerp.c |
+| `0185e150` | asFindModelPartsID | 3 | sym | stub | game/QuatSlerp.c |
+| `018b49f0` | CharLightSet | 3 | sym | stub | game/Character_Init.c |
+| `018fe370` | asSetCharacterKeyEnable | 3 | sym | stub | game/wideXcmd_DebugPrint.c |
 

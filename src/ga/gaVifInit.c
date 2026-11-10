@@ -14,22 +14,8 @@
 #include "sdk/eeregs.h"
 #include "sdk/libgraph.h"
 
-#define VC(cmd, num, imm) SCE_VIF1_SET_CODE(imm, num, cmd)
-#define VC_NOP 0u
-#define VC_MSCAL(addr) VC(SCE_VIF1_MSCAL, 0, addr)   /* run the VU microprogram at addr (8-byte units) */
-#define VC_MSCNT VC(SCE_VIF1_MSCNT, 0, 0)            /* continue the VU microprogram after its [E] stop */
-#define VC_FLUSH VC(SCE_VIF1_FLUSH, 0, 0)            /* wait for the VU and PATH1 / PATH2 */
-#define VC_FLUSHE VC(SCE_VIF1_FLUSHE, 0, 0)          /* wait for the VU microprogram to end */
 #define VC_STCYCL_1_1 VC(SCE_VIF1_STCYCL, 0, 0x0101) /* CL 1, WL 1: unpack writes every qword */
 #define FLOAT_BITS_ONE 0x3f800000u                   /* 1.0f, STROW's fill value */
-
-// MSCAL addresses of the ga renderer's VU microprogram entries.
-#define VU_MPG_ENTRY_0000 0x0000
-#define VU_MPG_ENTRY_0002 0x0002
-#define VU_MPG_ENTRY_0004 0x0004
-#define VU_MPG_ENTRY_0006 0x0006
-#define VU_MPG_ENTRY_0008 0x0008
-#define VU_MPG_ENTRY_000A 0x000a
 
 #define MSKPATH3_IMM 1 /* the ROM's immediate: bit 15 clear, so PATH3 is left unmasked */
 

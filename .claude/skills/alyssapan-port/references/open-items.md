@@ -46,8 +46,8 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    `ssHQDOF_DrawAllObject`, `main_rtn_GHOST`, `main_rtn_GHOST_DOF`; slice 6 (2026-11-09): `scene_init`
    (ALL_TABLE +0x14 / +0xb8 / +0xbc, `DRAW_OBJ_ENTRY.drawCtrlArgs`, `GA_DRAWCTRL_ARGS` and `TEX_INFO`
    passed by value, hazards.md); slice 7 (2026-11-09): `main_rtn_Particle2` -- **main.c's code is complete (verify: the shot stays black until main2 loads a bank)**. Open from slice 7: (t) `PARTICLE2_ENTRY` / `PARTICLE2` (ct3_types.h) are named from this one use (ring of 0x80-byte records at +0x5c, count +0x46, head +0x48; record +0x20 offset qword whose w scales the part's w around 128, +0x68 the draw object); the particle TU confirms them. Open from
-   slice 6: (q) `gaSetupDBufferData` takes 14 argument slots, FirstInitialization passes 7 (hazards.md):
-   fix with gaInitDrawObject.c's TU; (r) `BANK_TYPE_0` (type 0 takes the fog record) and
+   slice 6: ~~(q) `gaSetupDBufferData` takes 14 argument slots~~ fixed 2026-11-09 (gaInitDrawObject.c
+   slice 1); (r) `BANK_TYPE_0` (type 0 takes the fog record) and
    `PARTS_HEADER_ANIMATED` (the parts header's first byte == 1) are named from one use; type 1's fog
    colour clears the frame, so `BANK_TYPE_SHADOW` is likely the stage bank (with (j)); (s)
    `PARTICLE_ENTRY.drawCtrlId` (+4) is probably a `GA_DRAWCTRL_ARGS *` like the draw list's (not
@@ -86,7 +86,9 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    its function is written; (e) main.c's .sbss run is a placement guess (architecture.md).
    **Queue refilled 2026-11-09 (scheduled run, the queue was empty)** in the order the smoke run reaches
    the stubs: ~~ga/gaDma.c~~ (verify), ~~ga/gaVifInit.c~~ (verify; its calls made ga/gaDmaSync_VIF1.c's
-   gaDmaSendN_VIF1 / gaDmaSync_VIF1 stubs: that hand-asm object is a small TU worth queueing next), ga/gaInitDrawObject.c, game/gaInitMeter.c,
+   gaDmaSendN_VIF1 / gaDmaSync_VIF1 stubs: that hand-asm object is a small TU worth queueing next), ga/gaInitDrawObject.c
+   (partial 2026-11-09: slice 1, 21 of 24 functions; slice 2 = gaSetupTBufferData, gaBGT_SetLoadGSEnv,
+   gaBGT_LoadGSTexClutData_VIF1, the texture upload), game/gaInitMeter.c,
    game/ahalloc.c, game/sound.c, game/Character_Init.c, game/ArtoolDebugOpen.c, game/main2.c,
    game/fileio.c.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
@@ -184,6 +186,17 @@ apply here):
   host (no MFIFO); read sceDmaPutEnv (0x01811b78) when the BGT ring buffer (gaBGT_*) TU needs it.
 - (2026-11-09, ga/gaDma.c) The host's `sceDmaSend` (chain) does nothing on any channel, toSPR included.
   If a TU chains packets into the scratchpad (gaDmaSendS_toSPR has no caller yet), libdma must walk tags.
+
+- (2026-11-09, ga/gaInitDrawObject.c) gaSetupDrawCtrlData adds its 27th word at bit 15 of TEX1_1, where
+  the GS has nothing (L is bits 19..20): kept as the ROM does it (`GA_DRAWCTRL_ARGS.tex1Bit15`). Does the
+  ga library mean L there (a bug in the game, harmless while the word is 0), or another register?
+- (2026-11-09, ga/gaInitDrawObject.c, Claude's call) The scratchpad keeps its EE layout and its address
+  words hold EE addresses (u_int): +0x14 `ga_div_redraw_gspacket_work | 0x20000000`, +0xec the 3dlib work
+  (0x70000400), +0xf0 the BGT packet area (0x70000a00). A host reader maps a scratchpad address with
+  SCRATCHPAD(ee - SCRATCHPAD_EE_BASE); `ga_div_redraw_gspacket_work` (bss 0x01957e40, 0xb0000 bytes) has no
+  host definition yet: its reader's TU adds it and the mapping (with the BankEePtr precedent, (h)).
+- (2026-11-09, ga/gaInitDrawObject.c) GA_SPR_WORK's floats from the 3dlib work are named by index
+  (`work21`, `work23x16`...): name them when gaSet3dlibStruct's TU names ga3dlibwork's fields.
 
 ## Done
 

@@ -71,6 +71,9 @@ int gArgc;                                      /* sbss 0x01942b44 */
 #define HEAP_NAME_GLOBAL "GLBL"
 
 #define BGT_RINGBUFFER_SIZE 0x8000
+#define FRAME_WIDTH 512                       /* the draw buffers: 512 x 448 (the ROM's 0x200, 0x1ff, 0x1bf) */
+#define FRAME_HEIGHT 448
+#define ZBUF_PSMZ32 0                         /* ZBUF's PSM field holds PSMZ32's low 4 bits */
 #define SPR_3DLIB_WORK SCRATCHPAD(0x400)      /* ga3dlibwork's copy in the scratchpad (EE 0x70000400) */
 #define SPR_3DLIB_WORK_QWC 0x40
 
@@ -86,7 +89,12 @@ int gArgc;                                      /* sbss 0x01942b44 */
 #define DRAW_CTRL_NONE ((GA_DRAWCTRL_ARGS *)-1) /* main_rtn's "no draw control yet" (the ROM's -1) */
 // FirstInitialization's frame-clear draw control (the ROM's 29 argument slots, 0x01835708).
 static const GA_DRAWCTRL_ARGS FRAMECLEAR_DRAWCTRL_ARGS = {
-    {0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0}, 0};
+    0, 0, 0, 1, 0, 0, 0, 0, /* PRMODE: ABE */
+    0, 1, 0, 0, 0, 0, 1, 1, /* TEST_1: ATST 1, ZTE, ZTST 1 */
+    0, 1, 0, 1, 0,          /* ALPHA_1: A 0, B 1, C 0, D 1 */
+    0,                      /* FBA_1 */
+    0, 0, 1, 1, 0, 0,       /* TEX1_1: MMAG 1, MMIN 1 */
+    0};                     /* TEXA */
 #define SCENE_INIT_LISTS 3                      /* scene_init: objTrans, objOpaque, objAfter */
 #define PARTS_HEADER_ANIMATED 1                 /* scene_init: the parts header's first byte: restart
                                                    the scene's behaviour animations (name from that use) */
@@ -146,7 +154,12 @@ enum DEMO_SKIP {                                /* DEMO_SKIP_FLAG: the demo skip
 
 // gaSetupDrawCtrlData's settings for every ghost part (the ROM's 29 argument slots, 0x01834fd8).
 static const GA_DRAWCTRL_ARGS GHOST_DRAWCTRL_ARGS = {
-    {1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 0, 3, 0, 0, 1, 2, 2, 2, 2, 0, 0, 0, 1, 2, 1, 1, 0, 0}, 0};
+    1, 1, 1, 1, 0, 0, 0, 0, /* PRMODE: IIP, TME, FGE, ABE */
+    1, 1, 0, 3, 0, 0, 1, 2, /* TEST_1: ATE, ATST 1, AFAIL 3, ZTE, ZTST 2 */
+    2, 2, 2, 0, 0,          /* ALPHA_1: A 2, B 2, C 2, D 0 */
+    0,                      /* FBA_1 */
+    1, 2, 1, 1, 0, 0,       /* TEX1_1: LCM, MXL 2, MMAG 1, MMIN 1 */
+    0};                     /* TEXA */
 
 void main_rtn_GHOST_DOF(int bank, int mode, int chara, int pass, int charaIndex, void **lastTex)
 {
@@ -416,9 +429,11 @@ void FirstInitialization(void)
     SunAllocInit(&gHeapJunc, gJuncAllocArea, sizeof gJuncAllocArea, HEAP_NAME_JUNC);
     SunAllocInit(&gHeapSound, gSoundAllocArea, sizeof gSoundAllocArea, HEAP_NAME_SOUND);
     SunAllocInit(&gHeapGlobalScene, gGlobalBankArea, 0x300000, HEAP_NAME_GLOBAL);
-    gaSetupDBufferData(&drawbuffer_frameclear, 0, 0x200, 0, 0, 0, 0, 0);
+    gaSetupDBufferData(&drawbuffer_frameclear, 0, FRAME_WIDTH, SCE_GS_PSMCT32, 0, 0, ZBUF_PSMZ32, 0, 0, 0,
+                       FRAME_WIDTH - 1, FRAME_HEIGHT - 1, 0, 0, 0);
     gaSetupDrawCtrlData(&drawctrl_frameclear, FRAMECLEAR_DRAWCTRL_ARGS);
-    gaSetupDBufferData(&drawbuffer_0, 0, 0x200, 0, 0, 0, 0, 0);
+    gaSetupDBufferData(&drawbuffer_0, 0, FRAME_WIDTH, SCE_GS_PSMCT32, 0, 0, ZBUF_PSMZ32, 0, 0, 0,
+                       FRAME_WIDTH - 1, FRAME_HEIGHT - 1, 0, 0, 0);
     DemoFilterChangeWork.active = 0;
     SkipMain = 4;
     DemoSkip = 0;
@@ -1900,7 +1915,7 @@ int main(int argc, char **argv)
             gaInitDrawObject();
             gaDmaSendN_toSPR(SPR_3DLIB_WORK, ga3dlibwork, SPR_3DLIB_WORK_QWC, 0);
             gaDmaSync_toSPR();
-            gaInit3dlibWork(SPR_3DLIB_WORK);
+            gaInit3dlibWork((float *)SPR_3DLIB_WORK);
             gaSetZRollMatrix(0);
 
             // ---- animation and shadows ---------------------------------------------------------
