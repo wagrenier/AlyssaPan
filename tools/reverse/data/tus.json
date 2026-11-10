@@ -1,5 +1,7 @@
 {
- "queue": [],
+ "queue": [
+  "ga/gaSinCos.c"
+ ],
  "settings": {
   "data_dir": "C:/Users/willi/Documents/Decomp/Clocl Tower 3",
   "frontier_ignore": [],
@@ -74,12 +76,21 @@
    "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 6 unkeyed; file name from the names"
   },
   "ga/gaInit3dlib.c": {
+   "notes": "15 s smoke run: no fault, shot black (no host draw module). gaMulMatrix is dst = b * a (hazards.md). gaSetZRollMatrix now reaches gaSinCos: ga/gaSinCos.c is queued next. Open (gc)..(gf) in open-items.md: GA_SCREEN_* and GA_3DLIB_WORK names from one use, GA_LIGHT_WORK +0..0xf unread, gaContMulMatrix records host layout, gaCopyObject a ROM no-op, two unnamed dead blocks at 0x018a77a8 and 0x018a7808.",
    "ranges": [
     [
      "018a7700",
      "018a85c8"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-10 12:58",
+     "status": "verify",
+     "summary": "all 25 functions from the disassembly: VU0 vector and matrix helpers, gaContMulMatrix (VU0 micro routines 0 and 0x10), gaSet3dlibStruct (GA_3DLIB_WORK), gaSetLight (GA_LIGHT_WORK dirView and omniView), gaSetZRollMatrix"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 25 unkeyed; file name from the names"
   },
   "ga/gaInitDrawObject.c": {

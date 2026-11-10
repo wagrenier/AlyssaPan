@@ -697,6 +697,21 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    asInitPlayerBehaviorControler gives the word its host form and both helpers become one; (gb)
    GetAreaFloor's 1C02 branch has no else (from a room other than 1C01 / 1C04 the flags stay), read from
    the decompilation and the callee order, not stepped; the PASS2 / PASS3 names stay as GetAreaNumber's.
+   **Queue refilled 2026-11-10 (scheduled run, the queue was empty)** in the order the smoke run reaches
+   the stubs: ga/gaInit3dlib.c (gaSet3dlibStruct, gaMulMatrix, gaInit3dlib, gaSetZRollMatrix,
+   gaInversMatrix, gaSetLight all reached at boot or every frame), then ga/gaSinCos.c.
+   **ga/gaInit3dlib.c (verify, 2026-11-10): all 25 functions** from the disassembly (architecture.md "The
+   3D library"; hazards.md: gaMulMatrix is dst = b * a). A 15 s smoke run: no fault, shot black (no host
+   draw module); gaSetZRollMatrix now reaches **gaSinCos (ga/gaSinCos.c, a stub: the next TU, queued)** --
+   with gaSetRotMatrixX/Y/Z, gaSetPointLight, gaContApplyMatrix it is the rest of the ga math. Open:
+   (gc) GA_3DLIB_WORK's and screen_0's names (GA_SCREEN_*: offsets, centre, scale, near / far, [11]) are
+   read from gaSet3dlibStruct's arithmetic only; the side-plane order (left, right, top, bottom) follows
+   the signs -- the clipper (Clipping_Portal.c / the VU1 program) confirms; (gd) GA_LIGHT_WORK +0x00..0x0f
+   is still unread; (ge) gaContMulMatrix's records are host layout (three pointers; 0xc bytes in the ROM)
+   because it has no ROM caller; gaCopyObject is kept as the ROM's no-op; the two unnamed blocks at
+   0x018a77a8 / 0x018a7808 are dead and not written (named nowhere: no symbol, no Ghidra function);
+   (gf) gaSetZRollMatrix returns early (PORT) when GA_SPR_WORK.work3dlibEE is not a scratchpad address --
+   the ROM would read EE memory there; boot sets it to 0x70000400 before any frame.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
    class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~

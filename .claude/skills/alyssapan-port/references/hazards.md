@@ -7,6 +7,15 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-10, gaInit3dlib.c) **gaMulMatrix(dst, a, b) is dst = b * a, not a * b**: the ROM loads a's rows
+  into vf4..vf7 and runs b's rows through them (row vectors on the left). The old header comment said
+  "dst = a * b"; every caller written so far (ahRelocateSunPs2ObjectArry.c, Character_Init.c) passes its
+  arguments as the ROM does, so nothing changes there, but read new call sites with this order. Also:
+  mipsdis.py prints VU registers in lqc2 / sqc2 / qmfc2 with GPR names (at = vf1, v0 = vf2, a0 = vf4,
+  t0 = vf8, s0 = vf16); gaCopyObject is a ROM no-op (use gaCopyObject2); gaDivVector's w is (a.z / b.z) /
+  b.w (the ROM divides the already-divided z); VDIV / VRSQRT by zero answer +-FLT_MAX (VuDiv / VuRsqrt in
+  gaInit3dlib.c).
+
 - (2026-11-10, QuatSlerp.c slice 7) **The decompiler drops arguments left in registers by an earlier
   test, and extra arguments in t0**: asMakeWatchMeMatrixToPosition's mode-1 asRadianByO call has no a1
   in the decompile (the `li a1,0x2` of the mode-2 test sits before the branch: axis 2); ExecuteWarpObject2

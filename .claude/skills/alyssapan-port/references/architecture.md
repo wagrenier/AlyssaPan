@@ -277,6 +277,37 @@ the TU map's evidence.
   / 1 CLUT env / REF, 2 / 3 level env / REF, 0xf TEXFLUSH), `gaBGT_SetLoadGSEnv`'s 7 qwords (BITBLTBUF,
   TRXPOS, TRXREG, TRXDIR 0, IMAGE tag; returns the image's qwords by PSM), then a REF tag to the data.
 
+## The 3D library, ga/gaInit3dlib.c (2026-11-10)
+
+- A GCC object 0x018a7700..0x018a85c8, 25 symtab functions of VU0 macro code (read from mipsdis.py; the
+  decompiler cannot follow lqc2 / vmula chains), plus two blocks with no symbol, no Ghidra function and
+  no caller at 0x018a77a8 / 0x018a7808 (normalize xyz; the second answers the length): dead code.
+- **Matrix convention**: rows, row vectors on the left (v * M = x * M[0] + y * M[1] + z * M[2] + w *
+  M[3]). `gaMulMatrix(dst, a, b)` is **dst = b * a** (each row of b through a); gaRotMatrixX/Y/Z(dst,
+  angle, src) = src * R(angle); gaRotMatrixXYZ(dst, angles, src) = src * SetRotMatrixXYZ(angles).
+  SetRotMatrixXYZ builds Z(angles[2]) * Y(angles[1]) * X(angles[0]) by right-multiplication; the ROM's
+  SetRotMatrixZYX starts from **gaSetRotMatrixX(angles[2])**, then Y(angles[1]), then Z(angles[0]).
+- `gaInversMatrix` is the rigid inverse (3x3 transposed by MMI PEXTLW / PEXTUW / PCPYLD / PCPYUD, rows'
+  w 0; row 3 = -(t * R^T) with t's w kept). `gaContMulMatrix(recs, n)` runs the VU0 micro routines 0x000 /
+  0x010 (`vudis.py 18fe500 f3 0 10`: the same product as gaMulMatrix) over 0xc-byte {dst, a, b} records,
+  pipelined so record i + 1 is loaded before record i is stored. `gaInit3dlib` DMAs that microprogram
+  (0x018fe500, 0xf3 qwords) to VIF0; the host sends a zeroed stand-in and does the products natively.
+- **The 3dlib work** (`GA_3DLIB_WORK`, gaInit3dlib.h; ga3dlibwork, main's per-frame copy to 0x70000400):
+  gaSet3dlibStruct(clipZ, work, drawbuffer, fogctrl, screen) writes 0x74 bytes: screen W / H and scales,
+  zMax by ZBUF.PSM (Z32 4294967040, Z24 16777215, else 65535), the projection distance, the fog floats,
+  near / far, the four side planes (secant sqrt(t^2 + d^2) / d at +0x30, tangent +-t / d at +0x40, order
+  left, right, top, bottom with t = cx / sx, (w - cx) / sx, (h - cy) / sy, cy / sy), Z and fog scales,
+  the subpixel scales (+-16) and the GS offsets ((ofs + 2048 + centre) * 16). screen_0's twelve floats
+  are named GA_SCREEN_* from this use.
+- **gaSetLight(lightWork, view)**: GA_LIGHT_WORK +0x10 `dirView` = the four directional lights (dirPos)
+  under the view's rotation (row 3's xyz cleared), stored as columns, rows x, y, z, -w; +0x50 `omniView`
+  = the four point lights' xyz under the whole view, columns, row 3 = their own w. The point-light
+  products reuse one qword whose w carries over (0 while the view's w column is 0, 0, 0, 1).
+- **gaSetZRollMatrix(roll)**: a 2x2 rotation by roll scaled by the work's scaleX / scaleY (read through
+  GA_SPR_WORK.work3dlibEE) into the scratchpad at 0x70000300 ([0] c * sx, [1] s * sy, [4] -s * sx, [5] c *
+  sy), for the VU1 renderer. gaCopyObject (0x018a8140) is a no-op in the ROM (it stores into its own stack
+  copy); gaCopyObject2 is the copy the game uses.
+
 ## SunAlloc, game/ahalloc.c (2026-11-09)
 
 - The game's heaps: `SUN_HEAP` (EE 0x34 bytes; +0 name, +4 area size, +8 first block, +0xc blocks in use,

@@ -247,14 +247,21 @@ static_assert(offsetof(LIGHT_SET, omniList) == 0x10, "LIGHT_SET.omniList");
 #define LIGHT_ACTRESS_FALLOFF 300.0f    /* CharLightSet, actress lighting: w' = 1 / (1 / w + 300) */
 
 // The light block gaSetLight reads (MODEL_PARTS.attr's EE address: the part's draw object attribute).
-// layout: ee. Only the fields SceneLightSet / CharLightSet write; gaInit3dlib.c owns the rest.
+// layout: ee. The fields SceneLightSet / CharLightSet write, and what gaSetLight builds from them
+// (gaInit3dlib.c, 2026-11-10); +0x00..0x0f unread so far.
 typedef struct GA_LIGHT_WORK {
-    u_char pad000[0x90];
+    u_char pad000[0x10];
+    float dirView[4][LIGHT_SLOTS];      /* 0x010: gaSetLight: dirPos[] under the view's rotation, one
+                                           column per light, rows x, y, z, -w */
+    float omniView[4][LIGHT_SLOTS];     /* 0x050: gaSetLight: omniPos[].xyz under the view, one column
+                                           per light, rows x, y, z, then omniPos[].w unchanged */
     float dirColor[LIGHT_SLOTS][4];     /* 0x090: from MODEL_PARTS.lightColor */
     float omniColor[LIGHT_SLOTS][4];    /* 0x0d0 */
     float dirPos[LIGHT_SLOTS][4];       /* 0x110: from MODEL_PARTS.lightPos */
     float omniPos[LIGHT_SLOTS][4];      /* 0x150: off = (0, 0, 0, 1) */
 } GA_LIGHT_WORK;
+static_assert(offsetof(GA_LIGHT_WORK, dirView) == 0x010, "GA_LIGHT_WORK.dirView");
+static_assert(offsetof(GA_LIGHT_WORK, omniView) == 0x050, "GA_LIGHT_WORK.omniView");
 static_assert(offsetof(GA_LIGHT_WORK, dirColor) == 0x090, "GA_LIGHT_WORK.dirColor");
 static_assert(offsetof(GA_LIGHT_WORK, omniColor) == 0x0d0, "GA_LIGHT_WORK.omniColor");
 static_assert(offsetof(GA_LIGHT_WORK, dirPos) == 0x110, "GA_LIGHT_WORK.dirPos");
