@@ -416,7 +416,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 129..129, 4 functions keyed by their statics, 5 unkeyed; file name from the names"
   },
   "game/QuatSlerp.c": {
-   "notes": "15 s smoke run: no fault, shot black (no host draw module yet). callcheck clean, layoutcheck OK. Open-items 1 (fu)..(fw): flags43 = 3 is an assignment; asFindMotionID left (CHARACTER +0x350 motion table, host form undecided); asObjectRotate uses the unit matrix for a bad axis. Next in this TU: TexFileSetInit (reached; FSLoads DATA/IMG pages into EE buffer addresses and patches TEX records: decide the host texture path first), TexFileSetNext and TexFileSetPage with their tnTrig wrappers, GetAreaFloor, asFindMotionID.",
+   "notes": "15 s smoke run: no fault, shot black (no host draw module yet). callcheck clean (the page steps are static helpers, explained), layoutcheck OK. Open-items 1 (fx)..(fz): the ROM ring bound and last-set fallback kept; tnTrigTexFileSetPage argument roles from its body; page files are raw level-0 pixels into bank buffers, check once a DATA/IMG file is decoded. Left in this TU: GetAreaFloor, asFindMotionID.",
    "ranges": [
     [
      "01851bf0",
@@ -468,6 +468,11 @@
      "date": "2026-11-10 11:54",
      "status": "partial",
      "summary": "slice 9: the letterbox requests (VistaVisionStart, VistaVisionEnd), PlayerDamage, asObjectRotate (MODEL_PARTS.placeRot named), asPosRUF2ViewMatrix and asCamRUF2ViewMatrix, asRadianByVectors and asRadianByPositions_Rorate, asISubRotate16, asVectorLength1D and 2D, asVectorDistance2, LowerCase, absf, tnRand, rnd and rndf; three Ghidra loop splits named _body"
+    },
+    {
+     "date": "2026-11-10 12:14",
+     "status": "partial",
+     "summary": "slice 10: the paged textures (TexFileSetInit, TexFileSetNext, TexFileSetPage, tnTrigTexFileSetNext and Page; ALL_TABLE.texFileSet and the TEX_FILE_SET tables named, page_set)"
     }
    ],
    "status": "partial",

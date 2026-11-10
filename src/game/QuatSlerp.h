@@ -194,7 +194,50 @@ int sunBGT_SetLoadGSEnv(GA_LOADENV *env, u_int dbp, u_int dbw, u_int dpsm, u_int
                         int rrh);                                                        // CT3 0x01859390
 void sunBGT_ExecTBufferData_VIF1(void *tbuffer);                                        // CT3 0x01859520
 void sunSetupTBufferData(void *tbuffer, TEX_INFO tex);                                   // CT3 0x01859530 (tex by value, 0x2c bytes)
+// The paged textures (ALL_TABLE.texFileSet; relocated by ahRelocateFileObject): a part's texture whose
+// pixels come one page at a time from DATA/IMG/ files (or packed slide data in the bank) into a ring of
+// buffers inside the bank; the page shown is patched into the part's SUN_TEX_ATTR. layout: ee.
+typedef struct TEX_FILE_SET_TABLE {
+    u_int sets;                         /* 0x00: TEX_FILE_SET[], ended by parts == 0 */
+    u_int files;                        /* 0x04: TEX_FILE_LIST[], ended by count == -1 */
+    u_int buffers;                      /* 0x08: TEX_PAGE_BUFFERS[], ended by count == -1 */
+} TEX_FILE_SET_TABLE;
+static_assert(sizeof(TEX_FILE_SET_TABLE) == 0xc, "TEX_FILE_SET_TABLE");
+typedef struct TEX_FILE_SET {
+    u_int parts;                        /* 0x00: int[] of MODEL_PARTS indices, ended by -1; [0] is the
+                                           part TexFileSetInit patches, any one names the set */
+    int slide;                          /* 0x04: 0 = pages are file names (FSLoad), else slide data */
+    int page;                           /* 0x08: the page shown */
+    int files;                          /* 0x0c: index into the TEX_FILE_LIST array */
+    int buffers;                        /* 0x10: index into the TEX_PAGE_BUFFERS array */
+} TEX_FILE_SET;
+static_assert(sizeof(TEX_FILE_SET) == 0x14, "TEX_FILE_SET");
+typedef struct TEX_FILE_LIST {
+    int count;                          /* 0x00: pages */
+    u_int pages;                        /* 0x04: u_int[count]: EE address of each page's file name
+                                           (slide sets: of its packed data) */
+} TEX_FILE_LIST;
+static_assert(sizeof(TEX_FILE_LIST) == 8, "TEX_FILE_LIST");
+typedef struct TEX_PAGE_BUFFERS {
+    int count;                          /* 0x00: 1, 2 (double buffer) or a ring centred on the page */
+    u_int slots;                        /* 0x04: TEX_PAGE_SLOT[count] */
+} TEX_PAGE_BUFFERS;
+static_assert(sizeof(TEX_PAGE_BUFFERS) == 8, "TEX_PAGE_BUFFERS");
+typedef struct TEX_PAGE_SLOT {
+    int handle;                         /* 0x00: FSLoad's handle while loading, TEX_PAGE_IDLE after */
+    u_int mipData[SUN_MIP_LEVELS];      /* 0x04: -> SUN_TEX_ATTR.mipData; [0] is the buffer itself */
+    u_int clut;                         /* 0x14: -> the SUN_TEX_ATTR's first CLUT address */
+} TEX_PAGE_SLOT;
+static_assert(sizeof(TEX_PAGE_SLOT) == 0x18, "TEX_PAGE_SLOT");
+#define TEX_PAGE_IDLE (-1)
+#define TEX_PAGE_DIR "DATA/IMG/"        /* @4243 */
+#define TEX_PAGE_BUFFERS_DOUBLE 2
+
 void TexFileSetInit(int scene);                                                          // CT3 0x01856070
+void TexFileSetNext(int scene, int part, int back);                                      // CT3 0x01855180
+void TexFileSetPage(int scene, int part, int page);                                      // CT3 0x01855b70
+void tnTrigTexFileSetNext(int part, int back, int scene);                                // CT3 0x01855160
+void tnTrigTexFileSetPage(int part, int literal, int a2, int page, int scene);           // CT3 0x01855b10
 void AmbientAlphaInit(int scene);                                                        // CT3 0x01856e70
 // The camera read back from a view matrix (slice 1, 2026-11-10). Any output may be NULL.
 #define FOCAL_LEICA_MM 4.3266616f       /* 0x408a7403 */

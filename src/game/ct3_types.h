@@ -301,7 +301,9 @@ typedef struct ALL_TABLE {
     u_int particles2After;              /* 0x7c: the same, mode 1; non-empty -> ExportDrawToTex */
     u_int distAtten;                    /* 0x80: DIST_ATTEN[] (DistanceAttenuationUpdate), 0 = none */
     u_int angleAtten;                   /* 0x84: ANGLE_ATTEN[] (AngleAttenuationUpdate), 0 = none */
-    u_int pad88[12];
+    u_int pad88;
+    u_int texFileSet;                   /* 0x8c: TEX_FILE_SET_TABLE (QuatSlerp.h: the paged textures), 0 = none */
+    u_int pad90[10];
     u_int fog;                         /* 0xb8: FOG_INFO (scene_init -> FogCtrlAddr, bank types 0 / 1) */
     u_int behavior;                     /* 0xbc: scene_init -> pBehaviorHeader[bank]; the relocator reads
                                            words to 0xe8: the table's end is not known */

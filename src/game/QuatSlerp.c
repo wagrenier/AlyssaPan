@@ -2486,10 +2486,294 @@ void AmbientAlphaInit(int scene)
     memset(&scene_alpha_anim[scene], 0, sizeof(scene_alpha_anim[scene]));
 }
 
-// stub of CT3 0x01856070
+// ---- the paged textures (slice 10) ------------------------------------------------------------------
+// PORT: every word of the table is an EE address inside the scene's bank (the relocator moved them all),
+// read with BANK_PTR; the words copied into the SUN_TEX_ATTR stay EE addresses (sunSetupTBufferData
+// resolves them).
+static char page_set;                           /* sbss 0x0193cb4c: the double buffer's preloaded page is
+                                                   the next one (1) or the previous one (0) */
+
+static const char tex_page_dir[] = TEX_PAGE_DIR; /* @4243 */
+
+// FSLoad page `page` of a set's file list into its buffer slot (page % count); with `cancel`, a load
+// still queued for that slot is cancelled first (TexFileSetNext / Page; TexFileSetInit does not).
+static void TexPageLoad(int scene, const TEX_FILE_LIST *files, TEX_PAGE_SLOT *slot, int page, int cancel)
+{
+    char dir[sizeof(tex_page_dir)];
+    const u_int *pages = BANK_PTR(const u_int *, scene, files->pages);
+
+    memcpy(dir, tex_page_dir, sizeof(dir));
+    if (cancel && slot->handle >= 0)
+        FSLoadCancelQue(slot->handle);
+    slot->handle = FSLoad(dir, BANK_PTR(char *, scene, pages[page]), BANK_PTR(void *, scene, slot->mipData[0]));
+}
+
+static void TexPageWait(TEX_PAGE_SLOT *slot)
+{
+    FSLoadEndWait(slot->handle);
+    slot->handle = TEX_PAGE_IDLE;
+}
+
+// The slide sets: the page's packed data unpacked into its slot.
+static void TexPageThaw(int scene, const TEX_FILE_LIST *files, TEX_PAGE_SLOT *slot, int page)
+{
+    const u_int *pages = BANK_PTR(const u_int *, scene, files->pages);
+    tnSlideThawing(BANK_PTR(const u_char *, scene, pages[page]), BANK_PTR(u_char *, scene, slot->mipData[0]));
+}
+
+// The first draw-list record of part `part` (objTrans, then objOpaque) shows the slot: its texture
+// record's mip levels and first CLUT become the slot's.
+static void TexFileSetPatch(int scene, int part, const TEX_PAGE_SLOT *slot)
+{
+    const ALL_TABLE *tbl = All_table_TBL[scene];
+    int pass, i;
+
+    for (pass = 0; pass < 2; pass++) {
+        const u_int *list = BANK_PTR(const u_int *, scene, pass == 0 ? tbl->objTrans : tbl->objOpaque);
+        for (i = 0; list[i] != 0; i++) {
+            const DRAW_OBJ_ENTRY *e = BANK_PTR(const DRAW_OBJ_ENTRY *, scene, list[i]);
+            if (e->parts == part) {
+                const TEX_INFO *tex = BANK_PTR(const TEX_INFO *, scene, e->tex);
+                SUN_TEX_ATTR *attr = BANK_PTR(SUN_TEX_ATTR *, scene, tex->tim);
+                int l;
+                for (l = 0; l < SUN_MIP_LEVELS; l++)
+                    attr->mipData[l] = slot->mipData[l];
+                *BANK_PTR(u_int *, scene, attr->clutData) = slot->clut;
+                return;
+            }
+        }
+    }
+}
+
+// The ring's first page around `page` (count > 2 buffers): half the ring before it.
+static int TexRingFirst(int page, int count)
+{
+    return page - (count - 1) / 2;
+}
+
+// CT3 0x01856070: a scene's paged textures load their current page (and preload the next one, or the
+// ring around it) and patch it into their part. TexFileSysInitStop set: nothing loads, the slots are
+// only marked idle (the pages are already there), and the stop is cleared.
 void TexFileSetInit(int scene)
 {
-    ALYSSAPAN_STUB("TexFileSetInit", 0x01856070);
+    // callcheck: FSLoad, FSLoadEndWait, tnSlideThawing (the ROM inlines the page steps: TexPageLoad / Wait / Thaw make them)
+    const TEX_FILE_SET_TABLE *tbl = BANK_PTR(const TEX_FILE_SET_TABLE *, scene, All_table_TBL[scene]->texFileSet);
+    TEX_FILE_SET *set;
+
+    if (tbl == NULL)
+        return;
+    if (TexFileSysInitStop == 0) {
+        for (set = BANK_PTR(TEX_FILE_SET *, scene, tbl->sets); set->parts != 0; set++) {
+            int part = *BANK_PTR(const int *, scene, set->parts);
+            const TEX_FILE_LIST *files = BANK_PTR(const TEX_FILE_LIST *, scene, tbl->files) + set->files;
+            const TEX_PAGE_BUFFERS *bufs = BANK_PTR(const TEX_PAGE_BUFFERS *, scene, tbl->buffers) + set->buffers;
+            TEX_PAGE_SLOT *slots = BANK_PTR(TEX_PAGE_SLOT *, scene, bufs->slots);
+
+            if (set->slide == 0) {
+                TEX_PAGE_SLOT *cur = &slots[set->page % bufs->count];
+                TexPageLoad(scene, files, cur, set->page, 0);
+                TexPageWait(cur);
+                if (bufs->count == TEX_PAGE_BUFFERS_DOUBLE) {
+                    int next = set->page + 1;
+                    if (next < files->count)
+                        TexPageLoad(scene, files, &slots[next % 2], next, 0);
+                    page_set = 1;
+                } else if (bufs->count != 1) {
+                    int first = TexRingFirst(set->page, bufs->count), p;
+                    for (p = first; p < bufs->count + first; p++) {
+                        /* the ROM's bound: the last page is never preloaded */
+                        if (p != set->page && p >= 0 && p < files->count - 1)
+                            TexPageLoad(scene, files, &slots[p % bufs->count], p, 0);
+                    }
+                }
+            } else {
+                TexPageThaw(scene, files, &slots[set->page % bufs->count], set->page);
+            }
+            TexFileSetPatch(scene, part, &slots[set->page % bufs->count]);
+        }
+    } else {
+        for (set = BANK_PTR(TEX_FILE_SET *, scene, tbl->sets); set->parts != 0; set++) {
+            const TEX_FILE_LIST *files = BANK_PTR(const TEX_FILE_LIST *, scene, tbl->files) + set->files;
+            const TEX_PAGE_BUFFERS *bufs = BANK_PTR(const TEX_PAGE_BUFFERS *, scene, tbl->buffers) + set->buffers;
+            TEX_PAGE_SLOT *slots = BANK_PTR(TEX_PAGE_SLOT *, scene, bufs->slots);
+
+            if (set->slide != 0)
+                continue;
+            slots[set->page % bufs->count].handle = TEX_PAGE_IDLE;
+            if (bufs->count == TEX_PAGE_BUFFERS_DOUBLE) {
+                if (set->page + 1 < files->count)
+                    slots[(set->page + 1) % 2].handle = TEX_PAGE_IDLE;
+            } else if (bufs->count != 1) {
+                int first = TexRingFirst(set->page, bufs->count), p;
+                if (first < 0)
+                    first = 0;
+                for (p = first; p < bufs->count + first; p++) {
+                    if (p != set->page && p >= 0 && p < files->count - 1)
+                        slots[p % bufs->count].handle = TEX_PAGE_IDLE;
+                }
+            }
+        }
+        page_set = 1;
+        TexFileSysInitStop = 0;
+    }
+}
+
+// The set whose part list holds `part` (TexFileSetPage); NULL when none does.
+static TEX_FILE_SET *TexFileSetFind(int scene, const TEX_FILE_SET_TABLE *tbl, int part)
+{
+    TEX_FILE_SET *set;
+
+    for (set = BANK_PTR(TEX_FILE_SET *, scene, tbl->sets); set->parts != 0; set++) {
+        const int *parts = BANK_PTR(const int *, scene, set->parts);
+        int i;
+        for (i = 0; parts[i] != -1; i++) {
+            if (parts[i] == part)
+                return set;
+        }
+    }
+    return NULL;
+}
+
+// CT3 0x01855180: part's set turns one page forward (back == 0) or back, short of either end. One
+// buffer: the page loads and is waited for. Two: the page is waited for (or loaded when the preload
+// went the other way) and its neighbour in that direction preloads. A ring: the page is waited for and
+// the page half a ring ahead (or behind) preloads. Slide sets unpack the page. Then the part shows it.
+void TexFileSetNext(int scene, int part, int back)
+{
+    // callcheck: FSLoad, FSLoadCancelQue, FSLoadEndWait, tnSlideThawing (the ROM inlines the page steps: TexPageLoad / Wait / Thaw make them)
+    const TEX_FILE_SET_TABLE *tbl = BANK_PTR(const TEX_FILE_SET_TABLE *, scene, All_table_TBL[scene]->texFileSet);
+    TEX_FILE_SET *set, *last = NULL;
+    const TEX_FILE_LIST *files;
+    const TEX_PAGE_BUFFERS *bufs;
+    TEX_PAGE_SLOT *slots;
+    int count;
+
+    if (tbl == NULL)
+        return;
+    set = TexFileSetFind(scene, tbl, part);
+    if (set == NULL) {
+        /* the ROM goes on with the last set it looked at (none: an unset register) */
+        for (set = BANK_PTR(TEX_FILE_SET *, scene, tbl->sets); set->parts != 0; set++)
+            last = set;
+        if (last == NULL)
+            return; /* PORT: the ROM would read garbage */
+        set = last;
+    }
+    files = BANK_PTR(const TEX_FILE_LIST *, scene, tbl->files) + set->files;
+    bufs = BANK_PTR(const TEX_PAGE_BUFFERS *, scene, tbl->buffers) + set->buffers;
+    slots = BANK_PTR(TEX_PAGE_SLOT *, scene, bufs->slots);
+    count = bufs->count;
+
+    if (!back) {
+        if (set->page >= files->count - 1)
+            return;
+        set->page++;
+        if (set->slide != 0) {
+            TexPageThaw(scene, files, &slots[set->page % count], set->page);
+        } else if (count < 2) {
+            TexPageLoad(scene, files, &slots[set->page % count], set->page, 1);
+            TexPageWait(&slots[set->page % count]);
+        } else if (count == TEX_PAGE_BUFFERS_DOUBLE) {
+            int next = set->page + 1;
+            if (page_set == 0)
+                TexPageLoad(scene, files, &slots[set->page % 2], set->page, 1);
+            TexPageWait(&slots[set->page % 2]);
+            if (next < files->count) {
+                TexPageLoad(scene, files, &slots[next % count], next, 1);
+                page_set = 1;
+            }
+        } else {
+            int ahead = set->page + count / 2;
+            TexPageWait(&slots[set->page % count]);
+            if (ahead < files->count)
+                TexPageLoad(scene, files, &slots[ahead % count], ahead, 1);
+        }
+    } else {
+        if (set->page == 0)
+            return;
+        set->page--;
+        if (set->slide != 0) {
+            TexPageThaw(scene, files, &slots[set->page % count], set->page);
+        } else if (count < 2) {
+            TexPageLoad(scene, files, &slots[set->page % count], set->page, 1);
+            TexPageWait(&slots[set->page % count]);
+        } else if (count == TEX_PAGE_BUFFERS_DOUBLE) {
+            int prev = set->page - 1;
+            if (page_set != 0)
+                TexPageLoad(scene, files, &slots[set->page % 2], set->page, 1);
+            TexPageWait(&slots[set->page % 2]);
+            if (prev >= 0) {
+                TexPageLoad(scene, files, &slots[prev % count], prev, 1);
+                page_set = 0;
+            }
+        } else {
+            int behind = TexRingFirst(set->page, count);
+            TexPageWait(&slots[set->page % count]);
+            if (behind >= 0)
+                TexPageLoad(scene, files, &slots[behind % count], behind, 1);
+        }
+    }
+    TexFileSetPatch(scene, part, &slots[set->page % count]);
+}
+
+// CT3 0x01855b70: part's set jumps to page `page` (ignored out of range): the page loads and is waited
+// for, then the double buffer preloads the next page or the ring the pages around it; slide sets unpack
+// it. Then the part shows it.
+void TexFileSetPage(int scene, int part, int page)
+{
+    // callcheck: FSLoad, FSLoadCancelQue, FSLoadEndWait, tnSlideThawing (the ROM inlines the page steps: TexPageLoad / Wait / Thaw make them)
+    const TEX_FILE_SET_TABLE *tbl = BANK_PTR(const TEX_FILE_SET_TABLE *, scene, All_table_TBL[scene]->texFileSet);
+    TEX_FILE_SET *set;
+    const TEX_FILE_LIST *files;
+    const TEX_PAGE_BUFFERS *bufs;
+    TEX_PAGE_SLOT *slots;
+    int count;
+
+    if (tbl == NULL)
+        return;
+    set = TexFileSetFind(scene, tbl, part);
+    if (set == NULL)
+        return;
+    files = BANK_PTR(const TEX_FILE_LIST *, scene, tbl->files) + set->files;
+    bufs = BANK_PTR(const TEX_PAGE_BUFFERS *, scene, tbl->buffers) + set->buffers;
+    slots = BANK_PTR(TEX_PAGE_SLOT *, scene, bufs->slots);
+    count = bufs->count;
+    if (page < 0 || page >= files->count)
+        return;
+
+    set->page = page;
+    if (set->slide == 0) {
+        TexPageLoad(scene, files, &slots[page % count], page, 1);
+        TexPageWait(&slots[page % count]);
+        if (count == TEX_PAGE_BUFFERS_DOUBLE) {
+            if (page + 1 < files->count)
+                TexPageLoad(scene, files, &slots[(page + 1) % 2], page + 1, 1);
+            page_set = 1;
+        } else if (count != 1) {
+            int first = TexRingFirst(page, count), p;
+            for (p = first; p < count + first; p++) {
+                if (p != page && p >= 0 && p < files->count - 1)
+                    TexPageLoad(scene, files, &slots[p % count], p, 1);
+            }
+        }
+    } else {
+        TexPageThaw(scene, files, &slots[page % count], page);
+    }
+    TexFileSetPatch(scene, part, &slots[page % count]);
+}
+
+// CT3 0x01855160: the trigger action (part, direction, scene).
+void tnTrigTexFileSetNext(int part, int back, int scene)
+{
+    TexFileSetNext(scene, part, back);
+}
+
+// CT3 0x01855b10: the trigger action; literal == 0 takes the page from trigger variable (page & 0xffff).
+void tnTrigTexFileSetPage(int part, int literal, int a2, int page, int scene)
+{
+    if (literal == 0)
+        page = ssTrigGetVariable(page & 0xffff, a2, scene);
+    TexFileSetPage(scene, part, page);
 }
 
 #define PANIC_SE_BANK "C_0000"          /* @3592: the common SE bank the panic loops play from */

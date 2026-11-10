@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-10 11:54 at commit `0910c56` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-10 12:14 at commit `37fb3e0` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **570**; stubs: **188**
+- reconstructed CT3 functions: **575**; stubs: **187**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -55,7 +55,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/CpDivideEECom.c` | 0 | 1 |
 | `src/game/IOPGetFileSize.c` | 0 | 3 |
 | `src/game/LinkMatrixTree.c` | 4 | 0 |
-| `src/game/QuatSlerp.c` | 182 | 1 |
+| `src/game/QuatSlerp.c` | 187 | 0 |
 | `src/game/SdMasterVolumeSetSE.c` | 0 | 34 |
 | `src/game/ahRelocateSunPs2ObjectArry.c` | 93 | 0 |
 | `src/game/ahalloc.c` | 7 | 0 |
@@ -83,7 +83,7 @@ Least-named game-code regions (64 KB blocks):
 - 65 TUs: todo 48, partial 2, verify 15, done 3
 - next: **game/QuatSlerp.c** (pinned in the queue)
 - pinned queue: game/QuatSlerp.c
-- partial: `game/QuatSlerp.c` 170/177 -- 15 s smoke run: no fault, shot black (no host draw module yet). callcheck clean, layoutcheck OK. Open-items 1 (fu)..(fw): flags43 = 3 is an assignment; asFindMo
+- partial: `game/QuatSlerp.c` 175/177 -- 15 s smoke run: no fault, shot black (no host draw module yet). callcheck clean (the page steps are static helpers, explained), layoutcheck OK. Open-items 1 (fx
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaInitDrawObject.c` 24/24 -- No ROM caller for the texture three (the game uses its sun* copies in QuatSlerp.c): complete, nothing on screen can show them. Shot black as before: packets go 
 - verify: `ga/gaInitInterrupt.c` 3/3 -- GCC object; wait_vsync_state (data 0x0192e790), ga_main_timer, ga_down_timer defined here. gaWaitVSync takes no argument and returns the CSR FIELD bit; main.c c
@@ -102,6 +102,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-10 12:14 `game/QuatSlerp.c` partial: slice 10: the paged textures (TexFileSetInit, TexFileSetNext, TexFileSetPage, tnTrigTexFileSetNext and Page; ALL_TABLE.texFileSet and the TEX_FILE_SET tables na
 - 2026-11-10 11:54 `game/QuatSlerp.c` partial: slice 9: the letterbox requests (VistaVisionStart, VistaVisionEnd), PlayerDamage, asObjectRotate (MODEL_PARTS.placeRot named), asPosRUF2ViewMatrix and asCamRUF2
 - 2026-11-10 11:34 `game/QuatSlerp.c` partial: slice 8: the panic setters (PanicSet, PanicStopMovie with PanicOffMovieFile from the ROM), Kekkai_Check, ssPointCheckWithinScreen, PauseUpdate, UpperCase, GetBa
 - 2026-11-10 11:25 `game/QuatSlerp.c` partial: slice 7: the letterbox (VistaVisionMain with its two ROM sprite packets and draw control), the fog easing (FogAnimeUpdate, FOG_ANIME named), the depth pre-pass 
@@ -109,11 +110,10 @@ Recent sessions:
 - 2026-11-10 10:39 `game/QuatSlerp.c` partial: slice 5: the part fades AmbientAlphaUpdate runs (DistanceAttenuationUpdate, Target, AlphaSet; AngleAttenuationUpdate, Target, AlphaSet; LosHitFadeUpdate and Tar
 - 2026-11-10 10:18 `game/QuatSlerp.c` partial: slice 4: the screen filters (PanicFilter, DemoScreenFilter, XcmdScreenFilter and Skip, SCREEN_FILTER_OBJ packets and draw controls), EventSoundEnd, ssGetBankID 
 - 2026-11-10 09:56 `game/QuatSlerp.c` partial: slice 3: the texture buffers (sunSetupTBufferData, sunBGT_SetLoadGSEnv, sunBGT_LoadGSTexClutData_VIF1, sunBGT_ExecTBufferData_VIF1; SUN_TEX_ATTR, SUN_TBUFFER_DA
-- 2026-11-10 09:37 `game/QuatSlerp.c` partial: slice 2: GetAreaNumber (RoomNameID tables), the controller rattles (Free, Get, Update, Set), DemoSkipCheckEvent, PanicModeInit, QuatSlerp, asMakeRotMatrixByQuar
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `game/ssGrpPortalCheck.c` | todo | 0/11/59 | 26.4 | 324 | 10 |
+| `game/ssGrpPortalCheck.c` | todo | 0/11/59 | 26.4 | 325 | 10 |
 | `game/Clipping_Portal.c` | todo | 0/34/73 | 44.8 | 153 | 18 |
 | `game/SdMasterVolumeSetSE.c` | todo | 0/34/61 | 22.9 | 151 | 9 |
 | `ga/gaInit3dlib.c` | partial | 2/6/25 | 3.6 | 105 | 6 |
@@ -136,7 +136,7 @@ Recent sessions:
 | `018d95e0` | ssTrigRegisterEvent | 45 | sym | stub | game/ssGrpPortalCheck.c |
 | `018d9470` | ssTrigSetVariable | 36 | sym | stub | game/ssGrpPortalCheck.c |
 | `018d1600` | SdSetEffect | 27 | sym | stub | game/SdMasterVolumeSetSE.c |
-| `018d9430` | ssTrigGetVariable | 25 | sym | stub | game/ssGrpPortalCheck.c |
+| `018d9430` | ssTrigGetVariable | 26 | sym | stub | game/ssGrpPortalCheck.c |
 | `01851b10` | ConvertQuat2Matrix | 17 | sym | stub | game/Convert.c |
 | `018a17f8` | gaBGT_DmaSendN_fromSPR_VIF1 | 16 | sym | stub | ga/gaDmaSync_VIF1.c |
 | `01886690` | asChangeViewMatrix_forTheBank | 12 | sym | stub | game/asEyeForcusUP2CamMat.c |

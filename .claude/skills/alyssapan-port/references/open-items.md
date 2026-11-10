@@ -672,6 +672,21 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    (fw) asObjectRotate with an axis other than 0..2 copies stack garbage in the ROM: the port uses the
    unit matrix (PORT note). Left in this TU: TexFileSetInit (reached), TexFileSetNext / Page and their
    tnTrig wrappers, GetAreaFloor, asFindMotionID, and what else status.md lists.
+   Slice 10 (2026-11-10): the paged textures -- TexFileSetInit (reached from scene_init),
+   TexFileSetNext, TexFileSetPage, tnTrigTexFileSetNext / Page. ALL_TABLE +0x8c is `texFileSet`, a
+   TEX_FILE_SET_TABLE {sets, files, buffers} (QuatSlerp.h; the relocator's 0x8c block confirms every
+   word): sets of 0x14 (a -1-ended part list, slide flag, page, file list, buffer set), file lists of
+   {count, page names}, buffer sets of {count, TEX_PAGE_SLOT[0x18]: handle, mipData[4], clut}. Pages load
+   from DATA/IMG/ into buffers inside the bank (BANK_PTR) and the slot's EE words are copied into the
+   part's SUN_TEX_ATTR (mipData, first CLUT word), so the existing texture path sees the page. page_set
+   (sbss 0x0193cb4c, static) tells whether the double buffer preloaded the next or the previous page.
+   15 s smoke run: no fault, shot black (no host draw module). Open: (fx) the ROM keeps the ring's
+   bound p < pages - 1 (the last page is never preloaded) and TexFileSetNext with no matching set goes
+   on with the last set: both kept; (fy) tnTrigTexFileSetPage's argument roles (part, literal, a2, page
+   & 0xffff as a trigger variable, scene) are read from its body: ssGrpPortalCheck.c's action table
+   confirms them; (fz) the slot's mipData[0] is the FSLoad buffer, so a page file is raw level-0 pixels
+   with its other levels and CLUT at fixed bank addresses: check against a DATA/IMG file once one is
+   decoded at its source. Left in this TU: GetAreaFloor, asFindMotionID (fv).
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
    class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~
