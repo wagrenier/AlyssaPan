@@ -16,10 +16,23 @@ private:
     int m_timer;
 };
 
+// Tn_MODE: a write sets the timer's clock source (CLKS, bits 0..1) and the rest as written; the host
+// timer keeps counting from where it was, at the new rate.
+class EeTimerMode
+{
+public:
+    explicit constexpr EeTimerMode(int timer) : m_timer(timer) {}
+    operator u_int() const;
+    u_int operator=(u_int value);
+
+private:
+    int m_timer;
+};
+
 inline EeTimerCount g_regRcnt0Count{0};
 inline EeTimerCount g_regRcnt1Count{1};
-inline volatile u_int g_regRcnt0Mode;
-inline volatile u_int g_regRcnt1Mode;
+inline EeTimerMode g_regRcnt0Mode{0};
+inline EeTimerMode g_regRcnt1Mode{1};
 inline volatile u_int g_regDStat;
 inline volatile u_int g_regIpuToChcr;
 inline volatile u_int g_regIpuToMadr;

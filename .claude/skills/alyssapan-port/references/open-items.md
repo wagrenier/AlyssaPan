@@ -88,7 +88,7 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    the stubs: ~~ga/gaDma.c~~ (verify), ~~ga/gaVifInit.c~~ (verify; its calls made ga/gaDmaSync_VIF1.c's
    gaDmaSendN_VIF1 / gaDmaSync_VIF1 stubs: that hand-asm object is a small TU worth queueing next),
    ~~ga/gaInitDrawObject.c~~ (verify 2026-11-09: all 24 functions; the texture three have no ROM caller),
-   game/gaInitMeter.c,
+   ~~ga/gaInitMeter.c~~ (verify 2026-11-09; renamed from game/: a GCC object, the ga library's last; T1 mode writes now reach the host timer),
    game/ahalloc.c, game/sound.c, game/Character_Init.c, game/ArtoolDebugOpen.c, game/main2.c,
    game/fileio.c.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like

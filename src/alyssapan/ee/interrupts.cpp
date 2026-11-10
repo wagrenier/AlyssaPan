@@ -175,7 +175,18 @@ void InterruptController::writeTimer(int timer, std::uint32_t value)
 void InterruptController::setTimerMode(int timer, std::uint32_t mode)
 {
     std::scoped_lock lock(m_lock);
-    m_timers[timer & 1].mode = mode;
+    Timer &entry = m_timers[timer & 1];
+    const Clock::time_point now = Clock::now();
+    const std::chrono::duration<double> elapsed = now - entry.base;
+    entry.offset = (entry.offset + static_cast<std::uint32_t>(elapsed.count() * timerRate(entry))) & kTimerMask;
+    entry.base = now;
+    entry.mode = mode;
+}
+
+std::uint32_t InterruptController::timerMode(int timer) const
+{
+    std::scoped_lock lock(m_lock);
+    return m_timers[timer & 1].mode;
 }
 
 void InterruptController::raise(int cause)

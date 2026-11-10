@@ -64,6 +64,16 @@ u_long GetTimerSystemTime()
          * kBusClocksPerMicrosecond;
 }
 
+u_int GetCop0(int reg)
+{
+    constexpr int kCop0Count = 9;
+    constexpr double kCoreClock = 294'912'000.0;
+    if (reg != kCop0Count)
+        return 0;
+    const std::chrono::duration<double> elapsed = std::chrono::steady_clock::now().time_since_epoch();
+    return (u_int)(u_long)(elapsed.count() * kCoreClock);
+}
+
 int DelayThread(u_int microseconds) { return kernel().delayThread(std::chrono::microseconds(microseconds)); }
 void ExitThread() { kernel().exitThread(false); }
 void ExitDeleteThread() { kernel().exitThread(true); }
@@ -142,5 +152,16 @@ EeTimerCount::operator u_int() const
 u_int EeTimerCount::operator=(u_int value)
 {
     kernel().interrupts().writeTimer(m_timer, value);
+    return value;
+}
+
+EeTimerMode::operator u_int() const
+{
+    return kernel().interrupts().timerMode(m_timer);
+}
+
+u_int EeTimerMode::operator=(u_int value)
+{
+    kernel().interrupts().setTimerMode(m_timer, value);
     return value;
 }

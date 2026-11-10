@@ -66,7 +66,9 @@ public:
     // The EE timers, T0 and T1. They run from the clock instead of counting.
     std::uint32_t readTimer(int timer) const;
     void writeTimer(int timer, std::uint32_t value);
+    // A new mode keeps the count where it is and counts on at the new clock source (CLKS).
     void setTimerMode(int timer, std::uint32_t mode);
+    std::uint32_t timerMode(int timer) const;
 
     // H-sync lines per second of the current standard.
     double hsyncRate() const;

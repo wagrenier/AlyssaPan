@@ -38,8 +38,8 @@ Facts with their address and source; guesses go to open-items.md. Replace what a
 | 0x01834440..0x0183aed8 | the game's main object: `main_rtn_GHOST_DOF`, `main_rtn_GHOST`, `tiItemInit`, `FirstInitialization`, `game_init`, `ControllerMain`, the `ss*DrawAllObject` effects, `AllDrawObject`, `main_rtn*`, `scene_*`, `system_init` / `system_end`, **`main` 0x01839d10** (0x11c8 bytes) |
 | 0x0183aed8..0x0183d9e0 | libgcc: long long and soft double (`__muldi3` .. `dptoul`) |
 | 0x0183d9e0..0x0189f718 | game code (734 functions in one unmarked run; `ahalloc.c`'s `SunAlloc` first) .. `IopLoadModule` 0x0189f6a0 |
-| 0x0189f718..0x018a8810 | the `ga*` library: `gaPad*`, `gaDma*`, `gaVif*`, `gaInit3dlib`, `gaBGT_DrawObject*`, `gaDrawObject_*`, `gaSinCos` / matrices, `gaSearchNearLight4`, `gaDump*`, `gaVsyncCallBack` (asm-shaped objects without `gcc2_compiled.` are hand-written or VU-heavy) |
-| 0x018a8810..0x018d2a68 | game code (425 functions: `gaInitMeter`, `ss*` scene code ..) |
+| 0x0189f718..0x018a88e0 | the `ga*` library (its last object `ga/gaInitMeter.c`, GCC, 0x018a8810..0x018a88e0): `gaPad*`, `gaDma*`, `gaVif*`, `gaInit3dlib`, `gaBGT_DrawObject*`, `gaDrawObject_*`, `gaSinCos` / matrices, `gaSearchNearLight4`, `gaDump*`, `gaVsyncCallBack` (asm-shaped objects without `gcc2_compiled.` are hand-written or VU-heavy) |
+| 0x018a88e0..0x018d2a68 | game code (`ssCalcInversMatrix2`, `ss*` scene code ..; `gaInitMeter` at 0x018a8810 is the ga library's, 2026-11-09) |
 | 0x018d2a68..0x018d2ed4 | sdremote client: `sceSdRemoteInit`, `sceSdTransToIOP`, `sceSdCallBack`, `sceSdRemote` |
 | 0x018d2ee0..0x018fe4bc | game code (`ssGrpPortalCheck` .. the `as*` character behaviour: `asCheckCharacterHited`, `asInitPlayerBehaviorControler`, `ChrMoveControllerMode_init` last) |
 | 0x018fe500..0x01906a00 | `.vutext`: VU microcode, with `.DVP.overlay` sections in the symtab (dvp-as) and `.vubss` at 0x01c8d780 |

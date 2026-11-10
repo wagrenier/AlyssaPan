@@ -1,6 +1,5 @@
 {
  "queue": [
-  "game/gaInitMeter.c",
   "game/ahalloc.c",
   "game/sound.c",
   "game/Character_Init.c",
@@ -130,6 +129,24 @@
    ],
    "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 101..101, 2 functions keyed by their statics, 1 unkeyed; file name from the names"
+  },
+  "ga/gaInitMeter.c": {
+   "notes": "Complete code, nothing on screen shows it (shot black as before; the meter stubs no longer appear in the run log). Host: T1/T0 mode writes now reach the host timer (EeTimerMode in sdk/eeregs.h, setTimerMode keeps the count and changes rate), so T1 counts BUSCLK/256 as CT3 sets it; GetCop0 added (Count from the host clock at 294.912 MHz, other registers 0). YamiPan eeregs.h has the same mode gap (hazards.md).",
+   "ranges": [
+    [
+     "018a8810",
+     "018a88e0"
+    ]
+   ],
+   "sessions": [
+    {
+     "date": "2026-11-09 22:10",
+     "status": "verify",
+     "summary": "ga/gaInitMeter.c: all 6 functions (gaInitMeter, gaStartMeter, gaEndCpuMeter, gaEndGSMeter, gaGetCpuTimer, gaGetEEcoreTimer) and its 3 data words; TU renamed from game/ (GCC object, the ga library's last)"
+    }
+   ],
+   "status": "verify",
+   "why": "symtab: a GCC object (.text section symbol, __gnu_compiled_c / gcc2_compiled. at 0x018a8810, .data at 0x0192e798 holding ga_range_timer, cpu_time_count, gs_time_count) in the ga library run after ga/gaInitInterrupt.c; renamed from game/gaInitMeter.c (2026-11-09)"
   },
   "ga/gaObjectClippingCheck.c": {
    "ranges": [
@@ -463,15 +480,6 @@
     ]
    ],
    "why": "tumap.py (bootstrap 5): symtab local chunks 118..118, 21 functions keyed by their statics, 19 unkeyed; source string fileio.c"
-  },
-  "game/gaInitMeter.c": {
-   "ranges": [
-    [
-     "018a8810",
-     "018a88e0"
-    ]
-   ],
-   "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 6 unkeyed; file name from the names"
   },
   "game/hhXcmd_BGM_SE_VOLUME.c": {
    "ranges": [

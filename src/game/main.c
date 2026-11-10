@@ -35,7 +35,7 @@
 #include "game/asUseArrow.h"
 #include "game/asXcmd.h"
 #include "game/fileio.h"
-#include "game/gaInitMeter.h"
+#include "ga/gaInitMeter.h"
 #include "game/main2.h"
 #include "game/movie.h"
 #include "game/sound.h"

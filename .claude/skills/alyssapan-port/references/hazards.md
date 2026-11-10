@@ -7,6 +7,11 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-09, ga/gaInitMeter.c) **Writes to `REG_RCNTn_MODE` went nowhere.** `eeregs.h` (from YamiPan) kept
+  the timer modes as plain variables, so T1 kept counting H-blanks (the host default, FS2's mode) when CT3's
+  gaInitMeter set BUSCLK / 256 (0x82): the frame meters would have read the wrong unit. Fix: `EeTimerMode`
+  (like `EeTimerCount`) calls `InterruptController::setTimerMode`, which now keeps the count where it is and
+  counts on at the new rate. YamiPan's eeregs.h has the same gap (FS2 never writes a mode, so harmless there).
 - (2026-11-09, main.c slice 6) **Ghidra drops CodeWarrior's stack argument slots.** Past a1..t3 the
   caller stores each further argument as an 8-byte slot (`sd`) at sp+0, +8, ...; the decompiler shows only
   the eight register arguments. `gaSetupDrawCtrlData` takes 29 slots (28 words + one doubleword: the port's

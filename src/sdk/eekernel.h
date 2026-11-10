@@ -60,6 +60,9 @@ int GetThreadId();
 // The kernel timer's count, in bus clocks since boot (libkernl timer.c). FS2
 // only seeds the stage's generator with it.
 u_long GetTimerSystemTime();
+// COP0 register `reg`. Only Count (9) means anything here: the EE core's 294.912 MHz cycle count, from
+// the host clock (it wraps at 32 bits, as on the console). Every other register reads 0.
+u_int GetCop0(int reg);
 int SleepThread();
 int WakeupThread(int threadId);
 int iWakeupThread(int threadId);

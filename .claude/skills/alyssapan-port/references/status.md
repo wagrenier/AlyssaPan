@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-09 21:53 at commit `12a170e` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-09 22:11 at commit `5acf601` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **78**; stubs: **203**
+- reconstructed CT3 functions: **84**; stubs: **200**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -40,6 +40,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/ga/gaInit3dlib.c` | 0 | 3 |
 | `src/ga/gaInitDrawObject.c` | 24 | 0 |
 | `src/ga/gaInitInterrupt.c` | 3 | 0 |
+| `src/ga/gaInitMeter.c` | 6 | 0 |
 | `src/ga/gaObjectClippingCheck.c` | 0 | 1 |
 | `src/ga/gaVifInit.c` | 6 | 0 |
 | `src/ga/pad_button_read.c` | 0 | 1 |
@@ -56,7 +57,6 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/asUseArrow.c` | 0 | 2 |
 | `src/game/asXcmd.c` | 0 | 1 |
 | `src/game/fileio.c` | 0 | 7 |
-| `src/game/gaInitMeter.c` | 0 | 3 |
 | `src/game/main.c` | 29 | 0 |
 | `src/game/main2.c` | 0 | 5 |
 | `src/game/movie.c` | 0 | 1 |
@@ -70,17 +70,19 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 60, verify 5, done 2
-- next: **game/gaInitMeter.c** (pinned in the queue)
-- pinned queue: game/gaInitMeter.c, game/ahalloc.c, game/sound.c, game/Character_Init.c, game/ArtoolDebugOpen.c, game/main2.c, game/fileio.c
+- 65 TUs: todo 59, verify 6, done 2
+- next: **game/ahalloc.c** (pinned in the queue)
+- pinned queue: game/ahalloc.c, game/sound.c, game/Character_Init.c, game/ArtoolDebugOpen.c, game/main2.c, game/fileio.c
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaInitDrawObject.c` 24/24 -- No ROM caller for the texture three (the game uses its sun* copies in QuatSlerp.c): complete, nothing on screen can show them. Shot black as before: packets go 
 - verify: `ga/gaInitInterrupt.c` 3/3 -- GCC object; wait_vsync_state (data 0x0192e790), ga_main_timer, ga_down_timer defined here. gaWaitVSync takes no argument and returns the CSR FIELD bit; main.c c
+- verify: `ga/gaInitMeter.c` 6/6 -- Complete code, nothing on screen shows it (shot black as before; the meter stubs no longer appear in the run log). Host: T1/T0 mode writes now reach the host ti
 - verify: `ga/gaVifInit.c` 6/6 -- GCC object. VIF0/VIF1 STAT are host variables that read idle (sdk/eeregs.h), so the polls return at once and main frame loop passes the FLUSH wait. gaDmaSendN_V
 - verify: `game/main.c` 29/29 -- Smoke run: build green, layoutcheck OK, callcheck: main_rtn_Particle2 matches the ROM (extra BankEePtr only); AllDrawObject / GlobalDrawObject / DrawObjectRefra
 
 Recent sessions:
 
+- 2026-11-09 22:10 `ga/gaInitMeter.c` verify: ga/gaInitMeter.c: all 6 functions (gaInitMeter, gaStartMeter, gaEndCpuMeter, gaEndGSMeter, gaGetCpuTimer, gaGetEEcoreTimer) and its 3 data words; TU renamed fro
 - 2026-11-09 21:53 `ga/gaInitDrawObject.c` verify: slice 2: the texture three -- gaSetupTBufferData (TEX0, CLAMP, MIPTBP1/2, TEXFLUSH and the upload record, GA_TEX_DESC / GA_TBUFFER_DATA), gaBGT_SetLoadGSEnv (BI
 - 2026-11-09 21:42 `ga/gaInitDrawObject.c` partial: slice 1: 21 of 24 functions -- the ga packet builders (gsinit, dbuffer with its 14 values, drawctrl with GA_DRAWCTRL_ARGS fields named, fogctrl), the scratchpad
 - 2026-11-09 21:11 `ga/gaVifInit.c` verify: gaVifInit, gaVUSync_VU0, gaVifcodeFlush_VIF1, gaVifcodeFlushe_VIF1, gaVIFSync_VIF0, gaVIFSync_VIF1 and the 18 vifcode qwords of .data 0x0192e640..0x0192e790 rec
@@ -88,14 +90,13 @@ Recent sessions:
 - 2026-11-09 20:31 `sdk/libmc.cpp` done: the real memory card: io::MemoryCards (RosePan libmc as a class, folders memcard/mc<port>-<slot>/, the async sceMcSync handshake kept) behind every sceMc entry 
 - 2026-11-09 20:20 `alyssapan/core/window.cpp` done: siblings shims (a): pad database, window and exe icon, mute and pause in the background, overlay DPI scale, cursor auto-hide
 - 2026-11-09 19:50 `game/main.c` verify: main.c slice 7: main_rtn_Particle2 (the second particle list: ring records placed at their model part position plus an offset, w scaled around 128); PARTICLE2_E
-- 2026-11-09 19:39 `game/main.c` partial: main.c slice 6: scene_init (a bank's set-up after load: BaseobjCount / pModelPartsHeader / pBehaviorHeader / FogCtrlAddr from ALL_TABLE +0x14 / +0x2c / +0xbc / 
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
 | `game/QuatSlerp.c` | todo | 0/30/177 | 50.3 | 151 | 14 |
 | `game/Clipping_Portal.c` | todo | 0/31/73 | 44.8 | 113 | 12 |
-| `game/ssGrpPortalCheck.c` | todo | 0/10/59 | 26.4 | 82 | 7 |
 | `game/ahRelocateSunPs2ObjectArry.c` | todo | 0/28/93 | 76.0 | 82 | 9 |
+| `game/ssGrpPortalCheck.c` | todo | 0/10/59 | 26.4 | 82 | 7 |
 | `game/wideXcmd_DebugPrint.c` | todo | 0/12/109 | 40.6 | 80 | 12 |
 | `game/ssSetTexUVforCubeMap.c` | todo | 0/30/96 | 35.3 | 64 | 5 |
 | `game/asEyeForcusUP2CamMat.c` | todo | 0/7/30 | 23.6 | 39 | 4 |
