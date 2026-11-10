@@ -460,3 +460,28 @@ u_char asSceneAnimationStop_S(u_long hash, ALL_TABLE *tbl, int partId, int pose,
 // The first selected running track's TRACK_FLAG_STEP_FROM_RUNS bit (1: it plays backwards from its
 // end), -1 when none runs. No hash lookup: partId as given.
 int asCheckAnimationDirection_X(ALL_TABLE *tbl, int partId, int pose, int other, int byPart); // CT3 0x018487d0
+
+// ---- slice 13 (2026-11-10) ----
+// CHARACTER's motion request queue (asCheckAnimationState_S reads it; the motion TU writes it): motion
+// table indices until -1, and beside each its request mode.
+#define CHARA_MOTION_QUEUE 0x3b0        /* CHARACTER: short[CHARA_MOTION_QUEUE_COUNT], -1 ends */
+#define CHARA_MOTION_QUEUE_COUNT 42
+#define CHARA_MOTION_QUEUE_MODE 0x404   /* CHARACTER: short per queue entry */
+#define CHARA_MOTION_QUEUE_STOP 2       /* the mode that counts as not playing (0, 1, 3, 5 count as playing) */
+// asCheckAnimationState_S's answer.
+#define ANIM_STATE_NONE 0               /* nothing selected runs */
+#define ANIM_STATE_PLAYING 1            /* a selected track is TRACK_PLAYING (a character: the motion plays) */
+#define ANIM_STATE_STOPPING 2           /* none plays, one is TRACK_STOP_REQUEST */
+// The state of what asSceneAnimationStop_S would stop (the same arguments; the triggers' door waits).
+int asCheckAnimationState_S(u_long hash, ALL_TABLE *tbl, int partId, int pose, int other, int byPart,
+                            int target, int chara);                                      // CT3 0x018489e0
+// The first track of `kind` in the part's groups (asSceneAnimationStop_S's part rule; kinds '3' / '4'
+// also part 0's groups when their first key names partId): (time / 100) * 2, + 1 when it runs; -1 none.
+int asGetSceneAnimationCurrent(u_long hash, ALL_TABLE *tbl, int partId, int kind);      // CT3 0x01848db0
+// asStockShadowVolume's modes (asShadowPolygonPositions calls it).
+#define SV_STOCK_BEGIN 0                /* point the stock at the bank's shadow table buffers */
+#define SV_STOCK_PLUS 1                 /* a plus quad (gMP; drawn subtracting) */
+#define SV_STOCK_MINUS (-1)             /* a minus quad (gMM; drawn adding) */
+#define SV_STOCK_FLUSH 2                /* the lone quads left become objects */
+// The bank's shadow volume objects, built from quads of 4 position qwords.
+void asStockShadowVolume(int bank, float (*quad)[4], int mode);                          // CT3 0x01844650

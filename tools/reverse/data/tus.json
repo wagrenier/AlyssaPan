@@ -444,7 +444,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 121..121, 39 functions keyed by their statics, 22 unkeyed; file name from the names"
   },
   "game/ahRelocateSunPs2ObjectArry.c": {
-   "notes": "Next in this TU: asShadowPolygonPositions with asStockShadowVolume as one piece (open-items dz has a first read of the stock: modes 2 and -1, kinds 5/6/2, ShadowVolume1/2 templates), asShadowEnd, EA_010, the general body of ExecuteAnimation. Shot still black, crash unchanged at main.c:2106 (ActressMP NULL). New open items dx..dz.",
+   "notes": "Next in this TU: asShadowEnd, EA_010, the general body of ExecuteAnimation. Shot still black, crash unchanged at main.c:2106 (ActressMP NULL). The volume objects keep ROM EE addresses of the ShadowVolume index, ST and colour data for the gaBGT_DrawObject TU to resolve. New open items ea..ee.",
    "ranges": [
     [
      "0183e280",
@@ -452,11 +452,6 @@
     ]
    ],
    "sessions": [
-    {
-     "date": "2026-11-10 02:55",
-     "status": "partial",
-     "summary": "slice 1: the file relocator -- ahRelocateFileObject (0x3b80 bytes), ahRelocateBehavior, ahRelocateSunPs2ObjectArry; words stay EE addresses relocated to BankImageEE (decision h)"
-    },
     {
      "date": "2026-11-10 03:34",
      "status": "partial",
@@ -511,6 +506,11 @@
      "date": "2026-11-10 07:12",
      "status": "partial",
      "summary": "slice 12: asMakeMirrorMatrixByPlane (mrr_ReverseMatrix from the mirror plane: RY, RX, the Y flip, the plane offset row), asSceneAnimationStop_S and asCheckAnimationDirection_X (asSceneAnimationStart's selection as a shared helper), asBehaviorStartAnimation and _FromTop, asCopyShadowInformation, asShadowAllDisable; new stub TU ga/gaSinCos.c"
+    },
+    {
+     "date": "2026-11-10 07:41",
+     "status": "partial",
+     "summary": "slice 13: asShadowPolygonPositions (casters to volume quads: lit-face edges and segment rings, plus or minus by the camera side of the light-edge plane, the angle-locked light), asStockShadowVolume (ShadowVolume1/2 objects from quad pairs, flush), asCheckAnimationState_S, asGetSceneAnimationCurrent; gaCopyObject2, gaInnerProductXYZ, asVectorLength3D written early"
     }
    ],
    "status": "partial",

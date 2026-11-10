@@ -441,6 +441,20 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    odd quad (_iMcnt_3178: kind 6, gMM) as one-face volumes (ShadowVolume1_*); mode -1 stocks 4 corners
    into gMM and emits a two-face volume (ShadowVolume2_*, kind 2) on every second call. Both write a
    gaCopyObject2 of the template at 0x01937ba0 and the face normal (cross of two edges, rsqrt).
+   Slice 13 (2026-11-10): (ea) the shadow volume's stock is written (asStockShadowVolume, settles dv /
+   dz: plus quads kinds 1 / 5, minus quads 2 / 6; the flush's lone minus quad is the list's last, no end
+   mark). Its objects keep the ROM's EE addresses of ShadowVolume1/2 index, ST and colour data and the
+   template's light-work words (0x01937820 / 0x01937830) and 0x01941840: the gaBGT_DrawObject TU must
+   resolve them (as tex_attr_A in asShadowStart). (eb) The caster positions' w is the ROM's, unclamped:
+   segment rings carry w = 1 + radius (the vmulx.xyzw / vadd.xyzw fields), polygon vertices w0 = M * v's
+   w; whether the VU1 volume microcode reads w decides if it matters. (ec) SP_ANCHOR_HASH
+   0x74dda77d0cbcf0c2 (a character bank's shadow anchor part) has no name yet: hash the shape files' part
+   names (ahGetHash) to find it. (ed) asViewMatrix2PosRUF is called with one buffer for all four outputs
+   (the camera position): whichever it writes last wins, so its TU decides what asShadowPolygonPositions
+   tests against. (ee) asCheckAnimationState_S indexes a 5-byte stack array by the track's playing byte
+   unchecked (the host bounds it); CHARACTER +0x3b0 is a 42-entry motion request queue with modes at
+   +0x404 (CHARA_MOTION_QUEUE*): the motion TU names them. gaCopyObject2, gaInnerProductXYZ and
+   asVectorLength3D were written early in their TUs.
    (bw) Extract is untested against a known image: the first scene_init that runs on relocated data is
    its test (a wrong decode shows as garbage tables); a harness decoding one CT3X file from CT3PACK.DAT
    beside the ROM's (eerun.py) would prove it sooner.

@@ -2974,6 +2974,138 @@ void asShadowAllDisable(u_int which)
     }
 }
 
+// ---- slice 13 (2026-11-10) ----
+
+// A character's motion: is `hash` playing (CHARA_MOTION_SLOTS) or queued (CHARA_MOTION_QUEUE)?
+static int CharaMotionState(u_long hash, const CHARACTER *ch)
+{
+    const u_char *table;
+    int state = ANIM_STATE_NONE, i;
+    if (!(ch->flags & CHARACTER_FLAG_REFRACTION))
+        return ANIM_STATE_NONE;
+    // PORT: no character has a host motion table yet (CharaMotionTable): nothing matches until it does.
+    table = CharaMotionTable(ch);
+    if (table == NULL)
+        return ANIM_STATE_NONE;
+    for (i = 0; i < CHARA_MOTION_SLOT_COUNT; i++) {
+        short idx;
+        u_long h;
+        memcpy(&idx, (const u_char *)ch + CHARA_MOTION_SLOTS + i * 2, sizeof(idx));
+        if (idx == -1)
+            continue;
+        memcpy(&h, table + idx * CHARA_MOTION_SIZE, sizeof(h));
+        if (h == hash) {
+            state = ANIM_STATE_PLAYING;
+            break;
+        }
+    }
+    // the queue: the last entry with `hash` decides (the ROM walks on after a match)
+    for (i = 0; i < CHARA_MOTION_QUEUE_COUNT; i++) {
+        short idx, mode;
+        u_long h;
+        memcpy(&idx, (const u_char *)ch + CHARA_MOTION_QUEUE + i * 2, sizeof(idx));
+        if (idx == -1)
+            break;
+        memcpy(&h, table + idx * CHARA_MOTION_SIZE, sizeof(h));
+        if (h != hash)
+            continue;
+        memcpy(&mode, (const u_char *)ch + CHARA_MOTION_QUEUE_MODE + i * 2, sizeof(mode));
+        switch (mode) {
+        case 0: case 1: case 3: case 5:
+            state = ANIM_STATE_PLAYING;
+            break;
+        case CHARA_MOTION_QUEUE_STOP:
+            state = ANIM_STATE_NONE;
+            break;
+        }
+    }
+    return state;
+}
+
+// CT3 0x018489e0
+// What asSceneAnimationStop_S would stop, asked instead of done. SCENE_ANIM_SCENE: the tracks it selects
+// (running or not) mark their `playing` value; ANIM_STATE_PLAYING when one is TRACK_PLAYING, else
+// ANIM_STATE_STOPPING when one is TRACK_STOP_REQUEST, else ANIM_STATE_NONE. SCENE_ANIM_CHARACTER:
+// whether the motion `hash` plays in a slot or by the request queue.
+int asCheckAnimationState_S(u_long hash, ALL_TABLE *tbl, int partId, int pose, int other, int byPart,
+                            int target, int chara)
+{
+    u_char seen[5] = {0};       // sdata __2155: zeros
+    int bank, g, t;
+    BEHAVIOR *bhv;
+    u_short part;
+    if (tbl == NULL)
+        return ANIM_STATE_NONE;
+    if ((char)target == SCENE_ANIM_CHARACTER)
+        return CharaMotionState(hash, &Character[(u_char)chara]);
+    if ((char)target != SCENE_ANIM_SCENE)
+        return ANIM_STATE_NONE;
+    bank = BankOfHostPtr(tbl);
+    bhv = BANK_PTR(BEHAVIOR *, bank, tbl->behavior);
+    part = (u_short)partId;
+    if (part == 0)
+        part = (u_short)asFindModelPartsID(BANK_PTR(u_char *, bank, tbl->partsHeader), hash);
+    for (g = 0; g < bhv->groupCount; g++) {
+        BEHAVIOR_TRACK *tr;
+        if (!((int)bhv->groups[g].part == (int)part || (byPart != 0 && bhv->groups[g].part == 0)))
+            continue;
+        tr = BehaviorTracks(bank, bhv, g);
+        for (t = bhv->groups[g].trackCount; t > 0; t--, tr++)
+            // PORT: the ROM indexes its 5-byte stack array by the signed byte unchecked
+            if (TrackSelected(bank, tr, (u_short)partId, pose, other, byPart) && tr->playing < sizeof(seen))
+                seen[tr->playing] = 1;
+    }
+    if (seen[TRACK_PLAYING])
+        return ANIM_STATE_PLAYING;
+    if (seen[TRACK_STOP_REQUEST])
+        return ANIM_STATE_STOPPING;
+    return ANIM_STATE_NONE;
+}
+
+// CT3 0x01848db0
+// wideXcmd_PlayAnimeToFream2's question: the first track of `kind` in the groups of partId (0: the part
+// named by hash); kinds TRACK_KIND_UV / _COPY also in part 0's groups, where the track's first key must
+// name partId (as given). Its time in frames * 2, + 1 when TRACK_PLAYING; -1 when there is none.
+int asGetSceneAnimationCurrent(u_long hash, ALL_TABLE *tbl, int partId, int kind)
+{
+    int bank, g, t;
+    BEHAVIOR *bhv;
+    u_short given = (u_short)partId, part;
+    if (tbl == NULL)
+        return 0;
+    bank = BankOfHostPtr(tbl);
+    bhv = BANK_PTR(BEHAVIOR *, bank, tbl->behavior);
+    part = given;
+    if (given == 0)
+        part = (u_short)asFindModelPartsID(BANK_PTR(u_char *, bank, tbl->partsHeader), hash);
+    for (g = 0; g < bhv->groupCount; g++) {
+        int gp = bhv->groups[g].part;
+        BEHAVIOR_TRACK *tr;
+        if (!(gp == (int)part || ((char)kind == TRACK_KIND_UV || (char)kind == TRACK_KIND_COPY) && gp == 0))
+            continue;
+        tr = BehaviorTracks(bank, bhv, g);
+        for (t = bhv->groups[g].trackCount; t > 0; t--, tr++) {
+            int hit = 0;
+            if (tr->kind != (char)kind)
+                continue;
+            if (gp != 0) {
+                hit = 1;
+            } else if ((char)kind == TRACK_KIND_UV) {
+                short p;
+                memcpy(&p, BANK_PTR(const u_char *, bank, tr->keys) + 0x1c, sizeof(p));
+                hit = (int)p == (int)given;
+            } else if ((char)kind == TRACK_KIND_COPY) {
+                u_short p;
+                memcpy(&p, BANK_PTR(const u_char *, bank, tr->keys) + 0x1a, sizeof(p));
+                hit = p == given;
+            }
+            if (hit)
+                return (tr->time / TRACK_TIME_SCALE) * 2 + (tr->playing == TRACK_PLAYING);
+        }
+    }
+    return -1;
+}
+
 // ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x0184bf60
@@ -2983,11 +3115,6 @@ int EA_010(int bank, u_int anim, ALL_TABLE *tbl)
     return {};
 }
 
-// stub of CT3 0x01844df0
-void asShadowPolygonPositions(int bank)
-{
-    ALYSSAPAN_STUB("asShadowPolygonPositions", 0x01844df0);
-}
 
 
 // CT3 0x0184f220
@@ -3200,10 +3327,11 @@ void asMirrorCulling(int on)
 // A shadow volume object's kind byte (+1; asStockShadowVolume writes it, asDrawShadowVolume clears it).
 #define SV_OBJ_KIND 1
 #define SV_KIND_END 0                   /* the list ends */
-#define SV_KIND_SUB 1                   /* drawn subtracting (SDW_drawctrl_S) */
-#define SV_KIND_ADD 2                   /* drawn adding (SDW_drawctrl_A) */
-#define SV_KIND_SUB_5 5                 /* as SV_KIND_SUB (what tells 5 from 1 is not read yet) */
-#define SV_KIND_ADD_LAST 6              /* as SV_KIND_ADD, and the list's last object */
+#define SV_KIND_SUB 1                   /* two plus quads (ShadowVolume2), drawn subtracting (SDW_drawctrl_S) */
+#define SV_KIND_ADD 2                   /* two minus quads (ShadowVolume2), drawn adding (SDW_drawctrl_A) */
+#define SV_KIND_SUB_5 5                 /* a lone plus quad (ShadowVolume1), the flush's; as SV_KIND_SUB */
+#define SV_KIND_ADD_LAST 6              /* a lone minus quad, the flush's last object (no end mark after
+                                           it); as SV_KIND_ADD */
 #define SV_OBJ_SIZE 0x80
 #define SV_CTRL_NONE 0                  /* asDrawShadowVolume: no draw control sent yet */
 #define SV_CTRL_SUB 1
@@ -3375,6 +3503,553 @@ void asDrawShadowVolume(int bank)
     }
     if (asShadowDrawing_CheckTransMode(SHADOW_TRANS_FIN) != 0)
         asShadowEnd(bank);
+}
+
+// ---- the volume's stock (slice 13, 2026-11-10) ----
+//
+// asShadowPolygonPositions hands asStockShadowVolume the volume's quads one by one (four position
+// qwords each), as plus or minus faces. Two of a sign make one ga object (ShadowVolume2: 4 vertices
+// in, 8 indices); a lone one left at the flush makes a ShadowVolume1 object (2 / 4). The bank's shadow
+// table gives the three buffers: the objects (SV_OBJ_SIZE each), the positions (8 qwords an object)
+// and the normals (a VIF header, then 8 qwords: one normal per vertex).
+
+// The shadow table's words (ALL_TABLE.shadow): the buffers the stock fills.
+#define SV_TABLE_OBJECTS 0
+#define SV_TABLE_POSITIONS 1
+#define SV_TABLE_NORMALS 2
+#define SV_POSITIONS_SIZE 0x80          /* per object: 2 quads x 4 qwords */
+#define SV_NORMALS_SIZE 0x90            /* per object: the UNPACK header, then 8 qwords */
+#define SV_QUAD_VERTS 4
+// ga draw object words the stock sets (the gaBGT_DrawObject TU owns the layout).
+#define GA_OBJ_VERTS 0x44               /* vertices in */
+#define GA_OBJ_INDICES 0x48             /* indices */
+#define GA_OBJ_INDEX_DATA 0x50
+#define GA_OBJ_POSITIONS 0x60
+#define GA_OBJ_NORMALS 0x64
+#define GA_OBJ_TEX_ST 0x68
+#define GA_OBJ_COLORS 0x6c
+
+// The ROM's templates (sdata). PORT: the index, ST and colour data are left as their EE addresses in
+// the objects (asShadowStart's tex_attr_A precedent): the gaBGT_DrawObject TU resolves them.
+#define SV1_VERTEX_INDEX_DATA 0x01937a90u       /* ShadowVolume1_vertex_index_data */
+#define SV1_TEX_ST_DATA_VIFCODE 0x019379c0u     /* ShadowVolume1_tex_st_data_vifcode */
+#define SV1_VERTEX_COLOR_DATA_VIFCODE 0x01937a40u /* ShadowVolume1_vertex_color_data_vifcode */
+#define SV2_VERTEX_INDEX_DATA 0x01937ab0u       /* ShadowVolume2_vertex_index_data */
+#define SV2_TEX_ST_DATA_VIFCODE 0x019379f0u     /* ShadowVolume2_tex_st_data_vifcode */
+#define SV2_VERTEX_COLOR_DATA_VIFCODE 0x01937a60u /* ShadowVolume2_vertex_color_data_vifcode */
+// sdata 0x01937b80 / 0x01937b90: ShadowVolume1/2_normal_data_vifcode, UNPACK V4-32 of 4 / 8 qwords.
+static const u_int ShadowVolume1_normal_data_vifcode[4] = { 0, 0, 0, 0x6c048000u };
+static const u_int ShadowVolume2_normal_data_vifcode[4] = { 0, 0, 0, 0x6c088000u };
+// sdata 0x01937ba0: the volume object's template (byte 0 = 2; +0x1c 1.0f; +0x20 / +0x28 500.0f; +0x30
+// 127.0f; +0x38 / +0x3c 0x01937820 / 0x01937830 -- the second ShadowVolume_light_work_data; +0x44 2,
+// +0x48 4; +0x50 0x01937a90; +0x58 / +0x5c 0x01941840; +0x60..+0x6c the ShadowVolume1 buffers).
+static const u_int ShadowVolumeObjectTemplate[GA_OBJECT_SIZE / 4] = {
+    0x00000002, 0, 0, 0,
+    0, 0, 0, 0x3f800000,
+    0x43fa0000, 0, 0x43fa0000, 0,
+    0x42fe0000, 0, 0x01937820, 0x01937830,
+    0, 2, 4, 0,
+    0x01937a90, 0, 0x01941840, 0x01941840,
+    0x01937b00, 0x01937b80, 0x019379c0, 0x01937a40,
+    0, 0, 0, 0,
+};
+
+static int iPcnt_3177;                  /* sbss 0x0193bf04: plus quads waiting (0 or 1) */
+static int iMcnt_3178;                  /* sbss 0x0193bf00: minus quads waiting */
+static int iFBflag_3179;                /* sbss 0x0193bd90: cleared at the start, never read here */
+static u_char *lpGA_3180;               /* sbss 0x0193bda0: the next object */
+static u_char *lpSVWP_3181;             /* sbss 0x0193bdc0: the next positions */
+static u_char *lpSVWN_3182;             /* sbss 0x0193bdd0: the next normals */
+alignas(16) static float gMP_3183[2][SV_QUAD_VERTS][4]; /* bss 0x0193be80: the waiting plus quads */
+alignas(16) static float gMM_3184[2][SV_QUAD_VERTS][4]; /* bss 0x0193be00: the waiting minus quads */
+static int svStockBank;                 /* PORT: the bank the buffers lie in (the objects keep EE words) */
+
+// One quad's face normal, its four vertices' copies: (q2 - q1) x (q0 - q1), normalised (VU0
+// OPMULA / OPMSUB, RSQRT); w = q2.w - q1.w (OPMSUB and MULQ write xyz only).
+static void SvQuadNormals(float (*dst)[4], const float (*q)[4])
+{
+    float a[4], b[4], n[4], s, r;
+    int i;
+    for (i = 0; i < 4; i++) {
+        a[i] = q[0][i] - q[1][i];
+        b[i] = q[2][i] - q[1][i];
+    }
+    n[0] = b[1] * a[2] - a[1] * b[2];
+    n[1] = b[2] * a[0] - a[2] * b[0];
+    n[2] = b[0] * a[1] - a[0] * b[1];
+    n[3] = b[3];
+    s = n[0] * n[0] + n[1] * n[1] + n[2] * n[2];
+    r = s > 0.0f ? 1.0f / sqrtf(s) : 0.0f;  // VU RSQRT of 0 gives +max: the zero normal stays zero
+    n[0] *= r;
+    n[1] *= r;
+    n[2] *= r;
+    for (i = 0; i < SV_QUAD_VERTS; i++)
+        memcpy(dst[i], n, sizeof(n));
+}
+
+// One object at lpGA from quads[0..count-1] (1: ShadowVolume1, 2: ShadowVolume2) of kind `kind`.
+static void SvStockObject(const float (*quads)[SV_QUAD_VERTS][4], int count, int kind)
+{
+    u_int verts = count == 2 ? 4 : 2, indices = count == 2 ? 8 : 4;
+    gaCopyObject2(lpGA_3180, ShadowVolumeObjectTemplate);
+    memcpy(lpSVWN_3182, count == 2 ? ShadowVolume2_normal_data_vifcode : ShadowVolume1_normal_data_vifcode, 16);
+    memcpy(lpGA_3180 + GA_OBJ_VERTS, &verts, 4);
+    memcpy(lpGA_3180 + GA_OBJ_INDICES, &indices, 4);
+    {
+        u_int idx = count == 2 ? SV2_VERTEX_INDEX_DATA : SV1_VERTEX_INDEX_DATA;
+        u_int st = count == 2 ? SV2_TEX_ST_DATA_VIFCODE : SV1_TEX_ST_DATA_VIFCODE;
+        u_int col = count == 2 ? SV2_VERTEX_COLOR_DATA_VIFCODE : SV1_VERTEX_COLOR_DATA_VIFCODE;
+        u_int pos = BankEeAddr(svStockBank, lpSVWP_3181);
+        u_int nrm = BankEeAddr(svStockBank, lpSVWN_3182);
+        memcpy(lpGA_3180 + GA_OBJ_INDEX_DATA, &idx, 4);
+        memcpy(lpGA_3180 + GA_OBJ_POSITIONS, &pos, 4);
+        memcpy(lpGA_3180 + GA_OBJ_NORMALS, &nrm, 4);
+        memcpy(lpGA_3180 + GA_OBJ_TEX_ST, &st, 4);
+        memcpy(lpGA_3180 + GA_OBJ_COLORS, &col, 4);
+    }
+    lpGA_3180[SV_OBJ_KIND] = (u_char)kind;
+    for (int i = 0; i < count; i++) {
+        SvQuadNormals((float (*)[4])(lpSVWN_3182 + 0x10 + i * SV_QUAD_VERTS * 16), quads[i]);
+        memcpy(lpSVWP_3181 + i * SV_QUAD_VERTS * 16, quads[i], SV_QUAD_VERTS * 16);
+    }
+}
+
+// The next object: past this one, the list's end marked after it.
+static void SvStockAdvance(void)
+{
+    lpSVWN_3182 += SV_NORMALS_SIZE;
+    lpSVWP_3181 += SV_POSITIONS_SIZE;
+    lpGA_3180 += SV_OBJ_SIZE;
+    lpGA_3180[SV_OBJ_KIND] = SV_KIND_END;
+}
+
+// CT3 0x01844650
+// SV_STOCK_BEGIN points the stock at the bank's shadow table buffers; SV_STOCK_PLUS / _MINUS take one
+// quad (4 position qwords), a pair making an object (SV_KIND_SUB / _ADD); SV_STOCK_FLUSH turns a lone
+// plus quad into an SV_KIND_SUB_5 object and a lone minus one into the last, SV_KIND_ADD_LAST (no end
+// mark after it). A negative bank does nothing.
+void asStockShadowVolume(int bank, float (*quad)[4], int mode)
+{
+    // callcheck: gaCopyObject2 (SvStockObject makes it)
+    if (bank < 0)
+        return;
+    switch (mode) {
+    case SV_STOCK_FLUSH:
+        if (iPcnt_3177 != 0) {
+            SvStockObject(gMP_3183, 1, SV_KIND_SUB_5);
+            SvStockAdvance();
+        }
+        if (iMcnt_3178 != 0)
+            SvStockObject(gMM_3184, 1, SV_KIND_ADD_LAST);
+        break;
+    case SV_STOCK_MINUS:
+        memcpy(gMM_3184[iMcnt_3178++], quad, sizeof(gMM_3184[0]));
+        if ((iMcnt_3178 & 1) == 0) {
+            iMcnt_3178 = 0;
+            SvStockObject(gMM_3184, 2, SV_KIND_ADD);
+            SvStockAdvance();
+        }
+        break;
+    case SV_STOCK_PLUS:
+        memcpy(gMP_3183[iPcnt_3177++], quad, sizeof(gMP_3183[0]));
+        if ((iPcnt_3177 & 1) == 0) {
+            iPcnt_3177 = 0;
+            SvStockObject(gMP_3183, 2, SV_KIND_SUB);
+            SvStockAdvance();
+        }
+        break;
+    case SV_STOCK_BEGIN: {
+        ALL_TABLE *tbl = All_table_TBL[bank];
+        const u_int *table = BANK_PTR(const u_int *, bank, tbl->shadow);
+        iPcnt_3177 = 0;
+        iMcnt_3178 = 0;
+        iFBflag_3179 = 0;
+        svStockBank = bank;
+        lpGA_3180 = BANK_PTR(u_char *, bank, table[SV_TABLE_OBJECTS]);
+        lpSVWP_3181 = BANK_PTR(u_char *, bank, table[SV_TABLE_POSITIONS]);
+        lpSVWN_3182 = BANK_PTR(u_char *, bank, table[SV_TABLE_NORMALS]);
+        break;
+    }
+    }
+}
+
+// ---- the shadow polygons (slice 13, 2026-11-10) ----
+//
+// Once a frame (main) each shadowed bank's casters become volume quads: the caster's vertices are
+// placed by its part, pushed away from the light by shadowLength (the far cap), and every silhouette
+// edge of a lit face (or of a segment's outline) gives a quad (far a, near a, near b, far b) under the
+// plane through the light and the edge. A quad is a plus face when the camera and the caster's centre
+// lie on the same side of that plane, a minus face otherwise.
+
+// The shadow table's work words after the stock's three (ALL_TABLE.shadow).
+#define SP_TABLE_NEAR 3                 /* float[][4]: the caster's vertices, placed */
+#define SP_TABLE_FAR 4                  /* ... pushed away from the light */
+#define SP_TABLE_RAYS 5                 /* ... minus the light */
+#define SP_TABLE_PLANES 6               /* per edge: the plane's normal, w = its offset */
+#define SP_TABLE_LEVELS 7               /* 8 x (count, SHADOW_CASTER list), by shadowColor[3] */
+#define SP_LEVELS 8
+#define SP_RING_MAX 70                  /* the ROM's stack index list (u_short[70]) */
+#define SP_ANCHOR_HASH 0x74dda77d0cbcf0c2ull /* a character bank's shadow anchor part (name not known) */
+#define SP_PARALLEL_DOT 0.99f           /* |axis . light| at or above it: the segment is end-on */
+#define SP_SEGMENT_RADIUS_SCALE 10.0f   /* a segment end's w: low 16 bits radius * 10, high 16 points */
+#define REC_SHADOW_SCALE 0x2c0          /* float[3]: REC_SCALE, the caster part's diagonal */
+#define REC_SHADOW_MATRIX 0x1c0         /* float[4][4]: REC_MATRIX_PREV, the caster part's matrix */
+
+// One caster of a level's list (0x10 bytes, bank data). layout: ee.
+typedef struct SHADOW_CASTER {
+    u_short part;                       /* 0x0: the part placing it (its matrix * its scale) */
+    u_short polyCount;                  /* 0x2: 0: a segment (two qwords at verts) */
+    u_int polys;                        /* 0x4: u_short lists: n, then n vertex indices */
+    u_short vertCount;                  /* 0x8 */
+    u_short hidePart;                   /* 0xa: skipped while this part's REC_FLAGS bit 0 is set */
+    u_int verts;                        /* 0xc: float[vertCount][4] */
+} SHADOW_CASTER;
+static_assert(sizeof(SHADOW_CASTER) == 0x10, "SHADOW_CASTER");
+
+// PORT: the bank whose relocated EE range holds `ee` (BankOfHostPtr's counterpart): the light position
+// a bank's shadow is attached to lies in another bank's parts.
+static int BankOfEeAddr(u_int ee)
+{
+    int bank, best = -1;
+    for (bank = 0; bank < BANK_MAX; bank++) {
+        if (BankImage[bank] != NULL && BankImageEE[bank] <= ee && (best < 0 || BankImageEE[bank] > BankImageEE[best]))
+            best = bank;
+    }
+    return best;
+}
+
+// VU0 helpers, fields as the ROM's: rows-as-vectors matrix * v (MULAx .. MADDw, xyzw).
+static void SpMulMatVec(float *dst, const float (*m)[4], const float *v)
+{
+    float r[4];
+    for (int i = 0; i < 4; i++)
+        r[i] = m[0][i] * v[0] + m[1][i] * v[1] + m[2][i] * v[2] + m[3][i] * v[3];
+    memcpy(dst, r, sizeof(r));
+}
+// xyz scaled to unit length (RSQRT; w kept).
+static void SpNormalizeXYZ(float *v)
+{
+    float s = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
+    float r = s > 0.0f ? 1.0f / sqrtf(s) : 0.0f;
+    v[0] *= r;
+    v[1] *= r;
+    v[2] *= r;
+}
+// dst.xyz = a x b (OPMULA a, b; OPMSUB b, a); dst.w = a.w.
+static void SpCross(float *dst, const float *a, const float *b)
+{
+    float r[4] = { a[1] * b[2] - b[1] * a[2], a[2] * b[0] - b[2] * a[0], a[0] * b[1] - b[0] * a[1], a[3] };
+    memcpy(dst, r, sizeof(r));
+}
+static float SpDot(const float *a, const float *b)
+{
+    return gaInnerProductXYZ((float *)a, (float *)b);
+}
+// The ROM's side test: 0 for +-0, -1 below, 1 otherwise (NaN too).
+static float SpSign(float f)
+{
+    if (f == 0.0f)
+        return 0.0f;
+    return f < 0.0f ? -1.0f : 1.0f;
+}
+
+// far = (near - light) * (length / |near - light| + 1) + light, xyz (w: near's), for n vertices.
+static void SpExtrude(float (*nearV)[4], float (*farV)[4], float (*rays)[4], int n, const float *light, float length)
+{
+    for (int i = 0; i < n; i++) {
+        float k;
+        rays[i][0] = nearV[i][0] - light[0];
+        rays[i][1] = nearV[i][1] - light[1];
+        rays[i][2] = nearV[i][2] - light[2];
+        rays[i][3] = nearV[i][3];
+        k = length / asVectorLength3D(rays[i]) + 1.0f;
+        farV[i][0] = rays[i][0] * k + light[0];
+        farV[i][1] = rays[i][1] * k + light[1];
+        farV[i][2] = rays[i][2] * k + light[2];
+        farV[i][3] = rays[i][3];
+    }
+}
+
+// The plane through the light and edge (a, b): normalize(ray a x ray b), w = -(n . light).
+static void SpEdgePlane(float *plane, const float *rayA, const float *rayB, const float *light)
+{
+    SpCross(plane, rayA, rayB);
+    SpNormalizeXYZ(plane);
+    plane[3] = -SpDot(plane, light);
+}
+
+// Edge (a, b)'s quad to the stock: plus when the camera and `ref` are on the same side of a's plane.
+static void SpStockEdge(int bank, float (*nearV)[4], float (*farV)[4], const float (*planes)[4], int a, int b,
+                        const float *cam, const float *ref)
+{
+    alignas(16) float quad[SV_QUAD_VERTS][4];
+    float sCam, sRef;
+    memcpy(quad[0], farV[a], 16);
+    memcpy(quad[1], nearV[a], 16);
+    memcpy(quad[2], nearV[b], 16);
+    memcpy(quad[3], farV[b], 16);
+    sCam = SpSign(SpDot(cam, planes[a]) + planes[a][3]);
+    sRef = SpSign(SpDot(ref, planes[a]) + planes[a][3]);
+    asStockShadowVolume(bank, quad, sCam == sRef ? SV_STOCK_PLUS : SV_STOCK_MINUS);
+}
+
+// A segment caster's outline into nearV: two half rings (end-on: one full ring about the nearer
+// looking end). Answers the vertex count, -1 when nothing is cast; *split the ring index from which
+// refB replaces refA as the side test's reference.
+static int SpSegmentOutline(float (*nearV)[4], const float (*m)[4], const float *src, const float *light,
+                            float *refA, float *refB, int *split)
+{
+    alignas(16) float p0[4], p1[4], axis[4], toL[4], axisN[4], toLN[4], d[4], c[4], rot[4][4];
+    u_int w0, w1;
+    float r0, r1, dot;
+    short n0, n1;
+    int count, i;
+    memcpy(p0, src, 16);
+    memcpy(p1, src + 4, 16);
+    memcpy(&w0, &p0[3], 4);
+    memcpy(&w1, &p1[3], 4);
+    r0 = (float)(w0 & 0xffff) / SP_SEGMENT_RADIUS_SCALE;
+    r1 = (float)(w1 & 0xffff) / SP_SEGMENT_RADIUS_SCALE;
+    n0 = (short)(w0 >> 16);
+    n1 = (short)(w1 >> 16);
+    p0[3] = 1.0f;
+    p1[3] = 1.0f;
+    SpMulMatVec(p0, m, p0);
+    SpMulMatVec(p1, m, p1);
+    for (i = 0; i < 4; i++) {
+        axis[i] = p1[i] - p0[i];
+        toL[i] = light[i] - p0[i];
+    }
+    memcpy(axisN, axis, 16);
+    SpNormalizeXYZ(axisN);
+    memcpy(toLN, toL, 16);
+    SpNormalizeXYZ(toLN);
+    dot = SpDot(axisN, toLN);
+    if (dot < SP_PARALLEL_DOT && dot > -SP_PARALLEL_DOT) {
+        // side by side: a half ring of n + 2 points about each end, turned about the light ray
+        SpCross(d, toL, axis);
+        SpNormalizeXYZ(d);
+        for (i = 0; i < 4; i++) {
+            c[i] = d[i] * -r1;
+            d[i] *= r0;
+        }
+        asMakeRotMatrixByQuartanion(rot, toL, 0x10000 - 0x10000 / ((n0 + 1) * 2));
+        for (i = 0; i < 4; i++)
+            nearV[0][i] = p0[i] + d[i];
+        for (count = 1; count < n0 + 2; count++) {
+            SpMulMatVec(d, rot, d);
+            for (i = 0; i < 4; i++)
+                nearV[count][i] = p0[i] + d[i];
+        }
+        asMakeRotMatrixByQuartanion(rot, toL, 0x10000 - 0x10000 / ((n1 + 1) * 2));
+        for (i = 0; i < 4; i++)
+            nearV[count][i] = p1[i] + c[i];
+        for (int k = 1; k < n1 + 2; k++) {
+            SpMulMatVec(c, rot, c);
+            count++;
+            for (i = 0; i < 4; i++)
+                nearV[count][i] = p1[i] + c[i];
+        }
+        count = (u_short)(n0 + n1 + 4);
+        *split = n0 + 2;
+    } else {
+        // end-on: a full ring about the end whose radius looks the larger from the light
+        float e0[4], e1[4], f[4] = { 1.0f, 0.0f, 0.0f, 1.0f };
+        for (i = 0; i < 4; i++) {
+            e0[i] = p0[i] - light[i];
+            e1[i] = p1[i] - light[i];
+        }
+        {
+            float l0 = asVectorLength3D(e0), l1 = asVectorLength3D(e1);
+            if ((r0 / l0 <= r1 / l1 && n1 != 0) || n0 == 0) {
+                memcpy(p0, p1, 16);
+                r0 = r1;
+                n0 = n1;
+            }
+        }
+        if (n0 == 0)
+            return -1;
+        count = (n0 + 1) * 2;
+        if (SpDot(f, toLN) >= SP_PARALLEL_DOT || SpDot(f, toLN) <= -SP_PARALLEL_DOT) {
+            f[0] = 0.0f;
+            f[1] = 1.0f;
+        }
+        SpCross(f, f, toLN);
+        SpNormalizeXYZ(f);
+        for (i = 0; i < 4; i++)
+            f[i] *= r0;
+        asMakeRotMatrixByQuartanion(rot, toLN, 0x10000 / count);
+        for (i = 0; i < 4; i++)
+            nearV[0][i] = p0[i] + f[i];
+        for (int k = 1; k < count; k++) {
+            SpMulMatVec(f, rot, f);
+            for (i = 0; i < 4; i++)
+                nearV[k][i] = p0[i] + f[i];
+        }
+        *split = count;
+    }
+    // the side test's references: an end without points is replaced by the middle
+    for (i = 0; i < 4; i++) {
+        refA[i] = n0 == 0 ? (p0[i] + p1[i]) * 0.5f : p0[i];
+        refB[i] = n1 == 0 ? (p0[i] + p1[i]) * 0.5f : p1[i];
+    }
+    return count;
+}
+
+// CT3 0x01844df0
+// main, every shadowed bank (and each refracting shadowed character's bank) once a frame: marks the
+// bank's shadow for this frame (shadowFrame, shadowDraw bit 0, iPleaseShadowDraw), takes the light
+// (the attached position, for a character bank the angle-locked one above its anchor), and stocks the
+// volume of every caster of the level shadowColor[3] picks whose hide part is shown -- last caster
+// first. Nothing while the shadow is off, the table missing or the level empty; no quads while the
+// light's w is not positive.
+void asShadowPolygonPositions(int bank)
+{
+    BANK_INFO *bi;
+    ALL_TABLE *tbl;
+    const u_int *st;
+    u_char *parts;
+    const SHADOW_CASTER *list = NULL;
+    alignas(16) float cam[4], lockLight[4];
+    const float *light;
+    int count = 0, c;
+    // callcheck: asMakeRotMatrixByQuartanion, asVectorLength3D, gaInnerProductXYZ (SpSegmentOutline, SpExtrude and SpDot make them)
+    if (bank < 0)
+        return;
+    bi = &BankInfo[bank];
+    tbl = All_table_TBL[bank];
+    if (!(bi->shadowVec[3] > 0.0f) || tbl == NULL || tbl->shadow == 0)
+        return;
+    st = BANK_PTR(const u_int *, bank, tbl->shadow);
+    bi->shadowFrame = FrameCounter;
+    iPleaseShadowDraw = 1;
+    bi->shadowDraw |= 1;
+    if (bi->shadowColor[3] < SP_LEVELS) {
+        count = (int)st[SP_TABLE_LEVELS + bi->shadowColor[3] * 2];
+        list = BANK_PTR(const SHADOW_CASTER *, bank, st[SP_TABLE_LEVELS + bi->shadowColor[3] * 2 + 1]);
+    }
+    if (count == 0)
+        return;
+    asViewMatrix2PosRUF(&matrix_global_view_for_shadow[0][0], cam, cam, cam, cam);
+    if (bi->shadowLightPos != 0) {
+        int lb = BankOfEeAddr(bi->shadowLightPos);
+        if (lb >= 0)
+            memcpy(bi->shadowVec, BankEePtr(lb, bi->shadowLightPos), sizeof(bi->shadowVec));
+    }
+    light = bi->shadowVec;
+    {
+        float *anchor = (float *)bi->pad40;     // BANK_INFO +0x40: the shadow's anchor
+        if (bi->type == FS_LOAD_SHAPE) {
+            u_char *hdr = BANK_PTR(u_char *, bank, tbl->partsHeader);
+            u_char *rec = asFindModelParts(hdr, SP_ANCHOR_HASH);
+            if (rec == NULL) {
+                rec = asFindModelParts(hdr, PARTS_HASH_SOUND_ORIGIN);
+                memcpy(anchor, PARTS_REC(hdr, 0) + REC_POS, 16);
+                if (rec != NULL) {
+                    memcpy(&anchor[0], rec + REC_POS, 4);
+                    memcpy(&anchor[2], rec + REC_POS + 8, 4);
+                }
+            } else {
+                memcpy(anchor, rec + REC_POS, 16);
+            }
+            if (bi->shadow6d != 0) {
+                // the angle lock: the light at shadow68 from a point shadow64 above the anchor, level with it
+                float p[4], d[4];
+                memcpy(p, anchor, 16);
+                p[1] += bi->shadow64;
+                d[0] = light[0] - p[0];
+                d[1] = 0.0f;                    // (light.x, p.y, light.z) - p
+                d[2] = light[2] - p[2];
+                d[3] = light[3] - p[3];
+                SpNormalizeXYZ(d);
+                lockLight[0] = p[0] + d[0] * bi->shadow68;
+                lockLight[1] = p[1] + d[1] * bi->shadow68;
+                lockLight[2] = p[2] + d[2] * bi->shadow68;
+                lockLight[3] = bi->shadowVec[3];
+                light = lockLight;
+            }
+        } else {
+            memcpy(anchor, bi->shadowVec, 16);
+        }
+    }
+    parts = PARTS_REC(BANK_PTR(u_char *, bank, tbl->partsHeader), 0);
+    if (!(light[3] > 0.0f))
+        return;
+    asStockShadowVolume(bank, NULL, SV_STOCK_BEGIN);
+    for (c = count - 1; c >= 0; c--) {
+        const SHADOW_CASTER *e = &list[c];
+        u_char *rec = parts + e->part * 0x380;
+        alignas(16) float m[4][4];
+        float (*nearV)[4] = BANK_PTR(float (*)[4], bank, st[SP_TABLE_NEAR]);
+        float (*farV)[4] = BANK_PTR(float (*)[4], bank, st[SP_TABLE_FAR]);
+        float (*rays)[4] = BANK_PTR(float (*)[4], bank, st[SP_TABLE_RAYS]);
+        float (*planes)[4] = BANK_PTR(float (*)[4], bank, st[SP_TABLE_PLANES]);
+        const float (*verts)[4] = BANK_PTR(const float (*)[4], bank, e->verts);
+        u_int hide;
+        memcpy(&hide, parts + e->hidePart * 0x380 + REC_FLAGS, 4);
+        if (hide & 1)
+            continue;
+        // the part's matrix * its scale (matUnit with the diagonal from REC_SHADOW_SCALE)
+        memcpy(m, matUnit, sizeof(m));
+        memcpy(&m[0][0], rec + REC_SHADOW_SCALE, 4);
+        memcpy(&m[1][1], rec + REC_SHADOW_SCALE + 4, 4);
+        memcpy(&m[2][2], rec + REC_SHADOW_SCALE + 8, 4);
+        gaMulMatrix(m, (float (*)[4])(rec + REC_SHADOW_MATRIX), m);
+        if (e->polys == 0) {
+            // a segment: its outline is the ring the quads go round
+            alignas(16) float refA[4], refB[4];
+            u_short ring[SP_RING_MAX + 1];
+            int split, n = SpSegmentOutline(nearV, (const float (*)[4])m, verts[0], light, refA, refB, &split), i;
+            const float *ref = refA;
+            if (n < 0)
+                continue;
+            if (n > SP_RING_MAX)
+                n = SP_RING_MAX;        // PORT: the ROM's stack list would overflow
+            SpExtrude(nearV, farV, rays, n, light, bi->shadowLength);
+            for (i = 0; i < n; i++)
+                ring[i] = (u_short)i;
+            ring[n] = 0;
+            for (i = 0; i < n; i++)
+                SpEdgePlane(planes[ring[i]], rays[ring[i]], rays[ring[i + 1]], light);
+            for (i = 0; i < n; i++) {
+                if (i == split)
+                    ref = refB;
+                SpStockEdge(bank, nearV, farV, (const float (*)[4])planes, ring[i], ring[i + 1], cam, ref);
+            }
+        } else {
+            // polygons: each lit face's edges
+            const u_short *poly = BANK_PTR(const u_short *, bank, e->polys);
+            u_int at = 0;
+            int i, k;
+            for (i = 0; i < e->vertCount; i++)
+                SpMulMatVec(nearV[i], (const float (*)[4])m, verts[i]);
+            SpExtrude(nearV, farV, rays, e->vertCount, light, bi->shadowLength);
+            for (i = 0; i < e->polyCount; i++) {
+                int n = poly[at];
+                const u_short *v = &poly[at + 1];
+                alignas(16) float centre[4], a[4], b[4], fn[4];
+                at += 1 + n;
+                for (k = 0; k < 4; k++)
+                    centre[k] = nearV[v[0]][k] + nearV[v[1]][k] + nearV[v[2]][k];
+                for (k = 0; k < 3; k++)
+                    centre[k] *= 1.0f / 3.0f;   // VMULx.xyz: w stays the sum (unread)
+                for (k = 0; k < 3; k++) {
+                    a[k] = nearV[v[0]][k] - nearV[v[1]][k];
+                    b[k] = nearV[v[0]][k] - nearV[v[2]][k];
+                }
+                a[3] = b[3] = nearV[v[0]][3];
+                SpCross(fn, a, b);
+                SpNormalizeXYZ(fn);
+                if (!(SpDot(fn, rays[v[0]]) > 0.0f))
+                    continue;
+                for (k = 0; k < n - 1; k++)
+                    SpEdgePlane(planes[v[k]], rays[v[k]], rays[v[k + 1]], light);
+                for (k = 0; k < n - 1; k++)
+                    SpStockEdge(bank, nearV, farV, (const float (*)[4])planes, v[k], v[k + 1], cam, centre);
+            }
+        }
+    }
+    asStockShadowVolume(bank, NULL, SV_STOCK_FLUSH);
 }
 
 // stub of CT3 0x01846360

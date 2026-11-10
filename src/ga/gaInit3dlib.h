@@ -16,3 +16,6 @@ float gaInnerProductXYZ(float *a, float *b);                                    
 void gaSetLight(void *lightWork, float (*view)[4]);                                      // CT3 0x018a8258
 // dst = a's inverse (asMakeMirrorMatrixByPlane calls it in place).
 void gaInversMatrix(float (*dst)[4], float (*a)[4]);                                     // CT3 0x018a7b50
+#define GA_OBJECT_SIZE 0x80             /* a ga draw object, as gaCopyObject2 copies it */
+// dst's 0x80 bytes = src's (asStockShadowVolume's template copies).
+void gaCopyObject2(void *dst, const void *src);                                          // CT3 0x018a8210

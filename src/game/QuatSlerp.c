@@ -4,7 +4,16 @@
 #include "common/alyssapan_stub.h"
 #include "game/QuatSlerp.h"
 
+#include <math.h>
 #include <string.h>
+
+// CT3 0x0185df90
+// Written early (ahRelocateSunPs2ObjectArry.c slice 13): VU0 RSQRT of x2 + y2 + z2, then 1 / Q.
+// (The ROM also stores the normalised vector to a stack slot nobody reads.)
+float asVectorLength3D(const float *v)
+{
+    return sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+}
 
 // ---- stubs (tools/reverse/stubgen.py) ----
 

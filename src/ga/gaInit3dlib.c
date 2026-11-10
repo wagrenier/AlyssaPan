@@ -4,6 +4,25 @@
 #include "common/alyssapan_stub.h"
 #include "ga/gaInit3dlib.h"
 
+#include <string.h>
+
+// CT3 0x018a8210
+// Written early (game/ahRelocateSunPs2ObjectArry.c slice 13): the 32 words of a ga draw object copied
+// (the ROM loads all 32, then stores them).
+void gaCopyObject2(void *dst, const void *src)
+{
+    memmove(dst, src, GA_OBJECT_SIZE);
+}
+
+// CT3 0x018a7780
+// Written early (the same slice): VMUL.xyz, then x + y + z (VADDY.x, VADDZ.x).
+float gaInnerProductXYZ(float *a, float *b)
+{
+    float s = a[0] * b[0];
+    s += a[1] * b[1];
+    return s + a[2] * b[2];
+}
+
 // ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x018a7700
@@ -36,12 +55,6 @@ void gaSetLight(void *lightWork, float (*view)[4])
     ALYSSAPAN_STUB("gaSetLight", 0x018a8258);
 }
 
-// stub of CT3 0x018a7780
-float gaInnerProductXYZ(float *a, float *b)
-{
-    ALYSSAPAN_STUB("gaInnerProductXYZ", 0x018a7780);
-    return {};
-}
 
 // stub of CT3 0x018a7b50
 void gaInversMatrix(float (*dst)[4], float (*a)[4])

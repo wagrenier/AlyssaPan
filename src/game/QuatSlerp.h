@@ -92,6 +92,8 @@ float ahCos(int angle);                                                         
 int ahAcos(float c);                                                                     // CT3 0x01851dc0
 // m = the rotation by angle about the unit axis (asSearchObject's turn step).
 void asMakeRotMatrixByQuartanion(float (*m)[4], float *axis, int angle);                // CT3 0x0185ddf0
+// |v.xyz| (the ROM: 1 / rsqrt; written early, ahRelocateSunPs2ObjectArry.c slice 13).
+float asVectorLength3D(const float *v);                                                  // CT3 0x0185df90
 // out = m turned to look at target; `axis` is the part's +0x34 byte.
 void asMakeWatchMeMatrixToPosition(float (*out)[4], float (*m)[4], float *target, int axis); // CT3 0x0185d4d0
 // a point light part's range (its record, MODEL_PARTS + 0x40).

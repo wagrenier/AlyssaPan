@@ -494,6 +494,32 @@ view * matrix (+0x180) and +0x300 = that * diag(record +0x2c0 xyz).
   character's refractAxis (+0x4b0) from row 1 or row 2 of one of two parts' world matrices, then
   asCopyDoubleBufferL2W for the drawn banks of type 0 / 1 / 2, and asResetCharacterRotation(0, 0, 0).
 
+## The shadow volume's build, game/ahRelocateSunPs2ObjectArry.c (2026-11-10, slice 13)
+
+- **The shadow table** (ALL_TABLE.shadow, 7 words then 8 (count, caster list) pairs): 0 the volume's ga
+  objects, 1 their positions (0x80 an object), 2 their normals (a 16-byte UNPACK V4-32 header, then 8
+  qwords: 0x90 an object), 3 near vertices, 4 far vertices, 5 light rays, 6 edge planes; the pair the
+  shadow level (BankInfo +0x63, shadowColor[3], 0..7) picks lists SHADOW_CASTERs (0x10: part, polygon
+  count, polygons, vertex count, hide part, vertices). BankInfo +0x40 is the shadow's anchor.
+- **asShadowPolygonPositions(bank)** (main): shadowFrame = FrameCounter, shadowDraw |= 1,
+  iPleaseShadowDraw; the light = the attached position's qword (shadowLightPos), for a shape bank
+  (FS_LOAD_SHAPE) with the angle lock (+0x6d) a point shadow68 from (anchor + shadow64 up) toward the
+  light, level with it. Casters last to first, skipped while the hide part's REC_FLAGS bit 0 is set,
+  placed by REC_MATRIX_PREV * diag(REC_SCALE). Polygons: vertices pushed shadowLength away from the
+  light; each face whose normal (v0 - v1) x (v0 - v2) points along the light's ray gives its edges' quads. A segment (no
+  polygons: two qwords whose w is radius * 10 | points << 16) gives a ring: two half rings about its
+  ends turned about the light ray, or end-on one full ring. A quad (far a, near a, near b, far b) is a
+  plus face when the camera (asViewMatrix2PosRUF of matrix_global_view_for_shadow) and the caster's
+  centre lie on the same side of the plane through the light and the edge, else a minus face.
+- **asStockShadowVolume(bank, quad, mode)**: 0 begins at the table's buffers, 1 / -1 take a plus / minus
+  quad, two of a sign making a ShadowVolume2 object (4 vertices, 8 indices; kinds 1 / 2), 2 flushes a
+  lone plus quad as kind 5 and a lone minus quad as the list's last, kind 6 (ShadowVolume1: 2 / 4).
+  Each object: gaCopyObject2 of the template (sdata 0x01937ba0), its buffers, the face normal per vertex.
+  Plus faces draw subtracting, minus faces adding (asDrawShadowVolume).
+- **asCheckAnimationState_S** answers what asSceneAnimationStop_S would stop: 1 playing, 2 stop requested,
+  0 none (a character: its motion slots, then its 42-entry request queue at +0x3b0 / modes +0x404);
+  **asGetSceneAnimationCurrent** a track's time in frames * 2, + 1 while it plays.
+
 ## The matrix tree set-up and the game clock, game/LinkMatrixTree.c (2026-11-10)
 
 - **InitMatrixTree(header)** (scene_init, data_load_set, asJointParts_byMatrix): for each record
