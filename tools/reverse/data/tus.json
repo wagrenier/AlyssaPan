@@ -540,7 +540,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 127..127, 1 functions keyed by their statics, 1 unkeyed; file name from the names"
   },
   "game/SdMasterVolumeSetSE.c": {
-   "notes": "Left: SdProc and its five procs (SdLoadSEProc 0x12a0, SdLoadSQProc 0x138c, SdPlaySEProc, SdPlaySESpProc, SdPlayADSProc), SdPlaySE, SdPlaySEUpdate, SdSupplyCHSE, NextPlaySE, NextLoadSE, SdReqPlaySE, SdSetParamSE, the SQ and stream play side, IopLoadCapcomSound (creates the FSS thread). CpCall_IOPSndDriver is a new stub in CpDivideEECom.c (returns NULL; FSS_Thread derefs it only for a reply pointer, none yet). SND_CMD words and the JSL record arg meanings are named from the EE side only. The screen stays black as before (sound draws nothing); last.png was empty this run, shot_26400 is black.",
+   "notes": "Left: SdLoadSQProc (0x018ce6c0, 0x138c bytes, the SQ twin of SdLoadSEProc: reuse its step pattern and decide SD_SQ_LD layout host for its buffer word), SdPlaySEProc, SdPlaySESpProc, SdPlayADSProc (static stubs SdProc calls), SdReqLoadSE (decompile read: fields in SD_SE_LD), SdPlaySE, SdPlaySEUpdate, SdSupplyCHSE, NextPlaySE, SdReqPlaySE, SdSetParamSE, the SQ and stream play side, IopLoadCapcomSound. callcheck MISSING on SdLoadSEProc is only the calls moved into its helpers SdLoadSEOpen, SdLoadSERead, SdIopHeapAlloc, SdSendToIop (the ROM repeats them inline). New stubs in CpDivideEECom.c: CpSifDmaTransEEToIOP, CpCall_IOPSndDriver_2, CpCheckEE_IOPComEnd (return 0 = done, so a load would run through). No load reaches SdLoadSEProc yet (SdReqLoadSE is a stub); the screen stays black, as before.",
    "ranges": [
     [
      "018cbf90",
@@ -552,6 +552,11 @@
      "date": "2026-11-10 14:15",
      "status": "partial",
      "summary": "slice 1: the FSS command ring and thread (FIFO, FSS_Thread, _Init, _Sync), SE master and stream volumes, reverb, SE stop and lookup, load-end wait, SdAlloc, SdFree, SdRnd (20 functions); TU data moved here from lib/unassigned_data.cpp"
+    },
+    {
+     "date": "2026-11-10 14:36",
+     "status": "partial",
+     "summary": "slice 2: SdProc, the SE bank loader (SdLoadSEProc and its steps, NextLoadSE), SdVolumeSetSQ, SdMasterVolumeSetSQ; FL_PACK_INFO.partSize; host IOP heap and sceSdTransToIOP"
     }
    ],
    "status": "partial",

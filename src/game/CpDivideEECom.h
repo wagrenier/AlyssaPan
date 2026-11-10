@@ -27,6 +27,10 @@ static_assert(offsetof(EE_IOP_STAT, iopBusy) == 0x50, "EE_IOP_STAT.iopBusy");
 #define SND_CMD_MASTER_VOL_SE 0x240000u   /* gTransJSLCOM +8: the SE master volume */
 #define SND_CMD_STOP_SE_CH 0x290000u      /* seStopJSLCOM: +0xc channel bits, +0x10 the stop word */
 #define SND_CMD_ADS_VOLUME 0x310000u      /* gTransADS +0x68: L | R << 16 */
+#define SND_CMD_SE_REGISTER 0xa0000u      /* | jls: an SE bank loaded (SD_SE_REGISTER) */
+#define SND_CMD_TRANS_SPU2 0x120000u      /* CpCall_IOPSndDriver_2: IOP block arg[0] -> SPU2 arg[1], arg[2] bytes */
+#define SND_CMD_MASTER_VOL_SQ 0x1b0000u   /* gTransJSLCOM: unk00 0, arg[0] the SQ master volume */
+#define SND_CMD_VOLUME_SQ 0x1c0000u       /* SD_SQ_LD.volCom: one player's volume */
 
 // A JSL command record (gTransJSLCOM, and the Sd TU's seStopJSLCOM / effectJSLCOM): 8 words, the
 // arguments from +8. layout: ee.
@@ -54,3 +58,13 @@ extern SND_TRANS_ADS gTransADS;         // bss 0x01943b40 (likewise)
 int *CpCall_IOPSndDriver(u_int command, void *data);  // CT3 0x018d2250
 
 EE_IOP_STAT *CpGetEEIOPStatus(void);    // CT3 0x018d1e70: &gEEStat (its uncached alias)
+
+// Prototypes from SdLoadSEProc's calls and the ROM bodies (2026-11-10); this TU writes them.
+// SIF DMA of `size` bytes (< 0xffff1) to the IOP address `iopAddr`, waited for; 0 = done, < 0 = refused.
+// `intr` 1: from an interrupt handler (the i- calls), 0: from a thread.
+int CpSifDmaTransEEToIOP(const void *src, u_int iopAddr, u_int size, int a3, int intr); // CT3 0x018d1fa0
+// The driver's second channel (SND_CMD_TRANS_SPU2 / 0x110000 only): the RPC with an end callback that
+// clears CpGetCPCMDCALLBACK's bit; answers the reply buffer.
+int *CpCall_IOPSndDriver_2(u_int command, void *data); // CT3 0x018d2120
+// 0 once the second-channel command `command` has ended; `poll` 1 asks once, 0 waits.
+int CpCheckEE_IOPComEnd(u_int command, int poll);      // CT3 0x018d1e80

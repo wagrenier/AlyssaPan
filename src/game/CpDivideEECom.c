@@ -22,3 +22,24 @@ int * CpCall_IOPSndDriver(u_int command, void *data)
     ALYSSAPAN_STUB("CpCall_IOPSndDriver", 0x018d2250);
     return {};
 }
+
+// stub of CT3 0x018d2120
+int * CpCall_IOPSndDriver_2(u_int command, void *data)
+{
+    ALYSSAPAN_STUB("CpCall_IOPSndDriver_2", 0x018d2120);
+    return {};
+}
+
+// stub of CT3 0x018d1e80
+int CpCheckEE_IOPComEnd(u_int command, int poll)
+{
+    ALYSSAPAN_STUB("CpCheckEE_IOPComEnd", 0x018d1e80);
+    return {};
+}
+
+// stub of CT3 0x018d1fa0
+int CpSifDmaTransEEToIOP(const void *src, u_int iopAddr, u_int size, int a3, int intr)
+{
+    ALYSSAPAN_STUB("CpSifDmaTransEEToIOP", 0x018d1fa0);
+    return {};
+}

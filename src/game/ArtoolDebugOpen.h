@@ -7,6 +7,8 @@
 
 #include "sdk/scetypes.h"
 
+#include <stddef.h>
+
 // ---- limits -------------------------------------------------------------------------------------------
 #define FL_REQ_MAX        20     // gReqRd's rows (the searches stop at 0x14)
 #define FL_PACK_MAX       1100   // gFlPackInfo's rows (35200 bytes; FlInit's TOO SMALL check, 0x8980)
@@ -60,12 +62,16 @@ typedef struct FL_REQ_RD {
 
 // gFlPackInfo's rows: CT3PACK.DAT's directory, read from the pack's sectors 1.. (layout: ee).
 typedef struct FL_PACK_INFO {
-    char name[0x14];        // +0x00 upper case ("EVENT.INF", "GAME_END.DAT")
+    char name[0x10];        // +0x00 upper case ("EVENT.INF", "GAME_END.DAT"; 12 characters at most)
+    int partSize;           // +0x10 a two-part file's first part: a packed NAME.SDT is the SDT (this many
+                            //       bytes) then its .HD, likewise .SQ (SdLoadSEProc); 0 otherwise (876 of
+                            //       980 rows, CT3PACK.DAT read 2026-11-10)
     int size;               // +0x14 bytes
     int sect;               // +0x18 the first sector: relative to the pack in the file, absolute after FlInit
     int numSect;            // +0x1c sectors
 } FL_PACK_INFO;
 static_assert(sizeof(FL_PACK_INFO) == 0x20, "FL_PACK_INFO is 0x20 bytes");
+static_assert(offsetof(FL_PACK_INFO, partSize) == 0x10, "FL_PACK_INFO.partSize");
 
 // CT3PACK.DAT's sector 0, read into gBuf1Sect.
 #define FL_PACK_HDR_COUNT  0  // word 0: the directory's rows (980)

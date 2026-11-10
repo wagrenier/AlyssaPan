@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-10 14:15 at commit `ab79a96` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-10 14:36 at commit `b24ca8e` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **644**; stubs: **164**
+- reconstructed CT3 functions: **649**; stubs: **169**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -53,11 +53,11 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/Character_Init.c` | 48 | 1 |
 | `src/game/Clipping_Portal.c` | 0 | 34 |
 | `src/game/Convert.c` | 0 | 2 |
-| `src/game/CpDivideEECom.c` | 0 | 2 |
+| `src/game/CpDivideEECom.c` | 0 | 5 |
 | `src/game/IOPGetFileSize.c` | 4 | 0 |
 | `src/game/LinkMatrixTree.c` | 4 | 0 |
 | `src/game/QuatSlerp.c` | 189 | 0 |
-| `src/game/SdMasterVolumeSetSE.c` | 20 | 24 |
+| `src/game/SdMasterVolumeSetSE.c` | 25 | 26 |
 | `src/game/ahRelocateSunPs2ObjectArry.c` | 93 | 0 |
 | `src/game/ahalloc.c` | 7 | 0 |
 | `src/game/asEyeForcusUP2CamMat.c` | 0 | 9 |
@@ -84,7 +84,7 @@ Least-named game-code regions (64 KB blocks):
 - 65 TUs: todo 44, partial 1, verify 20, done 3
 - next: **game/SdMasterVolumeSetSE.c** (pinned in the queue)
 - pinned queue: game/SdMasterVolumeSetSE.c, ga/gaPadInit.c, game/movie.c, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/asEyeForcusUP2CamMat.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c, game/ssGrpPortalCheck.c
-- partial: `game/SdMasterVolumeSetSE.c` 20/61 -- Left: SdProc and its five procs (SdLoadSEProc 0x12a0, SdLoadSQProc 0x138c, SdPlaySEProc, SdPlaySESpProc, SdPlayADSProc), SdPlaySE, SdPlaySEUpdate, SdSupplyCHSE,
+- partial: `game/SdMasterVolumeSetSE.c` 25/61 -- Left: SdLoadSQProc (0x018ce6c0, 0x138c bytes, the SQ twin of SdLoadSEProc: reuse its step pattern and decide SD_SQ_LD layout host for its buffer word), SdPlaySE
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaDmaSync_VIF1.c` 5/5 -- Host: kicks leave CHCR.STR clear (the transfer is over), so the syncs return at once; the BGT send keeps the copy and the flip, the packet goes nowhere (draw mo
 - verify: `ga/gaInit3dlib.c` 25/25 -- 15 s smoke run: no fault, shot black (no host draw module). gaMulMatrix is dst = b * a (hazards.md). gaSetZRollMatrix now reaches gaSinCos: ga/gaSinCos.c is que
@@ -108,6 +108,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-10 14:36 `game/SdMasterVolumeSetSE.c` partial: slice 2: SdProc, the SE bank loader (SdLoadSEProc and its steps, NextLoadSE), SdVolumeSetSQ, SdMasterVolumeSetSQ; FL_PACK_INFO.partSize; host IOP heap and sceSd
 - 2026-11-10 14:15 `game/SdMasterVolumeSetSE.c` partial: slice 1: the FSS command ring and thread (FIFO, FSS_Thread, _Init, _Sync), SE master and stream volumes, reverb, SE stop and lookup, load-end wait, SdAlloc, SdF
 - 2026-11-10 13:49 `game/IOPGetFileSize.c` verify: IOPGetFileSize, IOPBindRPC, bind_rpc, IOPComSync: the EE side of FSYS_IOP's file server; gSCD moved here
 - 2026-11-10 13:34 `ga/gaDmaSync_VIF1.c` verify: all 5 functions from the disassembly: the VIF1 / GIF syncs with their timeout reports, the VIF1 normal and chain kicks, and the BGT ring send (memory packets co
@@ -115,22 +116,21 @@ Recent sessions:
 - 2026-11-10 12:58 `ga/gaInit3dlib.c` verify: all 25 functions from the disassembly: VU0 vector and matrix helpers, gaContMulMatrix (VU0 micro routines 0 and 0x10), gaSet3dlibStruct (GA_3DLIB_WORK), gaSetLi
 - 2026-11-10 12:30 `game/QuatSlerp.c` verify: slice 11: GetAreaFloor (the floor flags a step between paired rooms sets, room literals from the ELF) and asFindMotionID; the TU's code is complete, 177 of 177
 - 2026-11-10 12:14 `game/QuatSlerp.c` partial: slice 10: the paged textures (TexFileSetInit, TexFileSetNext, TexFileSetPage, tnTrigTexFileSetNext and Page; ALL_TABLE.texFileSet and the TEX_FILE_SET tables na
-- 2026-11-10 11:54 `game/QuatSlerp.c` partial: slice 9: the letterbox requests (VistaVisionStart, VistaVisionEnd), PlayerDamage, asObjectRotate (MODEL_PARTS.placeRot named), asPosRUF2ViewMatrix and asCamRUF2
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
 | `game/ssGrpPortalCheck.c` | todo | 0/11/59 | 26.4 | 376 | 10 |
 | `game/Clipping_Portal.c` | todo | 0/34/73 | 44.8 | 153 | 18 |
+| `game/SdMasterVolumeSetSE.c` | partial | 25/26/61 | 22.9 | 92 | 7 |
 | `game/wideXcmd_DebugPrint.c` | todo | 0/17/109 | 40.6 | 91 | 12 |
 | `game/ssSetTexUVforCubeMap.c` | todo | 0/31/96 | 35.3 | 86 | 9 |
-| `game/SdMasterVolumeSetSE.c` | partial | 20/24/61 | 22.9 | 82 | 5 |
 | `game/asEyeForcusUP2CamMat.c` | todo | 0/9/30 | 23.6 | 57 | 6 |
 | `game/tiAvoidObject.c` | todo | 0/6/82 | 30.5 | 26 | 4 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/ssHitCheckAttackToScn.c` | todo | 0/5/37 | 32.0 | 22 | 3 |
 | `ga/gaBGT_DrawObject.c` | todo | 0/2/9 | 7.6 | 18 | 1 |
 | `game/tkXDTrg_GetSceneHash.c` | todo | 0/3/50 | 21.0 | 14 | 2 |
-| `game/movie.c` | todo | 0/3/21 | 7.7 | 13 | 2 |
+| `game/CpDivideEECom.c` | todo | 0/5/18 | 3.3 | 13 | 1 |
 
 ## Frontier (called by reconstructed code, not written yet)
 
@@ -166,13 +166,13 @@ Recent sessions:
 | `01886dc0` | CamChange_S | 3 | sym | stub | game/asEyeForcusUP2CamMat.c |
 | `018fe370` | asSetCharacterKeyEnable | 3 | sym | stub | game/wideXcmd_DebugPrint.c |
 | `018881a0` | camera_main | 3 | sym | stub | game/asEyeForcusUP2CamMat.c |
-| `018d1390` | SdProc | 3 | sym | stub | game/SdMasterVolumeSetSE.c |
 | `018f6f80` | asCharacterPositioning | 3 | sym | stub | game/wideXcmd_DebugPrint.c |
 | `018cc040` | SdStopSESDT | 3 | sym | stub | game/SdMasterVolumeSetSE.c |
 | `0188df70` | tiDrawLensFlares | 3 | sym | stub | game/Clipping_Portal.c |
 | `018cbfe0` | SdStopSEAll | 3 | sym | stub | game/SdMasterVolumeSetSE.c |
 | `0188cd70` | tiVibrationTimer | 3 | sym | stub | game/Clipping_Portal.c |
 | `018fb940` | asMonsterDistanceStack_inPanic | 3 | sym | stub | game/wideXcmd_DebugPrint.c |
+| `018d1fa0` | CpSifDmaTransEEToIOP | 3 | sym | stub | game/CpDivideEECom.c |
 | `018a8690` | gaDMAStopMessage_VIF1 | 3 | sym | stub | ga/wait.c |
 | `018666c0` | asInitArrowInfo | 2 | sym | stub | game/asUseArrow.c |
 | `01882c10` | asInitMothInfo | 2 | sym | stub | game/asMothRouteSearch.c |

@@ -1,7 +1,8 @@
 // game/SdMasterVolumeSetSE.c -- Clock Tower 3, the EE side of the sound driver (CT3 0x018cbf90..0x018d1cb0):
 // SE banks and voices, SQ music, the ADS stream, reverb, and the FSS thread that hands every command to
 // the IOP (game/CpDivideEECom.c -> SNDDRV.IRX). Slice 1 (2026-11-10): the command ring and its thread, the
-// master / stream volumes, reverb, SE stop and lookup, the load-end wait, SdAlloc / SdFree, SdRnd.
+// master / stream volumes, reverb, SE stop and lookup, the load-end wait, SdAlloc / SdFree, SdRnd. Slice 2
+// (2026-11-10): SdProc, the SE bank loader (SdLoadSEProc, NextLoadSE), the SQ volume commands.
 //
 // Every command goes the same way: take fss_sid, fill a command record (a JSL_COM, gTransJSLCOM or
 // gTransADS), queue (command word, record, reply pointer) on RingBuff with CpCall_IOPSndDriver_FIFO, and
@@ -18,8 +19,13 @@
 #include "game/unassigned_data.h"
 #include "sdk/eekernel.h"
 #include "sdk/libgraph.h"
+#include "sdk/newlib.h"
+#include "sdk/sdremote.h"
+#include "sdk/sifdev.h"
 
+#include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 // ---- the TU's data (the symtab's names and addresses) -----------------------------------------------
 
@@ -33,6 +39,35 @@ int gADSOpenSync;                               /* sbss 0x01943888 */
 u_int gSdEffectDepth[2];                        /* bss  0x01943890 */
 int gSdEffectType[2];                           /* bss  0x01943898 */
 int gUseSoundAlloc;                             /* sbss 0x019438a0 */
+int gLdi;                                       /* sbss 0x019437dc: the gSELd row SdLoadSEProc steps */
+int gSELdHandleCounter;                         /* sbss 0x019437e0 */
+u_int gSEHeapBD;                                /* sbss 0x019437e4: the IOP block a .BD piece goes through */
+int gExecDriver_2;                              /* sbss 0x019437e8: frames before the next SPU2 transfer */
+
+static int sTransedSize;                        /* sbss 0x01942fbc (sTransedSize$226): .BD bytes sent */
+static int sTransSize;                          /* sbss 0x01942fb8 (sTransSize$227): this piece's bytes */
+static char sFname[0x38];                       /* bss  0x01942f80 (sFname$228) */
+
+static const char s_sdt[] = ".SDT";             /* @2676 */
+static const char s_hd[] = ".HD";               /* @2328 */
+static const char s_bd[] = ".BD";               /* @2331 */
+static const char s_allocSdt[] = "SD1";         /* @2677: SdAlloc's names (unread) */
+static const char s_allocHd[] = "SD2";          /* @2678 */
+static const char s_allocBd[] = "SD3";          /* @2679 */
+static const char s_errDma[] = "### ERR: SdLoadSEProc, CpSifDmaTransEEToIOP ###\n"; /* @2330 */
+static const char s_errTrans[] = "### ERR: SdLoadSEProc, sceSdTransToIOP ###\n";    /* @2680 */
+
+// The .SDT: 16-byte rows; the loader stamps the slot into byte 1 and clears byte 4's top bit.
+#define SDT_ROW_SIZE 0x10
+#define SDT_ROW_JLS 1
+#define SDT_ROW_FLAGS 4
+#define SDT_ROW_FLAG_80 0x80
+#define SD_BD_PIECE 0x32000                     /* .BD bytes per SPU2 transfer */
+#define SD_SPU_TRANS_WAIT 0x3c                  /* frames between two transfers (gExecDriver_2) */
+#define SD_SPU_TRANS_ALIGN 0x40
+#define SD_FILE_ALIGN 0x800                     /* SdAlloc's alignment for a file */
+#define SD_SE_RESIDENT 1000                     /* an SE number from here on survives its bank's reload */
+#define SD_SQ_VOL_COM_ARG0 0xff                 /* SdVolumeSetSQ's arg[0] */
 
 static SND_JSL_COM seStopJSLCOM;                /* bss  0x01942f00 (seStopJSLCOM$1185) */
 static SND_JSL_COM effectJSLCOM;                /* bss  0x01943000 (effectJSLCOM$121) */
@@ -64,6 +99,12 @@ static void SdStopSECH(int chBits, int mode);
 static int SdScaleVolume(int vol);
 static void CpCall_IOPSndDriver_FIFO(u_int command, void *data, int *reply);
 static void FSS_Thread(void *arg);
+static void SdLoadSEProc(void);
+static void SdLoadSQProc(void);
+static void SdPlaySEProc(void);
+static void SdPlaySESpProc(void);
+static void SdPlayADSProc(void);
+static int NextLoadSE(int from);
 
 // CT3 0x018cbf90
 void SdMasterVolumeSetSE(int vol)
@@ -108,6 +149,27 @@ SD_SE *SdFindPlaySE(int handle)
     return NULL;
 }
 
+// CT3 0x018cd550 -- the next load to step after row `from`: among the rows waiting to start
+// (SD_SE_LD_OPEN_SDT), the oldest handle newer than `from`'s, else row 0.
+static int NextLoadSE(int from)
+{
+    int cur = from;
+    int next = 0;
+    int best = 0x7fffffff;
+    int at = from;
+    for (int n = 0; n < SD_SE_LD_COUNT; n++) {
+        if (++at > SD_SE_LD_COUNT - 1) {
+            at = 0;
+        }
+        int handle = gSELd[at].handle;
+        if (handle != 0 && gSELd[at].step == SD_SE_LD_OPEN_SDT && gSELd[cur].handle < handle && handle < best) {
+            best = handle;
+            next = at;
+        }
+    }
+    return next;
+}
+
 // CT3 0x018cda30
 void SdLoadSEEndWait(int handle)
 {
@@ -124,7 +186,7 @@ int SdLoadSEEnd(int handle)
 {
     for (int i = 0; i < SD_SE_LD_COUNT; i++) {
         if (handle == gSELd[i].handle) {
-            return gSELd[i].loading == 0;
+            return gSELd[i].step == SD_SE_LD_IDLE;
         }
     }
     printf(s_loadSEEndErr, handle);
@@ -169,6 +231,311 @@ void SdMasterVolSetADS(int vol)
 static int SdScaleVolume(int vol)
 {
     return (vol * gMasterVolADS) / 0xff;
+}
+
+// CT3 0x018cdff0
+void SdVolumeSetSQ(int player, int vol)
+{
+    WaitSema(fss_sid);
+    SND_JSL_COM *com = &gSQLd[player].volCom;
+    com->unk00 = player;
+    com->arg[0] = SD_SQ_VOL_COM_ARG0;
+    com->arg[1] = vol;
+    CpCall_IOPSndDriver_FIFO(SND_CMD_VOLUME_SQ, com, NULL);
+    SignalSema(fss_sid);
+}
+
+// CT3 0x018ce080
+void SdMasterVolumeSetSQ(int vol)
+{
+    WaitSema(fss_sid);
+    gTransJSLCOM.unk00 = 0;
+    gTransJSLCOM.arg[0] = vol;
+    CpCall_IOPSndDriver_FIFO(SND_CMD_MASTER_VOL_SQ, &gTransJSLCOM, NULL);
+    SignalSema(fss_sid);
+}
+
+// The open request of `fd` (gReqRd's row), as SdLoadSEProc inlines the file layer's search. A handle no
+// row holds makes the ROM read the row before gReqRd (index -1); the port answers NULL instead.
+static const FL_REQ_RD *SdFindReq(int fd)
+{
+    if (fd != 0) {
+        for (int i = 0; i < FL_REQ_MAX; i++) {
+            if (fd == gReqRd[i].handle) {
+                return &gReqRd[i];
+            }
+        }
+    }
+    return NULL;
+}
+
+// Steps 1, 4, 7: open NAME<ext>, and go on once the file layer took the request.
+static void SdLoadSEOpen(SD_SE_LD *ld, const char *ext)
+{
+    char path[0x40];
+    strcpy(path, ld->name);
+    strcat(path, ext);
+    ld->fd = FlReqOpen(ld->dir, path);
+    if (ld->fd != 0) {
+        ld->step++;
+    }
+}
+
+// Steps 2, 5, 8: once the size is known, a buffer for the whole file and the read.
+static void SdLoadSERead(SD_SE_LD *ld, int *size, const char *allocName)
+{
+    const FL_REQ_RD *req = SdFindReq(ld->fd);
+    int fileSize = req != NULL ? req->size : -1;
+    if (fileSize > 0) {
+        *size = fileSize;
+        ld->buf = SdAlloc(*size, SD_FILE_ALIGN, allocName);
+        if (ld->buf != NULL) {
+            FlReqRead(ld->fd, ld->buf, -1, -1);
+            ld->step++;
+        }
+    }
+}
+
+// Step 3's stamp: the slot into every row of the table.
+static void SdStampSDT(SD_SE_LD *ld, int bytes)
+{
+    u_char *row = (u_char *)ld->buf;
+    for (int i = 0; i < bytes / SDT_ROW_SIZE; i++, row += SDT_ROW_SIZE) {
+        row[SDT_ROW_JLS] = (u_char)ld->jls;
+        row[SDT_ROW_FLAGS] &= (u_char)~SDT_ROW_FLAG_80;
+    }
+}
+
+static u_int SdIopHeapAlloc(int size)
+{
+    return (u_int)(uintptr_t)sceSifAllocIopHeap((u_int)(size + 0xf) & ~0xfu);
+}
+
+static int SdSendToIop(const SD_SE_LD *ld, u_int iopAddr, int size)
+{
+    return CpSifDmaTransEEToIOP(ld->buf, iopAddr, (u_int)(size + 0xf) & ~0xfu, 0, 0);
+}
+
+// CT3 0x018cfe40 -- one step of the SE bank load gLdi (SD_SE_LD_STEP says what each does). The ROM
+// re-reads gSELd[gLdi] after every call; nothing else moves gLdi, so `ld` stands for it.
+static void SdLoadSEProc(void)
+{
+    SD_SE_LD *ld = &gSELd[gLdi];
+    switch (ld->step) {
+    case SD_SE_LD_IDLE:
+        gLdi = NextLoadSE(gLdi);
+        break;
+
+    case SD_SE_LD_OPEN_SDT:
+        if (ld->stopPlaying == SD_SE_LD_STOP_PLAYING) {
+            for (int i = 0; i < SD_SE_COUNT; i++) {
+                if (gSdSE[i].handle != 0 && gSdSE[i].jls == ld->jls && gSdSE[i].reqArg2 < SD_SE_RESIDENT) {
+                    SdStopSE(gSdSE[i].handle);
+                }
+            }
+            for (int i = 0; i < PLAY_SE_SP1_COUNT; i++) {
+                PLAY_SE_SP1 *sp = &gPlaySESp1[i];
+                if (sp->active == ld->jls && sp->seNo < SD_SE_RESIDENT) {
+                    sp->active = 0;
+                }
+            }
+        }
+        SdLoadSEOpen(ld, s_sdt);
+        break;
+
+    case SD_SE_LD_READ_SDT:
+        SdLoadSERead(ld, &ld->sdtSize, s_allocSdt);
+        break;
+
+    case SD_SE_LD_SEND_SDT: {
+        if (FlIsExecute(ld->fd) != 0) {
+            break;
+        }
+        const FL_REQ_RD *req = SdFindReq(ld->fd);
+        int packIdx = req != NULL ? req->packIdx : -1;
+        if (packIdx < 0) {
+            // A loose file: the .SDT alone.
+            SdStampSDT(ld, ld->sdtSize);
+            ld->iopSdt = SdIopHeapAlloc(ld->sdtSize);
+            if (ld->iopSdt == 0) {
+                ld->step = SD_SE_LD_ERROR;
+            } else if (SdSendToIop(ld, ld->iopSdt, ld->sdtSize) == 0) {
+                ld->step++;
+            } else {
+                printf(s_errDma);
+                ld->step = SD_SE_LD_ERROR;
+            }
+        } else {
+            // A packed .SDT carries its .HD: both go up in one block, the HD steps are skipped.
+            int part = gFlPackInfo[packIdx].partSize;
+            SdStampSDT(ld, part);
+            ld->iopSdt = SdIopHeapAlloc(ld->sdtSize);
+            if (ld->iopSdt == 0) {
+                ld->step = SD_SE_LD_ERROR;
+            } else if (SdSendToIop(ld, ld->iopSdt, ld->sdtSize) == 0) {
+                ld->hdSize = ld->sdtSize - part;
+                ld->sdtSize = part;
+                ld->iopHd = ld->iopSdt + (u_int)ld->sdtSize;
+                ld->step = SD_SE_LD_OPEN_BD;
+            } else {
+                printf(s_errDma);
+                ld->step = SD_SE_LD_ERROR;
+            }
+        }
+        SdFree(&ld->buf);
+        FlReqClose(ld->fd);
+        ld->fd = 0;
+        break;
+    }
+
+    case SD_SE_LD_OPEN_HD:
+        SdLoadSEOpen(ld, s_hd);
+        break;
+
+    case SD_SE_LD_READ_HD:
+        SdLoadSERead(ld, &ld->hdSize, s_allocHd);
+        break;
+
+    case SD_SE_LD_SEND_HD:
+        if (FlIsExecute(ld->fd) != 0) {
+            break;
+        }
+        FlReqClose(ld->fd);
+        ld->fd = 0;
+        ld->iopHd = SdIopHeapAlloc(ld->hdSize);
+        if (ld->iopHd == 0) {
+            ld->step = SD_SE_LD_ERROR; // the buffer stays: the error step frees it
+            break;
+        }
+        if (SdSendToIop(ld, ld->iopHd, ld->hdSize) == 0) {
+            ld->step++;
+        } else {
+            printf(s_errDma);
+            ld->step = SD_SE_LD_ERROR;
+        }
+        SdFree(&ld->buf);
+        break;
+
+    case SD_SE_LD_OPEN_BD:
+        SdLoadSEOpen(ld, s_bd);
+        break;
+
+    case SD_SE_LD_READ_BD:
+        SdLoadSERead(ld, &ld->bdSize, s_allocBd);
+        break;
+
+    case SD_SE_LD_BD_READ_WAIT:
+        if (FlIsExecute(ld->fd) != 0) {
+            return;
+        }
+        FlReqClose(ld->fd);
+        ld->fd = 0;
+        sTransedSize = 0;
+        ld->step++;
+        // fall through: the first piece goes this frame
+    case SD_SE_LD_BD_TRANS:
+        ld->iopBd = gSEHeapBD;
+        sTransSize = ld->bdSize - sTransedSize;
+        if (sTransSize > SD_BD_PIECE) {
+            sTransSize = SD_BD_PIECE;
+        }
+        if (sceSdTransToIOP((u_char *)ld->buf + sTransedSize, gSEHeapBD, (u_int)sTransSize, 1) == 0) {
+            ld->step++;
+        } else {
+            printf(s_errTrans);
+            ld->step = SD_SE_LD_ERROR;
+        }
+        break;
+
+    case SD_SE_LD_BD_SPU:
+        if (gExecDriver_2 < 1) {
+            WaitSema(fss_sid);
+            ld->spuCom.arg[0] = (int)gSEHeapBD;
+            ld->spuCom.arg[1] = sTransedSize + (int)ld->spuAddr;
+            ld->spuCom.arg[2] = (int)((u_int)(sTransSize + SD_SPU_TRANS_ALIGN - 1) & ~(u_int)(SD_SPU_TRANS_ALIGN - 1));
+            CpCall_IOPSndDriver_2(SND_CMD_TRANS_SPU2, &ld->spuCom);
+            SignalSema(fss_sid);
+            gExecDriver_2 = SD_SPU_TRANS_WAIT;
+            ld->step++;
+        } else {
+            gExecDriver_2--;
+        }
+        break;
+
+    case SD_SE_LD_BD_SPU_WAIT:
+        if (CpCheckEE_IOPComEnd(SND_CMD_TRANS_SPU2, 1) == 0) {
+            gExecDriver_2 = 0;
+            sTransedSize += sTransSize;
+            if (sTransedSize < ld->bdSize) {
+                ld->step = SD_SE_LD_BD_TRANS;
+            } else {
+                SdFree(&ld->buf);
+                ld->step++;
+            }
+        }
+        break;
+
+    case SD_SE_LD_REGISTER: {
+        char path[0x40];
+        strcpy(path, ld->dir);
+        for (int i = 0; path[i] != '\0'; i++) {
+            if (path[i] == '/') {
+                path[i] = '\\';
+            }
+        }
+        strcat(path, ld->name);
+        strupr(path);
+        strcpy(sFname, gDeviceName);
+        strcat(sFname, path);
+        WaitSema(fss_sid);
+        strcpy(ld->reg.path, sFname);
+        ld->reg.iopHd = ld->iopHd;
+        ld->reg.iopBd = ld->iopBd;
+        ld->reg.spuAddr = ld->spuAddr;
+        ld->reg.zero = 0;
+        ld->reg.iopSdt = ld->iopSdt;
+        ld->reg.bdSize = ld->bdSize;
+        CpCall_IOPSndDriver_FIFO((u_int)ld->jls | SND_CMD_SE_REGISTER, &ld->reg, NULL);
+        SignalSema(fss_sid);
+        ld->step = SD_SE_LD_DONE;
+    }
+        // fall through
+    case SD_SE_LD_DONE_14:
+    case SD_SE_LD_DONE_15:
+    case SD_SE_LD_DONE:
+        ld->flags |= SD_SE_LD_FLAG_LOADED;
+        ld->step = SD_SE_LD_IDLE;
+        break;
+
+    case SD_SE_LD_ERROR:
+    case SD_SE_LD_ERROR_16:
+        if (ld->fd != 0) {
+            FlReqClose(ld->fd);
+        }
+        if (ld->iopHd != 0) {
+            sceSifFreeIopHeap((void *)(uintptr_t)ld->iopHd);
+            ld->iopHd = 0;
+        }
+        if (ld->iopSdt != 0) {
+            sceSifFreeIopHeap((void *)(uintptr_t)ld->iopSdt);
+            ld->iopSdt = 0;
+        }
+        SdFree(&ld->buf);
+        ld->step = SD_SE_LD_IDLE;
+        ld->handle = 0;
+        break;
+    }
+}
+
+// CT3 0x018d1390 -- the driver's frame: one step of each loader and player (FileSoundServer, and the
+// wait loops).
+void SdProc(void)
+{
+    SdLoadSEProc();
+    SdLoadSQProc();
+    SdPlaySEProc();
+    SdPlaySESpProc();
+    SdPlayADSProc();
 }
 
 // CT3 0x018d1600 -- sets core `core`'s reverb, only when type or depth changed.
@@ -315,12 +682,6 @@ void SdLoadSEEndWaitAll(void)
     ALYSSAPAN_STUB("SdLoadSEEndWaitAll", 0x018cdb10);
 }
 
-// stub of CT3 0x018ce080
-void SdMasterVolumeSetSQ(int vol)
-{
-    ALYSSAPAN_STUB("SdMasterVolumeSetSQ", 0x018ce080);
-}
-
 // stub of CT3 0x018ce440
 int SdPlaySQ(const char *dir, const char *name, u_int a2, int vol, int a4, int a5, int a6)
 {
@@ -448,8 +809,26 @@ void IopLoadCapcomSound(const char *device)
     ALYSSAPAN_STUB("IopLoadCapcomSound", 0x018d1860);
 }
 
-// stub of CT3 0x018d1390
-void SdProc(void)
+// stub of CT3 0x018ce6c0 (static: SdProc's step of the SQ loads)
+static void SdLoadSQProc(void)
 {
-    ALYSSAPAN_STUB("SdProc", 0x018d1390);
+    ALYSSAPAN_STUB("SdLoadSQProc", 0x018ce6c0);
+}
+
+// stub of CT3 0x018cfb70 (static)
+static void SdPlaySEProc(void)
+{
+    ALYSSAPAN_STUB("SdPlaySEProc", 0x018cfb70);
+}
+
+// stub of CT3 0x018cfa50 (static)
+static void SdPlaySESpProc(void)
+{
+    ALYSSAPAN_STUB("SdPlaySESpProc", 0x018cfa50);
+}
+
+// stub of CT3 0x018d10e0 (static)
+static void SdPlayADSProc(void)
+{
+    ALYSSAPAN_STUB("SdPlayADSProc", 0x018d10e0);
 }

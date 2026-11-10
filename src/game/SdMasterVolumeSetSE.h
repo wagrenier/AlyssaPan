@@ -3,6 +3,7 @@
 // Prototypes from the call sites; the TU that writes these functions confirms them.
 #pragma once
 
+#include "game/CpDivideEECom.h"
 #include "sdk/scetypes.h"
 
 #include <stddef.h>
@@ -55,20 +56,76 @@ static_assert(offsetof(SD_SE, posVol) == 0x3c, "SD_SE.posVol");
 #define SD_SE_PARAM_NAME 0x20000u       // -> name
 #define SD_SE_PARAM_CALLBACK 0x10000u   // -> callback
 
-// gSELd's rows: one SE bank load (SdReqLoadSE).
-typedef struct SD_SE_LD {       // 0x1c0 bytes
+// The bank's register record (SD_SE_LD +0x100 in the ROM): SdLoadSEProc's last step hands it to the driver
+// with SND_CMD_SE_REGISTER | jls. layout: ee -- the IOP side reads it (+0x94 unwritten).
+typedef struct SD_SE_REGISTER {
+    char path[0x80];            // +0x00 gDeviceName + dir + name, '\' separated, upper case
+    u_int iopHd;                // +0x80 the .HD's IOP heap block
+    u_int iopBd;                // +0x84 where the .BD went (gSEHeapBD, the staging block it went through)
+    u_int spuAddr;              // +0x88 the .BD's SPU2 address
+    int zero;                   // +0x8c 0
+    u_int iopSdt;               // +0x90 the .SDT's IOP heap block
+    int unk94;                  // +0x94
+    int bdSize;                 // +0x98
+    u_char unk9c[0x24];         // +0x9c
+} SD_SE_REGISTER;
+static_assert(sizeof(SD_SE_REGISTER) == 0xc0, "SD_SE_REGISTER");
+static_assert(offsetof(SD_SE_REGISTER, iopHd) == 0x80, "SD_SE_REGISTER.iopHd");
+static_assert(offsetof(SD_SE_REGISTER, bdSize) == 0x98, "SD_SE_REGISTER.bdSize");
+
+// SD_SE_LD.step: SdLoadSEProc's steps, one a frame. A bank is three files, NAME.SDT (the SE table, 16-byte
+// rows), NAME.HD and NAME.BD (the VAG header and body); a packed .SDT carries its .HD behind it
+// (FL_PACK_INFO.partSize), so the HD steps are skipped. The .BD reaches SPU2 RAM in 0x32000-byte pieces
+// through gSEHeapBD.
+enum SD_SE_LD_STEP {
+    SD_SE_LD_IDLE = 0,
+    SD_SE_LD_OPEN_SDT = 1,      // SdReqLoadSE's request: stop the bank's SEs (stopPlaying), open .SDT
+    SD_SE_LD_READ_SDT = 2,      // the size known: SdAlloc "SD1", read
+    SD_SE_LD_SEND_SDT = 3,      // read: stamp the jls into every row, to the IOP heap
+    SD_SE_LD_OPEN_HD = 4,
+    SD_SE_LD_READ_HD = 5,       // SdAlloc "SD2"
+    SD_SE_LD_SEND_HD = 6,
+    SD_SE_LD_OPEN_BD = 7,
+    SD_SE_LD_READ_BD = 8,       // SdAlloc "SD3"
+    SD_SE_LD_BD_READ_WAIT = 9,
+    SD_SE_LD_BD_TRANS = 10,     // the next piece to gSEHeapBD
+    SD_SE_LD_BD_SPU = 11,       // the driver moves it to SPU2 RAM (SND_CMD_TRANS_SPU2), at most once a
+                                // second (gExecDriver_2 counts 60 frames down between two)
+    SD_SE_LD_BD_SPU_WAIT = 12,  // done: the next piece, or REGISTER
+    SD_SE_LD_REGISTER = 13,     // the register record to the driver
+    SD_SE_LD_DONE_14 = 14,      // 14, 15 and 0x14 finish the load (the ROM's switch lists all three)
+    SD_SE_LD_DONE_15 = 15,
+    SD_SE_LD_DONE = 0x14,
+    SD_SE_LD_ERROR = 0x15,      // drop everything, free the slot
+    SD_SE_LD_ERROR_16 = 0x16,
+};
+#define SD_SE_LD_FLAG_LOADED 0x1u   // SD_SE_LD.flags: set by the done steps
+#define SD_SE_LD_STOP_PLAYING 1     // SD_SE_LD.stopPlaying: stop the slot's SEs before loading over it
+
+// gSELd's rows: one SE bank load (SdReqLoadSE). layout: host -- `buf` holds SdAlloc's host pointer; the
+// IOP-bound records (`spuCom`, `reg`) keep their EE layout. EE offsets in the comments (0x1c0 bytes).
+typedef struct SD_SE_LD {
     int handle;                 // +0x00 the load's handle (SdReqLoadSE's answer); 0 = free slot
-    u_char unk04[0x38];         // +0x04
-    char name[0x3c];            // +0x3c the bank's file name ("E_RYUSAN"), as loaded
+    char dir[0x38];             // +0x04 FlReqOpen's directory (upper case)
+    char name[0x38];            // +0x3c the bank's file name ("E_RYUSAN"), upper case, no extension
+    u_int spuAddr;              // +0x74 the .BD's SPU2 address (SdReqLoadSE's fourth argument)
     int jls;                    // +0x78 its slot
-    u_char unk7c[0x18];         // +0x7c
-    int loading;                // +0x94 != 0 while the bank is still being loaded (SdLoadSEEnd)
-    u_char unk98[0x128];        // +0x98
+    u_int iopSdt;               // +0x7c the .SDT's IOP heap block (0 = none)
+    u_int iopHd;                // +0x80 the .HD's (inside iopSdt for a packed bank)
+    u_int iopBd;                // +0x84 gSEHeapBD once the .BD goes out
+    int sdtSize;                // +0x88
+    int hdSize;                 // +0x8c
+    int bdSize;                 // +0x90
+    int step;                   // +0x94 SD_SE_LD_STEP; 0 once loaded (SdLoadSEEnd)
+    int fd;                     // +0x98 the open FlReqOpen handle, 0 = none
+    u_int flags;                // +0x9c SD_SE_LD_FLAG_*
+    void *buf;                  // +0xa0 the SdAlloc block the file is read into
+    int stopPlaying;            // +0xa4 SdReqLoadSE's fifth argument
+    u_char unka8[0x18];         // +0xa8
+    SND_JSL_COM spuCom;         // +0xc0 SND_CMD_TRANS_SPU2: arg[0] staging block, [1] SPU2 address, [2] size
+    u_char unke0[0x20];         // +0xe0
+    SD_SE_REGISTER reg;         // +0x100
 } SD_SE_LD;
-static_assert(sizeof(SD_SE_LD) == 0x1c0, "SD_SE_LD");
-static_assert(offsetof(SD_SE_LD, name) == 0x3c, "SD_SE_LD.name");
-static_assert(offsetof(SD_SE_LD, jls) == 0x78, "SD_SE_LD.jls");
-static_assert(offsetof(SD_SE_LD, loading) == 0x94, "SD_SE_LD.loading");
 #define SD_SE_LD_COUNT 10
 
 // gSQLd's rows: the two SQ (sequenced music) players; row 0 is the one sound.c reads.
@@ -82,18 +139,24 @@ typedef struct SD_SQ_LD {       // 0x1c0 bytes
     u_int flags;                // +0xa0 SdVolumeSQ: | 2 (volume), | 4 (fade); SdStopSQAll: | 1 (stop)
     u_char unka4[0x8];          // +0xa4
     int vol;                    // +0xac SdVolumeSQ's target volume
-    u_char unkb0[0x110];        // +0xb0
+    u_char unkb0[0x10];         // +0xb0
+    SND_JSL_COM volCom;         // +0xc0 SdVolumeSetSQ's record: unk00 the player, arg[0] 0xff, arg[1] volume
+    u_char unke0[0xe0];         // +0xe0
 } SD_SQ_LD;
 static_assert(sizeof(SD_SQ_LD) == 0x1c0, "SD_SQ_LD");
 static_assert(offsetof(SD_SQ_LD, name) == 0x38, "SD_SQ_LD.name");
 static_assert(offsetof(SD_SQ_LD, playVol) == 0x9c, "SD_SQ_LD.playVol");
 static_assert(offsetof(SD_SQ_LD, vol) == 0xac, "SD_SQ_LD.vol");
+static_assert(offsetof(SD_SQ_LD, volCom) == 0xc0, "SD_SQ_LD.volCom");
 #define SD_SQ_LD_COUNT 2
 
 // gPlaySESp1's rows: the special SEs (SdStopSESp1), kept over a movie or a demo.
 typedef struct PLAY_SE_SP1 {    // 0x34 bytes
-    int active;                 // +0x00 != 0: the row is in use
-    u_char unk04[0x1c];         // +0x04
+    int active;                 // +0x00 the row's slot (jls); != 0: the row is in use (SdLoadSEProc
+                                //       clears it when its slot reloads)
+    int unk04;                  // +0x04
+    int seNo;                   // +0x08 SdLoadSEProc keeps the row over a reload when >= 1000
+    u_char unk0c[0x14];         // +0x0c
     int state;                  // +0x20 MidiControl_DemoStart sets PLAY_SE_SP1_STATE_DEMO
     u_char unk24[0x8];          // +0x24
     int handle;                 // +0x2c the gSdSE handle playing it
@@ -126,6 +189,10 @@ extern int gSdADSStop;                            /* sbss 0x01943880: 1 = SdPlay
 extern int gSdEffectType[2];                      /* bss 0x01943898: per SPU2 core, the reverb type set */
 extern u_int gSdEffectDepth[2];                   /* bss 0x01943890: per SPU2 core, depth << 7 | 0x7f */
 extern int gUseSoundAlloc;                        /* sbss 0x019438a0: 1 while SdAlloc's one block is out */
+extern int gLdi;                                  /* sbss 0x019437dc: the gSELd row SdLoadSEProc steps */
+extern int gSELdHandleCounter;                    /* sbss 0x019437e0: SdReqLoadSE's last handle */
+extern u_int gSEHeapBD;                           /* sbss 0x019437e4: the IOP staging block for .BD pieces */
+extern int gExecDriver_2;                         /* sbss 0x019437e8: frames before the next SPU2 transfer */
 
 #define SD_EFFECT_DEPTH_MAX 0x7f              /* SdSetEffect clamps its depth to this */
 #define SD_EFFECT_DEPTH_LIMIT 0x3fff          /* SdSetEffectDontSave: a larger depth word becomes 0 */
@@ -160,6 +227,7 @@ void SdVolumeStream(int vol);                                                   
 void SdMasterVolSetADS(int vol);                                                         // CT3 0x018cdf90
 int SdIsPlayingStream(void);                                                             // CT3 0x018cdf50
 void SdMasterVolumeSetSQ(int vol);                                                       // CT3 0x018ce080
+void SdVolumeSetSQ(int player, int vol);                                                 // CT3 0x018cdff0
 void SdVolumeSQ(const char *name, int vol, int a2);                                      // CT3 0x018ce0d0
 void SdStopSQAllNow(void);                                                               // CT3 0x018ce1e0
 void SdStopSQAll(int fade);                                                              // CT3 0x018ce310

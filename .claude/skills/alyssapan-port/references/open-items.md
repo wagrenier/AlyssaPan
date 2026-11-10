@@ -741,6 +741,13 @@ questions. Resolve items here when they are settled (move them to "Done" with th
 
 ## Decisions
 
+- 2026-11-10 (Claude, scheduled run, SdMasterVolumeSetSE.c slice 2, for the user to overrule):
+  **`SD_SE_LD` is `layout: host`** (its +0xa0 buffer is SdAlloc's host pointer); the IOP-bound records
+  inside it (`spuCom` +0xc0, `SD_SE_REGISTER` +0x100) keep EE layout, and IOP addresses stay `u_int`
+  (iop::SystemMemory places them below 4 GB). `SD_SQ_LD` stays `layout: ee` until SdLoadSQProc's session
+  meets the same buffer word and decides likewise. sceSifAllocIopHeap / sceSifFreeIopHeap and
+  sdremote's sceSdTransToIOP are now host code in sdk/sif.cpp (they were declared, never defined).
+
 - 2026-11-10 (Claude, scheduled run, for the user to overrule): **the empty queue was refilled in the
   order a smoke run reaches stubs** (the run log's first stub per TU): ga/gaDmaSync_VIF1.c (taken),
   game/IOPGetFileSize.c, game/SdMasterVolumeSetSE.c, ga/gaPadInit.c, game/movie.c,

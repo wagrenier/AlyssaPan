@@ -7,6 +7,13 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-10, SdMasterVolumeSetSE.c slice 2) **The ROM's inlined gReqRd search reads row -1 on a miss**
+  (SdLoadSEProc: index -1 -> `gReqRd[-1].size / .packIdx`); the port's `SdFindReq` answers NULL and the
+  step waits. And **a packed SE bank's error path frees an interior IOP address** (`iopHd = iopSdt +
+  partSize`, freed before `iopSdt`): the ROM's heap server ignores it; `SystemMemory::free` answers false,
+  which `sceSifFreeIopHeap` turns into -1. Also: `FL_PACK_INFO` +0x10 is a real word (`partSize`), not
+  the name's tail -- names are 12 characters at most.
+
 - (2026-11-10, gaDmaSync_VIF1.c) **layoutcheck compiles the game sources with MSVC too**: a GCC builtin
   (`__builtin_return_address`) builds under MinGW and still fails the check. Use the sdk/scetypes.h
   wrappers (`EE_RETURN_ADDRESS()`), and on the host a DMA kick must leave CHCR.STR clear, or the ROM's

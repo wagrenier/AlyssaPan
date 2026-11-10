@@ -17,12 +17,14 @@
 #include <string_view>
 #include <thread>
 
+#include "sdremote.h"
 #include "sif.h"
 #include "sifcmd.h"
 #include "sifdev.h"
 #include "sifman.h"
 #include "sifrpc.h"
 
+#include <cstdint>
 #include <cstring>
 
 #include "alyssapan/core/logger.h"
@@ -169,4 +171,26 @@ void *sceSifAllocSysMemory(int mode, u_int size, void *)
 int sceSifFreeSysMemory(void *addr)
 {
     return alyssapan::iop::Kernel::instance().memory().free(addr) ? 0 : -1;
+}
+
+// The IOP heap is sysmem's low placement (the heap server's AllocSysMemory). The answer is an IOP address,
+// a host address below 4 GB, so the game keeps it in a u_int.
+void *sceSifAllocIopHeap(unsigned int size)
+{
+    return alyssapan::iop::Kernel::instance().memory().allocate(size);
+}
+
+int sceSifFreeIopHeap(void *addr)
+{
+    return alyssapan::iop::Kernel::instance().memory().free(addr) ? 0 : -1;
+}
+
+// sdremote's EE -> IOP copy (sdk/sdremote.h): the ROM's SIF DMA, done at once.
+int sceSdTransToIOP(const void *ee, u_int iopAddr, u_int size, int mode)
+{
+    if (mode == 0)
+        return -1;
+    if (ee != nullptr && iopAddr != 0 && size != 0)
+        std::memcpy(reinterpret_cast<void *>(static_cast<std::uintptr_t>(iopAddr)), ee, size);
+    return 0;
 }

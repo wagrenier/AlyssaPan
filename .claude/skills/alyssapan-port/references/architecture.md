@@ -816,6 +816,31 @@ The auto-load at boot (MemorycardAutoLoad, xcmd_tn.c) has its own states (mcMain
   `EE_IOP_STAT` +0x20 non-zero while a stream plays. `SdAlloc` hands out gHeapSound's one block
   (`gUseSoundAlloc`); `SdRnd` is an LCG (x * 0x7d2b89dd + 0xbc614e, seed 0x12345678).
 
+### Slice 2 (2026-11-10): SdProc and the SE bank loader
+
+- `SdProc` (once a frame from FileSoundServer and every wait loop) steps five static procs: SE loads, SQ
+  loads, SE play, special-SE play, the ADS stream.
+- **An SE bank is three files**, `NAME.SDT` (16-byte rows; the loader writes the slot `jls` into byte 1
+  and clears bit 7 of byte 4), `NAME.HD` and `NAME.BD`. `SdLoadSEProc` (0x018cfe40) walks one `gSELd` row
+  (`gLdi`) through `SD_SE_LD_STEP` (SdMasterVolumeSetSE.h): open, size, `SdAlloc` the whole file
+  ("SD1" / "SD2" / "SD3", 0x800-aligned), read, `sceSifAllocIopHeap` + `CpSifDmaTransEEToIOP` for the SDT
+  and HD. The **.BD** goes in 0x32000-byte pieces: `sceSdTransToIOP` (sdremote: a plain SIF DMA) to the
+  staging block `gSEHeapBD`, then command 0x120000 on the driver's second channel
+  (`CpCall_IOPSndDriver_2`, record `SD_SE_LD.spuCom`: staging block, SPU2 address `spuAddr + done`, size
+  rounded to 0x40) moves it to SPU2 RAM; `gExecDriver_2` spaces two transfers 60 frames apart;
+  `CpCheckEE_IOPComEnd(0x120000, 1)` polls the end. Last, command `0xa0000 | jls` hands the driver the
+  register record (`SD_SE_REGISTER` at +0x100: "cdrom0:\" + dir + name, upper case with '\', IOP HD,
+  staging block, SPU2 address, IOP SDT, BD size). `NextLoadSE` picks the oldest waiting request newer
+  than the current one.
+- **A packed .SDT carries its .HD** (`FL_PACK_INFO` +0x10 `partSize`, read from CT3PACK.DAT: 104 of 980
+  rows, e.g. `C_0000.SDT` 1280 of 7392 bytes; `.SQ` rows too): one IOP block for both, `iopHd = iopSdt +
+  partSize`, and the HD steps are skipped (step 3 jumps to 7).
+- `SdReqLoadSE` (unread body, dec seen) fills `dir` +0x04 (upper case), `name` +0x3c, `spuAddr` +0x74, `jls`
+  +0x78, `stopPlaying` +0xa4 and starts at step 1; `stopPlaying == 1` stops the slot's SEs whose
+  +0x0c word is below 1000, and clears `gPlaySESp1` rows of that slot (+0 is the slot, +8 below 1000).
+- SQ volumes: 0x1b0000 the master (`gTransJSLCOM`, unk00 0, arg[0]), 0x1c0000 one player
+  (`gSQLd[i]` +0xc0 record: unk00 = i, arg[0] 0xff, arg[1] volume).
+
 ## The shadow overlay, frame-pass checks and the replay pass, game/ahRelocateSunPs2ObjectArry.c (2026-11-10, slice 14)
 
 - **asShadowEnd** ends a bank's shadow pass. The shadow buffer (0xc0000, cleared to 0x80) holds the
