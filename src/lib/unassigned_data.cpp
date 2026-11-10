@@ -3,6 +3,7 @@
 // SLUS_206.33 at the address given); everything else is .sbss / .bss, zero. Each moves to its TU.
 #include "game/unassigned_data.h"
 #include "game/SdMasterVolumeSetSE.h"
+#include "game/IOPGetFileSize.h"
 
 #include <string.h>
 
@@ -407,3 +408,5 @@ SD_SQ_LD gSQLd[SD_SQ_LD_COUNT];                 /* bss  0x01943340 (SdMasterVolu
 char gPlayADS[0x90];                            /* bss  0x019437f0 (SdMasterVolumeSetSE.c) */
 SD_SE gSdSE[SD_SE_COUNT];                       /* bss  0x01c848c0 (SdMasterVolumeSetSE.c) */
 SD_SE_LD gSELd[SD_SE_LD_COUNT];                 /* bss  0x01c85400 (SdMasterVolumeSetSE.c) */
+int gADSOpenSync;                               /* sbss 0x01943888 (SdMasterVolumeSetSE.c) */
+sceSifClientData gSCD[3];                       /* sbss 0x0193e3a0 (IOPGetFileSize.c) */

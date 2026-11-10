@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-10 01:22 at commit `c553b5a` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-10 01:35 at commit `1e2f0b5` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **217**; stubs: **259**
+- reconstructed CT3 functions: **232**; stubs: **259**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -47,12 +47,14 @@ Least-named game-code regions (64 KB blocks):
 | `src/ga/gaVifInit.c` | 6 | 0 |
 | `src/ga/pad_button_read.c` | 0 | 1 |
 | `src/game/AlignedNum.c` | 4 | 0 |
-| `src/game/ArtoolDebugOpen.c` | 0 | 5 |
+| `src/game/ArtoolDebugOpen.c` | 15 | 0 |
 | `src/game/Character_Init.c` | 49 | 0 |
 | `src/game/Clipping_Portal.c` | 0 | 32 |
+| `src/game/CpDivideEECom.c` | 0 | 1 |
+| `src/game/IOPGetFileSize.c` | 0 | 3 |
 | `src/game/LinkMatrixTree.c` | 0 | 4 |
 | `src/game/QuatSlerp.c` | 0 | 36 |
-| `src/game/SdMasterVolumeSetSE.c` | 0 | 32 |
+| `src/game/SdMasterVolumeSetSE.c` | 0 | 33 |
 | `src/game/ahRelocateSunPs2ObjectArry.c` | 0 | 28 |
 | `src/game/ahalloc.c` | 7 | 0 |
 | `src/game/asEyeForcusUP2CamMat.c` | 0 | 9 |
@@ -75,15 +77,16 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 55, verify 10, done 2
-- next: **game/ArtoolDebugOpen.c** (pinned in the queue)
-- pinned queue: game/ArtoolDebugOpen.c, game/main2.c, game/fileio.c
+- 65 TUs: todo 54, verify 11, done 2
+- next: **game/main2.c** (pinned in the queue)
+- pinned queue: game/main2.c, game/fileio.c
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaInitDrawObject.c` 24/24 -- No ROM caller for the texture three (the game uses its sun* copies in QuatSlerp.c): complete, nothing on screen can show them. Shot black as before: packets go 
 - verify: `ga/gaInitInterrupt.c` 3/3 -- GCC object; wait_vsync_state (data 0x0192e790), ga_main_timer, ga_down_timer defined here. gaWaitVSync takes no argument and returns the CSR FIELD bit; main.c c
 - verify: `ga/gaInitMeter.c` 6/6 -- Complete code, nothing on screen shows it (shot black as before; the meter stubs no longer appear in the run log). Host: T1/T0 mode writes now reach the host ti
 - verify: `ga/gaVifInit.c` 6/6 -- GCC object. VIF0/VIF1 STAT are host variables that read idle (sdk/eeregs.h), so the polls return at once and main frame loop passes the FLUSH wait. gaDmaSendN_V
 - verify: `game/AlignedNum.c` 4/4 -- WaitLoop is split in Ghidra: WaitLoop 0x0189f650 plus WaitLoop_body 0x0189f680 (game-inferred), one C function. The j at 0x0189f718 belongs to the next object (
+- verify: `game/ArtoolDebugOpen.c` 15/15 -- Smoke run: FlInit prints no error, so the pack directory loads and sceCdSearchFile finds the pack; no run reads a file yet (main2 and fileio.c are stubs), the s
 - verify: `game/Character_Init.c` 49/49 -- All 49 functions written; nothing on screen reaches the card yet (main2 is a stub), shot black as before. The save image layout is in architecture.md (The save 
 - verify: `game/ahalloc.c` 7/7 -- Host block header is 0x20 bytes (EE 0x10). SunAllocInit runs at boot; nothing calls _SunAlloc yet. AlignedNum is a stub answering 0, so game/AlignedNum.c is que
 - verify: `game/main.c` 29/29 -- Smoke run: build green, layoutcheck OK, callcheck: main_rtn_Particle2 matches the ROM (extra BankEePtr only); AllDrawObject / GlobalDrawObject / DrawObjectRefra
@@ -91,6 +94,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-10 01:35 `game/ArtoolDebugOpen.c` verify: the file layer: IopLoadModules, FlInit (CT3PACK.DAT directory), the 20-request read queue and FlProc, FlLoad, FlGetLen, FlFindPacked -- all 15 functions; host: 
 - 2026-11-10 01:22 `game/Character_Init.c` verify: slice 5: data_save_set and data_load_set over the save image (MC_SAVE_DATA), mc_free_area, mc_check3, mc_save_system_init, MemorycardAutoLoad with its Init / In
 - 2026-11-10 00:59 `game/Character_Init.c` partial: slice 4: SceneLightSet, CharLightSet (the bank light tables SCENE_LIGHT / LIGHT_SET / GA_LIGHT_WORK, part light fields), mc_load_set, mc_char_set, mc_CheckMcWor
 - 2026-11-10 00:36 `game/Character_Init.c` partial: slice 3: the save path (mc_save_new with its icons and icon.sys, mc_save_normal, mc_save_set, McRegisterEvent, ContinueBackupSet), system_data_load_set with MC_
@@ -98,13 +102,12 @@ Recent sessions:
 - 2026-11-09 23:56 `game/Character_Init.c` partial: slice 1: Character_All_Init, IOPInit, McInit, the memory card work buffer (mc_alloc, mc_free, mc_save_data_init), card checks (mc_check, mc_check_always, Memory
 - 2026-11-09 23:29 `game/sound.c` verify: slice 3: SSLoadSEfromLoadPoint - the bank's SE load list (SOUND_OBJ_TABLE.loadSE, SE_LOAD_POINT rows); sound.c's 69 functions are written
 - 2026-11-09 23:18 `game/sound.c` partial: slice 2: 30 functions - SSProc, SSBGMProc and Branch1..5BGMProc (scene codes, chase BGM, T_BREAK), sound objects and trigger actions, positional SEs, volume sav
-- 2026-11-09 22:53 `game/sound.c` partial: slice 1: 38 of 69 functions - boot and end, SE and SQ entry points, the stage SQ rules (Branch1..5 SSPlaySQ/SSStopSQ), movie and demo mute, angle helpers; gFile
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
 | `game/ssGrpPortalCheck.c` | todo | 0/11/59 | 26.4 | 202 | 7 |
 | `game/QuatSlerp.c` | todo | 0/36/177 | 50.3 | 171 | 14 |
-| `game/SdMasterVolumeSetSE.c` | todo | 0/32/61 | 22.9 | 121 | 7 |
+| `game/SdMasterVolumeSetSE.c` | todo | 0/33/61 | 22.9 | 127 | 8 |
 | `game/Clipping_Portal.c` | todo | 0/32/73 | 44.8 | 117 | 12 |
 | `game/ahRelocateSunPs2ObjectArry.c` | todo | 0/28/93 | 76.0 | 89 | 10 |
 | `game/wideXcmd_DebugPrint.c` | todo | 0/13/109 | 40.6 | 82 | 12 |

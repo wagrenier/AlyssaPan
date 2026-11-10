@@ -155,11 +155,11 @@ void Character_All_Init(void)
 
 // ---- the IOP ----
 
-// CT3 0x018b4430: reboot the IOP with the game's modules (argv[0] goes to IopLoadModules), then bring up
+// CT3 0x018b4430: reboot the IOP with the game's modules (IopLoadModules reads no argument), then bring up
 // the pads, the memory card, the file and sound servers and the movie player's IOP side.
 void IOPInit(char **argv)
 {
-    IopLoadModules(argv[0]);
+    IopLoadModules();
     gaPadInit();
     McInit();
     FlInit();

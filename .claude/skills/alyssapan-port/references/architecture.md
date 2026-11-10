@@ -299,9 +299,32 @@ the TU map's evidence.
 ## Data (2026-11-09)
 
 - `DATA\CT3PACK.DAT` (the ELF names `DATA\CT3PACK.DAT;1` and `\DATA\CT3PACK.DAT;1` at 0x01934b90,
-  0x01934c10): one archive; its format is not read yet. Whether its pictures are TIM2 is open.
+  0x01934c10): one archive, 431,290,368 bytes (210,591 sectors). **Its directory (2026-11-10, FlInit):**
+  sector 0 is a header of words, [0] the file count (980), [1] the header's bytes (34816), [2] its
+  sectors including sector 0 (17); sectors 1..16 hold 0x20-byte rows (`FL_PACK_INFO`: name[0x14] upper
+  case, size in bytes, first sector relative to the pack, sector count). The first rows are EVENT.INF,
+  VARIABLE.INF, ALYSSAS.ICO / ALYSSAD.ICO (the card icons), GAME_END.DAT, 0MH0.BIN; the last ARTG_P25.IMG.
+  The files' own formats are not read yet. Whether its pictures are TIM2 is open.
 - `DATA\MOVIE1..3`: movies (`movie.c`; "pts buffer overflow" at 0x01935520 says MPEG timestamps: PSS).
 - `game_end.dat` (0x01935308): a file the game opens by name.
+
+## The file layer, game/ArtoolDebugOpen.c (2026-11-10)
+
+`IopLoadModules` reboots the IOP with `cdrom0:\IOP\IOPRP255.IMG;1` and loads the ten modules from
+`gDeviceName` ("cdrom0:\") + `\IOP\*.IRX;1`, then `IOPBindRPC` and `IopLoadCapcomSound(gDeviceName)`.
+`FlInit` reads the pack's directory through `sceOpen` / `sceRead` (the IOP's cdrom0: device), then finds
+the pack's own first sector with `sceCdSearchFile` and adds it to every row. Reading is a queue of 20
+requests (`gReqRd`, `FL_REQ_RD`, 0x70 bytes on the EE): `FlReqOpen(dir, name)` looks the bare name up in
+the pack first (`FlFindPacked`, upper case), else keeps "\" + DIR + NAME + ";1" for the IOP's file server
+(`IOPGetFileSize` answers the size and the file's first sector). `FlReqRead(handle, buff, startSect,
+numSect)` (-1 / -1: from the position to the end), `FlReqClose`, `FlIsExecute` (opening or reading).
+`FlProc`, called once a frame by the loaders, steps the request `IR` points at (FL_STATE_*): it reads all
+remaining sectors with one `sceCdRead` (into the uncached alias of the buffer), holds back while
+`gADSOpenSync` (an ADS stream opening) or `CpGetEEIOPStatus()->+0x50` (the IOP using the drive) is set,
+and rotates to the next request after five idle steps. `FlLoad` is the blocking form (FlProc + a vsync
+per step). `FlGetLen(dir, name, mode)`: mode != 0 tries the pack by name, else opens the file and seeks
+to its end. The host serves the folder as the disc (`io::Disc`): files in DATA\ and IOP\ have sectors
+and `sceCdSearchFile` finds them by name; `sceCdRead` finishes inside the call.
 
 ## The IOP side (2026-11-09)
 

@@ -1,6 +1,7 @@
 #include "alyssapan/io/disc.h"
 
 #include <algorithm>
+#include <cctype>
 #include <array>
 #include <cstring>
 #include <string_view>
@@ -73,6 +74,24 @@ std::string isoName(const fs::path &file)
     return name + ";1";
 }
 
+// DATA/CT3PACK.DAT -> DATA\CT3PACK.DAT; "\DATA\ct3pack.dat;1" -> the same.
+std::string discName(std::string_view path)
+{
+    std::string name(path);
+    if (const auto version = name.find(';'); version != std::string::npos)
+        name.erase(version);
+    std::ranges::replace(name, '/', '\\');
+    while (!name.empty() && name.front() == '\\')
+        name.erase(0, 1);
+    std::ranges::transform(name, name.begin(), [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+    return name;
+}
+
+std::string discNameOf(const fs::path &relative)
+{
+    return discName(pathToUtf8(relative));
+}
+
 } // namespace
 
 Disc &Disc::instance()
@@ -118,6 +137,17 @@ void Disc::buildVolume(std::uint32_t base, std::span<const fs::path> files, std:
             continue;
         const auto sectors = static_cast<std::uint32_t>((bytes + kSector - 1) / kSector);
 
+        m_named.push_back({discNameOf(fs::relative(file, m_folder, error)), base + sector,
+                           static_cast<std::uint32_t>(bytes)});
+
+        // Only the root's files have records (the path table holds only the root).
+        if (file.parent_path() != m_folder)
+        {
+            m_extents.push_back({base + sector, sectors, file, nullptr});
+            sector += sectors;
+            continue;
+        }
+
         // Records do not cross a sector.
         const std::string name = isoName(file);
         const std::size_t length = (kRecordName + name.size() + 1) & ~std::size_t{1};
@@ -138,7 +168,7 @@ void Disc::mount(const fs::path &folder)
     std::vector<fs::path> layer0;
     std::vector<fs::path> layer1;
     std::error_code error;
-    for (const fs::directory_entry &entry : fs::directory_iterator(folder, error))
+    for (const fs::directory_entry &entry : fs::recursive_directory_iterator(folder, error))
     {
         if (!entry.is_regular_file(error))
             continue;
@@ -148,6 +178,8 @@ void Disc::mount(const fs::path &folder)
     std::ranges::sort(layer1);
 
     m_extents.clear();
+    m_named.clear();
+    m_folder = folder;
     std::uint32_t layer0End = 0;
     buildVolume(0, layer0, layer0End);
 
@@ -156,6 +188,19 @@ void Disc::mount(const fs::path &folder)
     buildVolume(m_layer1Start, layer1, layer1End);
 
     log::info("Disc: {} + {} files, layer 1 at sector {}", layer0.size(), layer1.size(), m_layer1Start);
+}
+
+bool Disc::find(std::string_view discPath, std::uint32_t &lsn, std::uint32_t &size)
+{
+    std::scoped_lock lock(m_lock);
+
+    const std::string name = discName(discPath);
+    const auto file = std::ranges::find(m_named, name, &Named::name);
+    if (file == m_named.end())
+        return false;
+    lsn = file->lsn;
+    size = file->size;
+    return true;
 }
 
 void Disc::readExtent(Extent &extent, std::uint32_t sector, std::byte *buffer)

@@ -1,6 +1,8 @@
 // sdk/libcdvd.cpp -- the drive and the clock. The disc is alyssapan::io::Disc, the data folder served as an image, so all the drive
 // has to say is that a PS2 DVD is in it; the clock is the PC's.
 #include <chrono>
+#include <cstdint>
+#include <cstdio>
 
 #include "libcdvd.h"
 #include "libscf.h"
@@ -59,6 +61,25 @@ int sceCdRead(u_int lsn, u_int sectors, void *buf, sceCdRMode *)
 int sceCdSync(int)
 {
     return 0;
+}
+
+// Reads finish inside sceCdRead, so there is never one to break.
+int sceCdBreak()
+{
+    return 1;
+}
+
+// The file's sector and size on the disc the folder is served as (Disc::find); 1 found, 0 not.
+int sceCdSearchFile(sceCdlFILE *fp, const char *name)
+{
+    std::uint32_t lsn = 0;
+    std::uint32_t size = 0;
+    if (!Disc::instance().find(name, lsn, size))
+        return 0;
+    fp->lsn = lsn;
+    fp->size = size;
+    std::snprintf(fp->name, sizeof(fp->name), "%s", name);
+    return 1;
 }
 
 int sceCdTrayReq(int, u_int *traychk)

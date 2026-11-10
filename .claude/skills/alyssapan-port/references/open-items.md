@@ -188,6 +188,20 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    (bd) CHARACTER.slot004[10] holds the character's behaviour banks (data_load_set compares the bank with
    each): rename it when the character TU reads it. Next: game/ArtoolDebugOpen.c, game/main2.c,
    game/fileio.c.
+   **game/ArtoolDebugOpen.c (verify, 2026-11-10): all 15 functions** -- the file layer (architecture.md
+   "The file layer"): IopLoadModules (now void: (ai) settled, the ROM reads no argument), FlInit (the
+   pack's directory; a smoke run prints no FlInit error, so the directory loads and sceCdSearchFile finds
+   the pack), the request queue and FlProc, FlLoad, FlGetLen, FlFindPacked. Host: io::Disc lays out the
+   subfolders' files and answers sceCdSearchFile by name (item 3), sceCdBreak, SyncDCache. Open:
+   (be) no smoke run reads a file yet (main2 / fileio.c are stubs): the first FlLoad / FlProc read is the
+   real test; (bf) loose files (not in the pack) need IOPGetFileSize (game/IOPGetFileSize.c, stubbed:
+   IOPComSync answers 0, so a loose file's size stays 0 and FlProc reads nothing): write that TU before
+   any loose file is opened -- FSYS_IOP's answer is [0] size, [1] first sector (FlProc's use);
+   (bg) CpGetEEIOPStatus's stub answers a zeroed record (the ROM: &gEEStat); EE_IOP_STAT's +0x50 is named
+   iopBusy from FlProc's one use; (bh) gADSOpenSync and gSCD sit in lib/unassigned_data.cpp; gSCD is
+   sceSifClientData[3] (120 bytes on the EE: 3 x 0x28), FlProc waits on [1]; (bi) FL_STATE_CANCEL (0x15)
+   has no writer in this TU: whoever sets it names it; (bj) gValIOPGetFileLen (0x0193e350) is placed in
+   this TU by address order, before IOPGetFileSize.c's static sFileNameToIOP: move it if that TU owns it.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
    class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~
@@ -199,9 +213,9 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    groups (YamiPan's SPU2 is next to them), the audio dump; (e) `libsdr` (CT3 calls `sceSdRemote`), newlib
    `rand`; (f) .iso reading, save import / export; (g) RmlUi menus and translations; (h) CI and AlyssaPan's
    own `extern/`. A shim CT3's boot needs earlier (libsdr, the card) moves ahead of TUs when a run hits it.
-3. **io::Disc's path table is root-only** (FS2 needed no more): CT3 opens `\DATA\CT3PACK.DAT;1` and
-   `\IOP\*.IRX`. Add directories when the file TU shows how CT3 reads (sectors through libcdvd, or names
-   through `FSYS_IOP`).
+3. ~~**io::Disc's path table is root-only**~~ (2026-11-10, game/ArtoolDebugOpen.c): CT3 reads sectors
+   through libcdvd and finds the pack with sceCdSearchFile, so the subfolders' files now get sectors and
+   `Disc::find` answers by name; the ISO records still list only the root (no CT3 code reads them).
 
 ## Decisions
 

@@ -138,3 +138,7 @@ void SdChangeStereoMono(void);                                                  
 void *SdAlloc(int size, int align, const char *name);                                    // CT3 0x018d17d0
 void SdFree(void **mem);                                                                 // CT3 0x018d17a0
 void SdLoadSQEndWaitAll(void);                                                           // CT3 0x018ce640
+void IopLoadCapcomSound(const char *device);                                              // CT3 IopLoadModules' last call (game/ArtoolDebugOpen.c)
+
+// sbss 0x01943888: != 0 while an ADS stream is being opened; FlProc holds its reads back meanwhile.
+extern int gADSOpenSync;

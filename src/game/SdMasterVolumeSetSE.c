@@ -206,3 +206,9 @@ void SdLoadSQEndWaitAll(void)
 {
     ALYSSAPAN_STUB("SdLoadSQEndWaitAll", 0x018ce640);
 }
+
+// stub of CT3 0x018d1860
+void IopLoadCapcomSound(const char *device)
+{
+    ALYSSAPAN_STUB("IopLoadCapcomSound", 0x018d1860);
+}

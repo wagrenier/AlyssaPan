@@ -1,10 +1,10 @@
 // The game's disc, made from the extracted folder (carried over from YamiPan). FS2's rx cdrom driver read an
 // ISO 9660 file system from raw sectors and its archives were addressed by sector, so the host answers sector
 // reads: a primary volume descriptor, a path table and a root directory built in memory, and the folder's
-// files laid out behind them, two volumes for FS2's dual-layer DVD. CT3 is one layer, and what it opens sits
-// in DATA\ and IOP\: the path table is still root-only (open-items.md "Next up", the Pan layer), and whether
-// CT3 reads sectors at all (sceCdSearchFile + sceCdRead on CT3PACK.DAT) or only its FSYS_IOP file server is
-// for its file TU to say.
+// files laid out behind them, two volumes for FS2's dual-layer DVD. CT3 is one layer and reads sectors:
+// FlInit finds DATA\CT3PACK.DAT with sceCdSearchFile and FlProc reads the pack's files with sceCdRead
+// (game/ArtoolDebugOpen.c, 2026-11-10). The subfolders' files (DATA\, IOP\) get sectors too and are found
+// by name (find); the ISO records still list only the root (no CT3 code reads them).
 #pragma once
 
 #include <cstddef>
@@ -15,6 +15,7 @@
 #include <mutex>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace alyssapan::io
@@ -36,10 +37,21 @@ public:
 
     std::uint32_t layer1Start() const { return m_layer1Start; }
 
+    // A file's first sector and size by its disc path ("\DATA\CT3PACK.DAT;1": case, the leading '\'
+    // and the version do not matter). sceCdSearchFile's answer.
+    bool find(std::string_view discPath, std::uint32_t &lsn, std::uint32_t &size);
+
 private:
     struct FileCloser
     {
         void operator()(std::FILE *file) const { std::fclose(file); }
+    };
+
+    struct Named
+    {
+        std::string name; // "DATA\CT3PACK.DAT"
+        std::uint32_t lsn;
+        std::uint32_t size;
     };
 
     struct Extent
@@ -55,6 +67,8 @@ private:
 
     std::mutex m_lock;
     std::vector<Extent> m_extents; // ordered by firstSector
+    std::vector<Named> m_named;
+    std::filesystem::path m_folder;
     std::vector<std::byte> m_metadata;
     std::uint32_t m_metadataSectors = 0;
     std::vector<std::byte> m_layer1Metadata;

@@ -1,6 +1,5 @@
 {
  "queue": [
-  "game/ArtoolDebugOpen.c",
   "game/main2.c",
   "game/fileio.c"
  ],
@@ -299,12 +298,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 97..97, 1 functions keyed by their statics, 3 unkeyed; file name from the names"
   },
   "game/ArtoolDebugOpen.c": {
+   "notes": "Smoke run: FlInit prints no error, so the pack directory loads and sceCdSearchFile finds the pack; no run reads a file yet (main2 and fileio.c are stubs), the screen stays black. Loose files need IOPGetFileSize.c (stubbed). CpGetEEIOPStatus stub answers a zeroed record. open-items (be)..(bj).",
    "ranges": [
     [
      "0189e180",
      "0189f460"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-10 01:35",
+     "status": "verify",
+     "summary": "the file layer: IopLoadModules, FlInit (CT3PACK.DAT directory), the 20-request read queue and FlProc, FlLoad, FlGetLen, FlFindPacked -- all 15 functions; host: io::Disc lays out subfolder files and answers sceCdSearchFile, sceCdBreak, SyncDCache"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 91..91, 8 functions keyed by their statics, 3 unkeyed; file name from the names"
   },
   "game/Character_Init.c": {
