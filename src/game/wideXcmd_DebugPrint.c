@@ -103,3 +103,9 @@ void asCharacterMortionStopRequest(int chara, int slot)
 {
     ALYSSAPAN_STUB("asCharacterMortionStopRequest", 0x018fe1f0);
 }
+
+// stub of CT3 0x018f7040
+void as1CharacterPositioning(CHARACTER *chr)
+{
+    ALYSSAPAN_STUB("as1CharacterPositioning", 0x018f7040);
+}

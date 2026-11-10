@@ -187,3 +187,9 @@ void ssSetAmbColorToAllObj(int scene)
 {
     ALYSSAPAN_STUB("ssSetAmbColorToAllObj", 0x01895f00);
 }
+
+// stub of CT3 0x018962a0
+void tnChangeCharAmbientColorSet(short *set)
+{
+    ALYSSAPAN_STUB("tnChangeCharAmbientColorSet", 0x018962a0);
+}

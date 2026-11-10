@@ -11,9 +11,14 @@
 #include "sdk/eekernel.h"
 #include "ga/gaInitDrawObject.h"
 #include "game/main2.h"
+#include "ga/gaBGT_DrawObject.h"
+#include "ga/gaObjectClippingCheck.h"
 #include "game/fileio.h"
 #include "game/ahalloc.h"
 #include "game/Convert.h"
+#include "game/LinkMatrixTree.h"
+#include "game/ssSetTexUVforCubeMap.h"
+#include "game/wideXcmd_DebugPrint.h"
 #include "game/sound.h"
 #include "game/ahRelocateSunPs2ObjectArry.h"
 #include "game/Character_Init.h"
@@ -791,14 +796,119 @@ void DemoSkipRegisterEvent(int event)
     SkipEventFlag[event >> 3] |= (u_char)(1 << (event & 7));
 }
 
+// CT3 0x01938200 (SkipFlagTbl, .sdata, gp - 0x73f0): the trigger events of the skippable demos, in
+// SkipEventFlag's bit order; SKIP_EVENT_END closes it (136 demos, 17 of SkipEventFlag's 20 bytes).
+static int SkipFlagTbl[] = {
+    950,  951,  952,  953,  954,  955,  956,  957,  958,  959,  961,  962,  963,  964,  965,  966,
+    967,  968,  969,  970,  971,  972,  973,  974,  975,  976,  977,  978,  979,  980,  981,  982,
+    983,  985,  986,  987,  988,  989,  990,  991,  992,  993,  994,  995,  996,  997,  984,  940,
+    941,  942,  943,  944,  945,  946,  947,  948,  1060, 1064, 1069, 1070, 1072, 1367, 1347, 1356,
+    1523, 1354, 1355, 1332, 1351, 1389, 960,  1376, 1368, 1366, 1350, 1369, 1370, 1371, 1427, 1392,
+    1393, 1388, 1383, 1391, 1404, 1399, 1469, 1413, 1410, 1405, 1403, 1411, 1502, 1503, 1478, 1470,
+    1479, 1529, 1530, 1531, 1472, 1467, 1466, 1468, 1475, 1495, 1464, 1419, 1425, 1423, 1527, 1432,
+    1447, 1448, 1449, 1528, 1471, 1507, 1165, 1532, 1491, 1492, 1493, 938,  939,  1501, 1522, 1412,
+    998,  1535, 1536, 1537, 1538, 1540, 1541, 1508, SKIP_EVENT_END,
+};
+
+// CT3 0x01852060: the SkipEventFlag bit of the demo whose trigger event is `event`, -1 when no demo
+// has it.
+int DemoSkipGetEvent(int event)
+{
+    int i;
+    for (i = 0; SkipFlagTbl[i] != SKIP_EVENT_END; i++)
+        if (event == SkipFlagTbl[i])
+            return i;
+    return -1;
+}
+
+// CT3 0x01852d30: 1 when one of the stalkers (Character[MONSTER_SLOT_FIRST..], both top flag bits set,
+// with a brain) shares c's room (CHARACTER.lightBank), else 0.
+int CheckSameRoomAsMonster(CHARACTER *c)
+{
+    int i;
+    for (i = MONSTER_SLOT_FIRST; i < MONSTER_SLOT_FIRST + MONSTER_SLOT_COUNT; i++) {
+        CHARACTER *m = &Character[i];
+        if ((m->flags & CHARACTER_FLAG_SHADOW) && (m->flags & CHARACTER_FLAG_REFRACTION) && m->brain != 0 &&
+            c->lightBank == m->lightBank)
+            return 1;
+    }
+    return 0;
+}
+
 // CT3 0x01940e80 (Panicdef) and 0x01940e44 (AdvantageousTimeTime): .sbss beside PanicInfoData.
 PANIC_DEF Panicdef;
 int AdvantageousTimeTime;
 
-// stub of CT3 0x01856660
+// One eased value: 1 / time of the way to its target (int division truncates, as the ROM's div).
+static float FogEaseF(float v, float target, short time)
+{
+    return v + (target - v) / (float)(int)time;
+}
+
+static int FogEaseI(int v, int target, short time)
+{
+    return v + (target - v) / (int)time;
+}
+
+// The fog block (fog[3], fogArg[3]) of FOG_INFO or the character's, toward an animation's targets:
+// at once when time is 0, else eased.
+static void FogAnimeBlock(float *fog, int *arg, const float *tFog, const int *tArg, u_char flags, short time)
+{
+    int i;
+    for (i = 0; i < 3; i++)
+        if (flags & (FOG_ANIME_FOG0 << i))
+            fog[i] = time == 0 ? tFog[i] : FogEaseF(fog[i], tFog[i], time);
+    if (flags & FOG_ANIME_FOG_ARG)
+        for (i = 0; i < 3; i++)
+            arg[i] = time == 0 ? tArg[i] : FogEaseI(arg[i], tArg[i], time);
+}
+
+// CT3 0x01856660
+// The fog animations' frame (not while paused, unless the world runs on; not while TRIG_VAR_PANIC_OFF
+// >= 0): for every loaded, drawn bank group that is not BANK_TYPE_NO_ROOM_SOUND, the bank's fog and
+// character fog ease to FogAnimeBuff's targets; a clear colour change rewrites the frame clear too.
 void FogAnimeUpdate(void)
 {
-    ALYSSAPAN_STUB("FogAnimeUpdate", 0x01856660);
+    int i, k;
+
+    if (pause != 0 && !(pause & PAUSE_RUNNING))
+        return;
+    if (ssTrigGetVariable(TRIG_VAR_PANIC_OFF, 1, 0) >= 0)
+        return;
+    for (i = 0; i < BANK_MAX; i++) {
+        BANK_INFO *b = &BankInfo[i];
+        FOG_ANIME *a;
+        FOG_INFO *f;
+
+        if (b->state <= 0)
+            continue;
+        if (b->drawOn != 0 && b->type != BANK_TYPE_NO_ROOM_SOUND) {
+            a = &FogAnimeBuff[i];
+            f = (FOG_INFO *)FogCtrlAddr[i];
+            if (a->flags != 0) {
+                FogAnimeBlock(f->fog, f->fogArg, a->fog, a->fogArg, a->flags, a->time);
+                if (a->flags & FOG_ANIME_CLEAR_COLOR) {
+                    for (k = 0; k < 3; k++)
+                        f->clearColor[k] = a->time == 0 ? a->clearColor[k]
+                                                        : FogEaseI(f->clearColor[k], a->clearColor[k], a->time);
+                    drawcom_frameclear.rgbaq = FogClearColor((u_char *)f);
+                }
+                if (a->time == 0)
+                    a->flags = 0;
+                else
+                    a->time--;
+            }
+            if (a->charaFlags != 0) {
+                FogAnimeBlock(f->charaFog, f->charaFogArg, a->charaFog, a->charaFogArg, a->charaFlags,
+                              a->charaTime);
+                if (a->charaTime == 0)
+                    a->charaFlags = 0;
+                else
+                    a->charaTime--;
+            }
+        }
+        i += b->groupCount - 1;
+    }
 }
 
 // The stalkers' own scene banks MonsterAIUpdate pauses with them (the strings at 0x01933838..58).
@@ -821,6 +931,7 @@ static void MonsterSceneAnim(const char *name, int mode)
 // banks' animations. The ROM has the loop twice, one per mode.
 void MonsterAIUpdate(int mode)
 {
+    // callcheck: asForceOperateAnimation_Scene, ssGetBankID (the ROM's inline step, in the static MonsterSceneAnim)
     int i;
     mode = mode != 0;
     if (mode == 0)
@@ -1141,6 +1252,17 @@ int PanicCheck(void)
     return result;
 }
 
+// CT3 0x018540b0: the player uses calming item `item` (a PanicRecoveryTbl row): unless panic is
+// forbidden it starts working for the row's frames, and TRIG_EVENT_LAVENDER (its looping sound) is on.
+void PanicDownSet(int item)
+{
+    if (PanicCheck() >= 0) {
+        PanicInfoData.recoveryItem = (s_char)item;
+        PanicInfoData.recoveryTime = (short)PanicRecoveryTbl[item].frames;
+        ssTrigRegisterEvent(TRIG_EVENT_LAVENDER, 1, 0);
+    }
+}
+
 // CT3 0x019390b0 (PanicRecoveryTbl) and 0x019390f0 (HidePointUpValue): the ROM's data.
 PANIC_RECOVERY PanicRecoveryTbl[PANIC_RECOVERY_COUNT] = {
     {66.5f, 50.0f, 180}, {1.0f, 1.0f, 100}, {1.0f, 1.0f, 100}, {1.0f, 1.0f, 100}, {1.0f, 1.0f, 100},
@@ -1406,10 +1528,103 @@ void PlayerControlUpdate(int mode)
     }
 }
 
-// stub of CT3 0x0185aa50
+// ---- the letterbox (slice 7, 2026-11-10) ---------------------------------------------------------
+float VistaVisionHeightSize;
+float VistaVisionCounter;
+// (VistaVisionNumber and VistaVisionMode, sbss 0x0193fc90 / 94: unassigned_data, main.c sets them too)
+
+// VistaVisionPacketUp / Down (sdata 0x01937e60 / 0x01937eb0, 0x50 bytes each): DMAtag cnt 4, VIF
+// DIRECT 3, a GIFtag (PRE, PRIM SPRITE, REGLIST PRIM RGBAQ XYZ2 XYZ2) and one black sprite across the
+// 512-wide frame (GS 0x8000..0xa000). VistaVisionMain writes the alpha and the inner edge's Y.
+typedef struct VISTA_PACKET {
+    u_char head[0x30];                  /* 0x00: DMAtag, VIF codes, GIFtag */
+    u_long prim;                        /* 0x30: PRIM SPRITE */
+    u_long rgbaq;                       /* 0x38: black, A = the bars' alpha, Q 1.0 */
+    u_long xyz2[2];                     /* 0x40: the corners */
+} VISTA_PACKET;
+static_assert(sizeof(VISTA_PACKET) == 0x50, "VISTA_PACKET");
+#define GS_PRIM_SPRITE 6
+#define VISTA_PACKET_HEAD {                                                                          \
+    0x04, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,   \
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x50,   \
+    0x01, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x44, 0x10, 0x55, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+#define VISTA_RGBAQ_INIT 0x3f80000060000000ull
+alignas(16) static VISTA_PACKET VistaVisionPacketUp = {
+    VISTA_PACKET_HEAD, GS_PRIM_SPRITE, VISTA_RGBAQ_INIT, {0x80008000ull, 0x80008000ull}};
+alignas(16) static VISTA_PACKET VistaVisionPacketDown = {
+    VISTA_PACKET_HEAD, GS_PRIM_SPRITE, VISTA_RGBAQ_INIT, {0x80008000ull, 0x9c00a000ull}};
+#define VISTA_FRAME_HEIGHT 448.0f       /* the GS frame's lines */
+#define VISTA_ALPHA_SCALE 1.28f         /* percent to GS alpha (100 -> 0x80) */
+#define VISTA_GS_ORIGIN 0x8000          /* the frame's top-left in GS primitive coordinates */
+#define VISTA_GS_RIGHT 0xa000           /* x 512 */
+#define VISTA_RGBAQ_Q1 0x3f80000000000000ull /* RGBAQ: Q 1.0, black, alpha 0 */
+#define VISTA_RINGBUFFER_SIZE 0x8000
+
+// The bars' draw control (gaSetupDrawCtrlData's 29 argument slots from the disassembly at 0x0185aba8):
+// flat, untextured, alpha blended (Cs - Cd) * As + Cd; alpha test GEQUAL 0x7f failing to the frame only
+// (FB_ONLY: the bars still draw), no depth test; MMIN 4.
+static const GA_DRAWCTRL_ARGS VISTA_DRAWCTRL_ARGS = {
+    0, 0, 0, 1, 0, 0, 0, 0,       /* PRMODE: ABE */
+    0, 5, 0x7f, 1, 0, 0, 0, 2,    /* TEST_1: ATST 5 (GEQUAL), AREF 0x7f, AFAIL 1 (FB_ONLY), ZTST 2 */
+    0, 1, 0, 1, 0,                /* ALPHA_1: A 0 (Cs), B 1 (Cd), C 0 (As), D 1 (Cd) */
+    0,                            /* FBA_1 */
+    0, 0, 1, 4, 0, 0,             /* TEX1_1: MMAG 1, MMIN 4 */
+    0};                           /* TEXA */
+
+// CT3 0x0185aa50
+// The letterbox's frame: runs the script's request (VISTA_*: at once, or sliding VISTA_STEP percent a
+// frame, with its trigger events), then, while any request or VISTA_SHOWN stands, draws the two bars:
+// each VistaVisionHeightSize * Counter / 100 lines tall, at Counter * 1.28 alpha.
 void VistaVisionMain(void)
 {
-    ALYSSAPAN_STUB("VistaVisionMain", 0x0185aa50);
+    alignas(16) GA_DRAWCTRL_DATA ctrl;
+    float h;
+    u_long rgbaq;
+
+    if (VistaVisionNumber == VISTA_OFF)
+        return;
+    if (VistaVisionNumber == VISTA_HIDE) {
+        VistaVisionCounter -= VISTA_STEP;
+        if (VistaVisionCounter < 0.0f) {
+            VistaVisionCounter = 0.0f;
+            VistaVisionNumber = VISTA_OFF;
+            ssTrigRegisterEvent(TRIG_EVENT_VISTA_HIDDEN, 1, 0);
+            ssTrigRemoveEvent(TRIG_EVENT_VISTA_ON, 1, 0);
+        }
+    } else if (VistaVisionNumber == VISTA_SHOW) {
+        VistaVisionCounter += VISTA_STEP;
+        if (!(VistaVisionCounter <= VISTA_COUNTER_MAX)) {
+            VistaVisionCounter = VISTA_COUNTER_MAX;
+            VistaVisionNumber = VISTA_SHOWN;
+            ssTrigRegisterEvent(TRIG_EVENT_VISTA_SHOWN, 1, 0);
+        }
+    } else if (VistaVisionNumber == VISTA_HIDE_NOW) {
+        VistaVisionCounter = 0.0f;
+        VistaVisionNumber = VISTA_OFF;
+        ssTrigRegisterEvent(TRIG_EVENT_VISTA_HIDDEN, 1, 0);
+        if (ssTrigCheckEvent(TRIG_EVENT_VISTA_KEEP, 1, 0) == 0)
+            ssTrigRemoveEvent(TRIG_EVENT_VISTA_ON, 1, 0);
+    } else if (VistaVisionNumber == VISTA_SHOW_NOW) {
+        VistaVisionCounter = VISTA_COUNTER_MAX;
+        VistaVisionNumber = VISTA_SHOWN;
+        ssTrigRegisterEvent(TRIG_EVENT_VISTA_SHOWN, 1, 0);
+    }
+    // (a request that ends at VISTA_OFF still draws this frame, with the counter at 0)
+
+    gaSetupDrawCtrlData(&ctrl, VISTA_DRAWCTRL_ARGS);
+    gaBGT_Start(bgt_ringbuffer, VISTA_RINGBUFFER_SIZE);
+    gaBGT_ExecDrawCtrlData_VIF1(&ctrl);
+    h = VistaVisionHeightSize / VISTA_COUNTER_MAX * VistaVisionCounter;
+    rgbaq = (u_long)(int64_t)(int)(VistaVisionCounter * VISTA_ALPHA_SCALE) << 24 | VISTA_RGBAQ_Q1;
+    VistaVisionPacketUp.rgbaq = rgbaq;
+    // callcheck: __fixsfdi (the int64_t casts: the 1/16-pixel Y, truncated)
+    VistaVisionPacketUp.xyz2[1] = ((u_long)((int64_t)(h * 16.0f) + VISTA_GS_ORIGIN) & 0xffff) << 16 | VISTA_GS_RIGHT;
+    VistaVisionPacketDown.rgbaq = rgbaq;
+    VistaVisionPacketDown.xyz2[0] =
+        ((u_long)((int64_t)((VISTA_FRAME_HEIGHT - h) * 16.0f) + VISTA_GS_ORIGIN) & 0xffff) << 16 | VISTA_GS_ORIGIN;
+    gaBGT_ExecDrawCommandData_VIF1((GA_DRAWCOMMAND_DATA *)&VistaVisionPacketDown);
+    gaBGT_ExecDrawCommandData_VIF1((GA_DRAWCOMMAND_DATA *)&VistaVisionPacketUp);
+    gaBGT_End();
 }
 
 // The scene bank (a loaded BANK_TYPE_SHADOW group head) whose room is roomHash, or -1. drawn: also
@@ -1552,16 +1767,117 @@ void WarpObject(const char *room, int mode, int chara, u_long partHash, int bank
     asWarpObjectBody(WARP_QUEUE, &cmd);
 }
 
-// stub of CT3 0x0185b4c0
-void ExecuteWarpObject(int mode, int chara, int part, int bank)
+// The warps (slice 7, 2026-11-10). The ROM writes both bodies out in full; the shared steps are kept
+// here as three statics in the ROM's order.
+#define WARP_MODE_PARTS 0               /* ExecuteWarpObject*: copy a part's local matrices onto another part */
+#define WARP_CHARA_PLAYER 100           /* chara: the player (Player_BankID) */
+#define WARP_PART_MATRICES 0x240        /* MODEL_PARTS: three local matrices (0x240, PARTS_ANIM_ROT, _BASE_ROT) */
+#define WARP_PART_MATRICES_SIZE 0xc0
+#define WARP_ROOM_NAME_LEN 4            /* a room's hash is of its bank file's first four characters */
+
+static void SqueezeCross(float *out, const float *u, const float *v);
+
+static void WarpCopyPartMatrices(MODEL_PARTS *dst, MODEL_PARTS *src)
 {
-    ALYSSAPAN_STUB("ExecuteWarpObject", 0x0185b4c0);
+    memcpy((u_char *)dst + WARP_PART_MATRICES, (u_char *)src + WARP_PART_MATRICES, WARP_PART_MATRICES_SIZE);
 }
 
-// stub of CT3 0x0185ae90
-void ExecuteWarpObject2(int mode, int bank, int chara, int bank2)
+// The character onto the marker part: its position (and last frame's), the part's warpH54, the turn
+// about Y from the bank's part 0 row 2 to the marker's (negated when their cross product's y >= 0),
+// then a visible character is positioned and its bank's tree rebuilt.
+static void WarpPlaceCharacter(int chara, int bank, int part)
 {
-    ALYSSAPAN_STUB("ExecuteWarpObject2", 0x0185ae90);
+    CHARACTER *c = &Character[chara];
+    MODEL_PARTS *parts = (MODEL_PARTS *)pModelPartsHeader[bank];
+    MODEL_PARTS *m = &parts[part];
+    float cross[4];
+
+    memcpy(c->pos, m->pos, sizeof(c->pos));
+    memcpy(c->posBefore, c->pos, sizeof(c->posBefore));
+    c->h100 = m->warpH54;
+    c->rot = ahAcos(gaInnerProductXYZ(parts[0].matrix[2], m->matrix[2]));
+    SqueezeCross(cross, parts[0].matrix[2], m->matrix[2]);
+    if (0.0f <= cross[1])
+        c->rot = (int)((float)c->rot * -1.0f);
+    if (!(c->flags & CHARACTER_FLAG_SHADOW) && c->bank >= 0) {
+        as1CharacterPositioning(c);
+        BuildMatrixTree(c->bank, 1, 1);
+        asCopyDoubleBufferL2V(pModelPartsHeader[c->bank], 0);
+    }
+}
+
+// The character now belongs to room `bank`: a room bank (BANK_TYPE_SHADOW) ends its ambient change and
+// gives it the room's; roomHash (the bank file's first WARP_ROOM_NAME_LEN characters) and lightBank
+// follow, the player's room becomes the current scene, and a forced light set is dropped.
+static void WarpEnterRoom(int chara, int bank)
+{
+    CHARACTER *c = &Character[chara];
+    char name[sizeof(BankInfo[0].name)];
+    short set[4];
+    int i;
+
+    if (BankInfo[bank].type == BANK_TYPE_SHADOW) {
+        for (i = 0; i < CHAR_AMB_CHANGE_MAX; i++) {
+            if (chara == CharAmbChangeFlag[i].chara) {
+                memset(&CharAmbChangeFlag[i], 0, offsetof(CHAR_AMB_CHANGE, pad18));
+                CharAmbChangeColor[i] = 0;
+            }
+        }
+        set[0] = (short)chara;
+        set[1] = (short)bank;
+        set[2] = 0;
+        set[3] = 0;
+        tnChangeCharAmbientColorSet(set);
+    }
+    strcpy(name, BankInfo[bank].name);
+    name[WARP_ROOM_NAME_LEN] = '\0';
+    c->roomHashPrev = c->roomHash;
+    c->roomHash = ahGetHash(name);
+    c->lightBank = (short)bank;
+    if (chara == 0) {
+        idCurrentScene = bank;
+        RoomInFlagOn();
+    }
+    CharDirectLightSet[chara][CHAR_DLS_ON] = 0;
+    CharDirectLightSet[chara][CHAR_DLS_FADE] = 0;
+}
+
+// CT3 0x0185b4c0
+// WARP_MODE_PARTS: part `part`'s local matrices onto part `chara` of `bank`. Otherwise character
+// `chara` (WARP_CHARA_PLAYER: the player) moves onto part `part` of `bank`, and enters that room
+// unless it is already the character's.
+void ExecuteWarpObject(int mode, int chara, int part, int bank)
+{
+    // callcheck: BuildMatrixTree, RoomInFlagOn, ahAcos, ahGetHash, as1CharacterPositioning, asCopyDoubleBufferL2V, gaInnerProductXYZ, strcpy, tnChangeCharAmbientColorSet (the ROM's inline steps, in WarpPlaceCharacter and WarpEnterRoom)
+    if (mode == WARP_MODE_PARTS) {
+        MODEL_PARTS *parts = (MODEL_PARTS *)pModelPartsHeader[bank];
+        WarpCopyPartMatrices(&parts[chara], &parts[part]);
+        return;
+    }
+    if (chara == WARP_CHARA_PLAYER)
+        chara = Player_BankID;
+    WarpPlaceCharacter(chara, bank, part);
+    if (bank != CharID_TO_BankID(chara))
+        WarpEnterRoom(chara, bank);
+}
+
+// CT3 0x0185ae90
+// ExecuteWarpObject with the marker found by name: the part `partHash` of bank2. WARP_MODE_PARTS copies
+// its matrices onto part `chara` of `bank`; otherwise the character always enters bank2's room.
+void ExecuteWarpObject2(int mode, int bank, int chara, int bank2, u_long partHash)
+{
+    // callcheck: BuildMatrixTree, RoomInFlagOn, ahAcos, ahGetHash, as1CharacterPositioning, asCopyDoubleBufferL2V, gaInnerProductXYZ, strcpy, tnChangeCharAmbientColorSet (the ROM's inline steps, in WarpPlaceCharacter and WarpEnterRoom)
+    int part = asFindModelPartsID(pModelPartsHeader[bank2], partHash);
+
+    if (mode == WARP_MODE_PARTS) {
+        WarpCopyPartMatrices(&((MODEL_PARTS *)pModelPartsHeader[bank])[chara],
+                             &((MODEL_PARTS *)pModelPartsHeader[bank2])[part]);
+        return;
+    }
+    if (chara == WARP_CHARA_PLAYER)
+        chara = Player_BankID;
+    WarpPlaceCharacter(chara, bank2, part);
+    WarpEnterRoom(chara, bank2);
 }
 
 // CT3 0x0185b980: WARP_QUEUE appends cmd (the block grows by WARP_QUEUE_GROW in gHeapJunc);
@@ -1576,7 +1892,7 @@ void asWarpObjectBody(int mode, const WARP_CMD *cmd)
             if (w->roomHash == 0)
                 ExecuteWarpObject(w->mode, w->chara, w->part, w->bank);
             else
-                ExecuteWarpObject2(w->mode, w->bank, w->chara, w->bank2);
+                ExecuteWarpObject2(w->mode, w->bank, w->chara, w->bank2, w->roomHash);
         }
         if (lpWC != NULL)
             _SunFree(&gHeapJunc, (void **)&lpWC);
@@ -1729,11 +2045,46 @@ void *asFindCharacterStruct(void *chara)
     return chara;
 }
 
-// stub of CT3 0x01858f20
+// drawctrl_zbuf (bss 0x0193cdc0, set up on every call; gaSetupDrawCtrlData's 29 argument slots from the
+// disassembly at 0x01858f20): flat Gouraud, alpha blended to Cd, alpha test NEVER with AFAIL ZB_ONLY,
+// depth tested GREATER: the parts write depth and no colour.
+alignas(16) static GA_DRAWCTRL_DATA drawctrl_zbuf;
+static const GA_DRAWCTRL_ARGS ZBUF_ONLY_DRAWCTRL_ARGS = {
+    1, 0, 0, 1, 0, 0, 0, 0, /* PRMODE: IIP, ABE */
+    1, 0, 0, 2, 0, 0, 1, 3, /* TEST_1: ATE, ATST 0 (NEVER), AFAIL 2 (ZB_ONLY), ZTE, ZTST 3 (GREATER) */
+    0, 1, 2, 1, 0,          /* ALPHA_1: A 0 (Cs), B 1 (Cd), C 2 (FIX 0), D 1 (Cd) */
+    1,                      /* FBA_1 */
+    1, 0, 1, 1, 0, 0,       /* TEX1_1: LCM, MMAG 1, MMIN 1 */
+    0};                     /* TEXA */
+
+// CT3 0x01858f20
+// The depth pre-pass of a PARTS_FLAG_ZONLY_FIRST part: from list entry `index` on, every entry of the
+// same part (the list keeps a part's objects together) is drawn depth-only, clipped as main_rtn does
+// (inside and not DRAW_OBJ_FLAG_CLIP: the no-clipping path). Returns the part, so main_rtn runs it once.
 int OneMaxObjectDrawZOnly(int bank, int index)
 {
-    ALYSSAPAN_STUB("OneMaxObjectDrawZOnly", 0x01858f20);
-    return {};
+    int parts = BANK_PTR(DRAW_OBJ_ENTRY *, bank, ALLobject[bank][index])->parts;
+
+    gaSetupDrawCtrlData(&drawctrl_zbuf, ZBUF_ONLY_DRAWCTRL_ARGS);
+    gaBGT_ExecDrawCtrlData_VIF1(&drawctrl_zbuf);
+    for (; ALLobject[bank][index] != 0; index++) {
+        DRAW_OBJ_ENTRY *ent = BANK_PTR(DRAW_OBJ_ENTRY *, bank, ALLobject[bank][index]);
+        u_char *obj;
+        int clip;
+
+        if (ent->parts != parts)
+            break;
+        obj = BANK_PTR(u_char *, bank, ent->obj);
+        clip = gaObjectClippingCheck(obj);
+        if (clip < 0)
+            continue;
+        *(int *)(obj + DRAW_OBJ_ATTR) = ((MODEL_PARTS *)pModelPartsHeader[bank])[parts].attr;
+        if (clip == 0 && !(obj[DRAW_OBJ_FLAGS] & DRAW_OBJ_FLAG_CLIP))
+            gaBGT_DrawObject_NoClippingCheck2(obj, 0);
+        else
+            gaBGT_DrawObject(obj, 0);
+    }
+    return parts;
 }
 
 // ---- the view matrix read back as a camera (slice 1, 2026-11-10, from the disassembly) ----
@@ -2413,11 +2764,88 @@ int asJointParts(int srcBank, int bank, u_long hash)
     return asJointParts_byMatrix(src->matrix, src->pos, bank, hash);
 }
 
-// stub of CT3 0x01854750
+static void SqueezeCross(float *out, const float *u, const float *v);
+
+#define JOINT_ALIGNED_EPS 0.0001f       /* |cos| below it: the second axis is a quarter turn off */
+#define JOINT_TWIST_COS 0.999f          /* asJointParts_byMatrix's check of its second turn */
+
+static void JointIdentity(float (*m)[4])
+{
+    int i, j;
+    for (i = 0; i < 4; i++)
+        for (j = 0; j < 4; j++)
+            m[i][j] = i == j ? 1.0f : 0.0f;
+}
+
+// CT3 0x01854750
+// Joins `bank` to a portal frame: the bank's part `hash` (its joint) is turned so that its row 0 lies
+// along mat's row 0 (about row0 x mat0, or a half turn about its row 2 when opposite), then about that
+// row 0 so its row 1 meets mat's (a quarter turn when they are perpendicular, else back by the angle,
+// then by the angle still left when that missed). The two turns become the bank's base rotation (part
+// 0's PARTS_ANIM_BASE_ROT rows), and drawOnPos puts the joint's turned position on `pos`. The joint's
+// world matrix keeps the first turn. JOINT_NOT_FOUND_2 when the bank has no such part, else 0.
 int asJointParts_byMatrix(float (*mat)[4], float *pos, int bank, u_long hash)
 {
-    ALYSSAPAN_STUB("asJointParts_byMatrix", 0x01854750);
-    return {};
+    alignas(16) float r1[4][4], r2[4][4], t[4][4];
+    float axis[4], p[4], d;
+    u_char *hdr = pModelPartsHeader[bank];
+    u_char *rec = asFindModelParts(hdr, hash);
+    MODEL_PARTS *joint, *base;
+    float (*m)[4];
+    int i;
+
+    JointIdentity(r1);
+    JointIdentity(r2);
+    JointIdentity(t);
+    if (rec == NULL)
+        return JOINT_NOT_FOUND_2;
+    joint = (MODEL_PARTS *)(rec - PARTS_HDR_RECORDS);
+    base = (MODEL_PARTS *)hdr;
+    m = joint->matrix;
+
+    InitMatrixTree(hdr);
+    LinkMatrixTree(BANK_PTR(u_int *, bank, All_table_TBL[bank]->objOpaque), hdr);
+    BuildMatrixTree(bank, 1, 0);
+
+    d = gaInnerProductXYZ(mat[0], m[0]);
+    if (d != 1.0f) {
+        if (d == -1.0f) {
+            asMakeRotMatrixByQuartanion(r1, m[2], ANGLE_HALF_TURN);
+        } else {
+            SqueezeCross(axis, mat[0], m[0]);
+            asMakeRotMatrixByQuartanion(r1, axis, ahAcos(d));
+        }
+    }
+    gaMulMatrix(m, r1, m);
+
+    d = gaInnerProductXYZ(mat[1], m[1]);
+    if (d != 1.0f) {
+        if (d == -1.0f) {
+            asMakeRotMatrixByQuartanion(r2, m[0], ANGLE_HALF_TURN);
+        } else if (d <= JOINT_ALIGNED_EPS && !(d < -JOINT_ALIGNED_EPS)) {
+            asMakeRotMatrixByQuartanion(r2, m[0], ANGLE_QUARTER_TURN);
+            gaMulMatrix(t, r2, m);
+            if (gaInnerProductXYZ(mat[1], t[1]) <= JOINT_TWIST_COS)
+                asMakeRotMatrixByQuartanion(r2, m[0], ANGLE_HALF_TURN + ANGLE_QUARTER_TURN);
+        } else {
+            asMakeRotMatrixByQuartanion(r2, m[0], -ahAcos(d));
+            gaMulMatrix(t, r2, m);
+            d = gaInnerProductXYZ(mat[1], t[1]);
+            // the ROM turns by the cosine it just measured (not back by the first angle)
+            if (d <= JOINT_TWIST_COS)
+                asMakeRotMatrixByQuartanion(r2, m[0], ahAcos(d));
+        }
+    }
+    gaMulMatrix(r1, r2, r1);
+
+    memcpy((u_char *)base + PARTS_ANIM_BASE_ROT, r1, sizeof(r1));
+    // vmulax..vmaddw: the joint's position through the turns (row vector), negated, plus pos
+    for (i = 0; i < 4; i++)
+        p[i] = -(joint->pos[0] * r1[0][i] + joint->pos[1] * r1[1][i] + joint->pos[2] * r1[2][i] +
+                 joint->pos[3] * r1[3][i]) + pos[i];
+    p[3] = 1.0f;
+    memcpy(base->drawOnPos, p, sizeof(p));
+    return 0;
 }
 
 // CT3 0x01859f00
@@ -2667,10 +3095,98 @@ void asInterpolateVector(float *out, const float *a, const float *b, const float
     memcpy(out, r, sizeof(r));
 }
 
-// stub of CT3 0x0185d4d0
+// asMakeWatchMeMatrixToPosition's axis (the part record's REC_WATCH_AXIS byte): which of the part's axes
+// is turned onto the target. Named from the turns each takes (X then Z, Z then X, Z, X); another value
+// makes no last turn.
+#define WATCH_AXIS_X 0                  /* one turn about X */
+#define WATCH_AXIS_Z 1                  /* one turn about Z */
+#define WATCH_AXIS_XZ 2                 /* about X, then Z */
+#define WATCH_AXIS_ZX 3                 /* about Z, then X */
+
+// mul.S by 65536, div.S by 2pi, cvt.w.S, andi 0xffff: radians to the 0x10000-a-turn angle.
+static int WatchAngle(float rad)
+{
+    return (int)(rad * 65536.0f / 6.2831855f) & 0xffff;
+}
+
+// vmulax / vmadday / vmaddaz / vmaddw .xyzw: v = v * m (row vector).
+static void WatchApply(float *v, float (*m)[4])
+{
+    float r[4];
+    int i;
+    for (i = 0; i < 4; i++)
+        r[i] = v[0] * m[0][i] + v[1] * m[1][i] + v[2] * m[2][i] + v[3] * m[3][i];
+    memcpy(v, r, sizeof(r));
+}
+
+// CT3 0x0185d4d0
+// A part turned to watch `target`: m's frame is levelled step by step (about Y by its row 1's angle,
+// about X by row 1's, about Y by row 0's less a quarter turn), the direction to the target (target -
+// m's row 3) carried along each step; `axis` (WATCH_AXIS_*) then turns the part about X and / or Z
+// towards that direction; the levelling is undone and m applied last.
 void asMakeWatchMeMatrixToPosition(float (*out)[4], float (*m)[4], float *target, int axis)
 {
-    ALYSSAPAN_STUB("asMakeWatchMeMatrixToPosition", 0x0185d4d0);
+    alignas(16) float l[4][4], ry[4][4], rx[4][4], ry2[4][4], r1[4][4], r2[4][4];
+    float d[4];
+
+    memcpy(l, m, sizeof(l));
+    l[3][0] = l[3][1] = l[3][2] = 0.0f;
+    // vsub.xyz: the ROM leaves d's w as the stack had it; every matrix's row 3 here is (0, 0, 0, 1)
+    // and rows 0..2 have w 0, so it never reaches xyz.
+    d[0] = target[0] - m[3][0];
+    d[1] = target[1] - m[3][1];
+    d[2] = target[2] - m[3][2];
+    d[3] = 0.0f;
+
+    gaSetRotMatrixY(ry, WatchAngle(asRadianByO(l[1], RADIAN_AXIS_Y)));
+    gaMulMatrix(l, ry, l);
+    WatchApply(d, ry);
+    memcpy(out, ry, sizeof(ry));
+    gaInversMatrix(ry, ry);
+
+    gaSetRotMatrixX(rx, -WatchAngle(asRadianByO(l[1], RADIAN_AXIS_X)) & 0xffff);
+    gaMulMatrix(l, rx, l);
+    WatchApply(d, rx);
+    gaMulMatrix(out, rx, out);
+    gaInversMatrix(rx, rx);
+
+    gaSetRotMatrixY(ry2, -(ANGLE_QUARTER_TURN - WatchAngle(asRadianByO(l[0], RADIAN_AXIS_Y))) & 0xffff);
+    gaMulMatrix(l, ry2, l);
+    WatchApply(d, ry2);
+    gaMulMatrix(out, ry2, out);
+    gaInversMatrix(ry2, ry2);
+
+    switch (axis) {
+    case WATCH_AXIS_ZX:
+        gaSetRotMatrixZ(r1, (ANGLE_QUARTER_TURN - WatchAngle(asRadianByO(d, RADIAN_AXIS_Z))) & 0xffff);
+        WatchApply(d, r1);
+        gaInversMatrix(r1, r1);
+        gaSetRotMatrixX(r2, WatchAngle(asRadianByO(d, RADIAN_AXIS_X)));
+        gaMulMatrix(out, out, r1);
+        gaMulMatrix(out, out, r2);
+        break;
+    case WATCH_AXIS_XZ:
+        gaSetRotMatrixX(r1, -WatchAngle(asRadianByO(d, RADIAN_AXIS_X)) & 0xffff);
+        WatchApply(d, r1);
+        gaInversMatrix(r1, r1);
+        gaSetRotMatrixZ(r2, -(ANGLE_QUARTER_TURN - WatchAngle(asRadianByO(d, RADIAN_AXIS_Z))) & 0xffff);
+        gaMulMatrix(out, out, r1);
+        gaMulMatrix(out, out, r2);
+        break;
+    case WATCH_AXIS_Z:
+        // the ROM's a1 is the 2 its mode-2 test left (the decompiler drops it)
+        gaSetRotMatrixZ(r1, -(ANGLE_QUARTER_TURN - WatchAngle(asRadianByO(d, RADIAN_AXIS_Z))) & 0xffff);
+        gaMulMatrix(out, out, r1);
+        break;
+    case WATCH_AXIS_X:
+        gaSetRotMatrixX(r1, WatchAngle(asRadianByO(d, RADIAN_AXIS_X)));
+        gaMulMatrix(out, out, r1);
+        break;
+    }
+    gaMulMatrix(out, ry2, out);
+    gaMulMatrix(out, rx, out);
+    gaMulMatrix(out, ry, out);
+    gaMulMatrix(out, m, out);
 }
 
 // ---- angles (slice 1, 2026-11-10; 0x10000 = a full turn) ----
@@ -2795,11 +3311,55 @@ void QuatSlerp(float *q, float *q0, float *q1, float *ts)
         q[i] *= len;
 }
 
-// stub of CT3 0x0185d380
+// VU0 OPMULA / OPMSUB .xyz: out = u x v (w left as out's: the ROM's vf1 keeps u's w).
+static void SqueezeCross(float *out, const float *u, const float *v)
+{
+    float x = u[1] * v[2] - u[2] * v[1];
+    float y = u[2] * v[0] - u[0] * v[2];
+    float z = u[0] * v[1] - u[1] * v[0];
+    out[0] = x;
+    out[1] = y;
+    out[2] = z;
+    out[3] = u[3];
+}
+
+// vmul / vaddy / vaddz, vrsqrt, vmulq.xyz: xyz by 1 / |xyz| (the VU's RSQRT of 0 is the largest float).
+static void SqueezeNormalize(float *v)
+{
+    float len2 = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
+    float q = len2 > 0.0f ? 1.0f / sqrtf(len2) : FLT_MAX;
+    v[0] *= q;
+    v[1] *= q;
+    v[2] *= q;
+}
+
+// CT3 0x0185d380
+// The twist between two frames. a's row 1 is turned onto b's (about b[1] x a[1], by the angle between
+// them) into out = R * a with b's translation; the answer is the signed angle (ahAcos units) from out's
+// row 0 to b's normalised row 0, negative when that turn leans away from out's row 1.
 int asDelSqueezeInformation(float (*out)[4], float (*a)[4], float (*b)[4])
 {
-    ALYSSAPAN_STUB("asDelSqueezeInformation", 0x0185d380);
-    return {};
+    float rot[4][4];
+    float axis[4], b0[4];
+    int angle, i;
+
+    SqueezeCross(axis, b[1], a[1]);
+    SqueezeNormalize(axis);
+    angle = ahAcos(gaInnerProductXYZ(a[1], b[1]));
+    asMakeRotMatrixByQuartanion(rot, axis, angle);
+    gaMulMatrix(out, rot, a);
+    for (i = 0; i < 4; i++)
+        out[3][i] = b[3][i];
+
+    for (i = 0; i < 4; i++)
+        b0[i] = b[0][i];
+    SqueezeNormalize(b0);
+    SqueezeCross(axis, out[0], b0);
+    SqueezeNormalize(axis);
+    angle = ahAcos(gaInnerProductXYZ(out[0], b0));
+    if (gaInnerProductXYZ(axis, out[1]) < 0.0f)
+        angle = -angle;
+    return angle;
 }
 
 // CT3 0x0185c7d0

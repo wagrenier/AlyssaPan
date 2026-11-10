@@ -150,6 +150,8 @@ float Clipping_X1_pos;                          /* sbss 0x01940ea8 */
 float Clipping_Y1_pos;                          /* sbss 0x01940ea0 */
 float Clipping_X2_pos;                          /* sbss 0x01940ea4 */
 float Clipping_Y2_pos;                          /* sbss 0x01940e9c */
+CHAR_AMB_CHANGE CharAmbChangeFlag[CHAR_AMB_CHANGE_MAX]; /* sbss 0x0193fc00 */
+int CharAmbChangeColor[CHAR_AMB_CHANGE_MAX];    /* sbss 0x0193fbf0 */
 int VistaVisionNumber;                          /* sbss 0x0193fc90 */
 int VistaVisionMode;                            /* sbss 0x0193fc94 */
 int SS_fb_write_msb;                            /* sbss 0x019405e8 */

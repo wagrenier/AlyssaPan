@@ -5,6 +5,8 @@
 #include "sdk/scetypes.h"
 
 void ReflectMapUpdate(void);                                                             // CT3 0x01895c10
+// set: {chara, bank, 0, 0} (ExecuteWarpObject's call: the character takes the room bank's ambient).
+void tnChangeCharAmbientColorSet(short *set);                                            // CT3 0x018962a0
 void ssChangeCharAmbientColor(void);                                                     // CT3 0x01895fb0
 void ssPartMotionBlurUpdate(void);                                                       // CT3 0x01896d50
 void ssPartMotionBlurAllEnd(int scene);                                                  // CT3 0x01896f00

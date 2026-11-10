@@ -7,6 +7,13 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-10, QuatSlerp.c slice 7) **The decompiler drops arguments left in registers by an earlier
+  test, and extra arguments in t0**: asMakeWatchMeMatrixToPosition's mode-1 asRadianByO call has no a1
+  in the decompile (the `li a1,0x2` of the mode-2 test sits before the branch: axis 2); ExecuteWarpObject2
+  takes a fifth argument (the part hash, `ld t0,0x18(v0)` at its caller) that the old prototype lacked.
+  FogAnimeUpdate's decompile folds `i * 9` into two reused variables (strides 0x90 and 0x48): read the
+  shifts in the listing. Also: MW's `strcpy` into a 4-byte stack buffer followed by a zero store at +4
+  is a truncation to four characters (the warp's room name), not an overflow to copy.
 - (2026-11-10, QuatSlerp.c slice 6) **Check a header's address against the symtab before trusting
   it**: act_small / act_large were declared at 0x0193f840 / 844; the symtab and PanicUpdate's gp loads say
   0x0193f740 / 744 (fixed). The ELF's .symtab (symtab.py reads it) has every global's address and size.

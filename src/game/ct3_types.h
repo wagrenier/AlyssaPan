@@ -21,7 +21,8 @@ typedef struct CHARACTER {
     u_int flagsPrev;                    /* 0x08c: flags as the last asCopyDoubleBuffer left them */
     u_long roomHash;                    /* 0x090: GetRoomName_file of the room it belongs to (CharID_TO_BankID
                                            finds the bank by it); Character_All_Init: 0 */
-    u_long w098;                        /* 0x098: Character_All_Init: 0 (a doubleword store) */
+    u_long roomHashPrev;                /* 0x098: roomHash before the last warp (ExecuteWarpObject);
+                                           Character_All_Init: 0 */
     short lightBank;                    /* 0x0a0: the bank whose light main_rtn applies, -1 = none */
     u_char pad0a2[0xe];
     qword posBefore;                   /* 0x0b0: last frame's position (main copies pos here first) */
@@ -33,7 +34,8 @@ typedef struct CHARACTER {
     u_int brain;                        /* 0x0fc: its AI brain (EE address; +0x24e: the brain's id that
                                            ssAI_BrainEnd takes). Character_All_Init: 0. The AI TU decides
                                            the host form (open-items.md 1 am) */
-    short h100;                         /* 0x100: Character_All_Init: -1 */
+    short h100;                         /* 0x100: Character_All_Init: -1; a warp copies its marker part's
+                                           short at +0x54 here (MODEL_PARTS.warpH54) */
     s_char b102;                        /* 0x102: Character_All_Init: -1 */
     u_char pad103[0x2f1 - 0x103];
     u_char b2f1;                        /* 0x2f1: Character_All_Init: 1 */
@@ -95,6 +97,17 @@ typedef struct CHARA_JUNC {
 // CHARACTER.translucent (AllDrawObject): any bit keeps the character out of the opaque and mirror passes.
 #define CHARA_TRANS_TRANSLUCENT 0x1     /* drawn last between tiChara_Translucence_Start / _End */
 #define CHARA_TRANS_GHOST 0x2           /* (without 0x1) drawn last by main_rtn_GHOST, _Start2 / _End2 */
+
+// CharAmbChangeFlag[3] (0x0193fc00, 0x1c bytes each): a character's ambient colour change in progress
+// (ssChangeCharAmbientColor's; a warp into a BANK_TYPE_SHADOW room ends the character's).
+#define CHAR_AMB_CHANGE_MAX 3
+typedef struct CHAR_AMB_CHANGE {
+    u_short chara;                      /* 0x00: the character (0 = none: the player's also clears) */
+    u_short h02, h04, h06;
+    int w08, w0c, w10, w14;
+    u_char pad18[4];
+} CHAR_AMB_CHANGE;
+static_assert(sizeof(CHAR_AMB_CHANGE) == 0x1c, "CHAR_AMB_CHANGE");
 
 #define CHARACTER_MAX 35                /* 0x23: Character[], AI_flag[], DirectLightCharaCounter[] */
 #define CHARACTER_FLAG_REFRACTION 0x80000000u /* DrawObjectRefraction: with _SHADOW, the character's bank
@@ -359,7 +372,9 @@ typedef struct MODEL_PARTS {
     u_long hash;                        /* 0x48: the part's name hash (ahGetHash); TrgSceneDraw joints a
                                            bank to a PARTS_KIND_JOINT_PORTAL part by it */
     u_int flags;                        /* 0x50: PARTS_FLAG_* */
-    u_char pad054[0xcc];
+    short warpH54;                      /* 0x54: a warp onto this part (a marker) copies it to
+                                           CHARACTER.h100 (ExecuteWarpObject) */
+    u_char pad056[0xca];
     float alpha;                        /* 0x120: the part's alpha: ALL_TABLE.partsPos w at AmbientAlphaInit */
     float losAlpha;                     /* 0x124: LosHitFadeUpdate's fade */
     float distAlpha;                    /* 0x128: DistanceAttenuationAlphaSet's: minus the fade, -max..0 */
@@ -376,6 +391,7 @@ typedef struct MODEL_PARTS {
     u_char pad330[0x50];
 } MODEL_PARTS;
 static_assert(offsetof(MODEL_PARTS, alpha) == 0x120, "MODEL_PARTS.alpha");
+static_assert(offsetof(MODEL_PARTS, warpH54) == 0x54, "MODEL_PARTS.warpH54");
 static_assert(offsetof(MODEL_PARTS, losAlpha) == 0x124, "MODEL_PARTS.losAlpha");
 static_assert(offsetof(MODEL_PARTS, distAlpha) == 0x128, "MODEL_PARTS.distAlpha");
 static_assert(offsetof(MODEL_PARTS, angleAlpha) == 0x12c, "MODEL_PARTS.angleAlpha");
@@ -598,12 +614,26 @@ static_assert(sizeof(FILTER_CHANGE_WORK) == 0x28, "FILTER_CHANGE_WORK");
 static_assert(offsetof(FILTER_CHANGE_WORK, timer) == 0x04, "FILTER_CHANGE_WORK.timer");
 static_assert(offsetof(FILTER_CHANGE_WORK, current) == 0x18, "FILTER_CHANGE_WORK.current");
 
-// One fog animation slot of FogAnimeBuff[86] (0x48 bytes): system_init clears its head.
+// One fog animation slot of FogAnimeBuff[86] (0x48 bytes): the targets a bank's FOG_INFO eases to
+// (FogAnimeUpdate, 2026-11-10: each flagged value moves 1 / time of the way a frame, and takes the target
+// when time reaches 0, which ends the animation). system_init clears its head; the script sets it.
+#define FOG_ANIME_FOG0 0x01             /* flags: FOG_INFO.fog[0] (charaFlags: charaFog[0]) */
+#define FOG_ANIME_FOG1 0x02             /* fog[1] */
+#define FOG_ANIME_FOG2 0x04             /* fog[2] */
+#define FOG_ANIME_FOG_ARG 0x08          /* fogArg[0..2] */
+#define FOG_ANIME_CLEAR_COLOR 0x10      /* clearColor (flags only): also drawcom_frameclear's RGBAQ */
 typedef struct FOG_ANIME {
-    short a;                            /* 0x00 */
-    short b;                            /* 0x02 */
-    u_char c;                           /* 0x04 */
-    u_char d;                           /* 0x05 */
-    u_char rest[0x42];
+    short time;                         /* 0x00: frames left for flags' values */
+    short charaTime;                    /* 0x02: frames left for charaFlags' */
+    u_char flags;                       /* 0x04: FOG_ANIME_* animating the bank's own fog */
+    u_char charaFlags;                  /* 0x05: FOG_ANIME_FOG* / _FOG_ARG animating the character fog */
+    u_char pad06[6];
+    int clearColor[3];                  /* 0x0c: the targets, as FOG_INFO's */
+    float fog[3];                       /* 0x18 */
+    int fogArg[3];                      /* 0x24 */
+    float charaFog[3];                  /* 0x30 */
+    int charaFogArg[3];                 /* 0x3c */
 } FOG_ANIME;
+static_assert(offsetof(FOG_ANIME, clearColor) == 0x0c, "FOG_ANIME.clearColor");
+static_assert(offsetof(FOG_ANIME, charaFogArg) == 0x3c, "FOG_ANIME.charaFogArg");
 static_assert(sizeof(FOG_ANIME) == 0x48, "FOG_ANIME");

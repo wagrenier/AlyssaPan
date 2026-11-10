@@ -634,10 +634,20 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    broadcasts are read as x, y, z, w (the decompiler hides the field) and its byte 0x43 bit
    (PARTS_FLAG43_WARPED) has no reader yet; PORT: it finds the bank whose ALL_TABLE it was given to
    resolve partsHeader (BANK_PTR); (fl) FUN_0185c26c (lower-cases a string in place, no callers) is left
-   unnamed: it sits right after ssGetBankID, probably its inlined tail or a static. Next in this TU:
-   FogAnimeUpdate, TexFileSetInit, VistaVisionMain, OneMaxObjectDrawZOnly, asJointParts_byMatrix,
-   asMakeWatchMeMatrixToPosition, asDelSqueezeInformation, tnTrigTexFileSetNext with TexFileSetNext,
-   ExecuteWarpObject / 2.
+   unnamed: it sits right after ssGetBankID, probably its inlined tail or a static. Slice 7 (2026-11-10):
+   FogAnimeUpdate, VistaVisionMain, OneMaxObjectDrawZOnly, asJointParts_byMatrix,
+   asMakeWatchMeMatrixToPosition, asDelSqueezeInformation, ExecuteWarpObject / 2 (now 5 arguments),
+   DemoSkipGetEvent (SkipFlagTbl from the ROM), CheckSameRoomAsMonster, PanicDownSet; FOG_ANIME,
+   CHAR_AMB_CHANGE, MODEL_PARTS.warpH54 named, CHARACTER.w098 is roomHashPrev. Open: (fm) the
+   letterbox bars (VistaVisionMain) are full-width overlays: when the host draw module exists they must
+   span the window at any aspect, top and bottom, not a 4:3 column; (fn) WATCH_AXIS_* and
+   VISTA_* / TRIG_EVENT_VISTA_* are named from these functions alone; FogAnimeUpdate's gate reuses
+   TRIG_VAR_PANIC_OFF (0xb), whose name is narrower than its use (it also stops the fog easing); (fo)
+   BANK_TYPE_SHADOW (1) is also the room type the warp's ambient step tests: rename when fileio.c's TU
+   names the types. Next in this TU: TexFileSetInit (reached: the scene's texture-file sets, FSLoad
+   of DATA/IMG/ pages into double / ring buffers, then patching TEX_INFO words -- decide the host
+   texture path first: decode at the source, no GS), tnTrigTexFileSetNext with TexFileSetNext, then the
+   rest of the 41 left.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
    class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~

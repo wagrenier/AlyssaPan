@@ -1714,10 +1714,10 @@ void system_init(void)
     asMonsterDistanceStack_inPanic(-1, 0, 0);
     ControllerClatteringInit();
     for (i = 0; i < BANK_MAX; i++) {
-        FogAnimeBuff[i].a = 0;
-        FogAnimeBuff[i].b = 0;
-        FogAnimeBuff[i].c = 0;
-        FogAnimeBuff[i].d = 0;
+        FogAnimeBuff[i].time = 0;
+        FogAnimeBuff[i].charaTime = 0;
+        FogAnimeBuff[i].flags = 0;
+        FogAnimeBuff[i].charaFlags = 0;
     }
     asResetCharacterRotation(-1, 0, 0);
     ssTrigSetVariable(0x3e, 3, 1, 0);

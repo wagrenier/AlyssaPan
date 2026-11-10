@@ -587,6 +587,37 @@ view * matrix (+0x180) and +0x300 = that * diag(record +0x2c0 xyz).
   and removes events 3, 0x26, 0x48.
 - **tnInit3dlibWork(src, dst)** is gaInit3dlibWork with the 32-float copy to the scratchpad built in.
 
+## Letterbox, fog easing, warps, joints, game/QuatSlerp.c (2026-11-10, slice 7)
+
+- **VistaVision** is the letterbox: two black SPRITE packets in sdata (VistaVisionPacketUp / Down,
+  0x50 bytes each, 512 wide in GS coordinates 0x8000..0xa000), each VistaVisionHeightSize *
+  Counter / 100 lines tall at alpha Counter * 1.28. The script sets VistaVisionNumber to a request
+  (1 at once, 2 gone at once, 3 slide in, 4 slide out, 8 percent a frame); 100 = shown. Events 0x15
+  (on), 0x16 (keep on), 0xab (fully in), 0xac (fully out). The bars are drawn through their own draw
+  control into the BGT ring after the frame: a host draw module must anchor them to the window's top
+  and bottom at any aspect (they are full-width bars, not 4:3 content).
+- **FogAnimeBuff[86]** (0x48 bytes per bank) eases a bank's FOG_INFO to targets: flags bits 1/2/4
+  fog[0..2], 8 fogArg[3], 0x10 the clear colour (also drawcom_frameclear's RGBAQ); a second set
+  (charaFlags / charaTime) for the character fog at +0x28. Each value moves 1 / time of the way a frame
+  and snaps when time reaches 0. Skipped: paused (unless PAUSE_RUNNING), trigger variable 0xb >= 0,
+  undrawn banks and type-3 banks.
+- **The warps**: ExecuteWarpObject (by part index) and ExecuteWarpObject2 (by part hash in bank2, the
+  5th argument in t0 = WARP_CMD +0x18). Mode 0 copies a part's three local matrices (0x240..0x300)
+  onto another part; otherwise the character takes the marker part's position, its +0x54 short
+  (CHARACTER +0x100), the Y turn from the bank's part 0 row 2 to the marker's, and joins the room:
+  roomHash = ahGetHash of the bank file's first four characters (the old one kept at +0x98), lightBank
+  (+0xa0) = the bank, a room bank (type 1) ends the character's CharAmbChangeFlag entry and sets the
+  room's ambient (tnChangeCharAmbientColorSet {chara, bank, 0, 0}); the player's room becomes
+  idCurrentScene (RoomInFlagOn). ExecuteWarpObject skips the room step when the bank is already the
+  character's (CharID_TO_BankID).
+- **asJointParts_byMatrix** joins a bank to a portal frame: two quaternion turns that align the joint
+  part's rows 0 and 1 with the frame's become part 0's base rotation (+0x2c0 rows, PARTS_ANIM_BASE_ROT)
+  and drawOnPos = pos - joint.pos turned. Returns 2 when the bank has no such part.
+- **OneMaxObjectDrawZOnly** draws all list entries of one part with drawctrl_zbuf (alpha test NEVER,
+  AFAIL ZB_ONLY, ZTST GREATER): a depth pre-pass, no colour.
+- SkipFlagTbl (sdata 0x01938200, 137 ints, -1 ended) lists the skippable demos' trigger events in
+  SkipEventFlag's bit order. Character slots 1..6 are the stalkers (CheckSameRoomAsMonster).
+
 ## The IOP side (2026-11-09)
 
 The EE loads `cdrom0:\IOP\IOPRP255.IMG;1` (an IOP reboot), then `SIO2MAN`, `PADMAN`, `MCMAN`, `MCSERV`,

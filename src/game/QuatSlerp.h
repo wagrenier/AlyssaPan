@@ -27,6 +27,23 @@ void AmbientAlphaUpdate(void);                                                  
 void XcmdScreenFilterSkip(void);                                                         // CT3 0x01858bc0
 void XcmdScreenFilter(void);                                                             // CT3 0x01858c90
 void VistaVisionMain(void);                                                              // CT3 0x0185aa50
+// The letterbox ("VistaVision": black bars sliding in from the top and bottom for a scene). The script
+// sets VistaVisionNumber to a VISTA_* request; VistaVisionMain runs it and leaves VISTA_SHOWN or VISTA_OFF.
+#define VISTA_OFF 0
+#define VISTA_SHOW_NOW 1                /* bars at once */
+#define VISTA_HIDE_NOW 2                /* bars gone at once (TRIG_EVENT_VISTA_KEEP keeps the ON event) */
+#define VISTA_SHOW 3                    /* bars slide in, VISTA_STEP a frame */
+#define VISTA_HIDE 4                    /* bars slide out */
+#define VISTA_SHOWN 100                 /* bars fully in (drawn every frame) */
+#define VISTA_COUNTER_MAX 100.0f        /* VistaVisionCounter: 0..100 percent of the bars */
+#define VISTA_STEP 8.0f
+#define TRIG_EVENT_VISTA_ON 0x15        /* on while bars show (removed when they are gone) */
+#define TRIG_EVENT_VISTA_KEEP 0x16      /* VISTA_HIDE_NOW leaves TRIG_EVENT_VISTA_ON set */
+#define TRIG_EVENT_VISTA_SHOWN 0xab     /* registered when the bars are fully in */
+#define TRIG_EVENT_VISTA_HIDDEN 0xac    /* registered when they are fully out */
+extern float VistaVisionHeightSize;     /* sbss 0x0193fc88: each bar's full height (frame lines of 448) */
+extern float VistaVisionCounter;        /* sbss 0x0193fc8c: percent of the height drawn */
+// VistaVisionNumber (sbss 0x0193fc90, unassigned_data.h): VISTA_*
 // A warp command (0x20 bytes): move a character to a part (a marker) of a scene bank. WarpObject
 // (the trigger scripts' warp) queues it at once when the room's bank is loaded, else parks it in
 // ReservationWarpCommand until WarpObjectUpdate sees the bank drawn. asWarpObjectBody(WARP_QUEUE, cmd)
@@ -39,7 +56,8 @@ typedef struct WARP_CMD {
     u_long partHash;                    /* 0x08: the target part's name hash (parked warps) */
     int part;                           /* 0x10: the target part's index (-1: by hash) */
     int bank2;                          /* 0x14: the bank ExecuteWarpObject2 searches */
-    u_long roomHash;                    /* 0x18: 0: ExecuteWarpObject (indices); else ExecuteWarpObject2 */
+    u_long roomHash;                    /* 0x18: 0: ExecuteWarpObject (indices); else ExecuteWarpObject2's
+                                           marker part hash in bank2 (the ROM passes it in t0) */
 } WARP_CMD;
 static_assert(sizeof(WARP_CMD) == 0x20, "WARP_CMD");
 static_assert(offsetof(WARP_CMD, roomHash) == 0x18, "WARP_CMD.roomHash");
@@ -54,7 +72,7 @@ void asWarpObjectBody(int mode, const WARP_CMD *cmd);                           
 void WarpObject(const char *room, int mode, int chara, u_long partHash, int bank);       // CT3 0x0185bb20
 void WarpObjectUpdateSet(const WARP_CMD *cmd);                                           // CT3 0x0185bec0
 void ExecuteWarpObject(int mode, int chara, int part, int bank);                         // CT3 0x0185b4c0
-void ExecuteWarpObject2(int mode, int bank, int chara, int bank2);                       // CT3 0x0185ae90
+void ExecuteWarpObject2(int mode, int bank, int chara, int bank2, u_long partHash);      // CT3 0x0185ae90
 void WarpObjectUpdate(void);                                                             // CT3 0x0185bd50
 void WarpObjectUpdateInit(void);                                                         // CT3 0x0185bf80
 void asWarpSceneObject(ALL_TABLE *table, int part, float *pos);                         // CT3 0x0185c100
@@ -321,6 +339,13 @@ int ControllerClatteringGet(int slot);                                          
 int ControllerClatteringSet(const CLATTERING_SET *set);                                  // CT3 0x01853150
 int DemoSkipCheckEvent(int event);                                                       // CT3 0x01852010
 void DemoSkipRegisterEvent(int event);                                                   // CT3 0x01852030
+#define SKIP_EVENT_END (-1)             /* SkipFlagTbl's last entry (QuatSlerp.c's static table) */
+int DemoSkipGetEvent(int event);                                                         // CT3 0x01852060
+// The stalkers' slots of Character[] (CheckSameRoomAsMonster reads 1..6; ssAtkCharaList2 lists them).
+#define MONSTER_SLOT_FIRST 1
+#define MONSTER_SLOT_COUNT 6
+int CheckSameRoomAsMonster(CHARACTER *c);                                                // CT3 0x01852d30
+void PanicDownSet(int item);                                                             // CT3 0x018540b0
 
 // Panicdef (0x01940e80, 0x1c bytes): the panic tuning PanicModeInit sets (PanicUpdate named the falls).
 typedef struct PANIC_DEF {

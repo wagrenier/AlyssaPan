@@ -23,3 +23,9 @@ void gaSinCos(float *s, float *c, int angle)
 {
     ALYSSAPAN_STUB("gaSinCos", 0x018a6b70);
 }
+
+// stub of CT3 0x018a6c70
+void gaSetRotMatrixZ(float (*m)[4], int angle)
+{
+    ALYSSAPAN_STUB("gaSetRotMatrixZ", 0x018a6c70);
+}

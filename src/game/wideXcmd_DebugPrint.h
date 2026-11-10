@@ -11,6 +11,7 @@ void asCharacterPositionReviewInPausing(CHARACTER *chr);                        
 void asCharacterForceMoveOperate(CHARACTER *chr);                                        // CT3 0x018f4c60
 void asCharacterOperate(CHARACTER *chr, int a1, int a2, int a3);                         // CT3 0x018f4fc0
 void asCharacterPositioning(CHARACTER *chr, int a1, int a2);                             // CT3 0x018f6f80
+void as1CharacterPositioning(CHARACTER *chr);                                            // CT3 0x018f7040
 void asResetCharacterRotation(int a0, int a1, int a2);                                   // CT3 0x018f73b0
 void asRapidLeverChangeOperate(int a0, int a1, int a2, int a3, int a4);                  // CT3 0x018fb4c0
 void asMonsterDistanceStack_inPanic(int a0, int a1, int a2);                             // CT3 0x018fb940
