@@ -444,7 +444,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 121..121, 39 functions keyed by their statics, 22 unkeyed; file name from the names"
   },
   "game/ahRelocateSunPs2ObjectArry.c": {
-   "notes": "Next in this TU: ExecuteAnimation (0x16bc, reached every frame, a slice of its own), then EA_100 and InterpolateAnimationKey / IAK_0 (now stubbed). Shot still black, crash unchanged at main.c:2106 (ActressMP NULL, the character shape load in fileio.c). Open items da..dc.",
+   "notes": "Next in this TU: InterpolateAnimationKey (0x95c, now the reached stub; returns 1 at the track end) with IAK_0, then EA_010 and the general body of ExecuteAnimation. Shot still black, crash unchanged at main.c:2106 (ActressMP NULL). Open items dd..dg.",
    "ranges": [
     [
      "0183e280",
@@ -486,6 +486,11 @@
      "date": "2026-11-10 05:34",
      "status": "partial",
      "summary": "slice 7: asStartAnimation, asDecInterpolateTicks, asGetBehaviorPlayingTicks, asBehaviorActEndAnimation, asForceOperateMirroring_Character, asBuildDOFMatrixTree (from the disassembly), asEnumMirror (MIRROR_LIST at ALL_TABLE +0xcc), EA_001 (base * local matrix from four track kinds)"
+    },
+    {
+     "date": "2026-11-10 05:54",
+     "status": "partial",
+     "summary": "slice 8: ExecuteAnimation dispatch (play / replay / matOnly to EA_100 / EA_010 / EA_001, the general body a marked stub), EA_100 the per-frame scene pass (history record, key per running track at this frame's ticks, pose slots of the part blended by the ticks left, the EA_001 part's base * local matrix, time1c shift, end of behaviour), asZipVECTOR2VECTOR_XYZ1 and asInterpolateVector written early"
     }
    ],
    "status": "partial",

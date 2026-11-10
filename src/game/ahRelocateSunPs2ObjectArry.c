@@ -2365,6 +2365,219 @@ void SetExecuteAnimationHistory(int bank, u_int anim, ALL_TABLE *tbl, int a, int
     iEASidx++;
 }
 
+// ---- slice 8 (2026-11-10): ExecuteAnimation's dispatch and EA_100, the per-frame pass ----
+
+// The two weights asInterpolateVector / QuatSlerp take: w[0] the share of the value the part has (the
+// ticks left after this frame's, over the step), w[1] the key's; swapped, w[2] = 0, when dir < 0.
+static void AnimWeights(float w[4], int ticks, u_int elapsed, int total, int dir)
+{
+    if (ticks == 0) {
+        w[0] = 0.0f;
+        w[1] = 1.0f;
+    } else {
+        w[0] = (float)(int)(ticks - elapsed) / (float)total;
+        if (w[0] >= 0.0f) {
+            w[1] = 1.0f - w[0];
+        } else {
+            w[0] = 0.0f;
+            w[1] = 1.0f;
+        }
+    }
+    if (dir < 0) {
+        float s = w[0];
+        w[0] = w[1];
+        w[1] = s;
+        w[2] = 0.0f;
+    }
+}
+
+// The kinds EA_100 applies to the part's pose (PARTS_ANIM_*); a track of these stops (playing 0) at
+// its end, any other is marked TRACK_ACT_END.
+static int IsPoseTrack(int kind)
+{
+    return kind == TRACK_KIND_BASE_POS || kind == TRACK_KIND_BASE_ROT || kind == TRACK_KIND_VECTOR
+        || kind == TRACK_KIND_POS || kind == TRACK_KIND_ROT;
+}
+
+// Rows 0..2 at rows: the key's quaternion (ticks 0), or the slerp from the rows' own by w.
+static void PoseRotKey(float *rows, const short *key, int ticks, float *w)
+{
+    alignas(16) float q[4], q0[4], qs[4];
+    alignas(16) float m[4][4];
+    asZipQuat2Quat(q, key);
+    if (ticks == 0) {
+        ConvertQuat2Matrix(m, q);
+    } else {
+        memcpy(m, rows, 0x30);          /* lqc2 / sqc2 of the three rows to the stack */
+        m[3][0] = m[3][1] = m[3][2] = 0.0f; /* PORT: the ROM's fourth row is stale stack */
+        m[3][3] = 1.0f;
+        ConvertMatrix2Quat(q0, m);
+        QuatSlerp(qs, q0, q, w);
+        ConvertQuat2Matrix(m, qs);
+    }
+    memcpy(rows, m, 0x30);
+}
+
+// A position key (TRACK_KEY_RAW: a float[4] at keys + 0x10) into dst, or blended in by w.
+static void PosePosKey(float *dst, const BEHAVIOR_TRACK *tr, const u_char *keys, int ticks, float *w)
+{
+    alignas(16) float v[4];
+    if (tr->length & TRACK_KEY_RAW) {
+        if (ticks == 0)
+            memcpy(dst, keys + 0x10, 0x10);
+        else
+            asInterpolateVector(dst, dst, (const float *)(keys + 0x10), w);
+    } else if (ticks == 0) {
+        asZipTrans2Trans_XYZ1(dst, (const short *)(keys + 8), TRACK_KEY_SHIFT(tr->length));
+    } else {
+        asZipTrans2Trans_XYZ1(v, (const short *)(keys + 8), TRACK_KEY_SHIFT(tr->length));
+        asInterpolateVector(dst, dst, v, w);
+    }
+}
+
+// CT3 0x0184d1a0
+// Every running track of the behaviour takes its key at this frame's ticks (anim_play_slow *
+// gGlobalNextTicksInterval * value0e / 100; atKey: where it stands) and, for a pose kind, puts it in
+// its group's part (set when the parts header's ticks are 0, else blended by AnimWeights) and marks
+// the part PARTS_ANIM_DIRTY. With mat, the EA_001_PART_HASH part's keys build base * local as EA_001
+// does (every done byte set). Every track's time1c shifts up and takes time / 100. The call is
+// recorded for the history first; the ticks are counted down after. 1 when no track runs on.
+// PORT: (bank, anim) for the behaviour's EE word.
+// callcheck: ConvertMatrix2Quat, QuatSlerp (in PoseRotKey)
+int EA_100(int bank, u_int anim, ALL_TABLE *tbl, float (*mat)[4], int atKey)
+{
+    BEHAVIOR *bhv = BANK_PTR(BEHAVIOR *, bank, anim);
+    u_char *hdr = BANK_PTR(u_char *, bank, tbl->partsHeader);
+    int ticks = *(int *)(hdr + PARTS_HDR_ANIM_ABS);
+    int dir = *(int *)(hdr + PARTS_HDR_ANIM_SIGN);
+    int total = *(int *)(hdr + PARTS_HDR_ANIM_STEP);
+    alignas(16) float local[4][4] = { { 1, 0, 0, 0 }, { 0, 1, 0, 0 }, { 0, 0, 1, 0 }, { 0, 0, 0, 1 } };
+    alignas(16) float base[4][4] = { { 1, 0, 0, 0 }, { 0, 1, 0, 0 }, { 0, 0, 1, 0 }, { 0, 0, 0, 1 } };
+    alignas(16) float w[4] = { 0, 0, 0, 0 };
+    u_char done[4] = { 0, 0, 0, 0 };
+    u_int elapsed = 0;
+    int running = 0;
+    int g, t;
+    SetExecuteAnimationHistory(bank, anim, tbl, ticks, dir, total);
+    for (g = 0; g < bhv->groupCount; g++) {
+        const BEHAVIOR_GROUP *grp = &bhv->groups[g];
+        u_char *part = hdr + grp->part * (int)sizeof(MODEL_PARTS);
+        BEHAVIOR_TRACK *tr;
+        if (grp->tracks == 0)
+            continue;
+        tr = BehaviorTracks(bank, bhv, g);
+        for (t = grp->trackCount; t > 0; t--, tr++) {
+            elapsed = (u_int)anim_play_slow * (u_int)gGlobalNextTicksInterval * tr->value0e / 100;
+            AnimWeights(w, ticks, elapsed, total, dir);
+            if (tr->playing == TRACK_PLAYING) {
+                int pose = IsPoseTrack(tr->kind);
+                int end = InterpolateAnimationKey(tr, atKey ? 0 : (int)elapsed);
+                const u_char *keys;
+                if (hdr[0] == ANIM_CTRL_HOLD) {
+                    running = 1;
+                    if (end != 0) {
+                        if (tr->flags & TRACK_FLAG_STARTED)
+                            asStartAnimation(tr);
+                        else
+                            tr->playing = pose ? 0 : TRACK_ACT_END;
+                    }
+                } else if (end == 0) {
+                    running++;
+                } else {
+                    tr->playing = pose ? 0 : TRACK_ACT_END;
+                }
+                keys = BANK_PTR(const u_char *, bank, tr->keys); /* read after the call, as the ROM */
+                switch (tr->kind) {
+                case TRACK_KIND_VECTOR: {
+                    alignas(16) float v[4];
+                    float *dst = (float *)(part + PARTS_ANIM_VECTOR);
+                    if (ticks == 0) {
+                        asZipVECTOR2VECTOR_XYZ1(dst, (const short *)(keys + 8));
+                    } else {
+                        asZipVECTOR2VECTOR_XYZ1(v, (const short *)(keys + 8));
+                        asInterpolateVector(dst, dst, v, w);
+                    }
+                    part[PARTS_ANIM_FLAGS] |= PARTS_ANIM_DIRTY;
+                    break;
+                }
+                case TRACK_KIND_BASE_POS:
+                case TRACK_KIND_POS:
+                    PosePosKey((float *)(part + (tr->kind == TRACK_KIND_POS ? PARTS_ANIM_POS : PARTS_ANIM_BASE_POS)),
+                               tr, keys, ticks, w);
+                    part[PARTS_ANIM_FLAGS] |= PARTS_ANIM_DIRTY;
+                    break;
+                case TRACK_KIND_BASE_ROT:
+                case TRACK_KIND_ROT:
+                    PoseRotKey((float *)(part + (tr->kind == TRACK_KIND_ROT ? PARTS_ANIM_ROT : PARTS_ANIM_BASE_ROT)),
+                               (const short *)(keys + 8), ticks, w);
+                    part[PARTS_ANIM_FLAGS] |= PARTS_ANIM_DIRTY;
+                    break;
+                default:
+                    break;
+                }
+                if (mat != NULL && ((MODEL_PARTS *)part)->hash == EA_001_PART_HASH) {
+                    int slot = -1;
+                    float *dst = NULL;
+                    switch (tr->kind) {
+                    case TRACK_KIND_BASE_POS: slot = 3; dst = base[3]; break;
+                    case TRACK_KIND_POS: slot = 1; dst = local[3]; break;
+                    case TRACK_KIND_BASE_ROT: slot = 2; break;
+                    case TRACK_KIND_ROT: slot = 0; break;
+                    default: break;
+                    }
+                    if (slot >= 0) {
+                        InterpolateAnimationKey(tr, 0);
+                        keys = BANK_PTR(const u_char *, bank, tr->keys);
+                        if (dst != NULL) {
+                            if (tr->length & TRACK_KEY_RAW)
+                                memcpy(dst, keys + 0x10, 0x10);
+                            else
+                                asZipTrans2Trans_XYZ1(dst, (const short *)(keys + 8), TRACK_KEY_SHIFT(tr->length));
+                        } else {
+                            alignas(16) float q[4], rot[4][4];
+                            asZipQuat2Quat(q, (const short *)(keys + 8));
+                            ConvertQuat2Matrix(rot, q);
+                            memcpy(slot == 2 ? base : local, rot, 0x30);
+                        }
+                        done[slot] = 1;
+                    }
+                }
+            }
+            tr->time1c = (int)((u_int)tr->time1c << 16) + ((tr->time / TRACK_TIME_SCALE) & 0xffff);
+        }
+    }
+    if (mat != NULL) {
+        gaMulMatrix(mat, base, local);
+        memcpy(&mat[3][3], done, 4);    /* ROM: sw of the done word into the matrix's +0x3c */
+    }
+    asDecInterpolateTicks(hdr, (int)elapsed);
+    if (running != 0)
+        return 0;
+    if (hdr[0] == ANIM_CTRL_HOLD || hdr[0] == ANIM_CTRL_ONCE)
+        asBehaviorActEndAnimation(bhv);
+    return 1;
+}
+
+// CT3 0x0184a570
+// The pass by the flags: play alone EA_100, replay alone EA_010, matOnly alone EA_001; any other mix
+// runs the general body (the three passes in one; not reached by the callers written so far).
+// PORT: (bank, anim) for the behaviour's EE word; mat a host pointer.
+int ExecuteAnimation(int bank, u_int anim, ALL_TABLE *tbl, float (*mat)[4], int play, int replay,
+                     int matOnly, int atKey)
+{
+    play = (u_char)play;                /* the ROM keeps the four flags as bytes */
+    replay = (u_char)replay;
+    matOnly = (u_char)matOnly;
+    if (play == 1 && replay == 0 && matOnly == 0)
+        return EA_100(bank, anim, tbl, mat, (u_char)atKey);
+    if (play == 0 && replay == 1 && matOnly == 0)
+        return EA_010(bank, anim, tbl);
+    if (play == 0 && replay == 0 && matOnly == 1)
+        return EA_001(BANK_PTR(void *, bank, anim), tbl, mat);
+    ALYSSAPAN_STUB("ExecuteAnimation (the general body)", 0x0184a688);
+    return 0;
+}
+
 // ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x018483d0
@@ -2375,10 +2588,11 @@ u_long asSceneAnimationStart(float speed, int a0, ALL_TABLE *tbl, int a2, int fr
     return {};
 }
 
-// stub of CT3 0x0184a570
-void ExecuteAnimation(int bank, u_int anim, ALL_TABLE *tbl, int a2, int a3, int a4, int a5, int a6)
+// stub of CT3 0x0184bf60
+int EA_010(int bank, u_int anim, ALL_TABLE *tbl)
 {
-    ALYSSAPAN_STUB("ExecuteAnimation", 0x0184a570);
+    ALYSSAPAN_STUB("EA_010", 0x0184bf60);
+    return {};
 }
 
 // stub of CT3 0x01844df0

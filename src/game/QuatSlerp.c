@@ -4,6 +4,8 @@
 #include "common/alyssapan_stub.h"
 #include "game/QuatSlerp.h"
 
+#include <string.h>
+
 // ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x01856c30
@@ -284,6 +286,35 @@ void AbsSignI32(int v, int *abs, int *sign)
         *abs = 0;
         *sign = 0;
     }
+}
+
+// CT3 0x0185d0d0
+// Written early (2026-11-10, ahRelocateSunPs2ObjectArry.c slice 8): EA_100 calls it. sq zero, then
+// each short into the high half of its float, 0x3f80 into w's.
+void asZipVECTOR2VECTOR_XYZ1(float *out, const short *in)
+{
+    int i;
+    for (i = 0; i < 3; i++) {
+        u_int bits = (u_int)(u_short)in[i] << 16;
+        memcpy(&out[i], &bits, sizeof(bits));
+    }
+    out[3] = 1.0f;
+}
+
+// CT3 0x0185d330
+// Written early (2026-11-10, ahRelocateSunPs2ObjectArry.c slice 8): EA_100 calls it. vsub into vf0 for
+// the MAC zero flags: all four set leaves a; else vmulax / vmaddy.
+void asInterpolateVector(float *out, const float *a, const float *b, const float *w)
+{
+    int i;
+    float r[4];
+    if (a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3]) {
+        memmove(out, a, sizeof(r));
+        return;
+    }
+    for (i = 0; i < 4; i++)
+        r[i] = a[i] * w[0] + b[i] * w[1];
+    memcpy(out, r, sizeof(r));
 }
 
 // stub of CT3 0x0185d4d0

@@ -417,6 +417,18 @@ asCheckAnimationExecutable_Scene says so: type 0 always; otherwise while the wor
 pause 0 or PAUSE_RUNNING, no pause_reservation) unless BANK_FLAG_ANIM_FORCE_STOP (4), and while paused
 only with BANK_FLAG_ANIM_FORCE_RUN (8). asForceOperateAnimation_Scene(bank, mode) sets them: mode 1 stop
 (+ 0x20 STOPPED), 2 run, 0 release; _Character passes the character's bank.
+
+ExecuteAnimation(behavior, tbl, mat, play, replay, matOnly, atKey) (slice 8) dispatches on its three
+byte flags: play alone -> EA_100 (the scene pass above: records the call for the history, then every
+running track's key at this frame's ticks into its group's part), replay alone -> EA_010 (the history
+replay), matOnly alone -> EA_001; any other mix runs a general body that is the three in one. A
+behaviour is groups (part index, tracks) of 0x20-byte tracks; a track's keys are `runs` records of
+(length & 0x1ffffff) bytes after record 0, which InterpolateAnimationKey overwrites with the key at the
+track's time (first word of each record: its frame; time counts frames * 100). The parts header's
+words +0x20 / +0x24 / +0x28 are ticks left / direction / step length: while ticks are left a key is
+blended into the part's pose (weights (ticks - this frame's) / step and its complement), else set.
+Pose tracks land in the part at 0x280 (local rotation rows), 0x2b0 (local position), 0x2c0 / 0x2f0
+(base rotation / position = drawOnPos) and 0x300 (kind 0x0d's vector), each setting bit 0 of byte 0x43.
 BankInfo[] +0x30..0x70 is the bank's shadow (asShadowDrawing_Init): +0x30 a vector (0,0,0,1) whose w
 asShadowDrawing_Disable clears, +0x54 the attached light position, +0x5c 500, +0x60 RGBA, +0x64 200, +0x68
 100, +0x6c a signed order byte (asShadowDrawing_CheckTransMode sorts > 0 / <= 0 apart), +0x6e "draw this

@@ -25,6 +25,10 @@ void asWarpSceneObject(void *table, int maxId, float *pos);                     
 // The packed keys: three shorts scaled by 1 / (1 << shift), w = 1; four shorts scaled by 1 / 16384.
 void asZipTrans2Trans_XYZ1(float *out, const short *in, u_int shift);                     // CT3 0x0185cdb0
 void asZipQuat2Quat(float *out, const short *in);                                        // CT3 0x0185c6d0
+// out = the three shorts as the high halves of floats (bfloat16), w 1.
+void asZipVECTOR2VECTOR_XYZ1(float *out, const short *in);                               // CT3 0x0185d0d0
+// out = a w[0] + b w[1] (all four lanes); a when a == b (the VU's zero flags).
+void asInterpolateVector(float *out, const float *a, const float *b, const float *w);    // CT3 0x0185d330
 int asFindModelPartsID(u_char *header, u_long hash);                                    // CT3 0x0185e150
 int asCheckBankID(int bank);                                                             // CT3 0x0185e360
 int asCheckBankType(int bank);                                                           // CT3 0x0185e380

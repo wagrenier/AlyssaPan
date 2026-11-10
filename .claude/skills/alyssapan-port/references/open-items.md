@@ -365,6 +365,21 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    BEHAVIOR_GROUP +0 `part` are named from EA_001; InterpolateAnimationKey (0x0184dbc0, this TU, now a
    stub) is assumed to take (track, dir) and answer 0 when the track ran out; asZipTrans2Trans_XYZ1 /
    asZipQuat2Quat (QuatSlerp.c) take (out, in[, shift]).
+   Open from slice 8 (2026-11-10, ExecuteAnimation's dispatch, EA_100): (dd) InterpolateAnimationKey
+   answers 1 when the track's time reached its end (its decompilation: clamped there in flags & 3
+   modes 0 / 1), and EA_100 reads it so (1: stop or restart the track); EA_001 sets its done byte on
+   0 -- check EA_001 against its disassembly (the slot bytes may mean "still running"); (de) the part's
+   pose slots PARTS_ANIM_ROT / _POS / _BASE_ROT / _BASE_POS / _VECTOR (0x280..0x300), PARTS_ANIM_DIRTY
+   (byte 0x43 bit 0), TRACK_KIND_VECTOR 0x0d and ANIM_CTRL_HOLD / _ONCE (header mode byte 1 / 2) are
+   named from EA_100 alone; the header words PARTS_HDR_ANIM_ABS / _SIGN / _STEP are ExecuteAnimation's
+   ticks left / direction / step length (AnimWeights); (df) ExecuteAnimation's general body (any flag
+   mix but one-hot, 0x0184a688..) is an ALYSSAPAN_STUB inside the function: write it when
+   asCharacterAnimationExecute / asResetCharacterPosition (the callers that can mix flags) are written;
+   its shape kinds ('*', '3', '>', '=', 'H', '4', '"', '!', ')') read ALL_TABLE +0x18 / +0x30 / +0x40 /
+   +0x44 lists, as EA_010 will; (dg) asZipVECTOR2VECTOR_XYZ1 and asInterpolateVector (QuatSlerp.c)
+   written early from their disassembly; QuatSlerp / ConvertMatrix2Quat / ConvertQuat2Matrix /
+   asZipQuat2Quat / asZipTrans2Trans_XYZ1 / gaMulMatrix are still stubs, so EA_100's poses are zeros
+   until those TUs land.
    (bw) Extract is untested against a known image: the first scene_init that runs on relocated data is
    its test (a wrong decode shows as garbage tables); a harness decoding one CT3X file from CT3PACK.DAT
    beside the ROM's (eerun.py) would prove it sooner.

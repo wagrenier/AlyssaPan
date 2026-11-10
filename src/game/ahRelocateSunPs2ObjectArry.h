@@ -22,7 +22,18 @@ void asSearchObject(int scene);                                                 
 void asMakeStraw(int bank, u_int straw, u_int partsHeader);                              // CT3 0x018497d0
 // PORT: (bank, anim, tbl, ...): anim is an EE word of the bank (ALL_TABLE.behavior from
 // asUpDateSceneAnimation); the history records (Execute_ExecuteAnimationHistory) must carry the bank.
-void ExecuteAnimation(int bank, u_int anim, ALL_TABLE *tbl, int a2, int a3, int a4, int a5, int a6); // CT3 0x0184a570
+// The flags pick the pass (exactly one set: EA_100 / EA_010 / EA_001; any other mix runs the general
+// body): `play` advances the pose tracks by this frame's ticks and records the call for the history,
+// `replay` (Execute_ExecuteAnimationHistory) applies the shape tracks, `matOnly` builds `mat` from the
+// EA_001_PART_HASH part only, `atKey` reads the keys where the tracks stand (no ticks). `mat` (NULL:
+// none) takes base * local of the EA_001_PART_HASH part, its +0x3c word four done bytes.
+// PORT: mat is a host pointer (the ROM's a2 word). Returns 1 when no track runs on.
+int ExecuteAnimation(int bank, u_int anim, ALL_TABLE *tbl, float (*mat)[4], int play, int replay,
+                     int matOnly, int atKey);                                            // CT3 0x0184a570
+// ExecuteAnimation's pass for `play` alone (the per-frame scene animation). PORT: (bank, anim) as above.
+int EA_100(int bank, u_int anim, ALL_TABLE *tbl, float (*mat)[4], int atKey);            // CT3 0x0184d1a0
+// ... for `replay` alone. PORT: (bank, anim).
+int EA_010(int bank, u_int anim, ALL_TABLE *tbl);                                        // CT3 0x0184bf60
 // out = a cubic Bezier point: ctrl[0] t^3 + ctrl[1] 3t^2 s + ctrl[2] 3ts^2 + ctrl[3] s^3 (s = 1 - t
 // at the callers, asMakeStraw / tiLightBelt2Update). All four lanes.
 void asGetBeziePosition(float t, float s, float out[4], const float ctrl[4][4]);         // CT3 0x0184a4b0
@@ -277,7 +288,10 @@ int asGetBehaviorPlayingTicks(int bank, u_int anim);                            
 #define ANIM_CTRL_TICKS 0x20            /* int: asDecInterpolateTicks counts it down to 0 */
 void asDecInterpolateTicks(u_char *ctrl, int ticks);                                     // CT3 0x0184a540
 void asForceOperateMirroring_Character(int chara, int on);                               // CT3 0x018424d0 (asXcmd.c)
-// The key at the track's time (dir 0: as it stands; IAK_0); 0 once the track has run out.
+// Moves the track's time on by `dir` ticks (0: as it stands; IAK_0) and writes the key there into
+// the track's key 0 (keys + 8...). 1 when the time reached the track's end (clamped there; modes 0
+// and 1 of flags & 3), else 0 -- as EA_100 reads it (the decompilation of 0x0184dbc0, 2026-11-10).
+// EA_001 sets its done byte when this is 0: open-items.md (dd).
 int InterpolateAnimationKey(BEHAVIOR_TRACK *track, int dir);                             // CT3 0x0184dbc0
 // Track kinds EA_001 reads (BEHAVIOR_TRACK.kind; named from that one use): a local rotation /
 // position, and the base's the local one is multiplied into.
@@ -287,7 +301,23 @@ int InterpolateAnimationKey(BEHAVIOR_TRACK *track, int dir);                    
 #define TRACK_KIND_BASE_POS 0x20
 #define TRACK_KEY_RAW 0x4000000         /* BEHAVIOR_TRACK.length: the key is a float[4] at keys + 0x10 */
 #define TRACK_KEY_SHIFT(len) ((len) >> 28) /* ... else three shorts at keys + 8, scaled by 1 >> this */
+#define TRACK_KIND_VECTOR 0x0d          /* a packed vector (XYZ1) to PARTS_ANIM_VECTOR (EA_100) */
 #define EA_001_PART_HASH 0x74dda77d0cbcf0c2ull /* the one part EA_001 animates (MODEL_PARTS.hash) */
+// Where EA_100 puts a pose track's key in the part (offsets from the part, as MODEL_PARTS): the local
+// matrix (rows 0..2 from TRACK_KIND_ROT, row 3 from _POS), the base one (TRACK_KIND_BASE_ROT, _BASE_POS:
+// MODEL_PARTS.drawOnPos) and TRACK_KIND_VECTOR's; each write sets PARTS_ANIM_DIRTY in the byte at 0x43.
+#define PARTS_ANIM_ROT 0x280
+#define PARTS_ANIM_POS 0x2b0
+#define PARTS_ANIM_BASE_ROT 0x2c0
+#define PARTS_ANIM_BASE_POS 0x2f0
+#define PARTS_ANIM_VECTOR 0x300
+#define PARTS_ANIM_FLAGS 0x43
+#define PARTS_ANIM_DIRTY 0x1
+// The parts header's mode byte (+0), as EA_100 reads it (names from that use): HOLD runs while any
+// track plays (a track at its end starts again when TRACK_FLAG_STARTED); else it runs while a track
+// has keys left. Either ends with asBehaviorActEndAnimation (HOLD, ONCE) and a return of 1.
+#define ANIM_CTRL_HOLD 1
+#define ANIM_CTRL_ONCE 2
 int EA_001(void *behavior, ALL_TABLE *tbl, float (*out)[4]);                            // CT3 0x0184bc30
 
 // A scene's mirrors (ALL_TABLE.mirror): asEnumMirror takes the first whose part is shown. layout: ee.
