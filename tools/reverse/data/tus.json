@@ -1,6 +1,5 @@
 {
  "queue": [
-  "game/main.c",
   "alyssapan/core/window.cpp",
   "sdk/libmc.cpp"
  ],
@@ -447,7 +446,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 132..132, 4 functions keyed by their statics, 18 unkeyed; file name from the names"
   },
   "game/main.c": {
-   "notes": "Smoke run: build green, layoutcheck OK, screenshot black (main2 still a stub, so no bank loads and scene_init is not reached yet). callcheck: scene_init matches the ROM; AllDrawObject / GlobalDrawObject / DrawObjectRefraction MISSING entries are their static helpers as before. Ghidra's decompiler drops CodeWarrior stack argument slots (hazards.md): gaSetupDBufferData still passes 7 of 14 (open-items 1 q). Left in main.c: main_rtn_Particle2 only, blocked by open-items 1 h; the next run should take main2 or the queue's next item.",
+   "notes": "Smoke run: build green, layoutcheck OK, callcheck: main_rtn_Particle2 matches the ROM (extra BankEePtr only); AllDrawObject / GlobalDrawObject / DrawObjectRefraction MISSING entries are their static helpers as before. Screenshot black: main2 is a stub, so no bank loads and no draw pass runs. Verify once main2 and the bank loader draw a scene. BankImage / BankImageEE (PORT, ct3_types.h) must be filled by the bank loader in fileio.c. Open: gaSetupDBufferData argument slots (open-items 1 q). Next: main2, then the queued host tasks.",
    "ranges": [
     [
      "01834440",
@@ -484,9 +483,14 @@
      "date": "2026-11-09 19:39",
      "status": "partial",
      "summary": "main.c slice 6: scene_init (a bank's set-up after load: BaseobjCount / pModelPartsHeader / pBehaviorHeader / FogCtrlAddr from ALL_TABLE +0x14 / +0x2c / +0xbc / +0xb8, fog and 3dlib, matrix tree, subsystem inits, each draw list entry's texture buffer and draw control); gaSetupDrawCtrlData and sunSetupTBufferData take GA_DRAWCTRL_ARGS / TEX_INFO by value (29 and 11 argument slots), ghost and frame-clear settings completed"
+    },
+    {
+     "date": "2026-11-09 19:50",
+     "status": "verify",
+     "summary": "main.c slice 7: main_rtn_Particle2 (the second particle list: ring records placed at their model part position plus an offset, w scaled around 128); PARTICLE2_ENTRY / PARTICLE2; bank data keeps EE layout, its pointer words resolved by BankEePtr (open-items 1 h decided); main.c code complete"
     }
    ],
-   "status": "partial",
+   "status": "verify",
    "why": "main's object, from the symtab: after newlib's __swsetup (ends 0x01834434), up to libgcc's __muldi3; main_rtn_GHOST_DOF .. main 0x01839d10 (0x11c8 bytes, the last function). File name a guess: CT3 has no string for it."
   },
   "game/main2.c": {

@@ -45,7 +45,7 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    `DrawObjectRefraction`, `main_rtn_DOF`; slice 5 (2026-11-09): `AllDrawObject`,
    `ssHQDOF_DrawAllObject`, `main_rtn_GHOST`, `main_rtn_GHOST_DOF`; slice 6 (2026-11-09): `scene_init`
    (ALL_TABLE +0x14 / +0xb8 / +0xbc, `DRAW_OBJ_ENTRY.drawCtrlArgs`, `GA_DRAWCTRL_ARGS` and `TEX_INFO`
-   passed by value, hazards.md). Left in main.c: `main_rtn_Particle2` only (blocked by (h)). Open from
+   passed by value, hazards.md); slice 7 (2026-11-09): `main_rtn_Particle2` -- **main.c's code is complete (verify: the shot stays black until main2 loads a bank)**. Open from slice 7: (t) `PARTICLE2_ENTRY` / `PARTICLE2` (ct3_types.h) are named from this one use (ring of 0x80-byte records at +0x5c, count +0x46, head +0x48; record +0x20 offset qword whose w scales the part's w around 128, +0x68 the draw object); the particle TU confirms them. Open from
    slice 6: (q) `gaSetupDBufferData` takes 14 argument slots, FirstInitialization passes 7 (hazards.md):
    fix with gaInitDrawObject.c's TU; (r) `BANK_TYPE_0` (type 0 takes the fog record) and
    `PARTS_HEADER_ANIMATED` (the parts header's first byte == 1) are named from one use; type 1's fog
@@ -66,7 +66,7 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    `layout: host` with pointer fields at EE 0x10..0x7c; the file TU decides whether the bank's relocated
    words become host pointers or stay `u_int` EE addresses; (g) settled by slice 3: `main_rtn(bank, mode, chara, flags, charaIndex, lastTex)` -- chara != 0 is the
    character pass (scene fog +0x28, Character[].lightBank's light), flags' low 15 bits the pass (0 and 4
-   sort), 0x8000 no clip check; (h) **blocks `main_rtn_Particle2`**: it writes a particle's position
+   sort), 0x8000 no clip check; (h) **decided 2026-11-09 (Claude's call, slice 7; the user may overrule)**: bank data keeps its EE layout and its relocated pointer words stay `u_int` EE addresses, resolved by `BankEePtr(bank, ee)` (ct3_types.h: `BankImage[]` / `BankImageEE[]`, PORT globals the bank loader in fileio.c's TU must fill; RosePan's `SprMan::eePtr` is the precedent). `DRAW_OBJ_POS` (+0x38) is the first word read this way. The reasoning: it writes a particle's position
    through a pointer at the ga draw object's +0x38 (`*(qword **)(obj + 0x38)`), and the same object keeps
    an int at +0x3c (`MODEL_PARTS.attr`): a host 8-byte pointer there overlaps it, so the draw object is
    bank data that must keep EE layout with `u_int` EE addresses, and the port needs an EE-address ->

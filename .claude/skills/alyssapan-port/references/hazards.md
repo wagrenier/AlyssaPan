@@ -60,6 +60,9 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
   typed `int(int, char**)` against `runModuleStart(int (*)())`) and `iop/system_memory.cpp`
   (`std::max` against windows.h's macro) failed `cl`; fixed with the TU, as `tus.py finish` refuses a red
   layoutcheck.
+- (2026-11-09, game/main.c slice 7) **stubgen writes a TU's own stubs at the end of its source file**
+  (`// ---- stubs (tools/reverse/stubgen.py) ----`): reconstructing the last stubbed function gives
+  "redefinition" until that stub (and the section, once empty) is deleted by hand.
 
 ## From the siblings (2026-11-09 digest of MioPan, ReiPan, RosePan, MikuPan)
 

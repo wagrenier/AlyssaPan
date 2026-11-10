@@ -4,7 +4,7 @@
 // Written 2026-11-09: slice 1 (the boot, the loop, the small draw passes), slice 2 (GlobalDrawObject,
 // scene_draw_init, system_end, get_draw_obj), slice 3 (main_rtn, main_rtn_Particle), slice 4
 // (DrawObjectRefraction, main_rtn_DOF), slice 5 (AllDrawObject, ssHQDOF_DrawAllObject, main_rtn_GHOST /
-// _GHOST_DOF), slice 6 (scene_init); main_rtn_Particle2 is the TU's last slice.
+// _GHOST_DOF), slice 6 (scene_init), slice 7 (main_rtn_Particle2): the TU is complete.
 #include "game/main.h"
 #include "common/alyssapan_stub.h"
 
@@ -976,6 +976,90 @@ void GlobalDrawObject(void)
             GlobalDrawBank(i, &exported, &lastTex);
     }
     asChangeViewMatrix_forTheBank(BANK_SCENE_MAX);
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// A bank's second particle list -- ALL_TABLE.particles2, or particles2After (after != 0, whose textures
+// are not uploaded: the caller's ExportDrawToTex pass) -- under the bank's fog, or the current scene's
+// character fog (fog != 0). Each entry draws its count live records from head (wrapping at ringSize),
+// each at the entry's model part position plus the record's offset, its w scaled around
+// PARTS_POS_W_CENTER; draw control and texture switch as in main_rtn_Particle. *lastTex as in main_rtn.
+// CT3 0x01837570
+
+void main_rtn_Particle2(int bank, int fog, int after, void **lastTex)
+{
+    ALL_TABLE *tbl;
+    TEX_INFO *texNow;
+    int ctrlNow = -1;
+    u_int *timNow = NULL;
+    void **list;
+    FOG_INFO *info;
+    int i;
+
+    if (asCheckBankType(bank) == 0)
+        asChangeViewMatrix_forTheBank(asCheckBankID(bank));
+    tbl = All_table_TBL[bank];
+    texNow = (TEX_INFO *)*lastTex;
+    list = after == 0 ? tbl->particles2 : tbl->particles2After;
+    if (fog == 0) {
+        info = (FOG_INFO *)FogCtrlAddr[bank];
+        gaSetupFogCtrlData(&fogctrl[bank], info->fog[0], info->fog[1], info->fog[2],
+                           info->fogArg[0], info->fogArg[1], info->fogArg[2]);
+    } else {
+        info = (FOG_INFO *)FogCtrlAddr[idCurrentScene];
+        gaSetupFogCtrlData(&fogctrl[bank], info->charaFog[0], info->charaFog[1], info->charaFog[2],
+                           info->charaFogArg[0], info->charaFogArg[1], info->charaFogArg[2]);
+    }
+    gaSet3dlibStruct(MAIN_RTN_CLIP_FAR, ga3dlibwork, &drawbuffer_0, &fogctrl[bank], screen_0);
+    tnInit3dlibWork(ga3dlibwork, SPR_3DLIB_WORK);
+    gaBGT_ExecFogCtrlData_VIF1(&fogctrl[bank]);
+    {
+        int fogBank = fog == 0 ? bank : idCurrentScene;
+        MODEL_PARTS *fogParts = (MODEL_PARTS *)pModelPartsHeader[fogBank];
+
+        if (fogParts[((FOG_INFO *)FogCtrlAddr[fogBank])->parts].flags & PARTS_FLAG_FOG)
+            FOG_mode = 1;
+    }
+
+    for (i = 0; list[i] != NULL; i++) {
+        PARTICLE2_ENTRY *ent = (PARTICLE2_ENTRY *)list[i];
+        TEX_INFO *tex = ent->tex;
+        const float *base;
+        int j;
+
+        if (ent->count == 0)
+            continue;
+        if (ent->drawCtrlId != 0 && ent->drawCtrlId != ctrlNow)
+            gaBGT_ExecDrawCtrlData_VIF1((GA_DRAWCTRL_DATA *)ent->drawCtrl);
+        if (after == 0 && tex != NULL && tex != texNow) {
+            if (tex->tim != timNow) {
+                sunBGT_LoadGSTexClutData_VIF1(ent->tbuffer);
+                gaBGT_End();
+                gaBGT_Start(bgt_ringbuffer, BGT_RINGBUFFER_SIZE);
+                timNow = tex->tim;
+            }
+            sunBGT_ExecTBufferData_VIF1(ent->tbuffer);
+        }
+        base = tbl->partsPos[ent->parts];
+        for (j = 0; j < ent->count; j++) {
+            PARTICLE2 *rec = &ent->ring[(ent->head + j) % ent->ringSize];
+            u_char *obj = rec->obj;
+
+            obj[DRAW_OBJ_CLIP] = (u_char)gaObjectClippingCheck(obj);
+            if ((s_char)obj[DRAW_OBJ_CLIP] >= 0) {
+                float *pos = (float *)BankEePtr(bank, *(u_int *)(obj + DRAW_OBJ_POS));
+
+                pos[0] = base[0] + rec->offset[0];
+                pos[1] = base[1] + rec->offset[1];
+                pos[2] = base[2] + rec->offset[2];
+                pos[3] = (base[3] + PARTS_POS_W_CENTER) * rec->offset[3] - PARTS_POS_W_CENTER;
+                gaBGT_DrawObject(obj, 0);
+            }
+        }
+        ctrlNow = ent->drawCtrlId;
+        texNow = tex;
+    }
+    *lastTex = texNow;
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -2153,12 +2237,4 @@ int main(int argc, char **argv)
         CheckAllocNum0(&gHeapGlobalScene);
         SunAllocInit(&gHeapGlobalScene, gGlobalBankArea, 0x300000, HEAP_NAME_GLOBAL);
     }
-}
-
-// ---- stubs (tools/reverse/stubgen.py) ----
-
-// stub of CT3 0x01837570
-void main_rtn_Particle2(int bank, int fog, int after, void **lastTex)
-{
-    ALYSSAPAN_STUB("main_rtn_Particle2", 0x01837570);
 }

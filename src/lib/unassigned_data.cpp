@@ -24,6 +24,8 @@ alignas(16) float matrix_global_view[4][4];     /* sbss 0x01941840 */
 int FOG_mode;                                   /* sbss 0x019405ec */
 int drawobj_attr;                               /* sbss 0x0193f788 */
 u_char **ParticleObject[BANK_MAX];              /* sbss 0x01940b70 */
+u_char *BankImage[BANK_MAX];                    /* PORT: ct3_types.h BankEePtr */
+u_int BankImageEE[BANK_MAX];                    /* PORT */
 
 /* sdata 0x01939cc0 */
 static const u_char drawcom_frameclear_init[0x50] = {

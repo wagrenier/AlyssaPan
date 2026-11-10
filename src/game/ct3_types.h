@@ -178,6 +178,7 @@ typedef struct DRAW_OBJ_ENTRY {
 #define DRAW_OBJ_FLAGS 0x00             /* u_char: DRAW_OBJ_FLAG_* */
 #define DRAW_OBJ_CLIP 0x02              /* u_char: gaObjectClippingCheck's answer */
 #define DRAW_OBJ_LIGHT 0x30             /* float */
+#define DRAW_OBJ_POS 0x38               /* u_int: EE address of the object's position qword (BankEePtr) */
 #define DRAW_OBJ_ATTR 0x3c              /* int: MODEL_PARTS.attr */
 #define DRAW_OBJ_FLAG_CLIP 0x20         /* always drawn through the clipping path */
 
@@ -202,6 +203,55 @@ typedef struct PARTICLE_ENTRY {
     void *tbuffer;                      /* EE 0x20: the texture's upload packet */
     void *drawCtrl;                     /* EE 0x24: GA_DRAWCTRL_DATA */
 } PARTICLE_ENTRY;
+
+// One entry of a bank's second particle list (ALL_TABLE.particles2 / particles2After, NULL-terminated;
+// main_rtn_Particle2). A ring of PARTICLE2 records, each drawn as one ga draw object placed at the
+// entry's model part (ALL_TABLE.partsPos[parts]) plus the record's offset. layout: host (EE offsets in
+// the comments).
+typedef struct PARTICLE2 {
+    u_char pad00[0x20];
+    float offset[4];                    /* EE 0x20: added to the part's position; w scales its w
+                                           around PARTS_POS_W_CENTER */
+    u_char pad30[0x38];
+    u_char *obj;                        /* EE 0x68: the ga draw object (DRAW_OBJ_* offsets) */
+    u_char pad70[0x10];
+} PARTICLE2;
+static_assert(sizeof(PARTICLE2) == 0x80, "PARTICLE2");
+static_assert(offsetof(PARTICLE2, offset) == 0x20, "PARTICLE2.offset");
+static_assert(offsetof(PARTICLE2, obj) == 0x68, "PARTICLE2.obj");
+
+typedef struct PARTICLE2_ENTRY {
+    u_char pad00[0x40];
+    u_short parts;                      /* EE 0x40: index into ALL_TABLE.partsPos */
+    u_short pad42;
+    u_short ringSize;                   /* EE 0x44 */
+    u_short count;                      /* EE 0x46: live records; 0 = nothing to draw */
+    u_short head;                       /* EE 0x48: the oldest live record */
+    u_char pad4a[6];
+    int drawCtrlId;                     /* EE 0x50: non-zero: the draw control to switch to */
+    TEX_INFO *tex;                      /* EE 0x54: uploaded only for particles2 (not ...After) */
+    int pad58;
+    PARTICLE2 *ring;                    /* EE 0x5c */
+    u_char pad60[0x14];
+    void *tbuffer;                      /* EE 0x74: the texture's upload packet */
+    void *drawCtrl;                     /* EE 0x78: GA_DRAWCTRL_DATA */
+} PARTICLE2_ENTRY;
+static_assert(offsetof(PARTICLE2_ENTRY, parts) == 0x40, "PARTICLE2_ENTRY.parts");
+static_assert(offsetof(PARTICLE2_ENTRY, drawCtrlId) == 0x50, "PARTICLE2_ENTRY.drawCtrlId");
+
+#define PARTS_POS_W_CENTER 128.0f       /* main_rtn_Particle2: w' = (w + 128) * scale - 128 */
+
+// PORT (2026-11-09, open-items.md 1 h): a bank's relocated data (its ga draw objects first) keeps the
+// EE layout, so a pointer word in it stays a u_int EE address -- a host pointer would overlap the next
+// field (DRAW_OBJ_POS's word is followed by DRAW_OBJ_ATTR). The bank loader (fileio.c's TU) records each
+// bank's host image and the EE address it was relocated to; BankEePtr turns such a word into a host
+// pointer (RosePan's SprMan::eePtr is the precedent). Not ROM globals.
+extern u_char *BankImage[BANK_MAX];             /* PORT: the bank's data on the host */
+extern u_int BankImageEE[BANK_MAX];             /* PORT: the EE address its words were relocated to */
+static inline void *BankEePtr(int bank, u_int ee)
+{
+    return ee ? BankImage[bank] + (int)(ee - BankImageEE[bank]) : NULL;
+}
 
 #define PARTICLE_OBJ_SIZE 0x80          /* ParticleObject[bank][i]: one ga draw object per ring slot */
 
