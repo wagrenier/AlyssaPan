@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-10 11:34 at commit `416934b` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-10 11:54 at commit `0910c56` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -10,27 +10,27 @@ Generated 2026-11-10 11:34 at commit `416934b` by `tools/reverse/status.py` (`re
 
 ## Naming (game code; library ranges excluded)
 
-- game functions: **1814**, named **1808** (100%); library functions: 814
-- by provenance: game-symbol 2621, lib-match 0, lib-match-low 0, lib-context 0, game-inferred 1
-- context-name ledger: 0 entries; overrides of wrong library matches: 0
+- game functions: **1814**, named **1811** (100%); library functions: 814
+- by provenance: game-symbol 2621, lib-match 0, lib-match-low 0, lib-context 0, game-inferred 4
+- context-name ledger: 3 entries; overrides of wrong library matches: 0
 - placed in a source file: 1814/1814 in 65 files
 
 Least-named game-code regions (64 KB blocks):
 
 | block | named | inferred files |
 |---|---|---|
-| `01850000` | 197/200 (98%) | game/QuatSlerp.c, game/tiAvoidObject.c, game/ahRelocateSunPs2ObjectArry.c |
 | `018d0000` | 180/182 (99%) | game/ssGrpPortalCheck.c, game/wideXcmd_TriggerInit.c, game/hhXcmd_DressUp.c |
 | `018b0000` | 146/147 (99%) | game/Character_Init.c, game/movie.c, game/AA_SoundMonoSoart.c |
 | `01830000` | 39/39 (100%) | game/main.c, game/ahalloc.c, game/ahRelocateSunPs2ObjectArry.c |
 | `01840000` | 84/84 (100%) | game/ahRelocateSunPs2ObjectArry.c |
+| `01850000` | 200/200 (100%) | game/QuatSlerp.c, game/tiAvoidObject.c, game/ahRelocateSunPs2ObjectArry.c |
 | `01860000` | 113/113 (100%) | game/tiAvoidObject.c, game/tiBrain_ChgTrace_BOSS_BALOWS.c, game/asUseArrow.c |
 | `01870000` | 82/82 (100%) | game/tiBrain_ChgTrace_BOSS_BALOWS.c, game/tiBrain_ChgTrace_Ghost.c, game/ssBrain_ChgHideAtk1.c |
 | `01880000` | 103/103 (100%) | game/Clipping_Portal.c, game/asEyeForcusUP2CamMat.c, game/ssBrain_ChgHideAtk1.c |
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **549**; stubs: **188**
+- reconstructed CT3 functions: **570**; stubs: **188**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -55,7 +55,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/CpDivideEECom.c` | 0 | 1 |
 | `src/game/IOPGetFileSize.c` | 0 | 3 |
 | `src/game/LinkMatrixTree.c` | 4 | 0 |
-| `src/game/QuatSlerp.c` | 161 | 1 |
+| `src/game/QuatSlerp.c` | 182 | 1 |
 | `src/game/SdMasterVolumeSetSE.c` | 0 | 34 |
 | `src/game/ahRelocateSunPs2ObjectArry.c` | 93 | 0 |
 | `src/game/ahalloc.c` | 7 | 0 |
@@ -83,7 +83,7 @@ Least-named game-code regions (64 KB blocks):
 - 65 TUs: todo 48, partial 2, verify 15, done 3
 - next: **game/QuatSlerp.c** (pinned in the queue)
 - pinned queue: game/QuatSlerp.c
-- partial: `game/QuatSlerp.c` 150/177 -- 15 s smoke run: no fault, shot black (no host draw module yet). callcheck clean, layoutcheck OK. New stub: AA_StartMovie (movie.c). KekkaiOn added to unassigned
+- partial: `game/QuatSlerp.c` 170/177 -- 15 s smoke run: no fault, shot black (no host draw module yet). callcheck clean, layoutcheck OK. Open-items 1 (fu)..(fw): flags43 = 3 is an assignment; asFindMo
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaInitDrawObject.c` 24/24 -- No ROM caller for the texture three (the game uses its sun* copies in QuatSlerp.c): complete, nothing on screen can show them. Shot black as before: packets go 
 - verify: `ga/gaInitInterrupt.c` 3/3 -- GCC object; wait_vsync_state (data 0x0192e790), ga_main_timer, ga_down_timer defined here. gaWaitVSync takes no argument and returns the CSR FIELD bit; main.c c
@@ -102,6 +102,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-10 11:54 `game/QuatSlerp.c` partial: slice 9: the letterbox requests (VistaVisionStart, VistaVisionEnd), PlayerDamage, asObjectRotate (MODEL_PARTS.placeRot named), asPosRUF2ViewMatrix and asCamRUF2
 - 2026-11-10 11:34 `game/QuatSlerp.c` partial: slice 8: the panic setters (PanicSet, PanicStopMovie with PanicOffMovieFile from the ROM), Kekkai_Check, ssPointCheckWithinScreen, PauseUpdate, UpperCase, GetBa
 - 2026-11-10 11:25 `game/QuatSlerp.c` partial: slice 7: the letterbox (VistaVisionMain with its two ROM sprite packets and draw control), the fog easing (FogAnimeUpdate, FOG_ANIME named), the depth pre-pass 
 - 2026-11-10 10:57 `game/QuatSlerp.c` partial: slice 6: PanicUpdate (the panic gauge: rises, calming items, full panic, PANIC_INFO and Panicdef named, PanicRecoveryTbl and HidePointUpValue from the ROM), Mon
@@ -109,31 +110,30 @@ Recent sessions:
 - 2026-11-10 10:18 `game/QuatSlerp.c` partial: slice 4: the screen filters (PanicFilter, DemoScreenFilter, XcmdScreenFilter and Skip, SCREEN_FILTER_OBJ packets and draw controls), EventSoundEnd, ssGetBankID 
 - 2026-11-10 09:56 `game/QuatSlerp.c` partial: slice 3: the texture buffers (sunSetupTBufferData, sunBGT_SetLoadGSEnv, sunBGT_LoadGSTexClutData_VIF1, sunBGT_ExecTBufferData_VIF1; SUN_TEX_ATTR, SUN_TBUFFER_DA
 - 2026-11-10 09:37 `game/QuatSlerp.c` partial: slice 2: GetAreaNumber (RoomNameID tables), the controller rattles (Free, Get, Update, Set), DemoSkipCheckEvent, PanicModeInit, QuatSlerp, asMakeRotMatrixByQuar
-- 2026-11-10 09:20 `game/QuatSlerp.c` partial: slice 1: part lookup and name hashes (ahGetHash reads back: Bip01, BasePoint), ahAcos with the ROM table, the camera read-back, packed blends, bank/character/ro
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `game/ssGrpPortalCheck.c` | todo | 0/11/59 | 26.4 | 315 | 10 |
+| `game/ssGrpPortalCheck.c` | todo | 0/11/59 | 26.4 | 324 | 10 |
 | `game/Clipping_Portal.c` | todo | 0/34/73 | 44.8 | 153 | 18 |
 | `game/SdMasterVolumeSetSE.c` | todo | 0/34/61 | 22.9 | 151 | 9 |
-| `ga/gaInit3dlib.c` | partial | 2/6/25 | 3.6 | 103 | 6 |
+| `ga/gaInit3dlib.c` | partial | 2/6/25 | 3.6 | 105 | 6 |
 | `game/wideXcmd_DebugPrint.c` | todo | 0/17/109 | 40.6 | 91 | 12 |
 | `game/ssSetTexUVforCubeMap.c` | todo | 0/31/96 | 35.3 | 86 | 9 |
 | `game/asEyeForcusUP2CamMat.c` | todo | 0/9/30 | 23.6 | 57 | 6 |
 | `ga/gaDmaSync_VIF1.c` | todo | 0/3/5 | 0.5 | 39 | 3 |
 | `game/tiAvoidObject.c` | todo | 0/6/82 | 30.5 | 26 | 4 |
+| `ga/gaSinCos.c` | todo | 0/4/13 | 2.4 | 25 | 0 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/ssHitCheckAttackToScn.c` | todo | 0/5/37 | 32.0 | 22 | 3 |
-| `ga/gaSinCos.c` | todo | 0/4/13 | 2.4 | 21 | 0 |
 
 ## Frontier (called by reconstructed code, not written yet)
 
 | CT3 addr | name | call sites | provenance | state | inferred file |
 |---|---|---|---|---|---|
-| `018d9100` | ssTrigCheckEvent | 94 | sym | stub | game/ssGrpPortalCheck.c |
-| `018d9560` | ssTrigRemoveEvent | 60 | sym | stub | game/ssGrpPortalCheck.c |
-| `018a7900` | gaMulMatrix | 52 | sym | stub | ga/gaInit3dlib.c |
-| `018d95e0` | ssTrigRegisterEvent | 44 | sym | stub | game/ssGrpPortalCheck.c |
+| `018d9100` | ssTrigCheckEvent | 96 | sym | stub | game/ssGrpPortalCheck.c |
+| `018d9560` | ssTrigRemoveEvent | 66 | sym | stub | game/ssGrpPortalCheck.c |
+| `018a7900` | gaMulMatrix | 53 | sym | stub | ga/gaInit3dlib.c |
+| `018d95e0` | ssTrigRegisterEvent | 45 | sym | stub | game/ssGrpPortalCheck.c |
 | `018d9470` | ssTrigSetVariable | 36 | sym | stub | game/ssGrpPortalCheck.c |
 | `018d1600` | SdSetEffect | 27 | sym | stub | game/SdMasterVolumeSetSE.c |
 | `018d9430` | ssTrigGetVariable | 25 | sym | stub | game/ssGrpPortalCheck.c |
@@ -142,17 +142,17 @@ Recent sessions:
 | `01886690` | asChangeViewMatrix_forTheBank | 12 | sym | stub | game/asEyeForcusUP2CamMat.c |
 | `018cc0f0` | SdStopSE | 11 | sym | stub | game/SdMasterVolumeSetSE.c |
 | `018cd190` | SdSetParamSE | 10 | sym | stub | game/SdMasterVolumeSetSE.c |
-| `018a7b50` | gaInversMatrix | 9 | sym | stub | ga/gaInit3dlib.c |
+| `018a7b50` | gaInversMatrix | 10 | sym | stub | ga/gaInit3dlib.c |
 | `0188ced0` | tiDrawShadingOff | 9 | sym | stub | game/Clipping_Portal.c |
 | `018a3150` | gaBGT_DrawObject | 8 | sym | stub | ga/gaBGT_DrawObject.c |
 | `01893cf0` | ExportDrawToTex | 8 | sym | stub | game/Clipping_Portal.c |
 | `018cd3c0` | SdReqPlaySE | 8 | sym | stub | game/SdMasterVolumeSetSE.c |
+| `018a6c10` | gaSetRotMatrixY | 7 | sym | stub | ga/gaSinCos.c |
 | `018ce0d0` | SdVolumeSQ | 7 | sym | stub | game/SdMasterVolumeSetSE.c |
 | `018a7db8` | gaSet3dlibStruct | 7 | sym | stub | ga/gaInit3dlib.c |
 | `018a3078` | gaObjectClippingCheck | 7 | sym | stub | ga/gaObjectClippingCheck.c |
+| `018a6ba0` | gaSetRotMatrixX | 6 | sym | stub | ga/gaSinCos.c |
 | `018518d0` | ConvertMatrix2Quat | 6 | sym | stub | game/Convert.c |
-| `018a6c10` | gaSetRotMatrixY | 5 | sym | stub | ga/gaSinCos.c |
-| `018a6ba0` | gaSetRotMatrixX | 5 | sym | stub | ga/gaSinCos.c |
 | `01896920` | ssGetNumBlurDrawObjForScene | 5 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `018a3d20` | gaBGT_DrawObject_NoClippingCheck2 | 5 | sym | stub | ga/gaBGT_DrawObject.c |
 | `0188d3c0` | tiFade_Start | 4 | sym | stub | game/Clipping_Portal.c |
@@ -160,6 +160,7 @@ Recent sessions:
 | `018a1778` | gaDmaSendN_VIF1 | 4 | sym | stub | ga/gaDmaSync_VIF1.c |
 | `018a1740` | gaDmaSync_VIF1 | 4 | sym | stub | ga/gaDmaSync_VIF1.c |
 | `018a7538` | gaSearchNearLight4 | 4 | sym | stub | ga/gaSearchNearLight4.c |
+| `018a6c70` | gaSetRotMatrixZ | 4 | sym | stub | ga/gaSinCos.c |
 | `018f4fc0` | asCharacterOperate | 4 | sym | stub | game/wideXcmd_DebugPrint.c |
 | `018a6d00` | gaMemCopy32 | 4 | sym | missing | ga/gaSinCos.c |
 | `01896a90` | ssPartMotionBlurInsertObjToDrawTable | 4 | sym | stub | game/ssSetTexUVforCubeMap.c |
@@ -169,5 +170,4 @@ Recent sessions:
 | `018cc1b0` | SdStopSEAllSp1 | 3 | sym | stub | game/SdMasterVolumeSetSE.c |
 | `018cddd0` | SdStopStream | 3 | sym | stub | game/SdMasterVolumeSetSE.c |
 | `018870c0` | camera_init0 | 3 | sym | stub | game/asEyeForcusUP2CamMat.c |
-| `01886dc0` | CamChange_S | 3 | sym | stub | game/asEyeForcusUP2CamMat.c |
 

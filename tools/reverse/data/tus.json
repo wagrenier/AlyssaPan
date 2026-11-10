@@ -416,7 +416,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 129..129, 4 functions keyed by their statics, 5 unkeyed; file name from the names"
   },
   "game/QuatSlerp.c": {
-   "notes": "15 s smoke run: no fault, shot black (no host draw module yet). callcheck clean, layoutcheck OK. New stub: AA_StartMovie (movie.c). KekkaiOn added to unassigned_data (sbss 0x0193f9a4, no symbol). Open-items 1 (fp)..(ft): ssPointCheckWithinScreen tests the PS2 512x448 frame (aspect decision with the camera TU). Next in this TU: TexFileSetInit (reached; decide the host texture path first), tnTrigTexFileSetNext with TexFileSetNext, tnTrigTexFileSetPage with TexFileSetPage, GetAreaFloor, then the 20 left.",
+   "notes": "15 s smoke run: no fault, shot black (no host draw module yet). callcheck clean, layoutcheck OK. Open-items 1 (fu)..(fw): flags43 = 3 is an assignment; asFindMotionID left (CHARACTER +0x350 motion table, host form undecided); asObjectRotate uses the unit matrix for a bad axis. Next in this TU: TexFileSetInit (reached; FSLoads DATA/IMG pages into EE buffer addresses and patches TEX records: decide the host texture path first), TexFileSetNext and TexFileSetPage with their tnTrig wrappers, GetAreaFloor, asFindMotionID.",
    "ranges": [
     [
      "01851bf0",
@@ -463,6 +463,11 @@
      "date": "2026-11-10 11:34",
      "status": "partial",
      "summary": "slice 8: the panic setters (PanicSet, PanicStopMovie with PanicOffMovieFile from the ROM), Kekkai_Check, ssPointCheckWithinScreen, PauseUpdate, UpperCase, GetBankID, the movie break (PlayMovie, PlayMovieReturnLoad, SystemReReset), the part helpers (asGetObjectPositionAtWorld, asSetObjectTrans, asGetObjectTransInitialValue with MODEL_PARTS.transInit), asGetAlyssaPosition, asGetAnalogStickInformation"
+    },
+    {
+     "date": "2026-11-10 11:54",
+     "status": "partial",
+     "summary": "slice 9: the letterbox requests (VistaVisionStart, VistaVisionEnd), PlayerDamage, asObjectRotate (MODEL_PARTS.placeRot named), asPosRUF2ViewMatrix and asCamRUF2ViewMatrix, asRadianByVectors and asRadianByPositions_Rorate, asISubRotate16, asVectorLength1D and 2D, asVectorDistance2, LowerCase, absf, tnRand, rnd and rndf; three Ghidra loop splits named _body"
     }
    ],
    "status": "partial",

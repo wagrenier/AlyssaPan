@@ -659,6 +659,19 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    of DATA/IMG/ pages into double / ring buffers, then patching TEX_INFO words -- decide the host
    texture path first: decode at the source, no GS), tnTrigTexFileSetNext with TexFileSetNext,
    tnTrigTexFileSetPage with TexFileSetPage, GetAreaFloor, then the rest of the 24 left.
+   Slice 9 (2026-11-10): VistaVisionStart / End (now * 2 + VISTA_SHOW_NOW / VISTA_HIDE_NOW: now = 1
+   slides), PlayerDamage, asObjectRotate (MODEL_PARTS.placeRot at 0x2c0 named: rows 0..2 of the part
+   placement matrix whose row 3 is drawOnPos), asPosRUF2ViewMatrix / asCamRUF2ViewMatrix,
+   asRadianByVectors / asRadianByPositions_Rorate, asISubRotate16, asVectorLength1D / 2D,
+   asVectorDistance2, LowerCase, absf, tnRand, rnd / rndf; the three FUN_ of the slice were Ghidra loop
+   splits (LowerCase_body, asMemCopy128c_nw_body, asMemCopy128c_body, game-inferred). Open: (fu)
+   placeRot and PARTS_FLAG43_TRANS together (asObjectRotate sets flags43 = 3, an assignment, not an OR):
+   whoever reads flags43 names what 3 means; (fv) asFindMotionID (0x0185e060) is left: it reads a pointer
+   at CHARACTER +0x350 (inside behavior[]) to 0x30-byte motion records keyed by a u_long hash, ended
+   by hash 0 -- the behaviour-controller TU decides whether that word is a host pointer or an EE word;
+   (fw) asObjectRotate with an axis other than 0..2 copies stack garbage in the ROM: the port uses the
+   unit matrix (PORT note). Left in this TU: TexFileSetInit (reached), TexFileSetNext / Page and their
+   tnTrig wrappers, GetAreaFloor, asFindMotionID, and what else status.md lists.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
    class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~

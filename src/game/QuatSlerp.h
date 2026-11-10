@@ -603,3 +603,32 @@ void asGetAnalogStickInformation(int stick, int deadZone, float *degrees, float 
 #define STICK_FIRST 0x1                 /* odd: PAD_DATA.stick[0..1], even: stick[2..3] */
 void asSetObjectTrans(ALL_TABLE *table, int part, const float *pos);                    // CT3 0x0185a230
 float asGetObjectTransInitialValue(float *dst, ALL_TABLE *table, int part);             // CT3 0x0185a260
+
+// Slice 9 (2026-11-10): the letterbox requests, damage, the RUF view matrices, angles, lengths, random.
+void VistaVisionStart(int now, int skippable);                                          // CT3 0x0185ad70
+void VistaVisionEnd(int now);                                                           // CT3 0x0185ad30
+// VistaVisionStart / End: VistaVisionNumber = now * 2 + VISTA_SHOW_NOW / VISTA_HIDE_NOW, so now = 1
+// asks for the slide (VISTA_SHOW / VISTA_HIDE), 0 for the bars at once.
+int PlayerDamage(int damage);                                                           // CT3 0x0185a550
+void asObjectRotate(float degrees, ALL_TABLE *table, int part, int multiply, int axis); // CT3 0x0185a280
+#define ROTATE_AXIS_X 0                 /* asObjectRotate's axis / asRadianByVectors' dropped axis */
+#define ROTATE_AXIS_Y 1
+#define ROTATE_AXIS_Z 2
+#define ROTATE_SET 0                    /* asObjectRotate: the part's rotation becomes the turn */
+#define ROTATE_MULTIPLY 1               /* asObjectRotate: the turn applied to the placement matrix */
+#define DEGREES_TO_ANGLE16(d) ((int)((d) * 65536.0f / 360.0f) & 0xffff) /* gaSetRotMatrix* units */
+void asPosRUF2ViewMatrix(float (*view)[4], const float *pos, const float *right, const float *up,
+                         const float *front);                                           // CT3 0x0185a9b0
+void asCamRUF2ViewMatrix(float (*view)[4], const float *eye, const float *right, const float *up,
+                         const float *front);                                           // CT3 0x0185a7e0
+int asRadianByVectors(const float *a, const float *b, int axis);                        // CT3 0x0185dae0
+int asRadianByPositions_Rorate(const float *from, const float *to, int angle, int axis); // CT3 0x0185da40
+int asISubRotate16(u_int a, u_int b);                                                   // CT3 0x0185de70
+float asVectorLength1D(float x2);                                                       // CT3 0x0185df10
+float asVectorLength2D(float x, float y);                                               // CT3 0x0185df30
+float asVectorDistance2(const float *a, const float *b);                                // CT3 0x0185dfe0
+void LowerCase(char *s);                                                                // CT3 0x0185c240
+float absf(float x);                                                                    // CT3 0x0185e3e0
+int tnRand(int n);                                                                      // CT3 0x0185c320
+u_int rnd(void);                                                                        // CT3 0x0185e960
+float rndf(void);                                                                       // CT3 0x0185e910

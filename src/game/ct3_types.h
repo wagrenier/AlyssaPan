@@ -384,7 +384,9 @@ typedef struct MODEL_PARTS {
     float pos[4];                      /* 0x130: the part's position (SSGetPositional: a sound source) */
     u_char pad140[0x80];
     float matrix[4][4];                 /* 0x1c0: the part's world matrix (SelfDiscardSceneLoad; ActressMP's) */
-    u_char pad200[0xf0];
+    u_char pad200[0xc0];
+    float placeRot[3][4];               /* 0x2c0: rows 0..2 of the part's placement matrix, drawOnPos its
+                                           row 3 (asObjectRotate sets or turns them) */
     float drawOnPos[4];                 /* 0x2f0: part 0's: where the bank was placed (a save keeps it;
                                            TrgSceneDraw(.., -2, ..) places it at DrawOnPosSetVectorTemp) */
     u_char pad300[0x10];
@@ -401,8 +403,9 @@ static_assert(offsetof(MODEL_PARTS, angleAlpha) == 0x12c, "MODEL_PARTS.angleAlph
 static_assert(offsetof(MODEL_PARTS, pos) == 0x130, "MODEL_PARTS.pos");
 static_assert(offsetof(MODEL_PARTS, lightColor) == 0x310, "MODEL_PARTS.lightColor");
 static_assert(offsetof(MODEL_PARTS, lightPos) == 0x320, "MODEL_PARTS.lightPos");
-static_assert(sizeof(MODEL_PARTS) == 0x380, "MODEL_PARTS");
+static_assert(offsetof(MODEL_PARTS, placeRot) == 0x2c0, "MODEL_PARTS.placeRot");
 static_assert(offsetof(MODEL_PARTS, drawOnPos) == 0x2f0, "MODEL_PARTS.drawOnPos");
+static_assert(sizeof(MODEL_PARTS) == 0x380, "MODEL_PARTS");
 static_assert(offsetof(MODEL_PARTS, hash) == 0x48, "MODEL_PARTS.hash");
 static_assert(offsetof(MODEL_PARTS, flags43) == 0x43, "MODEL_PARTS.flags43");
 #define PARTS_FLAG43_WARPED 0x1         /* asWarpSceneObject placed the part (drawOnPos); its reader unread */

@@ -1091,7 +1091,7 @@
 /* 0185c190 00000090 */ ssGetBankID(){}  // sym
 /* 0185c220 00000014 */ ssStrCmp4Byte(){}  // sym
 /* 0185c240 0000002c */ LowerCase(){}  // sym
-/* 0185c26c 00000014 */ FUN_0185c26c(){}
+/* 0185c26c 00000014 */ LowerCase_body(){}  // game
 /* 0185c290 00000044 */ UpperCase(){}  // sym
 /* 0185c2e0 00000040 */ GetRoomName_file(){}  // sym
 /* 0185c320 00000070 */ tnRand(){}  // sym
@@ -1100,9 +1100,9 @@
 /* 0185c410 00000040 */ asDR_XYZ2(){}  // sym
 /* 0185c450 00000028 */ asDR_RGBAQ(){}  // sym
 /* 0185c480 00000030 */ asMemCopy128c_nw(){}  // sym
-/* 0185c4b0 00000010 */ FUN_0185c4b0(){}
+/* 0185c4b0 00000010 */ asMemCopy128c_nw_body(){}  // game
 /* 0185c4d0 00000018 */ asMemCopy128c(){}  // sym
-/* 0185c4e8 00000010 */ FUN_0185c4e8(){}
+/* 0185c4e8 00000010 */ asMemCopy128c_body(){}  // game
 /* 0185c500 0000002c */ asMemCopy16c(){}  // sym
 /* 0185c530 0000006c */ asInterpolateZipFloat0_7_9X(){}  // sym
 /* 0185c5a0 00000024 */ asFloat2ZipFloat0_7_9X(){}  // sym

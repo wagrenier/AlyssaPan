@@ -1,1 +1,20 @@
-{}
+{
+ "0185c26c": {
+  "name": "LowerCase_body",
+  "tag": "game-inferred",
+  "was": "FUN_0185c26c",
+  "why": "the loop head LowerCase (0x0185c240) branches to; Ghidra split the nop-padded loop (hazards.md WaitLoop)"
+ },
+ "0185c4b0": {
+  "name": "asMemCopy128c_nw_body",
+  "tag": "game-inferred",
+  "was": "FUN_0185c4b0",
+  "why": "the loop head asMemCopy128c_nw (0x0185c480) branches to; split by Ghidra"
+ },
+ "0185c4e8": {
+  "name": "asMemCopy128c_body",
+  "tag": "game-inferred",
+  "was": "FUN_0185c4e8",
+  "why": "the loop head asMemCopy128c (0x0185c4d0) branches to; split by Ghidra"
+ }
+}

@@ -132,6 +132,7 @@ void asContInterpolateVector_nw(float skipW, float *out, const float *a, const f
 }
 
 // CT3 0x0185c480: the qwords whose w is not skipW.
+// CT3 0x0185c4b0 (asMemCopy128c_nw_body, game-inferred: its loop head, split by Ghidra).
 void asMemCopy128c_nw(float skipW, void *dst, const void *src, int n)
 {
     float *d = (float *)dst;
@@ -2973,6 +2974,7 @@ static int VuFtoi0(float f)
 }
 
 // CT3 0x0185c4d0
+// CT3 0x0185c4e8 (asMemCopy128c_body, game-inferred: its loop head, split by Ghidra).
 // n qwords (lq / sq), counted down from n.
 void asMemCopy128c(void *dst, const void *src, u_int n)
 {
@@ -3837,4 +3839,245 @@ float asGetObjectTransInitialValue(float *dst, ALL_TABLE *table, int part)
     if (parts != NULL)
         memcpy(dst, parts[part].transInit, sizeof(parts[part].transInit));
     return asVectorLength(dst);
+}
+
+// ---- slice 9 (2026-11-10): letterbox requests, damage, RUF view matrices, angles, lengths, random ----
+
+// CT3 0x0185ad70: a scene starts: the letterbox comes in (now = 1 slides it, 0 puts it up at once), the
+// invisibility and advantage times are granted now rather than later, a full panic ends quietly, and
+// a skippable scene (skippable, with DEMO_SKIP_SET and no skip armed yet) arms the demo skip.
+void VistaVisionStart(int now, int skippable)
+{
+    VistaVisionNumber = now * 2 + VISTA_SHOW_NOW;
+    ssTrigRemoveEvent(TRIG_EVENT_VISTA_SHOWN, 1, 0);
+    if (ssTrigCheckEvent(TRIG_EVENT_INVISIBLE, 1, 0) != 0) {
+        ssTrigRemoveEvent(TRIG_EVENT_INVISIBLE, 1, 0);
+        TransparentBodyTime = PANIC_TRANSPARENT_TIME;
+    }
+    if (ssTrigCheckEvent(TRIG_EVENT_MC_LOADED, 1, 0) != 0) {
+        ssTrigRemoveEvent(TRIG_EVENT_MC_LOADED, 1, 0);
+        AdvantageousTimeTime = PANIC_ADVANTAGEOUS_TIME;
+    }
+    if (PanicInfoData.mode & PANIC_MODE_FULL) {
+        PanicInfoData.mode &= ~PANIC_MODE_FULL;
+        PanicInfoData.filterAlpha = -1;
+        ssTrigRemoveEvent(TRIG_EVENT_PANIC_FULL, 1, 0);
+        ssTrigRemoveEvent(TRIG_EVENT_PANIC_BEAT, 1, 0);
+    }
+    if (skippable != 0 && DEMO_SKIP_SET != 0 && Demo_Skip_Set == 0) {
+        DemoSkip = 0;
+        DEMO_SKIP_FLAG = 0;
+        ssTrigRegisterEvent(TRIG_EVENT_DEMO_SKIP_9E, 1, 0);
+        Demo_Skip_Set = 1;
+    }
+    MidiControl_DemoStart();
+}
+
+// CT3 0x0185ad30: a scene ends: the letterbox goes (now = 1 slides it out, 0 at once).
+void VistaVisionEnd(int now)
+{
+    VistaVisionNumber = now * 2 + VISTA_HIDE_NOW;
+    ssTrigRemoveEvent(TRIG_EVENT_VISTA_HIDDEN, 1, 0);
+    MidiControl_DemoEnd();
+}
+
+// CT3 0x0185a550: the player loses `damage` hit points; 1 (and hp 0) when none are left.
+int PlayerDamage(int damage)
+{
+    CHARACTER *c = &Character[Player_BankID];
+    c->hp -= damage;
+    if (c->hp < 1) {
+        c->hp = 0;
+        return 1;
+    }
+    return 0;
+}
+
+// CT3 0x0185a280: turn the part by `degrees` about one axis (ROTATE_AXIS_*): ROTATE_SET makes the turn
+// its rotation (placeRot's rows; drawOnPos kept), ROTATE_MULTIPLY applies it to the whole placement
+// matrix (placeRot and drawOnPos, gaMulMatrix(place, place, turn)). The part is marked placed and moved.
+void asObjectRotate(float degrees, ALL_TABLE *table, int part, int multiply, int axis)
+{
+    MODEL_PARTS *parts = TableParts(table);
+    // PORT: another axis leaves the ROM's turn as stack garbage; the unit matrix stands in for it.
+    alignas(16) float turn[4][4] = {{1.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f, 0.0f},
+                                    {0.0f, 0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 1.0f}};
+    float (*place)[4];
+    int angle = DEGREES_TO_ANGLE16(degrees);
+
+    if (parts == NULL)
+        return;
+    place = parts[part].placeRot;               /* rows 0..2, drawOnPos row 3 (EE-contiguous) */
+    if ((s_char)axis == ROTATE_AXIS_Z)
+        gaSetRotMatrixZ(turn, angle);
+    else if ((s_char)axis == ROTATE_AXIS_Y)
+        gaSetRotMatrixY(turn, angle);
+    else if ((s_char)axis == ROTATE_AXIS_X)
+        gaSetRotMatrixX(turn, angle);
+    if ((s_char)multiply == ROTATE_MULTIPLY)
+        gaMulMatrix(place, place, turn);
+    else if ((s_char)multiply == ROTATE_SET)
+        memcpy(parts[part].placeRot, turn, sizeof(parts[part].placeRot));
+    parts[part].flags43 = PARTS_FLAG43_WARPED | PARTS_FLAG43_TRANS;
+}
+
+// CT3 0x0185a9b0: the view matrix of a camera at pos with axes right / up / front: the inverse of
+// the rows (right, up, front, (0, 0, 0, 1)), its translation row then minus pos taken through it.
+void asPosRUF2ViewMatrix(float (*view)[4], const float *pos, const float *right, const float *up,
+                         const float *front)
+{
+    float t[4];
+    int i;
+
+    memcpy(view[0], right, 4 * sizeof(float));
+    memcpy(view[1], up, 4 * sizeof(float));
+    memcpy(view[2], front, 4 * sizeof(float));
+    view[3][0] = view[3][1] = view[3][2] = 0.0f;
+    view[3][3] = 1.0f;
+    gaInversMatrix(view, view);
+    view[3][0] = view[3][1] = view[3][2] = 0.0f;
+    view[3][3] = 1.0f;
+    for (i = 0; i < 4; i++)
+        t[i] = view[0][i] * pos[0] + view[1][i] * pos[1] + view[2][i] * pos[2] + view[3][i] * pos[3];
+    view[3][0] = -t[0];
+    view[3][1] = -t[1];
+    view[3][2] = -t[2];
+    view[3][3] = 1.0f;
+}
+
+// CT3 0x0185a7e0: as asPosRUF2ViewMatrix, from the eye: the view origin lies three focal lengths in mm
+// (asFocalLength_PS22LEICA(screen_0[8]) * 3) ahead along front (asViewMatrix2CamRUF's inverse).
+void asCamRUF2ViewMatrix(float (*view)[4], const float *eye, const float *right, const float *up,
+                         const float *front)
+{
+    alignas(16) float pos[4];
+    float ahead = asFocalLength_PS22LEICA(screen_0[SCREEN_PROJ_DIST]) * CAMERA_EYE_FOCALS;
+
+    pos[0] = eye[0] + front[0] * ahead;
+    pos[1] = eye[1] + front[1] * ahead;
+    pos[2] = eye[2] + front[2] * ahead;
+    pos[3] = front[3];                          /* VU0 .xyz: w is front's (unused: row 3 is (0,0,0,1)) */
+    asPosRUF2ViewMatrix(view, pos, right, up, front);
+}
+
+// CT3 0x0185dae0: the angle (ahAcos units) between a and b seen along `axis` (that component dropped
+// from both), signed by (a x b)[axis]: positive only when it is above 0.
+int asRadianByVectors(const float *a, const float *b, int axis)
+{
+    alignas(16) float va[4], vb[4];
+    float c;
+    int angle;
+
+    memcpy(va, a, sizeof(va));
+    memcpy(vb, b, sizeof(vb));
+    va[axis] = 0.0f;
+    vb[axis] = 0.0f;
+    angle = ahAcos(gaInnerProductXYZ(va, vb) / sqrtf(asVectorLength(va) * asVectorLength(vb)));
+    if (axis == ROTATE_AXIS_X)
+        c = va[1] * vb[2] - vb[1] * va[2];
+    else if (axis == ROTATE_AXIS_Y)
+        c = va[2] * vb[0] - vb[2] * va[0];
+    else
+        c = va[0] * vb[1] - vb[0] * va[1];
+    // The ROM's sign: 0 for +/-0, -1 below, 1 otherwise (NaN too); only 1 keeps the angle.
+    if (c == 0.0f || c < 0.0f)
+        angle = -angle;
+    return angle;
+}
+
+// CT3 0x0185da40: the angle from the facing (the unit matrix's Z row, turned about Y by `angle` when
+// axis is ROTATE_AXIS_Y) to the line to - from, along `axis`, negated.
+int asRadianByPositions_Rorate(const float *from, const float *to, int angle, int axis)
+{
+    // the ROM copies @521 (0x01937e20): the unit matrix
+    alignas(16) float m[4][4] = {{1.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f, 0.0f},
+                                 {0.0f, 0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 1.0f}};
+    alignas(16) float d[4];
+
+    d[0] = from[0] - to[0];
+    d[1] = from[1] - to[1];
+    d[2] = from[2] - to[2];
+    d[3] = from[3];
+    if (axis == ROTATE_AXIS_Y)
+        gaSetRotMatrixY(m, angle);
+    return -asRadianByVectors(m[2], d, axis);
+}
+
+// CT3 0x0185de70: a - b of two 16-bit angles, wrapped to -0x8000..0x8000.
+int asISubRotate16(u_int a, u_int b)
+{
+    int d = (int)(a & 0xffff) - (int)(b & 0xffff);
+    if (d > 0x8000)
+        d -= 0x10000;
+    else if (d < -0x8000)
+        d += 0x10000;
+    return d;
+}
+
+// CT3 0x0185df10
+float asVectorLength1D(float x2)
+{
+    return sqrtf(x2);
+}
+
+// CT3 0x0185df30: |(x, y, 0)| (VU0 RSQRT then 1 / Q, as asVectorLength3D).
+float asVectorLength2D(float x, float y)
+{
+    return sqrtf(x * x + y * y);
+}
+
+// CT3 0x0185dfe0: |a - b| over xyz (asVectorDistance's, not squared).
+float asVectorDistance2(const float *a, const float *b)
+{
+    float dx = a[0] - b[0], dy = a[1] - b[1], dz = a[2] - b[2];
+    return sqrtf(dx * dx + dy * dy + dz * dz);
+}
+
+// CT3 0x0185c240
+// CT3 0x0185c26c (LowerCase_body, game-inferred: the loop head 0x0185c240 branches to, split by Ghidra).
+// ASCII capitals to small letters, in place.
+void LowerCase(char *s)
+{
+    for (; *s != '\0'; s++)
+        if (*s > '@' && *s < '[')
+            *s += 0x20;
+}
+
+// CT3 0x0185e3e0
+float absf(float x)
+{
+    if (x < 0.0f)
+        x *= -1.0f;
+    return x;
+}
+
+// CT3 0x0185c320: 0..n-1 (an unsigned remainder), -1 for n 0. The seed (tnRandSeed, sbss 0x01942390)
+// has its bytes swapped pairwise, then times 5 plus 0x19283765.
+int tnRand(int n)
+{
+    if (n == 0)
+        return -1;
+    tnRandSeed = ((tnRandSeed & 0xff00ff00u) >> 8) + ((tnRandSeed & 0x00ff00ffu) << 8);
+    tnRandSeed *= 5;
+    tnRandSeed += 0x19283765u;
+    return (int)(tnRandSeed % (u_int)n);
+}
+
+// CT3 0x01937e00 (next, .sdata): the seed of rnd, 64 bits.
+static u_long next = 0x1234123412341234ull;
+
+// CT3 0x0185e960: a 64-bit LCG; its high word, low 31 bits.
+u_int rnd(void)
+{
+    next = next * 0x7d2b89ddull + 0x3039;
+    return (u_int)(next >> 32) & 0x7fffffffu;
+}
+
+// CT3 0x0185e910: 0 <= x < 1, the low 23 bits of rnd as a mantissa.
+float rndf(void)
+{
+    u_int bits = (rnd() & 0x7fffffu) | 0x3f800000u;
+    float f;
+    memcpy(&f, &bits, sizeof(f));
+    return f - 1.0f;
 }
