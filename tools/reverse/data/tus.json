@@ -540,7 +540,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 127..127, 1 functions keyed by their statics, 1 unkeyed; file name from the names"
   },
   "game/SdMasterVolumeSetSE.c": {
-   "notes": "Left: SdLoadSQProc (0x018ce6c0, 0x138c bytes, the SQ twin of SdLoadSEProc), SdReqPlaySESp1, SdStopSEAll, SdStopSESDT, SdStopSEAllSp1, SdStopSESp1, SdStopSESp1ByHandle, SdPlaySQ / SdStopSQ / SdStopSQAll / SdStopSQAllNow / SdVolumeSQ / SdLoadSQEndWaitAll, SdPlayStream and SdPlayADSProc, SdSoundEnable / Disable, SdChangeStereoMono, IopLoadCapcomSound. The SE loads now start at boot and step to the CpDivideEECom.c stubs (CpSifDmaTransEEToIOP, CpCall_IOPSndDriver_2, CpCheckEE_IOPComEnd). callcheck MISSING on SdLoadSEProc is its helper split (slice 2). SdPurgeSE keeps the ROM slip of sending gSELd[gLdi].reg. Screen stays black (nothing on the draw path); last.png came out 0 bytes this run, shot_27600.png is black.",
+   "notes": "Left: SdLoadSQProc (0x018ce6c0, 0x138c bytes, the SQ twin of SdLoadSEProc; it names SD_SQ_LD arg2/arg4/arg5/arg6/iopSq/iopBd and the row swap), SdPlayADSProc (0x018d10e0), IopLoadCapcomSound (0x018d1860, then FSS_Thread_Init runs). SdChangeStereoMono takes the stereo flag (sound.c passes gStereo). callcheck MISSING on SdVolumeSQ / SdStopSQ is the SdFindSQ helper, on SdLoadSEProc slice 2's helpers. Screen stays black (nothing on the draw path).",
    "ranges": [
     [
      "018cbf90",
@@ -562,6 +562,11 @@
      "date": "2026-11-10 14:54",
      "status": "partial",
      "summary": "slice 3: SdReqLoadSE, FindSEFile, FindSEFile_JLS_SPU2, SdReqLoadSECancel, SdPurgeSE and the SE play side (SdReqPlaySE, SdSetParamSE, NextPlaySE, SdPlaySE, SdSupplyCHSE, SdPlaySEUpdate, SdPlaySEProc, SdPlaySESpProc); SD_SE and PLAY_SE_SP1 layout host with SD_SE_UPDATE callbacks"
+    },
+    {
+     "date": "2026-11-10 15:14",
+     "status": "partial",
+     "summary": "slice 4: the SE stops (SdStopSEAll, SdStopSESDT, SdStopSEAllSp1, SdStopSESp1, SdStopSESp1ByHandle), SdReqPlaySESp1, IsPlaySEReady, SdLoadSEEndWaitAll, SdLoadSQEndWaitAll, the SQ requests (SdPlaySQ, SdStopSQ, SdStopSQAll, SdStopSQAllNow, SdVolumeSQ), SdPlayStream, SdSoundEnable, SdSoundDisable, SdChangeStereoMono (18 functions); SD_SQ_LD fields, gTransADS.path, EE_IOP_STAT.sndFlags"
     }
    ],
    "status": "partial",

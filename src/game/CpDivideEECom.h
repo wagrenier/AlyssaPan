@@ -12,14 +12,18 @@
 typedef struct EE_IOP_STAT {
     u_char unk00[0x20];
     int adsActive;          // +0x20 != 0: an ADS stream is playing (SdIsPlayingStream, with +0x50)
-    u_char unk24[0x2c];
-    int iopBusy;            // +0x50 != 0: the IOP is using the drive (FlProc waits)
+    u_char unk24[0x1c];
+    u_int sndFlags;         // +0x40 bit 0 (EE_IOP_SND_READY): SdSoundEnable clears it, then waits for the IOP to set it
+    u_char unk44[0xc];
+    int iopBusy;           // +0x50 != 0: the IOP is using the drive (FlProc waits)
     u_char unk54[0x2c];
 } EE_IOP_STAT;
 static_assert(sizeof(EE_IOP_STAT) == 0x80, "EE_IOP_STAT is 0x80 bytes");
 
 static_assert(offsetof(EE_IOP_STAT, adsActive) == 0x20, "EE_IOP_STAT.adsActive");
 static_assert(offsetof(EE_IOP_STAT, iopBusy) == 0x50, "EE_IOP_STAT.iopBusy");
+static_assert(offsetof(EE_IOP_STAT, sndFlags) == 0x40, "EE_IOP_STAT.sndFlags");
+#define EE_IOP_SND_READY 0x1u
 
 // The sound driver's command words (CpCall_IOPSndDriver's first argument), named from the EE side's use
 // (game/SdMasterVolumeSetSE.c, 2026-11-10); the IOP side (SNDDRV.IRX) is unread.
@@ -34,6 +38,13 @@ static_assert(offsetof(EE_IOP_STAT, iopBusy) == 0x50, "EE_IOP_STAT.iopBusy");
 #define SND_CMD_SE_KEY_ON_CH 0x60000u     /* no record: the reply word is the channels sounding (gSdSEKeyOnCH) */
 #define SND_CMD_SE_PURGE 0xb0000u         /* | jls: drop the slot's bank (SdPurgeSE) */
 #define SND_CMD_PLAY_SE 0x260000u         /* SD_SE_LD.spuCom: unk00 jls, arg[0] the play word, arg[1] its values */
+#define SND_CMD_STEREO 0x160000u          /* gTransJSLCOM arg[0]: 1 stereo, 0 mono */
+#define SND_CMD_STOP_SQ_NOW 0x1a0000u     /* gSQLd[0].volCom: unk00 0, arg[0] 0, arg[1] 0xb */
+#define SND_CMD_ADS_STOP 0x2d0000u        /* no record: SdPlayStream over another stream */
+#define SND_CMD_SOUND_ON 0x20000u         /* no record: SdSoundEnable, first */
+#define SND_CMD_SOUND_OFF 0x10000u        /* no record: SdSoundDisable */
+#define SND_CMD_ADS_ENABLE 0x2a0000u      /* gTransADS: SdSoundEnable, then wait for EE_IOP_SND_READY */
+#define SND_CMD_ADS_DISABLE 0x320000u     /* gTransADS: SdSoundDisable */
 
 // A JSL command record (gTransJSLCOM, and the Sd TU's seStopJSLCOM / effectJSLCOM): 8 words, the
 // arguments from +8. layout: ee.
@@ -46,8 +57,9 @@ static_assert(sizeof(SND_JSL_COM) == 0x20, "SND_JSL_COM");
 
 // gTransADS (bss 0x01943b40, 0x88 bytes): the ADS stream's command record. layout: ee.
 typedef struct SND_TRANS_ADS {
-    u_char unk00[0x68];
-    u_int vol;              // +0x68 the scaled volume, both channels (v | v << 16)
+    u_char unk00[0x8];
+    char path[0x60];        // +0x08 SdPlayStream: gDeviceName + DATA\SOUND\ADS(2)\ + the name
+    u_int vol;            // +0x68 the scaled volume, both channels (v | v << 16)
     u_char unk6c[0x1c];
 } SND_TRANS_ADS;
 static_assert(sizeof(SND_TRANS_ADS) == 0x88, "SND_TRANS_ADS");

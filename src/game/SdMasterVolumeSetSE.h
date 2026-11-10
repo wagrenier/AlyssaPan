@@ -151,16 +151,26 @@ typedef struct SD_SE_LD {
 } SD_SE_LD;
 #define SD_SE_LD_COUNT 10
 
-// gSQLd's rows: the two SQ (sequenced music) players; row 0 is the one sound.c reads.
+// gSQLd's rows: the two SQ (sequenced music) players; row 0 is the one sound.c reads. SdPlaySQ fills
+// row 0, or row 1 while row 0 still plays (row 0 is then told to stop: SdLoadSQProc's swap, unread).
 typedef struct SD_SQ_LD {       // 0x1c0 bytes
-    u_char unk00[0x38];         // +0x00
+    char dir[0x38];             // +0x00 SdPlaySQ's directory (upper case)
     char name[0x38];            // +0x38 the playing SQ ("HINMIN"); '\0' = none
-    u_char unk70[0x24];         // +0x70
-    int unk94;                  // +0x94 cleared with the name by SdStopSQAll
+    int arg5;                   // +0x70 SdPlaySQ's sixth argument (SdLoadSQProc reads it)
+    int arg6;                   // +0x74 its seventh
+    u_int arg2;                 // +0x78 its third
+    u_int iopSq;                // +0x7c an IOP heap block (SdStopSQAllNow frees it second)
+    u_int iopBd;                // +0x80 an IOP heap block (freed first)
+    int unk84;                  // +0x84 SdPlaySQ clears +0x84..+0x90
+    int unk88;                  // +0x88
+    int unk8c;                  // +0x8c
+    int unk90;                  // +0x90
+    int step;                   // +0x94 SD_SQ_LD_STEP_*: SdLoadSQProc's step; cleared with the name
     u_char unk98[0x4];          // +0x98
     int playVol;                // +0x9c the volume it was started at
-    u_int flags;                // +0xa0 SdVolumeSQ: | 2 (volume), | 4 (fade); SdStopSQAll: | 1 (stop)
-    u_char unka4[0x8];          // +0xa4
+    u_int flags;                // +0xa0 SD_SQ_FLAG_*
+    int arg4;                   // +0xa4 SdPlaySQ's fifth argument
+    int unka8;                  // +0xa8 SdPlaySQ clears it
     int vol;                    // +0xac SdVolumeSQ's target volume
     u_char unkb0[0x10];         // +0xb0
     SND_JSL_COM volCom;         // +0xc0 SdVolumeSetSQ's record: unk00 the player, arg[0] 0xff, arg[1] volume
@@ -171,7 +181,16 @@ static_assert(offsetof(SD_SQ_LD, name) == 0x38, "SD_SQ_LD.name");
 static_assert(offsetof(SD_SQ_LD, playVol) == 0x9c, "SD_SQ_LD.playVol");
 static_assert(offsetof(SD_SQ_LD, vol) == 0xac, "SD_SQ_LD.vol");
 static_assert(offsetof(SD_SQ_LD, volCom) == 0xc0, "SD_SQ_LD.volCom");
+static_assert(offsetof(SD_SQ_LD, iopSq) == 0x7c, "SD_SQ_LD.iopSq");
+static_assert(offsetof(SD_SQ_LD, step) == 0x94, "SD_SQ_LD.step");
+static_assert(offsetof(SD_SQ_LD, arg4) == 0xa4, "SD_SQ_LD.arg4");
 #define SD_SQ_LD_COUNT 2
+#define SD_SQ_FLAG_STOP 0x1u            // SdStopSQ / SdStopSQAll / SdPlaySQ over a playing SQ
+#define SD_SQ_FLAG_VOLUME 0x2u          // SdVolumeSQ: move to `vol`
+#define SD_SQ_FLAG_FADE 0x4u            // SdVolumeSQ / SdStopSQAll(fade): gradually
+#define SD_SQ_LD_STEP_REQUEST 1         // SdPlaySQ's request
+#define SD_SQ_LD_STEP_LOADED 0x19       // from here the SQ is loaded (SdLoadSQEndWaitAll waits below it)
+#define SD_SQ_LD_STEP_REPLAY_MAX 0x1c   // SdPlaySQ of the playing SQ below this step only resets its volume
 
 // gPlaySESp1's rows: the special SEs (SdReqPlaySESp1): one SE from a random range replayed at an interval
 // (SdPlaySESpProc), kept over a movie or a demo. layout: host -- +0x18 is an EE code word in the ROM (the
@@ -205,7 +224,8 @@ extern PLAY_SE_SP1 gPlaySESp1[PLAY_SE_SP1_COUNT]; /* bss 0x019436d0 */
 typedef struct SD_PLAY_ADS {    // 0x90 bytes
     char name[0x38];            // +0x00 the stream's name ("22_BREAK"...)
     int vol;                    // +0x38 SdVolumeStream's volume, before the master scale
-    u_char unk3c[0x8];          // +0x3c
+    int loop;                   // +0x3c SdPlayStream's fourth argument (gFileADS' loop)
+    int arg2;                   // +0x40 SdPlayStream's third
     int stopArg;                // +0x44 SdStopStream's argument (SdPlayADSProc reads it)
     u_char unk48[0x48];         // +0x48
 } SD_PLAY_ADS;
@@ -215,6 +235,9 @@ static_assert(offsetof(SD_PLAY_ADS, stopArg) == 0x44, "SD_PLAY_ADS.stopArg");
 
 extern SD_PLAY_ADS gPlayADS;                      /* bss 0x019437f0 */
 extern int gSdADSStop;                            /* sbss 0x01943880: 1 = SdPlayADSProc stops the stream */
+extern int gSdADSPhase;                           /* sbss 0x01943884: SdPlayADSProc's phase; 1 = SdPlayStream's request */
+extern int gSQi;                                  /* sbss 0x01942ee4: the gSQLd row SdLoadSQProc steps */
+extern void *sqAllocPtr;                          /* sbss 0x01943330: the SQ's SdAlloc block */
 extern int gSdEffectType[2];                      /* bss 0x01943898: per SPU2 core, the reverb type set */
 extern u_int gSdEffectDepth[2];                   /* bss 0x01943890: per SPU2 core, depth << 7 | 0x7f */
 extern int gUseSoundAlloc;                        /* sbss 0x019438a0: 1 while SdAlloc's one block is out */
@@ -244,8 +267,9 @@ void SdStopSEAllSp1(void);                                                      
 int SdStopSESp1(int jls, int a1, int a2);                                                // CT3 0x018cc2a0
 SD_SE *SdFindPlaySE(int handle);                                                         // CT3 0x018ccde0
 void SdStopSESp1ByHandle(int handle);                                                    // CT3 0x018cc220
-int SdReqPlaySESp1(int jls, int a1, int a2, int a3, int a4, int a5, int a6, void (*update)(int handle), int a7,
-                   int a8);                                                              // CT3 0x018cc350
+void SdReqPlaySESp1(int jls, int seNoBase, int seNo, int seNoRange, int interval, int objId, int bank,
+                    SD_SE_UPDATE update, int posVol, int posMode);                       // CT3 0x018cc350
+int IsPlaySEReady(const char *name);                                                     // CT3 0x018cd820
 u_int SdSetParamSE(int handle, u_int mask, ...);                                          // CT3 0x018cd190
 void SdPlayStream(const char *name, int vol, int a2, int loop);                          // CT3 0x018cde40
 int SdReqPlaySE(int jls, int seNo, int reqArg2);                                               // CT3 0x018cd3c0
@@ -274,7 +298,7 @@ void SdSetEffectDontSave(int core, int type, int depthWord);                    
 u_int SdRnd(void);                                                                       // CT3 0x018d1770
 void FSS_Thread_Sync(void);                                                              // CT3 0x018d1b00
 void FSS_Thread_Init(void);                                                              // CT3 0x018d1b40
-void SdChangeStereoMono(void);                                                           // CT3 0x018d1810
+void SdChangeStereoMono(int stereo);                                                     // CT3 0x018d1810
 void *SdAlloc(int size, int align, const char *name);                                    // CT3 0x018d17d0
 void SdFree(void **mem);                                                                 // CT3 0x018d17a0
 void SdLoadSQEndWaitAll(void);                                                           // CT3 0x018ce640

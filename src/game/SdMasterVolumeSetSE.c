@@ -2,7 +2,9 @@
 // SE banks and voices, SQ music, the ADS stream, reverb, and the FSS thread that hands every command to
 // the IOP (game/CpDivideEECom.c -> SNDDRV.IRX). Slice 1 (2026-11-10): the command ring and its thread, the
 // master / stream volumes, reverb, SE stop and lookup, the load-end wait, SdAlloc / SdFree, SdRnd. Slice 2
-// (2026-11-10): SdProc, the SE bank loader (SdLoadSEProc, NextLoadSE), the SQ volume commands.
+// (2026-11-10): SdProc, the SE bank loader (SdLoadSEProc, NextLoadSE), the SQ volume commands. Slice 4
+// (2026-11-10): the SE stops, the special SEs' request, the load waits, the SQ requests, the stream
+// request, sound on / off, stereo.
 //
 // Every command goes the same way: take fss_sid, fill a command record (a JSL_COM, gTransJSLCOM or
 // gTransADS), queue (command word, record, reply pointer) on RingBuff with CpCall_IOPSndDriver_FIFO, and
@@ -37,6 +39,9 @@ SD_SQ_LD gSQLd[SD_SQ_LD_COUNT];                 /* bss  0x01943340 */
 PLAY_SE_SP1 gPlaySESp1[PLAY_SE_SP1_COUNT];      /* bss  0x019436d0 */
 SD_PLAY_ADS gPlayADS;                           /* bss  0x019437f0 */
 int gSdADSStop;                                 /* sbss 0x01943880 */
+int gSdADSPhase;                                /* sbss 0x01943884 */
+int gSQi;                                       /* sbss 0x01942ee4 */
+void *sqAllocPtr;                               /* sbss 0x01943330 */
 int gADSOpenSync;                               /* sbss 0x01943888 */
 u_int gSdEffectDepth[2];                        /* bss  0x01943890 */
 int gSdEffectType[2];                           /* bss  0x01943898 */
@@ -682,113 +687,401 @@ static void CpCall_IOPSndDriver_FIFO(u_int command, void *data, int *reply)
     WakeupThread(fss_tid);
 }
 
-// ---- stubs (tools/reverse/stubgen.py) ----
+// ---- slice 4 (2026-11-10): SE stops, the special SEs, load waits, SQ requests, the stream request, sound
+// on / off, stereo ------------------------------------------------------------------------------------------
 
-// stub of CT3 0x018d1810
-void SdChangeStereoMono(void)
-{
-    ALYSSAPAN_STUB("SdChangeStereoMono", 0x018d1810);
-}
+static const char s_adsDir[] = "DATA\\SOUND\\ADS\\";      /* @1943: a stream whose name starts with a digit */
+static const char s_adsDir2[] = "DATA\\SOUND\\ADS2\\";    /* @1944: the others */
+static const char s_sqAny[] = "ANY";                      /* @1984: SdVolumeSQ's "whatever row 0 plays" */
+#define SD_SQ_ANY_LEN 3
+#define SD_SQ_STOP_NOW_ARG1 0xb                           /* SND_CMD_STOP_SQ_NOW's arg[1] */
+#define SD_SQ_STOP_NOW_FRAMES 10                          /* frames SdStopSQAllNow waits before freeing */
+#define SD_SOUND_ENABLE_SPIN 999999                       /* SdSoundEnable's wait for EE_IOP_SND_READY */
+#define SD_SOUND_ENABLE_FRAMES 7
+#define SD_ADS_DISABLE_FRAMES 100                         /* SdSoundDisable's wait for the stream to end */
+#define SD_ADS_PHASE_REQUEST 1
 
-// stub of CT3 0x018cdb10
-void SdLoadSEEndWaitAll(void)
-{
-    ALYSSAPAN_STUB("SdLoadSEEndWaitAll", 0x018cdb10);
-}
-
-// stub of CT3 0x018ce440
-int SdPlaySQ(const char *dir, const char *name, u_int a2, int vol, int a4, int a5, int a6)
-{
-    ALYSSAPAN_STUB("SdPlaySQ", 0x018ce440);
-    return {};
-}
-
-// stub of CT3 0x018d14d0
-void SdSoundDisable(void)
-{
-    ALYSSAPAN_STUB("SdSoundDisable", 0x018d14d0);
-}
-
-// stub of CT3 0x018d13d0
-void SdSoundEnable(void)
-{
-    ALYSSAPAN_STUB("SdSoundEnable", 0x018d13d0);
-}
-
-// stub of CT3 0x018cbfe0
+// CT3 0x018cbfe0 -- silences every channel and frees every SE row.
 void SdStopSEAll(void)
 {
-    ALYSSAPAN_STUB("SdStopSEAll", 0x018cbfe0);
+    SdStopSECH(SD_SE_CH_ALL, 1);
+    for (int i = 0; i < SD_SE_COUNT; i++) {
+        if (gSdSE[i].handle != 0) {
+            gSdSE[i].handle = 0;
+        }
+    }
 }
 
-// stub of CT3 0x018cc1b0
+// CT3 0x018cc040 -- stops the SEs seNo of slot jls (reqArg2 0: all of them, else only those requested with
+// it), with one stop command for their channels.
+void SdStopSESDT(int jls, int seNo, int reqArg2)
+{
+    u_int chBits = 0;
+    for (int i = 0; i < SD_SE_COUNT; i++) {
+        SD_SE *se = &gSdSE[i];
+        if (se->handle != 0 && jls == se->jls && seNo == se->seNo) {
+            if (reqArg2 == 0 || reqArg2 == se->reqArg2) {
+                se->handle = 0;
+                chBits |= (u_int)se->chBits;
+            }
+        }
+    }
+    if (chBits != 0) {
+        SdStopSECH((int)chBits, 1);
+    }
+}
+
+// CT3 0x018cc1b0
 void SdStopSEAllSp1(void)
 {
-    ALYSSAPAN_STUB("SdStopSEAllSp1", 0x018cc1b0);
+    for (int i = 0; i < PLAY_SE_SP1_COUNT; i++) {
+        if (gPlaySESp1[i].active != 0) {
+            SdStopSE(gPlaySESp1[i].handle);
+            gPlaySESp1[i].active = 0;
+        }
+    }
 }
 
-// stub of CT3 0x018cc040
-void SdStopSESDT(int jls, int a1, int a2)
-{
-    ALYSSAPAN_STUB("SdStopSESDT", 0x018cc040);
-}
-
-// stub of CT3 0x018ce1e0
-void SdStopSQAllNow(void)
-{
-    ALYSSAPAN_STUB("SdStopSQAllNow", 0x018ce1e0);
-}
-
-// stub of CT3 0x018ce380
-void SdStopSQ(const char *name)
-{
-    ALYSSAPAN_STUB("SdStopSQ", 0x018ce380);
-}
-
-// stub of CT3 0x018ce0d0
-void SdVolumeSQ(const char *name, int vol, int a2)
-{
-    ALYSSAPAN_STUB("SdVolumeSQ", 0x018ce0d0);
-}
-
-// stub of CT3 0x018cde40
-void SdPlayStream(const char *name, int vol, int a2, int loop)
-{
-    ALYSSAPAN_STUB("SdPlayStream", 0x018cde40);
-}
-
-// stub of CT3 0x018cc2a0
-int SdStopSESp1(int jls, int a1, int a2)
-{
-    ALYSSAPAN_STUB("SdStopSESp1", 0x018cc2a0);
-    return {};
-}
-
-// stub of CT3 0x018cc220
+// CT3 0x018cc220 -- frees the special SE rows playing `handle` (the ROM stops the SE once per row found).
 void SdStopSESp1ByHandle(int handle)
 {
-    ALYSSAPAN_STUB("SdStopSESp1ByHandle", 0x018cc220);
+    for (int i = 0; i < PLAY_SE_SP1_COUNT; i++) {
+        if (handle == gPlaySESp1[i].handle) {
+            SdStopSE(handle);
+            gPlaySESp1[i].active = 0;
+        }
+    }
 }
 
-// stub of CT3 0x018ce310
+// CT3 0x018cc2a0 -- stops the special SEs (jls, seNoBase, seNo). The ROM sets no return value (v0 is
+// whatever the loop left); SSStopSESp1 passes it on, so the port answers 0.
+int SdStopSESp1(int jls, int seNoBase, int seNo)
+{
+    for (int i = 0; i < PLAY_SE_SP1_COUNT; i++) {
+        PLAY_SE_SP1 *sp = &gPlaySESp1[i];
+        if (jls == sp->active && seNoBase == sp->seNoBase && seNo == sp->seNo) {
+            SdStopSE(sp->handle);
+            sp->active = 0;
+        }
+    }
+    return 0;
+}
+
+// CT3 0x018cc350 -- a special SE: plays seNoBase + SdRnd() % seNoRange now and again every `interval`
+// ticks (SdPlaySESpProc). With an object it is positional: the parameters go to the SE and `update` runs
+// once now. Nothing when all five rows are taken.
+void SdReqPlaySESp1(int jls, int seNoBase, int seNo, int seNoRange, int interval, int objId, int bank,
+                    SD_SE_UPDATE update, int posVol, int posMode)
+{
+    int i;
+    for (i = 0; gPlaySESp1[i].active != 0; i++) {
+        if (i + 1 > PLAY_SE_SP1_COUNT - 1) {
+            return;
+        }
+    }
+    PLAY_SE_SP1 *sp = &gPlaySESp1[i];
+    sp->active = jls;
+    sp->seNoBase = seNoBase;
+    sp->seNo = seNo;
+    sp->posMode = posMode;
+    sp->objId = objId;
+    sp->bank = bank;
+    sp->update = objId == 0 ? NULL : update;
+    sp->seNoRange = seNoRange;
+    sp->posVol = posVol;
+    sp->interval = interval;
+    sp->lastTime = ga_main_timer;
+    sp->stopped = 0;
+    int pick = (int)SdRnd() % sp->seNoRange;
+    sp->handle = SdReqPlaySE(jls, seNoBase + pick, seNo);
+    if (objId == 0) {
+        return;
+    }
+    SdSetParamSE(sp->handle, SD_SE_PARAM_POS_VOL | SD_SE_PARAM_POS_MODE | SD_SE_PARAM_OBJ_ID | SD_SE_PARAM_BANK |
+                                 SD_SE_PARAM_CALLBACK,
+                 posVol, posMode, objId, bank, update);
+    update(sp->handle);
+}
+
+// CT3 0x018cd820 -- the gSELd row holding the loaded bank `name`, or -1 (not there, or still loading).
+int IsPlaySEReady(const char *name)
+{
+    for (int i = 0; i < SD_SE_LD_COUNT; i++) {
+        if (gSELd[i].handle != 0 && strcmp(name, gSELd[i].name) == 0 && gSELd[i].step == SD_SE_LD_IDLE) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+// CT3 0x018cdb10 -- runs the file and sound servers, a frame at a time, until every bank load is through.
+void SdLoadSEEndWaitAll(void)
+{
+    for (int i = 0; i < SD_SE_LD_COUNT; i++) {
+        if (gSELd[i].handle != 0) {
+            while (gSELd[i].step != SD_SE_LD_IDLE) {
+                FlProc();
+                SdProc();
+                sceGsSyncV(0);
+            }
+        }
+    }
+}
+
+// CT3 0x018cde40 -- streams the ADS `name` (SdPlayADSProc opens it): a digit-first name lives in ADS\, the
+// others in ADS2\. The stream already playing goes on untouched; another one is stopped first.
+void SdPlayStream(const char *name, int vol, int a2, int loop)
+{
+    char upper[0x40];
+
+    strcpy(upper, name);
+    strupr(upper);
+    strcpy(gTransADS.path, gDeviceName);
+    strcat(gTransADS.path, (upper[0] < '0' || '9' < upper[0]) ? s_adsDir2 : s_adsDir);
+    strcat(gTransADS.path, upper);
+    gPlayADS.loop = loop;
+    gPlayADS.arg2 = a2;
+    if (SdIsPlayingStream()) {
+        if (strcmp(upper, gPlayADS.name) == 0) {
+            return;
+        }
+        if (upper[0] != '\0') {
+            CpCall_IOPSndDriver_FIFO(SND_CMD_ADS_STOP, NULL, NULL);
+        }
+    }
+    strcpy(gPlayADS.name, upper);
+    gSdADSPhase = SD_ADS_PHASE_REQUEST;
+    gSdADSStop = 0;
+    gPlayADS.vol = vol;
+}
+
+// The gSQLd row playing `upper`, or -1.
+static int SdFindSQ(const char *upper)
+{
+    for (int i = 0; i < SD_SQ_LD_COUNT; i++) {
+        if (strcmp(upper, gSQLd[i].name) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+// CT3 0x018ce0d0 -- moves the SQ `name` ("ANY": whatever row 0 plays) to `vol`, gradually with fade.
+void SdVolumeSQ(const char *name, int vol, int fade)
+{
+    char upper[0x40];
+
+    strcpy(upper, name);
+    strupr(upper);
+    if (memcmp(upper, s_sqAny, SD_SQ_ANY_LEN) == 0) {
+        if (gSQLd[0].name[0] == '\0') {
+            return;
+        }
+        strcpy(upper, gSQLd[0].name);
+    }
+    int i = SdFindSQ(upper);
+    if (i < 0) {
+        return;
+    }
+    gSQLd[i].vol = vol;
+    gSQLd[i].flags |= SD_SQ_FLAG_VOLUME;
+    if (fade != 0) {
+        gSQLd[i].flags |= SD_SQ_FLAG_FADE;
+    }
+}
+
+// CT3 0x018ce1e0 -- stops the SQ at once: waits for the loads, tells the driver, gives it ten frames, frees
+// gSQi's IOP blocks and the SQ buffer, and clears both rows.
+void SdStopSQAllNow(void)
+{
+    SdLoadSQEndWaitAll();
+    if (gSQLd[0].name[0] != '\0') {
+        WaitSema(fss_sid);
+        SND_JSL_COM *com = &gSQLd[0].volCom;
+        com->arg[1] = SD_SQ_STOP_NOW_ARG1;
+        com->unk00 = 0;
+        com->arg[0] = 0;
+        CpCall_IOPSndDriver_FIFO(SND_CMD_STOP_SQ_NOW, com, NULL);
+        SignalSema(fss_sid);
+        for (int n = 0; n < SD_SQ_STOP_NOW_FRAMES; n++) {
+            sceGsSyncV(0);
+        }
+        SD_SQ_LD *sq = &gSQLd[gSQi];
+        if (sq->iopBd != 0) {
+            sceSifFreeIopHeap((void *)(uintptr_t)sq->iopBd);
+            sq->iopBd = 0;
+        }
+        if (sq->iopSq != 0) {
+            sceSifFreeIopHeap((void *)(uintptr_t)sq->iopSq);
+            sq->iopSq = 0;
+        }
+        SdFree(&sqAllocPtr);
+    }
+    memset(gSQLd, 0, sizeof gSQLd);
+}
+
+// CT3 0x018ce310 -- stops both players (fade: to volume 0 first); row 1 is dropped at once.
 void SdStopSQAll(int fade)
 {
-    ALYSSAPAN_STUB("SdStopSQAll", 0x018ce310);
+    for (int i = 0; i < SD_SQ_LD_COUNT; i++) {
+        SD_SQ_LD *sq = &gSQLd[i];
+        if (sq->name[0] != '\0') {
+            sq->flags |= SD_SQ_FLAG_STOP;
+            if (fade != 0) {
+                sq->flags |= SD_SQ_FLAG_VOLUME | SD_SQ_FLAG_FADE;
+                sq->vol = 0;
+            }
+            if (i != 0) {
+                sq->name[0] = '\0';
+                sq->step = 0;
+            }
+        }
+    }
 }
 
-// stub of CT3 0x018cc350
-int SdReqPlaySESp1(int jls, int a1, int a2, int a3, int a4, int a5, int a6, void (*update)(int handle), int a7,
-                   int a8)
+// CT3 0x018ce380 -- stops the SQ `name`; in row 1 it is dropped at once.
+void SdStopSQ(const char *name)
 {
-    ALYSSAPAN_STUB("SdReqPlaySESp1", 0x018cc350);
-    return {};
+    char upper[0x40];
+
+    strcpy(upper, name);
+    strupr(upper);
+    int i = SdFindSQ(upper);
+    if (i < 0) {
+        return;
+    }
+    gSQLd[i].flags |= SD_SQ_FLAG_STOP;
+    if (i != 0) {
+        gSQLd[i].name[0] = '\0';
+        gSQLd[i].step = 0;
+    }
 }
 
-// stub of CT3 0x018ce640
+// CT3 0x018ce440 -- plays the SQ dir\name at vol. The SQ row 0 already plays (still before
+// SD_SQ_LD_STEP_REPLAY_MAX) keeps playing, at the new volume; otherwise the request goes into row 0, or into
+// row 1 while row 0 is told to stop. Answers 1 when it went into row 1.
+int SdPlaySQ(const char *dir, const char *name, u_int a2, int vol, int a4, int a5, int a6)
+{
+    char upper[0x40];
+    SD_SQ_LD *sq = &gSQLd[0];
+
+    strcpy(upper, name);
+    strupr(upper);
+    if (strcmp(upper, sq->name) == 0 && sq->step < SD_SQ_LD_STEP_REPLAY_MAX) {
+        sq->flags &= ~SD_SQ_FLAG_STOP;
+        if (sq->vol != vol) {
+            sq->flags |= SD_SQ_FLAG_VOLUME;
+            sq->vol = vol;
+        }
+        return 0;
+    }
+    int busy = sq->name[0] != '\0';
+    if (busy) {
+        sq->flags |= SD_SQ_FLAG_STOP;
+        sq = &gSQLd[1];
+    }
+    strcpy(sq->dir, dir);
+    strupr(sq->dir);
+    strcpy(sq->name, upper);
+    sq->arg5 = a5;
+    sq->arg6 = a6;
+    sq->arg2 = a2;
+    sq->unk88 = 0;
+    sq->unk90 = 0;
+    sq->unk8c = 0;
+    sq->iopSq = 0;
+    sq->unk84 = 0;
+    sq->iopBd = 0;
+    sq->unka8 = 0;
+    sq->flags = 0;
+    sq->vol = vol;
+    sq->playVol = vol;
+    sq->step = SD_SQ_LD_STEP_REQUEST;
+    sq->arg4 = a4;
+    return busy;
+}
+
+// CT3 0x018ce640 -- runs the file and sound servers until neither SQ row is loading.
 void SdLoadSQEndWaitAll(void)
 {
-    ALYSSAPAN_STUB("SdLoadSQEndWaitAll", 0x018ce640);
+    for (int i = 0; i < SD_SQ_LD_COUNT; i++) {
+        while (gSQLd[i].step > 0 && gSQLd[i].step < SD_SQ_LD_STEP_LOADED) {
+            FlProc();
+            SdProc();
+            sceGsSyncV(0);
+        }
+    }
 }
+
+// CT3 0x018d13d0 -- sound back on (after SdSoundDisable): resumes FSS_Thread, restarts the driver and
+// waits (bounded) for the IOP to say ready, then the reverb and the SQ master volume again.
+void SdSoundEnable(void)
+{
+    ResumeThread(fss_tid);
+    CpCall_IOPSndDriver_FIFO(SND_CMD_SOUND_ON, NULL, NULL);
+    WaitSema(fss_sid);
+    CpGetEEIOPStatus()->sndFlags &= ~EE_IOP_SND_READY;
+    // The ROM reads +0x40 back and stores it again (a volatile touch, no change).
+    CpCall_IOPSndDriver_FIFO(SND_CMD_ADS_ENABLE, &gTransADS, NULL);
+    for (int n = SD_SOUND_ENABLE_SPIN; n != 0; n--) {
+        if ((CpGetEEIOPStatus()->sndFlags & EE_IOP_SND_READY) != 0) {
+            break;
+        }
+    }
+    SignalSema(fss_sid);
+    SdSetEffectDontSave(0, gSdEffectType[0], (int)gSdEffectDepth[0]);
+    SdSetEffectDontSave(SD_EFFECT_CORE_1, gSdEffectType[1], (int)gSdEffectDepth[1]);
+    SdMasterVolumeSetSQ(gMasterVolSQ);
+    for (int n = 0; n < SD_SOUND_ENABLE_FRAMES; n++) {
+        sceGsSyncV(0);
+    }
+}
+
+// CT3 0x018d14d0 -- sound off: ends the stream (up to 100 frames, then until the IOP says it stopped),
+// stops the SQ, the special SEs and every channel, turns the driver and reverb off, and suspends
+// FSS_Thread once its ring is empty.
+void SdSoundDisable(void)
+{
+    if (gSdADSPhase != 0) {
+        SdStopStream(0);
+        for (int n = 0; n < SD_ADS_DISABLE_FRAMES; n++) {
+            if (gSdADSPhase == 0) {
+                break;
+            }
+            SdProc();
+            sceGsSyncV(0);
+        }
+        while (SdIsPlayingStream()) {
+        }
+    }
+    memset(&gPlayADS, 0, sizeof gPlayADS);
+    gSdADSPhase = 0;
+    gADSOpenSync = 0;
+    gSdADSStop = 0;
+    SdStopSQAllNow();
+    SdStopSEAllSp1();
+    memset(gSdSE, 0, sizeof gSdSE);
+    SdStopSECH(SD_SE_CH_ALL, 0);
+    CpCall_IOPSndDriver_FIFO(SND_CMD_SOUND_OFF, NULL, NULL);
+    WaitSema(fss_sid);
+    CpCall_IOPSndDriver_FIFO(SND_CMD_ADS_DISABLE, &gTransADS, NULL);
+    SignalSema(fss_sid);
+    SdSetEffectDontSave(SD_EFFECT_CORE_1, 0, 0);
+    SdSetEffectDontSave(0, 0, 0);
+    FSS_Thread_Sync();
+    SuspendThread(fss_tid);
+}
+
+// CT3 0x018d1810 -- stereo (1) or mono (0) output.
+void SdChangeStereoMono(int stereo)
+{
+    WaitSema(fss_sid);
+    gTransJSLCOM.arg[0] = stereo != 0;
+    CpCall_IOPSndDriver_FIFO(SND_CMD_STEREO, &gTransJSLCOM, NULL);
+    SignalSema(fss_sid);
+}
+
+// ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x018d1860
 void IopLoadCapcomSound(const char *device)

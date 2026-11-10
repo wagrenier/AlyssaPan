@@ -1685,7 +1685,7 @@ void SSSetSoundMode(int mode)
         SdMasterVolSetADS(gMasterVolADS);
     } else if (mode == SOUND_MODE_STEREO) {
         gStereo = (SOUND_STEREO_MONAURAL_BUFF == 0);
-        SdChangeStereoMono();
+        SdChangeStereoMono(gStereo);   // the ROM passes the value it just stored
     } else if (mode == SOUND_MODE_ALL) {
         SSSetSoundMode(SOUND_MODE_STEREO);
         sceGsSyncV(0);
