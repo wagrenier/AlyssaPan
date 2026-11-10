@@ -17,10 +17,15 @@ EE_IOP_STAT * CpGetEEIOPStatus(void)
 }
 
 // stub of CT3 0x018d2250
+// The ROM answers its RPC reply buffer; FSS_Thread reads the word whenever the queued command asked for a
+// reply (SdPlaySEProc's SND_CMD_SE_KEY_ON_CH), so the stub answers a zero word of its own (no channel
+// sounds) instead of NULL -- FSS_Thread runs since IopLoadCapcomSound was written (2026-11-10).
 int * CpCall_IOPSndDriver(u_int command, void *data)
 {
+    static int s_reply;
     ALYSSAPAN_STUB("CpCall_IOPSndDriver", 0x018d2250);
-    return {};
+    s_reply = 0;
+    return &s_reply;
 }
 
 // stub of CT3 0x018d2120
@@ -41,5 +46,36 @@ int CpCheckEE_IOPComEnd(u_int command, int poll)
 int CpSifDmaTransEEToIOP(const void *src, u_int iopAddr, u_int size, int a3, int intr)
 {
     ALYSSAPAN_STUB("CpSifDmaTransEEToIOP", 0x018d1fa0);
+    return {};
+}
+
+// stub of CT3 0x018d2620
+void CpCreateEEComRecieveThread(int priority, int stackSize)
+{
+    ALYSSAPAN_STUB("CpCreateEEComRecieveThread", 0x018d2620);
+}
+
+// stub of CT3 0x018d2700
+void CpEEInit_RpcClient(void)
+{
+    ALYSSAPAN_STUB("CpEEInit_RpcClient", 0x018d2700);
+}
+
+// stub of CT3 0x018d26b0
+void CpExchangeTransBuffer(void)
+{
+    ALYSSAPAN_STUB("CpExchangeTransBuffer", 0x018d26b0);
+}
+
+// stub of CT3 0x018d2770
+void CpInit_Gloval_EE(void)
+{
+    ALYSSAPAN_STUB("CpInit_Gloval_EE", 0x018d2770);
+}
+
+// stub of CT3 0x018d2850
+int CpMakeSnddrvInitStr(char *buf, const SND_DRV_INIT *init)
+{
+    ALYSSAPAN_STUB("CpMakeSnddrvInitStr", 0x018d2850);
     return {};
 }

@@ -302,7 +302,14 @@ void SdChangeStereoMono(int stereo);                                            
 void *SdAlloc(int size, int align, const char *name);                                    // CT3 0x018d17d0
 void SdFree(void **mem);                                                                 // CT3 0x018d17a0
 void SdLoadSQEndWaitAll(void);                                                           // CT3 0x018ce640
-void IopLoadCapcomSound(const char *device);                                              // CT3 IopLoadModules' last call (game/ArtoolDebugOpen.c)
+void IopLoadCapcomSound(const char *device);                                             // CT3 0x018d1860 (IopLoadModules' last call)
+void SdSetParamSESDT(int jls, int seNo, int reqArg2, u_int mask, ...);                   // CT3 0x018cce40
+// SdFindLoadSEInfo's first argument: what the second one is.
+#define SD_FIND_LOAD_SE_HANDLE 1        // an SdReqLoadSE handle (0 finds a free row)
+#define SD_FIND_LOAD_SE_NAME 2          // a bank name, any case
+#define SD_FIND_LOAD_SE_JLS 3           // a slot
+int SdFindLoadSEInfo(int by, ...);                                                       // CT3 0x018cd600
+extern u_int gSQHeapBD;                           /* sbss 0x019436c0: the IOP staging block for the SQ's .BD */
 
 // sbss 0x01943888: != 0 while an ADS stream is being opened; FlProc holds its reads back meanwhile.
 extern int gADSOpenSync;

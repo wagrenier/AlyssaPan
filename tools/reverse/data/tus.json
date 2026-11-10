@@ -540,7 +540,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 127..127, 1 functions keyed by their statics, 1 unkeyed; file name from the names"
   },
   "game/SdMasterVolumeSetSE.c": {
-   "notes": "Left: SdLoadSQProc (0x018ce6c0, 0x138c bytes, the SQ twin of SdLoadSEProc; it names SD_SQ_LD arg2/arg4/arg5/arg6/iopSq/iopBd and the row swap), SdPlayADSProc (0x018d10e0), IopLoadCapcomSound (0x018d1860, then FSS_Thread_Init runs). SdChangeStereoMono takes the stereo flag (sound.c passes gStereo). callcheck MISSING on SdVolumeSQ / SdStopSQ is the SdFindSQ helper, on SdLoadSEProc slice 2's helpers. Screen stays black (nothing on the draw path).",
+   "notes": "Left: SdLoadSQProc only (0x018ce6c0, about 500 decompiled lines, the SQ twin of SdLoadSEProc; it names SD_SQ_LD arg2/arg4/arg5/arg6/iopSq/iopBd and the row swap); then the TU is complete. The CpCall_IOPSndDriver stub now answers a zero reply word (FSS_Thread reads it). IopLoadCapcomSound made 5 CpDivideEECom.c stubs (CpInit_Gloval_EE, CpCreateEEComRecieveThread, CpMakeSnddrvInitStr, CpEEInit_RpcClient, CpExchangeTransBuffer): that TU is the next sound blocker. callcheck MISSING on SdVolumeSQ / SdStopSQ is the SdFindSQ helper, on SdLoadSEProc its step helpers; memcpy extra in IopLoadCapcomSound is the ROM's inlined lq/sq copy. Screen stays black (nothing on the draw path).",
    "ranges": [
     [
      "018cbf90",
@@ -567,6 +567,11 @@
      "date": "2026-11-10 15:14",
      "status": "partial",
      "summary": "slice 4: the SE stops (SdStopSEAll, SdStopSESDT, SdStopSEAllSp1, SdStopSESp1, SdStopSESp1ByHandle), SdReqPlaySESp1, IsPlaySEReady, SdLoadSEEndWaitAll, SdLoadSQEndWaitAll, the SQ requests (SdPlaySQ, SdStopSQ, SdStopSQAll, SdStopSQAllNow, SdVolumeSQ), SdPlayStream, SdSoundEnable, SdSoundDisable, SdChangeStereoMono (18 functions); SD_SQ_LD fields, gTransADS.path, EE_IOP_STAT.sndFlags"
+    },
+    {
+     "date": "2026-11-10 15:35",
+     "status": "partial",
+     "summary": "slice 5: SdPlayADSProc (the stream player, SD_ADS_PHASE), IopLoadCapcomSound (the driver boot: FSS_Thread runs from boot now), SdSetParamSESDT, SdFindLoadSEInfo; SND_TRANS_ADS fields and SND_DRV_INIT (gArg_CpDriverInit), gSQHeapBD"
     }
    ],
    "status": "partial",

@@ -4,13 +4,13 @@
 // master / stream volumes, reverb, SE stop and lookup, the load-end wait, SdAlloc / SdFree, SdRnd. Slice 2
 // (2026-11-10): SdProc, the SE bank loader (SdLoadSEProc, NextLoadSE), the SQ volume commands. Slice 4
 // (2026-11-10): the SE stops, the special SEs' request, the load waits, the SQ requests, the stream
-// request, sound on / off, stereo.
+// request, sound on / off, stereo. Slice 5 (2026-11-10): the stream player (SdPlayADSProc), the driver's
+// boot (IopLoadCapcomSound), SdSetParamSESDT, SdFindLoadSEInfo. Left: SdLoadSQProc.
 //
 // Every command goes the same way: take fss_sid, fill a command record (a JSL_COM, gTransJSLCOM or
 // gTransADS), queue (command word, record, reply pointer) on RingBuff with CpCall_IOPSndDriver_FIFO, and
 // release fss_sid; FSS_Thread wakes, takes fss_sid, and sends the oldest entry through
-// CpCall_IOPSndDriver. Until FSS_Thread_Init has run (IopLoadCapcomSound, still a stub) fss_sid / fss_tid
-// are 0 and the host kernel answers their calls with an error, so commands only fill the ring.
+// CpCall_IOPSndDriver. FSS_Thread_Init runs first thing in IopLoadCapcomSound (IopLoadModules, at boot).
 
 #include "game/SdMasterVolumeSetSE.h"
 
@@ -49,6 +49,7 @@ int gUseSoundAlloc;                             /* sbss 0x019438a0 */
 int gLdi;                                       /* sbss 0x019437dc: the gSELd row SdLoadSEProc steps */
 int gSELdHandleCounter;                         /* sbss 0x019437e0 */
 u_int gSEHeapBD;                                /* sbss 0x019437e4: the IOP block a .BD piece goes through */
+u_int gSQHeapBD;                                /* sbss 0x019436c0: the IOP block for the SQ's .BD */
 int gExecDriver_2;                              /* sbss 0x019437e8: frames before the next SPU2 transfer */
 int gSdSEHandleCounter;                         /* sbss 0x019437d4 */
 u_int gSdSEKeyOnCH;                             /* sbss 0x019437d8 */
@@ -1081,24 +1082,337 @@ void SdChangeStereoMono(int stereo)
     SignalSema(fss_sid);
 }
 
-// ---- stubs (tools/reverse/stubgen.py) ----
+// ---- slice 5 (2026-11-10): the stream player, the driver's boot, SdSetParamSESDT, SdFindLoadSEInfo ---------
 
-// stub of CT3 0x018d1860
+// SdPlayADSProc's phases (gSdADSPhase); 8, 9, 13 and 14 are unused (the jump table sends them to the end).
+typedef enum SD_ADS_PHASE {
+    SD_ADS_IDLE = 0,
+    SD_ADS_WAIT_READS = 1,      // SdPlayStream's request: wait for the file layer's reads to drain
+    SD_ADS_OPEN = 2,            // fill gTransADS and send SND_CMD_ADS_OPEN
+    SD_ADS_WAIT_OPEN = 3,       // until the IOP sets EE_IOP_ADS_OPENED, then SND_CMD_ADS_START
+    SD_ADS_OPENED = 4,          // the file layer may read again
+    SD_ADS_PLAYING = 5,         // until it ends, or gSdADSStop (stopArg != 0: fade, else at once)
+    SD_ADS_ENDED = 6,           // arg2 != 0: play it again after SD_ADS_REPLAY_WAIT frames
+    SD_ADS_REPLAY = 7,
+    SD_ADS_FADE = 10,           // down by SD_ADS_FADE_STEP a frame, then stop
+    SD_ADS_STOP = 11,
+    SD_ADS_WAIT_STOP = 12,
+    SD_ADS_DONE = 15,
+} SD_ADS_PHASE;
+#define SD_ADS_REPLAY_WAIT 5
+#define SD_ADS_FADE_STEP 4
+#define SD_ADS_OPEN_4C 0x5100u
+#define SD_ADS_OPEN_50 0x10100u
+#define SD_ADS_VOICE_L 0x16u
+#define SD_ADS_VOICE_R 0x17u
+
+static int sLoopWait;                           /* sbss 0x01942fc0 (sLoopWait$184): SD_ADS_REPLAY's frames */
+
+// CT3 0x018d10e0 -- SdProc's stream step: opens the ADS SdPlayStream asked for once the file layer is idle
+// (gADSOpenSync holds the file layer's reads back meanwhile), then watches it: replay when it ends with
+// arg2 set, fade out or stop at once on SdStopStream.
+static void SdPlayADSProc(void)
+{
+    switch (gSdADSPhase) {
+    case SD_ADS_WAIT_READS:
+        if (GetNowReadIdx() == -1) {
+            gADSOpenSync = 1;
+            gSdADSPhase++;
+        }
+        break;
+    case SD_ADS_OPEN: {
+        u_int vol = (u_int)SdScaleVolume(gPlayADS.vol);
+        WaitSema(fss_sid);
+        gTransADS.mode = SND_ADS_MODE;
+        gTransADS.open4c = SD_ADS_OPEN_4C;
+        gTransADS.one5c = 1;
+        gTransADS.open50 = SD_ADS_OPEN_50;
+        gTransADS.voiceR = SD_ADS_VOICE_R;
+        gTransADS.voiceL = SD_ADS_VOICE_L;
+        gTransADS.loop = gPlayADS.loop != 0;
+        gTransADS.vol = vol | vol << 16;
+        gTransADS.unk04 = 0;
+        CpGetEEIOPStatus()->sndFlags &= ~EE_IOP_ADS_OPENED;
+        // The ROM reads +0x40 back and stores it again (a volatile touch, no change).
+        int packIdx = FlFindPacked(gPlayADS.name);
+        gTransADS.sect = packIdx < 0 ? -1 : gFlPackInfo[packIdx].sect;
+        CpCall_IOPSndDriver_FIFO(SND_CMD_ADS_OPEN, &gTransADS, NULL);
+        SignalSema(fss_sid);
+        gSdADSPhase++;
+        break;
+    }
+    case SD_ADS_WAIT_OPEN:
+        if ((CpGetEEIOPStatus()->sndFlags & EE_IOP_ADS_OPENED) != 0) {
+            CpCall_IOPSndDriver_FIFO(SND_CMD_ADS_START, NULL, NULL);
+            gSdADSPhase++;
+        }
+        break;
+    case SD_ADS_OPENED:
+        gSdADSPhase++;
+        gADSOpenSync = 0;
+        break;
+    case SD_ADS_PLAYING:
+        if (gSdADSStop != 0) {
+            gSdADSPhase = gPlayADS.stopArg != 0 ? SD_ADS_FADE : SD_ADS_STOP;
+        } else if (!SdIsPlayingStream()) {
+            gSdADSPhase++;
+        }
+        break;
+    case SD_ADS_ENDED:
+        if (gPlayADS.arg2 == 0) {
+            gSdADSPhase = SD_ADS_DONE;
+        } else {
+            sLoopWait = SD_ADS_REPLAY_WAIT;
+            gSdADSPhase = SD_ADS_REPLAY;
+        }
+        break;
+    case SD_ADS_REPLAY:
+        if (--sLoopWait < 1) {
+            SdPlayStream(gPlayADS.name, gPlayADS.vol, gPlayADS.arg2, 0);
+        }
+        break;
+    case SD_ADS_FADE:
+        gPlayADS.vol -= SD_ADS_FADE_STEP;
+        if (gPlayADS.vol < 1) {
+            gSdADSPhase++;
+        } else {
+            SdVolumeStream(gPlayADS.vol);
+        }
+        break;
+    case SD_ADS_STOP:
+        CpCall_IOPSndDriver_FIFO(SND_CMD_ADS_STOP, NULL, NULL);
+        gSdADSPhase++;
+        break;
+    case SD_ADS_WAIT_STOP:
+        if (!SdIsPlayingStream()) {
+            gSdADSPhase = SD_ADS_DONE;
+        }
+        break;
+    case SD_ADS_DONE:
+        gSdADSStop = 0;
+        gSdADSPhase = SD_ADS_IDLE;
+        break;
+    default:
+        break;
+    }
+}
+
+static const char s_sndDrv[] = "\\IOP\\SNDDRV.IRX;1";  /* @2829 (18 bytes) */
+#define SD_COM_THREAD_PRIORITY 10
+#define SD_COM_THREAD_STACK 0x1000
+#define SD_INIT_VOICE_MASK 0xffffff                     /* SND_CMD_INIT_07's arg[1] */
+#define SD_SE_HEAP_BD_SIZE 0x32000                      /* gSEHeapBD: one .BD piece */
+#define SD_SQ_HEAP_BD_SIZE 0x3a000                      /* gSQHeapBD */
+
+// CT3 0x018d1860 -- boots the sound side (IopLoadModules' last step): the FSS thread, the EE <-> IOP
+// channel and its receive thread, SNDDRV.IRX from `device` (NULL: the bare path) with gArg_CpDriverInit's
+// arguments, the RPC client; then the stream buffers (waiting for EE_IOP_SND_READY), reverb off on both
+// cores, stereo / mono, the voices, the master volumes and the IOP staging blocks for SE and SQ .BDs.
 void IopLoadCapcomSound(const char *device)
 {
-    ALYSSAPAN_STUB("IopLoadCapcomSound", 0x018d1860);
+    char args[0x100];
+    char path[0x40];
+
+    FSS_Thread_Init();
+    CpInit_Gloval_EE();
+    CpCreateEEComRecieveThread(SD_COM_THREAD_PRIORITY, SD_COM_THREAD_STACK);
+    gArg_CpDriverInit.h1a = 0;
+    gArg_CpDriverInit.w00 = 0x1fffff;
+    gArg_CpDriverInit.w04 = 0x1ffff;
+    gArg_CpDriverInit.h14 = 0x1b;
+    gArg_CpDriverInit.w08 = 1;
+    gArg_CpDriverInit.h16 = 0x1b;
+    gArg_CpDriverInit.w0c = 0x1047;
+    gArg_CpDriverInit.h10 = 9;
+    gArg_CpDriverInit.h12 = 0xb;
+    gArg_CpDriverInit.h18 = 0x17;
+    if (device == NULL) {
+        memcpy(path, s_sndDrv, sizeof s_sndDrv);
+    } else {
+        strcpy(path, device);
+        strcat(path, s_sndDrv);
+    }
+    int argLen = (signed char)CpMakeSnddrvInitStr(args, &gArg_CpDriverInit);
+    sceSifLoadModule(path, argLen, args);
+    CpEEInit_RpcClient();
+    CpExchangeTransBuffer();
+
+    WaitSema(fss_sid);
+    gTransADS.unk6c = 0;
+    gTransADS.one5c = 1;
+    gTransADS.buf54 = 0xb000;
+    gTransADS.buf58 = 0x5800;
+    gTransADS.buf70 = 0x50;
+    gTransADS.buf74 = 5;
+    gTransADS.buf78 = 0xb;
+    gTransADS.buf7c = 0x2000;
+    CpGetEEIOPStatus()->sndFlags &= ~EE_IOP_SND_READY;
+    // The ROM reads +0x40 back and stores it again (a volatile touch, no change).
+    CpCall_IOPSndDriver_FIFO(SND_CMD_ADS_ENABLE, &gTransADS, NULL);
+    for (int n = SD_SOUND_ENABLE_SPIN; n != 0; n--) {
+        if ((CpGetEEIOPStatus()->sndFlags & EE_IOP_SND_READY) != 0) {
+            break;
+        }
+    }
+    SignalSema(fss_sid);
+
+    WaitSema(fss_sid);
+    gTransJSLCOM.arg[0] = 0;
+    CpCall_IOPSndDriver_FIFO(SND_CMD_INIT_08, &gTransJSLCOM, NULL);
+    SignalSema(fss_sid);
+    SdSetEffect(0, 0, 0);
+    SdSetEffect(SD_EFFECT_CORE_1, 0, 0);
+    SdChangeStereoMono(gStereo);
+    WaitSema(fss_sid);
+    gTransJSLCOM.arg[1] = SD_INIT_VOICE_MASK;
+    gTransJSLCOM.arg[0] = 0;
+    CpCall_IOPSndDriver_FIFO(SND_CMD_INIT_07, &gTransJSLCOM, NULL);
+    SignalSema(fss_sid);
+    SdMasterVolumeSetSE(gMasterVolSE);
+    WaitSema(fss_sid);
+    gTransJSLCOM.arg[0] = 0;
+    CpCall_IOPSndDriver_FIFO(SND_CMD_INIT_25, &gTransJSLCOM, NULL);
+    SignalSema(fss_sid);
+    if (gSEHeapBD == 0) {
+        gSEHeapBD = (u_int)(uintptr_t)sceSifAllocIopHeap(SD_SE_HEAP_BD_SIZE);
+    }
+    if (gSQHeapBD == 0) {
+        gSQHeapBD = (u_int)(uintptr_t)sceSifAllocIopHeap(SD_SQ_HEAP_BD_SIZE);
+    }
+    SdMasterVolumeSetSQ(gMasterVolSQ);
 }
+
+// CT3 0x018cce40 -- SdSetParamSE for every SE of slot jls, number seNo (reqArg2 0: whatever it was requested
+// with, else only that one): each bit of `mask` takes the next argument, in SD_SE_PARAM_* order; what is
+// left of the mask is or-ed into each SE's paramFlags. Nothing is answered (the ROM's v0 is unset).
+void SdSetParamSESDT(int jls, int seNo, int reqArg2, u_int mask, ...)
+{
+    int vol = 0, pan = 0, unk30 = 0, posVol = 0, posMode = 0, objId = 0, bank = 0;
+    const char *name = NULL;
+    SD_SE_UPDATE callback = NULL;
+    va_list ap;
+
+    if (mask == 0) {
+        return;
+    }
+    va_start(ap, mask);
+    if (mask & SD_SE_PARAM_VOLUME) {
+        vol = va_arg(ap, int);
+    }
+    if (mask & SD_SE_PARAM_PAN) {
+        pan = va_arg(ap, int);
+    }
+    if (mask & SD_SE_PARAM_30) {
+        unk30 = va_arg(ap, int);
+    }
+    if (mask & SD_SE_PARAM_POS_VOL) {
+        posVol = va_arg(ap, int);
+    }
+    if (mask & SD_SE_PARAM_POS_MODE) {
+        posMode = va_arg(ap, int);
+    }
+    if (mask & SD_SE_PARAM_OBJ_ID) {
+        objId = va_arg(ap, int);
+    }
+    if (mask & SD_SE_PARAM_BANK) {
+        bank = va_arg(ap, int);
+    }
+    if (mask & SD_SE_PARAM_NAME) {
+        name = va_arg(ap, const char *);
+    }
+    if (mask & SD_SE_PARAM_CALLBACK) {
+        callback = va_arg(ap, SD_SE_UPDATE);
+    }
+    va_end(ap);
+
+    for (int i = 0; i < SD_SE_COUNT; i++) {
+        SD_SE *se = &gSdSE[i];
+        if (se->handle == 0 || jls != se->jls || seNo != se->seNo || (reqArg2 != 0 && reqArg2 != se->reqArg2)) {
+            continue;
+        }
+        u_int left = mask;
+        if (mask & SD_SE_PARAM_VOLUME) {
+            se->vol = vol;
+        }
+        if (mask & SD_SE_PARAM_PAN) {
+            se->pan = pan;
+        }
+        if (mask & SD_SE_PARAM_30) {
+            se->unk30 = unk30;
+        }
+        if (left & SD_SE_PARAM_POS_VOL) {
+            left &= ~SD_SE_PARAM_POS_VOL;
+            se->posVol = posVol;
+        }
+        if (left & SD_SE_PARAM_POS_MODE) {
+            left &= ~SD_SE_PARAM_POS_MODE;
+            se->posMode = posMode;
+        }
+        if (left & SD_SE_PARAM_OBJ_ID) {
+            left &= ~SD_SE_PARAM_OBJ_ID;
+            se->objId = objId;
+        }
+        if (left & SD_SE_PARAM_BANK) {
+            left &= ~SD_SE_PARAM_BANK;
+            se->bank = bank;
+        }
+        if (left & SD_SE_PARAM_NAME) {
+            strncpy(se->name, name, sizeof se->name - 1);
+            left &= ~SD_SE_PARAM_NAME;
+        }
+        if (left & SD_SE_PARAM_CALLBACK) {
+            se->callback = callback;
+            left &= ~SD_SE_PARAM_CALLBACK;
+        }
+        se->paramFlags |= left;
+    }
+}
+
+// CT3 0x018cd600 -- the gSELd row of a bank load, found by SD_FIND_LOAD_SE_* (the one variadic argument:
+// a handle, a bank name, or a slot), or -1. By handle the ROM does not skip free rows: handle 0 finds the
+// first free one.
+int SdFindLoadSEInfo(int by, ...)
+{
+    va_list ap;
+    va_start(ap, by);
+    int found = -1;
+    if (by == SD_FIND_LOAD_SE_JLS) {
+        int jls = va_arg(ap, int);
+        for (int i = 0; i < SD_SE_LD_COUNT; i++) {
+            if (gSELd[i].handle != 0 && jls == gSELd[i].jls) {
+                found = i;
+                break;
+            }
+        }
+    } else if (by == SD_FIND_LOAD_SE_NAME) {
+        char upper[0x48];
+        strcpy(upper, va_arg(ap, const char *));
+        strupr(upper);
+        for (int i = 0; i < SD_SE_LD_COUNT; i++) {
+            if (gSELd[i].handle != 0 && strcmp(upper, gSELd[i].name) == 0) {
+                found = i;
+                break;
+            }
+        }
+    } else if (by == SD_FIND_LOAD_SE_HANDLE) {
+        int handle = va_arg(ap, int);
+        for (int i = 0; i < SD_SE_LD_COUNT; i++) {
+            if (handle == gSELd[i].handle) {
+                found = i;
+                break;
+            }
+        }
+    }
+    va_end(ap);
+    return found;
+}
+
+// ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x018ce6c0 (static: SdProc's step of the SQ loads)
 static void SdLoadSQProc(void)
 {
     ALYSSAPAN_STUB("SdLoadSQProc", 0x018ce6c0);
-}
-
-// stub of CT3 0x018d10e0 (static)
-static void SdPlayADSProc(void)
-{
-    ALYSSAPAN_STUB("SdPlayADSProc", 0x018d10e0);
 }
 
 // ---- slice 3 (2026-11-10): SE bank requests, SE play ------------------------------------------------------
