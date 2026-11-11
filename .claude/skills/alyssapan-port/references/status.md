@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-11 11:10 at commit `38a74d5` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-11 11:24 at commit `c047979` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1026**; stubs: **345**
+- reconstructed CT3 functions: **1033**; stubs: **338**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -88,7 +88,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/ssHitCheckAttackToScn.c` | 0 | 6 |
 | `src/game/ssSetTexUVforCubeMap.c` | 1 | 44 |
 | `src/game/tiAvoidObject.c` | 0 | 7 |
-| `src/game/tiXcmd_TransItem.c` | 60 | 32 |
+| `src/game/tiXcmd_TransItem.c` | 67 | 25 |
 | `src/game/tkXDTrg_GetSceneHash.c` | 0 | 7 |
 | `src/game/tnXcmd.c` | 0 | 8 |
 | `src/game/wideXcmd_DebugPrint.c` | 107 | 1 |
@@ -102,7 +102,7 @@ Least-named game-code regions (64 KB blocks):
 - next: **game/tiXcmd_TransItem.c** (pinned in the queue)
 - pinned queue: game/tiXcmd_TransItem.c, game/xcmd_tn.c, alyssapan/rendering/ga_atld.cpp, alyssapan/rendering/ui_canvas.cpp, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
 - partial: `alyssapan/rendering/ga_atld.cpp` 0/0 -- Shot still black for a game reason: the light0 colour is vertex colour plus the part's ALL_TABLE.partsPos (the ambient RGB), which only the event command tnXcmd
-- partial: `game/tiXcmd_TransItem.c` 60/93 -- Slice 5. Written: GetItem (ITEM_TABLE_LETTERS, ITEM_FIXED_SLOTS, ITEM_ROW_EVENT, LETTER_DATA_EVENT, TRIG_VAR_GOT_ITEM_KIND; host guards for ArrowData[3] and Ite
+- partial: `game/tiXcmd_TransItem.c` 67/93 -- Slice 6. Written: tiXcmd_CheckMCFile (MC_TIME_FRAMES_*; ROM minutes quirk kept, open-items.md), VibrationEnd/Start/CheckFlg/ON_OFF (VIBRATION_ARGC_*; effect wai
 - partial: `game/wideXcmd_DebugPrint.c` 107/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed) -- the last function of the TU. New stubs
 - partial: `game/xcmd_tn.c` 37/57 -- 15 commands written. Picture: frame 120 shows ATLD memory-card text at 4:3 as before; black from frame 180 because the script waits on the stub tiXcmd_XFade_Bre
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
@@ -135,6 +135,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-11 11:24 `game/tiXcmd_TransItem.c` partial: reconstruct 7 functions: vibration start, end and option, wait for a free brain, character HP data, memory-card file digits
 - 2026-11-11 11:10 `game/tiXcmd_TransItem.c` partial: reconstruct 3 functions and annotate 11: item pick-up, list lookup, memory-card flags back to variables; the empty free, light-belt, stereo and memory-card id c
 - 2026-11-11 10:53 `game/tiXcmd_TransItem.c` partial: reconstruct 8 functions: item and key-item table fields, variable compare, copy and subtract, current-scene check, soft reset
 - 2026-11-11 10:30 `game/tiXcmd_TransItem.c` partial: reconstruct 14 functions: key-config frame and assignment, Alyssa life and status bar, item slot swap and last index, memory-card screen ids, stereo slots
@@ -142,19 +143,18 @@ Recent sessions:
 - 2026-11-11 09:59 `game/tiXcmd_TransItem.c` partial: reconstruct 22 functions: item examination, scene and map commands, free slots, range and earthquake checks, shade-off, cross-fade break, pendulum reset, reserv
 - 2026-11-11 09:33 `game/xcmd_tn.c` partial: slice 2: wideXcmd_PlayAnimeToFream2 (the reached stub), clips, panic, continue, time stop, shape / behaviour / bank free, stay room, message bank, menu map, fog
 - 2026-11-11 09:21 `game/ssGrpPortalCheck.c` verify: picture: ssSetAmbColorToAllObj (game/ssSetTexUVforCubeMap.c) fills every ga object's +0x38 ambient pointer; ATLD's Checking text shows at 4:3 and wide
-- 2026-11-11 09:05 `game/ssGrpPortalCheck.c` partial: triggers slice 5: ssTrigExecuteActCmd (every command id and operand size, TRIG_CMD_*), the 256-slot ssXcmd_functions table from the ELF, suXcmd_AnmDirection; 23
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `game/Clipping_Portal.c` | todo | 0/40/73 | 44.8 | 182 | 20 |
+| `game/Clipping_Portal.c` | todo | 0/40/73 | 44.8 | 188 | 20 |
 | `game/ssSetTexUVforCubeMap.c` | partial | 1/44/96 | 35.3 | 106 | 10 |
 | `game/CpDivideEECom.c` | todo | 0/10/18 | 3.3 | 80 | 10 |
 | `ga/gaDrawObject.c` | todo | 0/11/11 | 6.9 | 39 | 0 |
 | `game/tiAvoidObject.c` | todo | 0/7/82 | 30.5 | 27 | 4 |
 | `game/ssHitCheckAttackToScn.c` | todo | 0/6/37 | 32.0 | 23 | 3 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
-| `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
 | `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
+| `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
 | `game/asUseArrow.c` | todo | 0/6/11 | 6.4 | 16 | 1 |
 | `game/tkXDTrg_GetSceneHash.c` | todo | 0/7/50 | 21.0 | 14 | 2 |
 | `game/AA_SoundMonoSoart.c` | todo | 0/8/20 | 4.0 | 13 | 1 |
@@ -165,7 +165,9 @@ Recent sessions:
 |---|---|---|---|---|---|
 | `01851b10` | ConvertQuat2Matrix | 17 | sym | stub | game/Convert.c |
 | `018d1e70` | CpGetEEIOPStatus | 14 | sym | stub | game/CpDivideEECom.c |
+| `0188ce10` | tiVibrationOn | 9 | sym | stub | game/Clipping_Portal.c |
 | `0188ced0` | tiDrawShadingOff | 9 | sym | stub | game/Clipping_Portal.c |
+| `0188cdc0` | tiVibrationOff | 8 | sym | stub | game/Clipping_Portal.c |
 | `0188d3c0` | tiFade_Start | 8 | sym | stub | game/Clipping_Portal.c |
 | `01893cf0` | ExportDrawToTex | 8 | sym | stub | game/Clipping_Portal.c |
 | `018a3078` | gaObjectClippingCheck | 7 | sym | stub | ga/gaObjectClippingCheck.c |
@@ -173,9 +175,7 @@ Recent sessions:
 | `018a51e8` | gaDrawObject_VertexLocalViewWithClippingFlagSet_Billboard | 6 | sym | stub | ga/gaDrawObject.c |
 | `018a5fe0` | gaDrawObject_MakeVertexReferenceTable | 6 | sym | stub | ga/gaDrawObject.c |
 | `018518d0` | ConvertMatrix2Quat | 6 | sym | stub | game/Convert.c |
-| `0188cdc0` | tiVibrationOff | 6 | sym | stub | game/Clipping_Portal.c |
 | `018d1fa0` | CpSifDmaTransEEToIOP | 6 | sym | stub | game/CpDivideEECom.c |
-| `0188ce10` | tiVibrationOn | 5 | sym | stub | game/Clipping_Portal.c |
 | `01883ca0` | asMothPause | 5 | sym | stub | game/asMothPause.c |
 | `01866c10` | asShootArrowSetting | 5 | sym | stub | game/asUseArrow.c |
 | `01896920` | ssGetNumBlurDrawObjForScene | 5 | sym | stub | game/ssSetTexUVforCubeMap.c |

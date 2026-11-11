@@ -15,6 +15,7 @@
 #include "sdk/libpad.h"
 #include "game/tiXcmd_TransItem.h"
 #include "game/xcmd_tn.h"
+#include "game/Character_Init.h"
 #include "game/Clipping_Portal.h"
 #include "game/QuatSlerp.h"
 #include "game/ahRelocateSunPs2ObjectArry.h"
@@ -1387,6 +1388,119 @@ int tiXcmd_GetMCflag(int argc, char **argv, int bank)
     return XCMD_DONE;
 }
 
+// CT3 0x018e71f0: memory-card file (the variable argv[0], bank scope) to digits for the load screen:
+// argv[1] its save count, argv[2..4] that count's hundreds / tens / units, argv[5] its message number,
+// argv[6..8] the play time's hours as three digits, argv[9..10] minutes, argv[11..12] seconds.
+// The ROM takes the hour count (not the hours' frames) off before it divides out the minutes, and the
+// minutes are not wrapped at 60: kept as the ROM does (open-items.md).
+int tiXcmd_CheckMCFile(int argc, char **argv, int bank)
+{
+    int file = ssTrigGetVariable(atoi(argv[0]), 0, bank);
+    int count = mc_Getinfo_count(file);
+    int countLow = count % 100;
+    int time, hours, hoursTens, minutes, seconds;
+
+    (void)argc;
+    ssTrigSetVariable(atoi(argv[1]) & 0xffff, count, 0, bank);
+    ssTrigSetVariable(atoi(argv[2]) & 0xffff, count / 100, 0, bank);
+    ssTrigSetVariable(atoi(argv[3]) & 0xffff, countLow / 10, 0, bank);
+    ssTrigSetVariable(atoi(argv[4]) & 0xffff, countLow % 10, 0, bank);
+    ssTrigSetVariable(atoi(argv[5]) & 0xffff, mc_Getinfo_msg_num(file), 0, bank);
+
+    time = mc_Getinfo_time(file);
+    hours = time / MC_TIME_FRAMES_PER_HOUR;
+    hoursTens = hours / 10 - (hours / 100) * 10;
+    minutes = (time - hours) / MC_TIME_FRAMES_PER_MINUTE;
+    seconds = ((time - hours - minutes) / MC_TIME_FRAMES_PER_SECOND) % 60;
+    ssTrigSetVariable(atoi(argv[6]) & 0xffff, hours / 100, 0, bank);
+    ssTrigSetVariable(atoi(argv[7]) & 0xffff, hoursTens, 0, bank);
+    ssTrigSetVariable(atoi(argv[8]) & 0xffff, hours - (hours / 100) * 100 - hoursTens * 10, 0, bank);
+    ssTrigSetVariable(atoi(argv[9]) & 0xffff, minutes / 10, 0, bank);
+    ssTrigSetVariable(atoi(argv[10]) & 0xffff, minutes % 10, 0, bank);
+    ssTrigSetVariable(atoi(argv[11]) & 0xffff, seconds / 10, 0, bank);
+    ssTrigSetVariable(atoi(argv[12]) & 0xffff, seconds % 10, 0, bank);
+    return XCMD_DONE;
+}
+
+// CT3 0x018e75b0: stop pad argv[0]'s vibration.
+int tiXcmd_VibrationEnd(int argc, char **argv, int bank)
+{
+    (void)argc;
+    (void)bank;
+    tiVibrationOff(atoi(argv[0]) & 0xff);
+    return XCMD_DONE;
+}
+
+// CT3 0x018e75e0: restart pad argv[0]'s vibration. Three or four arguments give the motors as numbers;
+// five or six take motor 1 from an event check (argv[1] / argv[2]) and motor 2 from a variable (argv[3] /
+// argv[4]); the fourth tiVibrationOn argument is argv[3] or argv[5] (0 without). Other counts only stop it.
+int tiXcmd_VibrationStart(int argc, char **argv, int bank)
+{
+    int port = atoi(argv[0]) & 0xff;
+    int motor1, motor2;
+
+    tiVibrationOff(port);
+    switch (argc) {
+    case VIBRATION_ARGC_LITERAL:
+        tiVibrationOn(port, atoi(argv[1]) & 0xff, atoi(argv[2]), 0);
+        break;
+    case VIBRATION_ARGC_LITERAL_TIME:
+        tiVibrationOn(port, atoi(argv[1]) & 0xff, atoi(argv[2]), atoi(argv[3]));
+        break;
+    case VIBRATION_ARGC_VARS:
+        motor1 = ssTrigCheckEvent(atoi(argv[1]) & 0xffff, atoi(argv[2]), bank);
+        motor2 = ssTrigGetVariable(atoi(argv[3]) & 0xffff, atoi(argv[4]), bank);
+        tiVibrationOn(port, motor1, motor2, 0);
+        break;
+    case VIBRATION_ARGC_VARS_TIME:
+        motor1 = ssTrigCheckEvent(atoi(argv[1]) & 0xffff, atoi(argv[2]), bank);
+        motor2 = ssTrigGetVariable(atoi(argv[3]) & 0xffff, atoi(argv[4]), bank);
+        tiVibrationOn(port, motor1, motor2, atoi(argv[5]));
+        break;
+    default:
+        break;
+    }
+    return XCMD_DONE;
+}
+
+// CT3 0x018e77b0: the vibration option (fVibration) to the variable argv[0] (scope argv[1]).
+int tiXcmd_VibrationCheckFlg(int argc, char **argv, int bank)
+{
+    (void)argc;
+    ssTrigSetVariable(atoi(argv[0]) & 0xffff, fVibration, atoi(argv[1]), bank);
+    return XCMD_DONE;
+}
+
+// CT3 0x018e7810: the vibration option from the variable argv[0] (scope argv[1]; the ROM does not mask
+// the variable to 16 bits here).
+int tiXcmd_VibrationON_OFF(int argc, char **argv, int bank)
+{
+    (void)argc;
+    fVibration = (u_char)ssTrigGetVariable(atoi(argv[0]), atoi(argv[1]), bank);
+    return XCMD_DONE;
+}
+
+// CT3 0x018e7870: wait until Character[argv[0]] has no AI brain.
+int tiXcmd_WaitUntilBrainFree(int argc, char **argv, int bank)
+{
+    (void)argc;
+    (void)bank;
+    return Character[atoi(argv[0])].brain == 0 ? XCMD_DONE : XCMD_WAIT;
+}
+
+// CT3 0x018e78c0: Character[argv[0]]'s "HP" or "HP_MAX" (argv[3]) to the variable argv[1] (scope argv[2]).
+// Any other field name does nothing.
+int wideXcmd_GetCharaData(int argc, char **argv, int bank)
+{
+    (void)argc;
+    if (strcmp(argv[3], "HP") == 0) {
+        ssTrigSetVariable(atoi(argv[1]) & 0xffff, Character[atoi(argv[0])].hp, atoi(argv[2]), bank);
+    } else if (strcmp(argv[3], "HP_MAX") == 0) {
+        ssTrigSetVariable(atoi(argv[1]) & 0xffff, Character[atoi(argv[0])].hpMax, atoi(argv[2]), bank);
+    }
+    return XCMD_DONE;
+}
+
 // ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x018e8640
@@ -1428,13 +1542,6 @@ int tiXcmd_BOSS_SetWarp(int argc, char **argv, int bank)
 int tiXcmd_Balows2th(int argc, char **argv, int bank)
 {
     ALYSSAPAN_STUB("tiXcmd_Balows2th", 0x018e1bc0);
-    return {};
-}
-
-// stub of CT3 0x018e71f0
-int tiXcmd_CheckMCFile(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_CheckMCFile", 0x018e71f0);
     return {};
 }
 
@@ -1536,41 +1643,6 @@ int tiXcmd_UseItem(int argc, char **argv, int bank)
     return {};
 }
 
-// stub of CT3 0x018e77b0
-int tiXcmd_VibrationCheckFlg(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_VibrationCheckFlg", 0x018e77b0);
-    return {};
-}
-
-// stub of CT3 0x018e75b0
-int tiXcmd_VibrationEnd(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_VibrationEnd", 0x018e75b0);
-    return {};
-}
-
-// stub of CT3 0x018e7810
-int tiXcmd_VibrationON_OFF(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_VibrationON_OFF", 0x018e7810);
-    return {};
-}
-
-// stub of CT3 0x018e75e0
-int tiXcmd_VibrationStart(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_VibrationStart", 0x018e75e0);
-    return {};
-}
-
-// stub of CT3 0x018e7870
-int tiXcmd_WaitUntilBrainFree(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_WaitUntilBrainFree", 0x018e7870);
-    return {};
-}
-
 // stub of CT3 0x018e8bc0
 int tkXcmd_CaptionFlag(int argc, char **argv, int bank)
 {
@@ -1589,13 +1661,6 @@ int tkXcmd_CharSceneChange(int argc, char **argv, int bank)
 int wideXcmd_Delay(int argc, char **argv, int bank)
 {
     ALYSSAPAN_STUB("wideXcmd_Delay", 0x018e8f00);
-    return {};
-}
-
-// stub of CT3 0x018e78c0
-int wideXcmd_GetCharaData(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("wideXcmd_GetCharaData", 0x018e78c0);
     return {};
 }
 

@@ -1115,7 +1115,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 81..81, 18 functions keyed by their statics, 13 unkeyed; file name from the names"
   },
   "game/tiXcmd_TransItem.c": {
-   "notes": "Slice 5. Written: GetItem (ITEM_TABLE_LETTERS, ITEM_FIXED_SLOTS, ITEM_ROW_EVENT, LETTER_DATA_EVENT, TRIG_VAR_GOT_ITEM_KIND; host guards for ArrowData[3] and ItemList[-1], open-items.md), GetIDfromList, GetMCflag; Free3..6, LightBeltStart/End, SetmcAccess/Err/File/Slot/Main_ID and StereoCheckFlg/ON_OFF got their CT3 address lines. Left: GetBloodAttackObject, Balows2th, SCISSORS_MAN and the BOSS commands (EE pointers into pBossInfo: wait for the boss TU host form), wideXcmd_Delay, vibration, ghost pole, CheckMCFile, CopySunPs2Object, SetScale/Rotation, AddVariable, the other wideXcmd and tkXcmd. Screen unchanged: frame 120 memory-card text, then flat grey; the script waits at tiFade_Start and hhXcmd_LoadSE (stubs), the next blocker for the picture.",
+   "notes": "Slice 6. Written: tiXcmd_CheckMCFile (MC_TIME_FRAMES_*; ROM minutes quirk kept, open-items.md), VibrationEnd/Start/CheckFlg/ON_OFF (VIBRATION_ARGC_*; effect waits on the tiVibrationOn/Off stubs in Clipping_Portal.c), WaitUntilBrainFree (Character.brain), wideXcmd_GetCharaData (HP / HP_MAX). Left: GetBloodAttackObject, Balows2th, SCISSORS_MAN and the BOSS commands (EE pointers into pBossInfo: wait for the boss TU host form), wideXcmd_Delay, GetRate, GetNumberOfBeam, ghost pole, CopySunPs2Object, SetScale/Rotation, AddVariable, SetPlayerChara, SetDrawMode_Global, SceneAnimationSkipToVariable, UseItem, TEST00, tkXcmd_CaptionFlag/CharSceneChange. Screen unchanged: flat grey; the script waits at tiFade_Start and hhXcmd_LoadSE (stubs), the next blocker for the picture.",
    "ranges": [
     [
      "018e0e80",
@@ -1147,6 +1147,11 @@
      "date": "2026-11-11 11:10",
      "status": "partial",
      "summary": "reconstruct 3 functions and annotate 11: item pick-up, list lookup, memory-card flags back to variables; the empty free, light-belt, stereo and memory-card id commands get their addresses"
+    },
+    {
+     "date": "2026-11-11 11:24",
+     "status": "partial",
+     "summary": "reconstruct 7 functions: vibration start, end and option, wait for a free brain, character HP data, memory-card file digits"
     }
    ],
    "status": "partial",

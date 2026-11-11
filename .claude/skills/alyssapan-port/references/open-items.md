@@ -1248,6 +1248,16 @@ apply here):
 
 ## Open questions
 
+- (2026-11-11, game/tiXcmd_TransItem.c slice 6) **tiXcmd_CheckMCFile's play-time minutes look like a ROM
+  bug, kept:** the ROM computes minutes = (time - hours) / 1800, taking off the hour *count* rather than
+  hours * 108000 frames, and never wraps them at 60 (seconds do wrap), so a save past one hour shows
+  minute digits from the total minutes' last two digits. The port keeps the ROM's arithmetic (disassembly
+  0x018e7354..0x018e7418 confirms the subtraction). Whether to fix it is the user's call. Also kept from
+  the ROM: VibrationON_OFF reads its variable without the 0xffff mask the other commands apply;
+  VibrationStart's event / variable motors (argc 5 / 6) are passed unmasked. The vibration commands'
+  effect waits on tiVibrationOn / tiVibrationOff (Clipping_Portal.c stubs). GetCharaData's two keys are
+  "HP" (0x01936df8) and "HP_MAX" (0x01936e00).
+
 - (2026-11-11, game/tiXcmd_TransItem.c slice 5) **tiXcmd_GetItem's two out-of-range writes, guarded on
   the host:** arrow id 3 (ARROW_UNLISTED: counted, never listed) increments ArrowData[3], but the symtab
   gives ArrowData 12 bytes (3 ints, sbss 0x0193f858): the ROM writes the unnamed word at 0x0193f864. The

@@ -98,6 +98,16 @@ enum {
 #define ARROW_UNLISTED 3                /* GetItem's arrow id that is counted only, never listed */
 #define TRIG_VAR_GOT_ITEM_KIND 0x23     /* global: the kind of the last item picked up (GetItem) */
 
+// Slice 6 (2026-11-11): tiXcmd_VibrationStart's argument counts (argv[0] the port, then the motors).
+#define VIBRATION_ARGC_LITERAL 3        /* port, motor 1, motor 2: the numbers themselves */
+#define VIBRATION_ARGC_LITERAL_TIME 4   /* ... and the fourth tiVibrationOn argument */
+#define VIBRATION_ARGC_VARS 5           /* port, (event, global) for motor 1, (variable, global) for motor 2 */
+#define VIBRATION_ARGC_VARS_TIME 6      /* ... and the fourth argument as a number */
+// tiXcmd_CheckMCFile: mc_Getinfo_time counts frames (30 a second); the play time goes out as digits.
+#define MC_TIME_FRAMES_PER_HOUR 108000  /* 0x1a5e0 */
+#define MC_TIME_FRAMES_PER_MINUTE 1800  /* 0x708 */
+#define MC_TIME_FRAMES_PER_SECOND 30    /* 0x1e */
+
 // tiXcmd_CompareVariable: an operand whose global argument is XCMD_SCOPE_LITERAL is the number itself
 // (tkXcmd_GetValueType answers 2 for the same); the answer goes to a variable as COMPARE_*.
 #define XCMD_SCOPE_LITERAL 2
