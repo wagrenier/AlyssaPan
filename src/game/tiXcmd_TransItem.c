@@ -22,6 +22,7 @@
 #include "game/QuatSlerp.h"
 #include "game/ahRelocateSunPs2ObjectArry.h"
 #include "game/asEyeForcusUP2CamMat.h"
+#include "game/asUseArrow.h"
 #include "game/LinkMatrixTree.h"
 #include "game/main.h"
 #include "game/ssGrpPortalCheck.h"
@@ -1287,6 +1288,183 @@ int tiXcmd_GetIDfromList(int argc, char **argv, int bank)
     return XCMD_DONE;
 }
 
+// tiXcmd_UseItem's row ints (+4, +0x10, +0x14).
+static int ItemRowInt(const u_char *rec, int off)
+{
+    int v;
+
+    memcpy(&v, rec + off, sizeof(v));
+    return v;
+}
+
+// One of the item's held count is used up; the last one leaves its slot.
+static void ItemConsume(u_char *rec, int slot)
+{
+    if (--rec[ITEM_FIELD_HELD] == 0)
+        ItemList[slot] = 0;
+}
+
+// After a use the list closes up: each empty slot pulls everything after it down by one (key items from
+// slot 0, items from ITEM_FIXED_SLOTS - 1: items 1..4 keep their own slots).
+static void ItemListCompact(int *list, int from, int n)
+{
+    int i, j;
+
+    for (i = from; i < n; i++) {
+        if (list[i] != 0)
+            continue;
+        for (j = i + 1; j < n; j++) {
+            list[j - 1] = list[j];
+            list[j] = 0;
+        }
+    }
+}
+
+// CT3 0x018e6330: Alyssa uses the item in the variable argv[0] (global argv[1]) from list argv[5]
+// (ITEM_TABLE_*: the arrows go to asUseArrow). argv[4] (ITEM_USE_*) finds the slot -- by the item, or
+// the variable argv[2] (global argv[3]) -- or only empties it. What a use does is the row's kind
+// (ITEM_KIND_*); a use that cannot happen (no item, a needed event unset, a CALM with no panic) sets the
+// item variable to -1. A used item that is consumed loses one of its held count (a key item its slot).
+int tiXcmd_UseItem(int argc, char **argv, int bank)
+{
+    int var = atoi(argv[0]) & 0xffff;
+    int global = atoi(argv[1]);
+    int mode = atoi(argv[4]);
+    int id = ssTrigGetVariable(var, global, bank);
+    int table = atoi(argv[5]);
+    int *list;
+    int slots;
+    int slot;
+    u_char *rec;
+
+    (void)argc;
+    if (table == ITEM_TABLE_ARROWS) {
+        asUseArrow(id);
+        return XCMD_DONE;
+    }
+    if (table == ITEM_TABLE_KEY_ITEMS) {
+        list = KeyItemList;
+        slots = KEY_ITEM_LIST_SLOTS;
+    } else if (table == ITEM_TABLE_ITEMS) {
+        list = ItemList;
+        slots = ITEM_LIST_SLOTS;
+    } else {
+        return XCMD_DONE;
+    }
+
+    if (mode == ITEM_USE_FIND) {
+        for (slot = 0; slot < slots; slot++)
+            if (list[slot] == id)
+                break;
+    } else {
+        slot = ssTrigGetVariable(atoi(argv[2]) & 0xffff, atoi(argv[3]), bank);
+    }
+    if (id == 0) {
+        ssTrigSetVariable(var, -1, global, bank);
+        return XCMD_DONE;
+    }
+    // PORT: the ROM writes the word past the list when the item is not found (slot == slots), or any
+    // slot / row a script variable names; the host refuses those.
+    if (slot < 0 || slot >= slots || id < 0 || id >= 100)
+        return XCMD_DONE;
+    if (mode == ITEM_USE_DROP) {
+        list[slot] = 0;
+        return XCMD_DONE;
+    }
+
+    if (table == ITEM_TABLE_KEY_ITEMS) {
+        rec = KeyItemData[id];
+        switch (rec[ITEM_FIELD_KIND]) {
+        case ITEM_KIND_COUNT_ONLY:
+            list[slot] = 0;
+            break;
+        case ITEM_KIND_SIGNAL_IF:
+            if (!ssTrigCheckEvent(ItemRowInt(rec, ITEM_ROW_NEED_EVENT), 1, 0))
+                ssTrigSetVariable(var, -1, global, bank);
+            else
+                ssTrigRegisterEvent(ItemRowInt(rec, ITEM_ROW_USE_EVENT), 1, 0);
+            break;
+        case ITEM_KIND_SIGNAL:
+            ssTrigRegisterEvent(ItemRowInt(rec, ITEM_ROW_USE_EVENT), 1, 0);
+            break;
+        case ITEM_KIND_GIVE_TAKE_IF:
+            if (!ssTrigCheckEvent(ItemRowInt(rec, ITEM_ROW_NEED_EVENT), 1, 0)) {
+                ssTrigSetVariable(var, -1, global, bank);
+                break;
+            }
+            /* fall through */
+        case ITEM_KIND_GIVE_TAKE:
+            ssTrigRegisterEvent(ItemRowInt(rec, ITEM_ROW_USE_EVENT), 1, 0);
+            ssTrigRemoveEvent(ItemRowInt(rec, ITEM_ROW_EVENT), 1, 0);
+            list[slot] = 0;
+            break;
+        default:
+            ssTrigSetVariable(var, -1, global, bank);
+            break;
+        }
+        ItemListCompact(list, 0, slots);
+        return XCMD_DONE;
+    }
+
+    rec = ItemData[id];
+    switch (rec[ITEM_FIELD_KIND]) {
+    case ITEM_KIND_COUNT_ONLY:
+        ItemConsume(rec, slot);
+        break;
+    case ITEM_KIND_INVISIBLE:
+        if (!ssTrigCheckEvent(TRIG_EVENT_INVISIBLE, 1, 0)) {
+            ItemConsume(rec, slot);
+            ssTrigRegisterEvent(TRIG_EVENT_INVISIBLE, 1, 0);
+        } else {
+            ssTrigSetVariable(var, -1, global, bank);
+        }
+        break;
+    case ITEM_KIND_CALM:
+        if (ssTrigCheckEvent(TRIG_EVENT_CALM_ALT_READY, 1, 0)) {
+            ItemConsume(rec, slot);
+            ssTrigRegisterEvent(TRIG_EVENT_CALM_ALT_USED, 1, 0);
+        } else if (PanicInfoData.gauge == 0.0f || ssTrigCheckEvent(TRIG_EVENT_NO_CALM, 1, 0)) {
+            ssTrigSetVariable(var, -1, global, bank);
+        } else {
+            ItemConsume(rec, slot);
+            PanicDownSet(ItemRowInt(rec, ITEM_ROW_USE_EVENT));
+        }
+        break;
+    case ITEM_KIND_HEAL:
+        // Character[0] is Alyssa; the cap confirms hp (+0x524) is the current value, hpMax its top.
+        Character[0].hp += ItemRowInt(rec, ITEM_ROW_USE_EVENT);
+        if (Character[0].hp > Character[0].hpMax)
+            Character[0].hp = Character[0].hpMax;
+        ItemConsume(rec, slot);
+        break;
+    case ITEM_KIND_SIGNAL_IF:
+        if (!ssTrigCheckEvent(ItemRowInt(rec, ITEM_ROW_NEED_EVENT), 1, 0))
+            ssTrigSetVariable(var, -1, global, bank);
+        else
+            ssTrigRegisterEvent(ItemRowInt(rec, ITEM_ROW_USE_EVENT), 1, 0);
+        break;
+    case ITEM_KIND_SIGNAL:
+        ssTrigRegisterEvent(ItemRowInt(rec, ITEM_ROW_USE_EVENT), 1, 0);
+        break;
+    case ITEM_KIND_GIVE_TAKE_IF:
+        if (!ssTrigCheckEvent(ItemRowInt(rec, ITEM_ROW_NEED_EVENT), 1, 0)) {
+            ssTrigSetVariable(var, -1, global, bank);
+            break;
+        }
+        /* fall through */
+    case ITEM_KIND_GIVE_TAKE:
+        ssTrigRegisterEvent(ItemRowInt(rec, ITEM_ROW_USE_EVENT), 1, 0);
+        ssTrigRemoveEvent(ItemRowInt(rec, ITEM_ROW_EVENT), 1, 0);
+        ItemConsume(rec, slot);
+        break;
+    default:
+        ssTrigSetVariable(var, -1, global, bank);
+        break;
+    }
+    ItemListCompact(list, ITEM_FIXED_SLOTS - 1, slots);
+    return XCMD_DONE;
+}
+
 // CT3 0x018e6bf0: Alyssa picks up item (the variable argv[0], global argv[1]) of kind argv[2]
 // (ITEM_TABLE_*). TRIG_VAR_GOT_ITEM_KIND (global) = the kind; the item goes to the first free slot of its
 // list, its pick-up event (the row's ITEM_ROW_EVENT / the letter's) is registered and the next frame
@@ -1857,12 +2035,6 @@ int tiXcmd_SetScale(int argc, char **argv, int bank)
     return XCMD_DONE;
 }
 
-// stub of CT3 0x018e6330
-int tiXcmd_UseItem(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_UseItem", 0x018e6330);
-    return {};
-}
 
 // CT3 0x018e8e70: a scope argument's first character -> XCMD_SCOPE_*: a digit '0'..'2' is itself, "t" the
 // bank, "g" global, "n" a literal number (either case).

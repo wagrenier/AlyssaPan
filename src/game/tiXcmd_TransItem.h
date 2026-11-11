@@ -124,6 +124,30 @@ enum {
 #define ARROW_UNLISTED 3                /* GetItem's arrow id that is counted only, never listed */
 #define TRIG_VAR_GOT_ITEM_KIND 0x23     /* global: the kind of the last item picked up (GetItem) */
 
+// Slice 10 (2026-11-11): tiXcmd_UseItem. argv[4] says how the slot is found or what the use does; the
+// row's byte +0 (ITEM_FIELD_KIND) says what using the item does. A use that cannot happen sets the item
+// variable to -1. Named from this one function: the scripts that pass them confirm them.
+enum {
+    ITEM_USE_SLOT_FROM_VAR = 0,         /* the slot is the variable argv[2] (global argv[3]); use the item */
+    ITEM_USE_DROP = 1,                  /* ... and only empty the slot (no use, no compaction) */
+    ITEM_USE_FIND = 2,                  /* the slot is the one holding the item; use it */
+};
+enum {
+    ITEM_KIND_GIVE_TAKE = 0,            /* register +4, remove +0x14, consume */
+    ITEM_KIND_GIVE_TAKE_IF = 1,         /* the same when the event +0x10 is set, else refused */
+    ITEM_KIND_SIGNAL = 2,               /* register +4 only (kept) */
+    ITEM_KIND_SIGNAL_IF = 3,            /* register +4 when the event +0x10 is set (kept), else refused */
+    ITEM_KIND_HEAL = 4,                 /* Alyssa's hp += the int +4, up to hpMax; consume */
+    ITEM_KIND_CALM = 5,                 /* PanicDownSet(the int +4) while she panics; consume */
+    ITEM_KIND_INVISIBLE = 6,            /* sets TRIG_EVENT_INVISIBLE unless it is set; consume */
+    ITEM_KIND_COUNT_ONLY = 0xff,        /* (-1) consume only; a key item of this kind just leaves the list */
+};
+#define ITEM_ROW_USE_EVENT 4            /* the row's int: the event a use registers (HEAL / CALM: the amount) */
+#define ITEM_ROW_NEED_EVENT 0x10        /* the row's int: the event the _IF kinds need */
+#define TRIG_EVENT_CALM_ALT_READY 0x44b /* set: a CALM item registers TRIG_EVENT_CALM_ALT_USED instead */
+#define TRIG_EVENT_CALM_ALT_USED 0x44a
+#define TRIG_EVENT_NO_CALM 0x1a         /* set: a CALM item is refused (also cleared by a load) */
+
 // Slice 6 (2026-11-11): tiXcmd_VibrationStart's argument counts (argv[0] the port, then the motors).
 #define VIBRATION_ARGC_LITERAL 3        /* port, motor 1, motor 2: the numbers themselves */
 #define VIBRATION_ARGC_LITERAL_TIME 4   /* ... and the fourth tiVibrationOn argument */

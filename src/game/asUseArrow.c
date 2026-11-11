@@ -44,3 +44,9 @@ int asShootArrowSetting(u_char kind, u_short a1, u_short a2)
     ALYSSAPAN_STUB("asShootArrowSetting", 0x01866c10);
     return {};
 }
+
+// stub of CT3 0x018665e0
+void asUseArrow(int arrow)
+{
+    ALYSSAPAN_STUB("asUseArrow", 0x018665e0);
+}

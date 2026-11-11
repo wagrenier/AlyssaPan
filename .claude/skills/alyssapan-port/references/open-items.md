@@ -1317,6 +1317,16 @@ apply here):
   Slice 9 (2026-11-11): Balows2th is written without its pointer writes (PORT in its comment): the
   chain sets' holding arrays at +0x10c / +0x110 and Character[32].brain's bytes (+0, +1, +0x181; the AI
   TU's host form, (1 am)) are skipped. Fill them in when either host form lands.
+  Slice 10 (2026-11-11): UseItem written -- **the TU's code is complete except the eight boss stubs above**,
+  so it stays partial until the boss TU decides pBossInfo's form; the next run should take the next queued
+  TU, not this one. Open: (a) ITEM_USE_* (argv[4]: 0 slot from a variable, 1 drop, 2 find by id) and
+  ITEM_KIND_* (row byte +0: 0 / 1 give-take, 2 / 3 signal, 4 heal, 5 calm, 6 invisible, 0xff count only)
+  are named from this one function; TRIG_EVENT_CALM_ALT_READY / _USED (0x44b / 0x44a) and
+  TRIG_EVENT_NO_CALM (0x1a) too; (b) the row's +0x14 int (ITEM_ROW_EVENT, "registered on pick-up") is
+  removed by a give-take use, so it is the "holding it" event, and +4 is both the use event and the
+  heal / calm amount; (c) the HEAL kind confirms CHARACTER.hp (+0x524) is the current value and hpMax
+  (+0x528) its top (the 161 / (ag) doubt settled); (d) PORT: the ROM writes one word past the list when
+  ITEM_USE_FIND does not find the item, and trusts script slots / rows; the host refuses those.
 
 - (2026-11-10, host task `alyssapan/rendering/ui_canvas.cpp`, **blocked**) **The first screen has no 2D
   packet step to route to UiCanvas.** It is ATLD, the memory-card check ("Checking... Do not remove memory

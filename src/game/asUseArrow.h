@@ -14,3 +14,6 @@ float asGetTheArrowRad(void);                                                   
 int asChangeTheArrowState(int state);                                                    // CT3 0x01866980
 // Shoot an arrow of kind `kind` (a free slot, state 2, becomes 3); -1 with no free slot.
 int asShootArrowSetting(u_char kind, u_short a1, u_short a2);                             // CT3 0x01866c10
+// From tiXcmd_UseItem (tiXcmd_TransItem.c, 2026-11-11): the argument is the item variable's value; the
+// body (read by the decompiler) clears ArrowList[0] and shifts the list down.
+void asUseArrow(int arrow);                                                              // CT3 0x018665e0

@@ -1115,7 +1115,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 81..81, 18 functions keyed by their statics, 13 unkeyed; file name from the names"
   },
   "game/tiXcmd_TransItem.c": {
-   "notes": "Slice 9. Written: wideXcmd_Delay (the running actor list's wait word, TRIG_RUN_ACTIVATE / DEACTIVATE; DELAY_MODE_TICKS waits value x 1000 / anim_play_slow ticks, else counts frames; PORT: a static wait with no actor running), tiXcmd_Balows2th (Character[32].hp = 10, BOSS_INFO_PHASE = 4, event 0x55e, variables 0x52 / 5 to -1, chain sets A (0x92, events 0x3c..0x45) and B (0x93, events 0x69..0x6d) dropped with their loops; PORT: brain bytes and the +0x10c / +0x110 holding arrays skipped, open-items.md). callcheck: wideXcmd_GetRate explained (its calls are in TiRateOperand). Left: GetBloodAttackObject, SCISSORS_MAN x3, BOSS SetWarp / SetChain / SetChain_Alyssa / BattleStart (all write pointer words into pBossInfo: wait for the boss TU host form), UseItem (0x018e6330). Screen unchanged: flat grey; the script still waits at tiFade_Start and hhXcmd_LoadSE (stubs).",
+   "notes": "Slice 10. Written: tiXcmd_UseItem (ITEM_USE_* modes from argv[4], ITEM_KIND_* from the row byte +0: give-take, signal, heal Character[0].hp up to hpMax, calm via PanicDownSet while PanicInfoData.gauge is non-zero, invisible via TRIG_EVENT_INVISIBLE, count only; arrows go to asUseArrow, now declared and stubbed in asUseArrow.c; the lists close up after a use; PORT: out-of-range slots and rows refused). The TU's code is complete except the eight boss stubs (GetBloodAttackObject, SCISSORS_MAN x3, BOSS SetWarp / SetChain / SetChain_Alyssa / BattleStart), all waiting for pBossInfo's host form (open-items.md): take the next queued TU, not this one. Screen unchanged: flat grey; the script waits at tiFade_Start and hhXcmd_LoadSE (stubs).",
    "ranges": [
     [
      "018e0e80",
@@ -1167,6 +1167,11 @@
      "date": "2026-11-11 12:08",
      "status": "partial",
      "summary": "reconstruct 2 functions: the script delay command and the boss second phase (Balows2th)"
+    },
+    {
+     "date": "2026-11-11 12:30",
+     "status": "partial",
+     "summary": "the item use command (UseItem)"
     }
    ],
    "status": "partial",
