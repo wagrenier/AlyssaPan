@@ -474,7 +474,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 105..105, 36 functions keyed by their statics, 13 unkeyed; file name from the names"
   },
   "game/Clipping_Portal.c": {
-   "notes": "Smoke run unchanged: frame 120 ATLD memory-card text, then black; no particle or pendulum bank is loaded yet. New stubs: tiGenerateParticle, tiCalc_Orbit, tiHurikoReset, tiCalc_HurikoOPEN / CLOSED, tiGetNewNormalData (bank added as a PORT argument to the particle helpers). Slice left: tiPipeJointUpdate with tiPipeJointInit, tiDrawShadingOff with CaptureDBuffer and tiVRAMViewer, ExportDrawToTex, tiDrawLensFlares with tiLensFlaresInit, tiLightBelt2Update, tiParticleInit, tiHurikoInit. open-items.md item 7 (jg..jk).",
+   "notes": "Smoke run unchanged: frame 120 ATLD memory-card text, then black; nothing here draws and no pendulum bank loads yet. Slice left: tiPipeJointUpdate with tiPipeJointInit, tiDrawShadingOff with CaptureDBuffer and tiVRAMViewer, ExportDrawToTex, tiDrawLensFlares with tiLensFlaresInit, tiLightBelt2Update, tiParticleInit, and the six slice-3 helper stubs (tiGenerateParticle, tiCalc_Orbit, tiHurikoReset, tiCalc_HurikoOPEN / CLOSED, tiGetNewNormalData). open-items.md item 7 (jl..jp).",
    "ranges": [
     [
      "01889cd0",
@@ -496,6 +496,11 @@
      "date": "2026-11-11 15:12",
      "status": "partial",
      "summary": "slice 3: tiParticleUpdate, tiCalc_LifeSpan, tiHurikoUpdate, gaNormalizeVectorXYZ, tiSet_CharaTranslucenceOFF; HURIKO, ALL_TABLE.huriko, PARTICLE2.life / age, BANK_TYPE_BEHAVIOR; six helper stubs"
+    },
+    {
+     "date": "2026-11-11 15:31",
+     "status": "partial",
+     "summary": "slice 4: tiHurikoInit (joint links and rest pose), tiHurikoHitUpdate, tiHurikoReset_On, tiSet_CharaTranslucenceON; HURIKO chains / jointTable, HURIKO_JOINT, HURIKO_HIT, ALL_TABLE.hurikoHits"
     }
    ],
    "status": "partial",

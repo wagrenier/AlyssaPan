@@ -1265,6 +1265,20 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    one by moving head past it, not only the leading ones: the ROM's, kept; (jk) ALL_TABLE +0x68 is now
    huriko. Slice left as before (pipe joint, shading-off capture, ExportDrawToTex, lens flares,
    tiLightBelt2Update) plus the six new stubs and tiParticleInit / tiHurikoInit.
+   Slice 4 (2026-11-11): tiHurikoInit, tiHurikoHitUpdate, tiHurikoReset_On, tiSet_CharaTranslucenceON.
+   Open from it: (jl) HURIKO's first word is read three ways (ssTrigCheckEnable's short, tiHurikoInit's
+   part index as a word, tiHurikoReset_On's id as a word): kept as trigPart + HurikoWord0, rename when
+   tiHurikoReset / the trig code says which it is; (jm) HURIKO_JOINT (posRef double indirection, length,
+   up / down / left / right position EE words, restDir, pos) and HURIKO_HIT (ALL_TABLE +0x90 hurikoHits)
+   are named from tiHurikoInit / tiHurikoHitUpdate only: tiCalc_HurikoOPEN / _CLOSED and the hit readers
+   (ssProcessHit?) confirm them; the roots keep their local position at +0x60 while the other joints get
+   world xyz there, the ROM's, kept; (jn) HurikoPart reuses PARTS_KIND_WIND_ON_ROOT (kind 1 = part 0's
+   frame) -- the name wants to become generic (PARTS_KIND_ON_ROOT) when its writer is read;
+   (jo) tiHurikoHitUpdate skips forced-stop banks among the scene banks too, unlike tiHurikoUpdate: the
+   ROM's, kept; (jp) tiSet_CharaTranslucenceON stores the state (1 or 2), OFF clears bits: the ROM's.
+   Slice left: tiPipeJointUpdate with tiPipeJointInit, tiDrawShadingOff with CaptureDBuffer and
+   tiVRAMViewer, ExportDrawToTex, tiDrawLensFlares with tiLensFlaresInit, tiLightBelt2Update,
+   tiParticleInit, plus the six slice-3 helper stubs.
 
 ## Decisions
 

@@ -56,11 +56,62 @@ static_assert(sizeof(LIGHT_BELT2) == 0x40, "LIGHT_BELT2");
 // A bank's pendulums (ALL_TABLE.huriko, a 0-ended list of EE words). layout: ee -- bank data; only the
 // trigger part and the flags are read so far (tiCalc_HurikoOPEN / _CLOSED, tiHurikoReset name the rest).
 typedef struct HURIKO {
-    short trigPart;                     /* 0x00: ssTrigCheckEnable's part: the pendulum swings while enabled */
-    u_char pad02[0x16];
+    short trigPart;                     /* 0x00: ssTrigCheckEnable's part: the pendulum swings while enabled;
+                                           tiHurikoInit reads the word as its model part (the high half 0),
+                                           tiHurikoReset_On compares the word with its id */
+    u_char pad02[2];
+    u_short chains;                     /* 0x04: chains of joints (tiHurikoInit) */
+    u_short joints;                     /* 0x06: joints per chain, the root first */
+    u_char pad08[8];
+    u_int jointTable;                   /* 0x10: EE word -> u_int[chains * joints]: HURIKO_JOINT EE words,
+                                           chain-major */
+    u_char pad14[4];
     u_int flags;                        /* 0x18: HURIKO_FLAG_* */
 } HURIKO;
+static_assert(offsetof(HURIKO, chains) == 0x04, "HURIKO.chains");
+static_assert(offsetof(HURIKO, jointTable) == 0x10, "HURIKO.jointTable");
 static_assert(offsetof(HURIKO, flags) == 0x18, "HURIKO.flags");
+
+// One joint of a pendulum chain (tiHurikoInit, 2026-11-11 slice 4). layout: ee -- bank data.
+typedef struct HURIKO_JOINT {
+    u_int posRef;                       /* 0x00: EE word -> an EE word -> the joint's part-local position */
+    u_char pad04[8];
+    float length;                       /* 0x0c: the rest offset from the joint above, straight down */
+    u_char pad10[0x10];
+    u_int up;                           /* 0x20: EE address of the joint above's position (k >= 1) */
+    u_int down;                         /* 0x24: ... of the joint below's (not set on the last joint) */
+    u_int left;                         /* 0x28: ... of the same joint in the previous chain (cyclic) */
+    u_int right;                        /* 0x2c: ... in the next chain (cyclic) */
+    float restDir[4];                   /* 0x30: part-local: world pos - (up's world pos + (0,-1,0) * length),
+                                           w 0 (k >= 1) */
+    u_char pad40[0x20];
+    float pos[4];                       /* 0x60: k >= 1: the world position's xyz; the root: its local
+                                           position (all four words) */
+} HURIKO_JOINT;
+static_assert(offsetof(HURIKO_JOINT, length) == 0x0c, "HURIKO_JOINT.length");
+static_assert(offsetof(HURIKO_JOINT, up) == 0x20, "HURIKO_JOINT.up");
+static_assert(offsetof(HURIKO_JOINT, restDir) == 0x30, "HURIKO_JOINT.restDir");
+static_assert(offsetof(HURIKO_JOINT, pos) == 0x60, "HURIKO_JOINT.pos");
+#define HURIKO_REST_DOWN_Y -1.0f        /* @338 (0x019389f0) = (0, -1, 0, 0): a joint hangs straight down */
+
+// A pendulum's hit (ALL_TABLE.hurikoHits, a 0-ended list of EE words): two part-local points carried
+// into the part's frame each frame (tiHurikoHitUpdate). layout: ee -- bank data.
+typedef struct HURIKO_HIT {
+    int part;                           /* 0x00: its model part (PARTS_KIND_WIND_ON_ROOT: part 0's) */
+    short pairInA;                      /* 0x04: non-zero: both points at a (a[0], a[1]); 0: a and b */
+    u_char pad06[2];
+    u_int partFlags;                    /* 0x08: EE address of the part's MODEL_PARTS.flags (tiHurikoInit);
+                                           PARTS_FLAG_HIDDEN: not carried */
+    u_int a;                            /* 0x0c: EE word -> the first point (two with pairInA) */
+    u_int b;                            /* 0x10: EE word -> the second point */
+    u_int matrix;                       /* 0x14: EE address of the part's MODEL_PARTS.matrix200 (tiHurikoInit) */
+    u_char pad18[8];
+    float world0[4];                    /* 0x20 */
+    float world1[4];                    /* 0x30 */
+} HURIKO_HIT;
+static_assert(offsetof(HURIKO_HIT, matrix) == 0x14, "HURIKO_HIT.matrix");
+static_assert(offsetof(HURIKO_HIT, world0) == 0x20, "HURIKO_HIT.world0");
+static_assert(sizeof(HURIKO_HIT) == 0x40, "HURIKO_HIT");
 #define HURIKO_FLAG_CLOSED 0x1          /* tiCalc_HurikoCLOSED swings it, else tiCalc_HurikoOPEN */
 #define HURIKO_FLAG_DISABLED 0x4        /* its trigger was off (set each frame it is off) */
 #define HURIKO_FLAG_RESET 0x8           /* re-enabled: tiHurikoReset on the next enabled frame */

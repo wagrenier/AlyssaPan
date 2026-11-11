@@ -408,7 +408,9 @@ typedef struct ALL_TABLE {
     u_int angleAtten;                   /* 0x84: ANGLE_ATTEN[] (AngleAttenuationUpdate), 0 = none */
     u_int pad88;
     u_int texFileSet;                   /* 0x8c: TEX_FILE_SET_TABLE (QuatSlerp.h: the paged textures), 0 = none */
-    u_int pad90[2];
+    u_int hurikoHits;                   /* 0x90: list of HURIKO_HIT (Clipping_Portal.h): tiHurikoInit points them
+                                           at their parts, tiHurikoHitUpdate carries them */
+    u_int pad94;
     u_int winds;                        /* 0x98: list of WIND (Clipping_Portal.h): tiWindInit registers them */
     u_int pad9c;
     u_int lightBelts;                   /* 0xa0: list of LIGHT_BELT2 (Clipping_Portal.h), 0 = none (tiLightBelt2Init) */
@@ -444,6 +446,7 @@ static_assert(offsetof(ALL_TABLE, objAfter) == 0x60, "ALL_TABLE.objAfter");
 static_assert(offsetof(ALL_TABLE, partsLight) == 0x70, "ALL_TABLE.partsLight");
 static_assert(offsetof(ALL_TABLE, particles2After) == 0x7c, "ALL_TABLE.particles2After");
 static_assert(offsetof(ALL_TABLE, huriko) == 0x68, "ALL_TABLE.huriko");
+static_assert(offsetof(ALL_TABLE, hurikoHits) == 0x90, "ALL_TABLE.hurikoHits");
 static_assert(offsetof(ALL_TABLE, fog) == 0xb8, "ALL_TABLE.fog");
 static_assert(offsetof(ALL_TABLE, winds) == 0x98, "ALL_TABLE.winds");
 static_assert(offsetof(ALL_TABLE, lightBelts) == 0xa0, "ALL_TABLE.lightBelts");

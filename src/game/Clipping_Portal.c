@@ -679,6 +679,175 @@ void gaNormalizeVectorXYZ(float *dst, const float *src)
     dst[3] = src[3] * q;
 }
 
+// The pendulum record's first word: the ROM reads it whole as tiHurikoInit's part and tiHurikoReset_On's
+// id (ssTrigCheckEnable takes its low half, HURIKO.trigPart).
+static int HurikoWord0(const HURIKO *h)
+{
+    int w;
+
+    memcpy(&w, h, sizeof w);
+    return w;
+}
+
+// The part a pendulum or a hit hangs on: a PARTS_KIND_WIND_ON_ROOT part stands for part 0 (as tiWindInit).
+static MODEL_PARTS *HurikoPart(int bank, int part)
+{
+    MODEL_PARTS *parts = (MODEL_PARTS *)pModelPartsHeader[bank];
+
+    if (parts[part].kind == PARTS_KIND_WIND_ON_ROOT) {
+        return parts;
+    }
+    return &parts[part];
+}
+
+// A joint's position word: posRef -> an EE word -> the position; this answers that last EE word.
+static u_int HurikoJointPosEE(int bank, u_int jointEE)
+{
+    HURIKO_JOINT *j = BANK_PTR(HURIKO_JOINT *, bank, jointEE);
+
+    return BANK_PTR(u_int *, bank, j->posRef)[0];
+}
+
+// CT3 0x018933f0: scene_init -- link each pendulum's joints and take their rest pose from the part's
+// placement, then point each hit at its part's flags and second matrix. Every pendulum starts DISABLED,
+// so tiHurikoUpdate resets it on its first enabled frames.
+void tiHurikoInit(int scene)
+{
+    ALL_TABLE *tbl = All_table_TBL[scene];
+    u_int *list = BANK_PTR(u_int *, scene, tbl->huriko);
+    u_int *hits = BANK_PTR(u_int *, scene, tbl->hurikoHits);
+    int i;
+
+    for (i = 0; list != NULL && list[i] != 0; i++) { // PORT: the ROM reads a 0 list at EE address 0
+        HURIKO *h = BANK_PTR(HURIKO *, scene, list[i]);
+        MODEL_PARTS *part;
+        u_int *tab;
+        float inv[4][4];
+        int nc, nj, c, k;
+
+        h->flags |= HURIKO_FLAG_DISABLED;
+        part = HurikoPart(scene, HurikoWord0(h));
+        tab = BANK_PTR(u_int *, scene, h->jointTable);
+        nc = h->chains;
+        nj = h->joints;
+        gaInversMatrix(inv, part->matrix);
+
+        // the roots keep their local position (all four words)
+        for (c = 0; c < nc; c++) {
+            HURIKO_JOINT *root = BANK_PTR(HURIKO_JOINT *, scene, tab[c * nj]);
+
+            memcpy(root->pos, BANK_PTR(float *, scene, HurikoJointPosEE(scene, tab[c * nj])), sizeof root->pos);
+        }
+        // the neighbours: up / down in the chain, left / right in the ring of chains
+        for (c = 0; c < nc; c++) {
+            for (k = 1; k < nj; k++) {
+                HURIKO_JOINT *j = BANK_PTR(HURIKO_JOINT *, scene, tab[k + c * nj]);
+
+                j->up = HurikoJointPosEE(scene, tab[k + c * nj - 1]);
+                if (k < nj - 1) {
+                    j->down = HurikoJointPosEE(scene, tab[k + c * nj + 1]);
+                }
+                j->left = HurikoJointPosEE(scene, tab[k + nj * ((nc - 1 + c) % nc)]);
+                j->right = HurikoJointPosEE(scene, tab[k + nj * ((c + 1) % nc)]);
+            }
+        }
+        // the rest pose: each joint's offset from where it would hang below the one above, in part space
+        for (c = 0; c < nc; c++) {
+            float prev[4], cur[4], d[4];
+
+            PortApplyMatrix(prev, part->matrix, BANK_PTR(float *, scene, HurikoJointPosEE(scene, tab[c * nj])));
+            for (k = 1; k < nj; k++) {
+                HURIKO_JOINT *j = BANK_PTR(HURIKO_JOINT *, scene, tab[k + c * nj]);
+                float rest[3];
+
+                PortApplyMatrix(cur, part->matrix, BANK_PTR(float *, scene, HurikoJointPosEE(scene, tab[k + c * nj])));
+                gaCopyVectorXYZ(j->pos, cur);
+                rest[0] = prev[0] + 0.0f * j->length;
+                rest[1] = prev[1] + HURIKO_REST_DOWN_Y * j->length;
+                rest[2] = prev[2] + 0.0f * j->length;
+                d[0] = cur[0] - rest[0];
+                d[1] = cur[1] - rest[1];
+                d[2] = cur[2] - rest[2];
+                d[3] = 0.0f;
+                PortApplyMatrix(j->restDir, inv, d);
+                memcpy(prev, cur, sizeof prev);
+            }
+        }
+    }
+    for (i = 0; hits != NULL && hits[i] != 0; i++) {
+        HURIKO_HIT *hit = BANK_PTR(HURIKO_HIT *, scene, hits[i]);
+        MODEL_PARTS *part = HurikoPart(scene, hit->part);
+
+        hit->matrix = BankEeAddr(scene, part->matrix200);
+        hit->partFlags = BankEeAddr(scene, &part->flags);
+    }
+}
+
+// One bank's pendulum hits: both points into the part's second frame, unless the part is hidden.
+static void HurikoHitBank(int bank)
+{
+    u_int *hits = BANK_PTR(u_int *, bank, All_table_TBL[bank]->hurikoHits);
+    int i;
+
+    for (i = 0; hits != NULL && hits[i] != 0; i++) { // PORT: the ROM reads a 0 list at EE address 0
+        HURIKO_HIT *hit = BANK_PTR(HURIKO_HIT *, bank, hits[i]);
+        float (*m)[4];
+        float *a;
+
+        if (*BANK_PTR(u_int *, bank, hit->partFlags) & PARTS_FLAG_HIDDEN) {
+            continue;
+        }
+        m = BANK_PTR(float (*)[4], bank, hit->matrix);
+        a = BANK_PTR(float *, bank, hit->a);
+        PortApplyMatrix(hit->world0, m, a);
+        if (hit->pairInA == 0) {
+            PortApplyMatrix(hit->world1, m, BANK_PTR(float *, bank, hit->b));
+        } else {
+            PortApplyMatrix(hit->world1, m, a + 4);
+        }
+    }
+}
+
+// CT3 0x018931f0: once a frame (main): carry every loaded bank's pendulum hits. Paused (and the world
+// not running) only the scene banks; unlike tiHurikoUpdate, a forced-stop bank is skipped among them too.
+void tiHurikoHitUpdate(void)
+{
+    int banks = BANK_MAX;
+    int bank;
+
+    if (pause != 0 && (pause & PAUSE_RUNNING) == 0) {
+        banks = BANK_SCENE_MAX;
+    }
+    for (bank = 0; bank < banks; bank++) {
+        if (BankInfo[bank].drawOn != 0 && BankInfo[bank].type != BANK_TYPE_BEHAVIOR) {
+            if ((BankInfo[bank].flags & BANK_FLAG_ANIM_FORCE_STOP) == 0) {
+                HurikoHitBank(bank);
+            }
+            bank += BankInfo[bank].groupCount - 1;
+        }
+    }
+}
+
+// CT3 0x01890ea0: tiXcmd_HurikoReset -- mark a bank's pendulums DISABLED (all, or the one whose first
+// word is id), so tiHurikoUpdate resets them; byChara: bank is a character slot, its bank is taken.
+void tiHurikoReset_On(int bank, int id, int byChara)
+{
+    u_int *list;
+    int i;
+
+    if (byChara) {
+        bank = Character[bank].bank;
+    }
+    list = BANK_PTR(u_int *, bank, All_table_TBL[bank]->huriko);
+    for (i = 0; list != NULL && list[i] != 0; i++) { // PORT: the ROM reads a 0 list at EE address 0
+        HURIKO *h = BANK_PTR(HURIKO *, bank, list[i]);
+
+        if (id == 0 || HurikoWord0(h) == id) {
+            h->flags |= HURIKO_FLAG_DISABLED;
+        }
+    }
+}
+
 // ---- translucence ----
 
 // CT3 0x0188ddc0: end a character's translucence (ssTrigExecuteActCmd, ssAI_BrainEndSpecialProc,
@@ -701,6 +870,21 @@ void tiSet_CharaTranslucenceOFF(int chara, int flag)
     }
 }
 
+// CT3 0x0188ded0: start a character's translucence (ssTrigExecuteActCmd, tiXcmd_SetCharacterEdgeShading):
+// flag bit 0 sets the state to CHARA_TRANS_TRANSLUCENT, else bit 1 to CHARA_TRANS_GHOST (stored, not
+// or-ed, unlike tiSet_CharaTranslucenceOFF's clears); the level becomes the alpha either way.
+void tiSet_CharaTranslucenceON(int chara, int level, int flag)
+{
+    CHARACTER *chr = &Character[chara];
+
+    if (flag & 1) {
+        chr->translucent = CHARA_TRANS_TRANSLUCENT;
+    } else if (flag & 2) {
+        chr->translucent = CHARA_TRANS_GHOST;
+    }
+    chr->translucentAlpha = (float)level;
+}
+
 // ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x01893850
@@ -719,12 +903,6 @@ void tiDrawLensFlares(void)
 void tiDrawShadingOff(void)
 {
     ALYSSAPAN_STUB("tiDrawShadingOff", 0x0188ced0);
-}
-
-// stub of CT3 0x018931f0
-void tiHurikoHitUpdate(void)
-{
-    ALYSSAPAN_STUB("tiHurikoHitUpdate", 0x018931f0);
 }
 
 // stub of CT3 0x0188a610
@@ -799,12 +977,6 @@ void tiChara_Translucence_Start2(void)
     ALYSSAPAN_STUB("tiChara_Translucence_Start2", 0x0188dbd0);
 }
 
-// stub of CT3 0x018933f0
-void tiHurikoInit(int scene)
-{
-    ALYSSAPAN_STUB("tiHurikoInit", 0x018933f0);
-}
-
 // stub of CT3 0x0188e4a0
 void tiLensFlaresInit(int scene)
 {
@@ -823,12 +995,6 @@ void tiPipeJointInit(int bank)
     ALYSSAPAN_STUB("tiPipeJointInit", 0x0188bf30);
 }
 
-// stub of CT3 0x0188ded0
-void tiSet_CharaTranslucenceON(int chara, int level, int flag)
-{
-    ALYSSAPAN_STUB("tiSet_CharaTranslucenceON", 0x0188ded0);
-}
-
 // stub of CT3 0x0188d6e0
 void tiXFadeOut_Start(float time)
 {
@@ -839,12 +1005,6 @@ void tiXFadeOut_Start(float time)
 void tiGetTransRotMatrix(float (*dst)[4], float *pos, float (*src)[4])
 {
     ALYSSAPAN_STUB("tiGetTransRotMatrix", 0x018949c0);
-}
-
-// stub of CT3 0x01890ea0
-void tiHurikoReset_On(int bank, int id, int byChara)
-{
-    ALYSSAPAN_STUB("tiHurikoReset_On", 0x01890ea0);
 }
 
 // stub of CT3 0x0188d5e0
