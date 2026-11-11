@@ -1248,6 +1248,14 @@ apply here):
 
 ## Open questions
 
+- (2026-11-11, game/tiXcmd_TransItem.c slice 3) **Named from one use:** KEY_FRAME_* (tiXcmd_KeyNumToFrame's
+  button picture frames, by the libpad bit each matches; anything else answers 0, circle's frame);
+  KEY_MAP_CONFIG_FIRST..LAST (16..34: SetKeyToKeyMap's swap loop, which includes 34 = KEY_MAP_STICK_DEAD as
+  the ROM does) and KEY_MAP_LINKED_FIRST (19 / 20, skipped: the pair system_data_load_set copies, (as)).
+  GetAlyssaLife / SetStatusBar read Character[0] (Alyssa), CheckLife reads Character[Player_BankID]: kept.
+  GetItemListLastIndex has two identical loops over ItemList for argv[2] 1 and 0 (disassembly
+  0x018e5978 / 0x018e59d0): one of them probably meant KeyItemList; the port keeps the ROM's behaviour.
+
 - (2026-11-11, game/tiXcmd_TransItem.c slice 2) **Named from one use, to confirm where they are read:**
   CHARACTER +0x534 `edgeLevel` and h536[4] / [5] `CHARA_EDGE_PARAM_A / _B` (edge shading: only the x
   commands write them; the ghost pass in Clipping_Portal.c should read them); tiSet_CharaTranslucenceON's

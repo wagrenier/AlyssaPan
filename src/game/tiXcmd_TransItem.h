@@ -46,6 +46,29 @@
 // KEY_MAP: [0..34] the player's assignment, [35..69] the defaults tiXcmd_ResetKeyMap copies back.
 #define KEY_MAP_ACTIONS 35
 #define KEY_MAP_DEFAULTS 35
+// tiXcmd_SetKeyToKeyMap: the actions a new assignment may swap with (KEY_MAP[16..34], the ROM's loop),
+// minus the pair at 19 / 20 (the pair system_data_load_set copies from 54 / 55: never swapped).
+#define KEY_MAP_CONFIG_FIRST 16
+#define KEY_MAP_CONFIG_LAST 34
+#define KEY_MAP_LINKED_FIRST 19
+// tiXcmd_KeyNumToFrame: the key-config screen's button picture frames (named from that one use).
+enum {
+    KEY_FRAME_CIRCLE = 0,               /* also anything not listed */
+    KEY_FRAME_CROSS = 1,
+    KEY_FRAME_SQUARE = 2,
+    KEY_FRAME_TRIANGLE = 3,
+    KEY_FRAME_L1 = 4,
+    KEY_FRAME_L2 = 5,
+    KEY_FRAME_R1 = 6,
+    KEY_FRAME_R2 = 7,
+    KEY_FRAME_SELECT = 8,
+    KEY_FRAME_START = 9,
+};
+// tiXcmd_SetStatusBar / tiXcmd_GetItemListLastIndex.
+#define STATUS_BAR_FROM_NOW (-1)        /* asSceneAnimationStart's from: the current frame */
+#define ITEM_LIST_SLOTS 12              /* ItemList[] */
+#define ITEM_LIST_LAST_A 1              /* GetItemListLastIndex's argv[2]: both run the same loop */
+#define ITEM_LIST_LAST_B 0
 
 // The x commands (ssXcmd_functions slots, ssTrigExecuteActCmd's command 0x514): declared with the
 // table's SS_XCMD shape (xcmd_tn.h) until this TU's session reads each one (2026-11-11).

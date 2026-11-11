@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-11 10:15 at commit `b3a2e6d` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-11 10:30 at commit `a222090` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **997**; stubs: **370**
+- reconstructed CT3 functions: **1006**; stubs: **356**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -88,7 +88,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/ssHitCheckAttackToScn.c` | 0 | 6 |
 | `src/game/ssSetTexUVforCubeMap.c` | 1 | 44 |
 | `src/game/tiAvoidObject.c` | 0 | 7 |
-| `src/game/tiXcmd_TransItem.c` | 31 | 57 |
+| `src/game/tiXcmd_TransItem.c` | 40 | 43 |
 | `src/game/tkXDTrg_GetSceneHash.c` | 0 | 7 |
 | `src/game/tnXcmd.c` | 0 | 8 |
 | `src/game/wideXcmd_DebugPrint.c` | 107 | 1 |
@@ -102,7 +102,7 @@ Least-named game-code regions (64 KB blocks):
 - next: **game/tiXcmd_TransItem.c** (pinned in the queue)
 - pinned queue: game/tiXcmd_TransItem.c, game/xcmd_tn.c, alyssapan/rendering/ga_atld.cpp, alyssapan/rendering/ui_canvas.cpp, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
 - partial: `alyssapan/rendering/ga_atld.cpp` 0/0 -- Shot still black for a game reason: the light0 colour is vertex colour plus the part's ALL_TABLE.partsPos (the ambient RGB), which only the event command tnXcmd
-- partial: `game/tiXcmd_TransItem.c` 31/93 -- Slice 2. FadeStart (the reached stub) now runs: the script goes on to tiFade_Start and hhXcmd_LoadSE (stubs). Left: Balows2th and the boss commands that store p
+- partial: `game/tiXcmd_TransItem.c` 40/93 -- Slice 3. Written: KeyNumToFrame, SetKeyToKeyMap, GetAlyssaLife, CheckLife, SetStatusBar, MoveItem, GetItemListLastIndex, SetmcAccess/Err/File/Slot/Main_ID, Ster
 - partial: `game/wideXcmd_DebugPrint.c` 107/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed) -- the last function of the TU. New stubs
 - partial: `game/xcmd_tn.c` 37/57 -- 15 commands written. Picture: frame 120 shows ATLD memory-card text at 4:3 as before; black from frame 180 because the script waits on the stub tiXcmd_XFade_Bre
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
@@ -135,6 +135,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-11 10:30 `game/tiXcmd_TransItem.c` partial: reconstruct 14 functions: key-config frame and assignment, Alyssa life and status bar, item slot swap and last index, memory-card screen ids, stereo slots
 - 2026-11-11 10:15 `game/tiXcmd_TransItem.c` partial: reconstruct 13 functions: pad-driven item examination, fade start, cross-fade out, reserved camera, translucence and edge-shading animations, letter list and da
 - 2026-11-11 09:59 `game/tiXcmd_TransItem.c` partial: reconstruct 22 functions: item examination, scene and map commands, free slots, range and earthquake checks, shade-off, cross-fade break, pendulum reset, reserv
 - 2026-11-11 09:33 `game/xcmd_tn.c` partial: slice 2: wideXcmd_PlayAnimeToFream2 (the reached stub), clips, panic, continue, time stop, shape / behaviour / bank free, stay room, message bank, menu map, fog
@@ -142,7 +143,6 @@ Recent sessions:
 - 2026-11-11 09:05 `game/ssGrpPortalCheck.c` partial: triggers slice 5: ssTrigExecuteActCmd (every command id and operand size, TRIG_CMD_*), the 256-slot ssXcmd_functions table from the ELF, suXcmd_AnmDirection; 23
 - 2026-11-11 08:37 `game/ssGrpPortalCheck.c` partial: triggers slice 4: ssTrigCheckConditions and its checks (ssTrigCheckInput, ssTrigCheckVariable, ssTrigLookAtCheck, ssTrigAttackHitCheck), ssTrigSetEnable, Trigge
 - 2026-11-11 08:08 `game/xcmd_tn.c` partial: slice 1: tnXcmd_Scene_Ambient_Change and 21 small x commands (waits, variables, room-in icons, bank and flag commands), BankUseCheck; SS_XCMD slot type
-- 2026-11-11 07:55 `alyssapan/rendering/ga_atld.cpp` partial: ga textures: sunBGT_ExecTBufferData_VIF1 hands TEX0, CLAMP, level 0 and the CLUT to AlyssaPan_DrawGaTexture; TextureStore decodes CT3 GS textures at their sourc
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
@@ -153,8 +153,8 @@ Recent sessions:
 | `game/tiAvoidObject.c` | todo | 0/7/82 | 30.5 | 27 | 4 |
 | `game/ssHitCheckAttackToScn.c` | todo | 0/6/37 | 32.0 | 23 | 3 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
-| `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
 | `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
+| `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
 | `game/asUseArrow.c` | todo | 0/6/11 | 6.4 | 16 | 1 |
 | `game/tkXDTrg_GetSceneHash.c` | todo | 0/7/50 | 21.0 | 14 | 2 |
 | `game/AA_SoundMonoSoart.c` | todo | 0/8/20 | 4.0 | 13 | 1 |

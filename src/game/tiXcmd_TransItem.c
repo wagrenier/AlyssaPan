@@ -6,6 +6,7 @@
 // change. Slice 2 (2026-11-11): OperateItem, the fades, the translucence / edge-shading animations, the
 // key map, the letter list. Left: Balows2th, and the boss commands whose pointer words wait for the boss
 // TU's host layout (SetWarp, the SCISSORS_MAN attack, SetChain*, GetBloodAttackObject), and the rest.
+// Slice 3 (2026-11-11): the key-config commands, life and status bar, item slots, memory-card ids, stereo.
 
 #include <math.h>
 #include <stdlib.h>
@@ -859,6 +860,175 @@ int tiXcmd_SetParaDefault(int argc, char **argv, int bank)
     return XCMD_DONE;
 }
 
+// CT3 0x018e5360: the variable argv[0] (global argv[1]) = the button picture's frame for the button
+// bits in the variable argv[2] (global argv[3]) (the key-config screen): KEY_FRAME_*, 0 for anything else.
+int tiXcmd_KeyNumToFrame(int argc, char **argv, int bank)
+{
+    static const struct {
+        int bits;
+        int frame;
+    } kFrames[] = {
+        { SCE_PADh, KEY_FRAME_START },  { SCE_PADk, KEY_FRAME_SELECT }, { SCE_PADR2, KEY_FRAME_R2 },
+        { SCE_PADR1, KEY_FRAME_R1 },    { SCE_PADL2, KEY_FRAME_L2 },    { SCE_PADL1, KEY_FRAME_L1 },
+        { SCE_PADRup, KEY_FRAME_TRIANGLE }, { SCE_PADRleft, KEY_FRAME_SQUARE },
+        { SCE_PADRdown, KEY_FRAME_CROSS }, { SCE_PADRright, KEY_FRAME_CIRCLE },
+    };
+    int bits = ssTrigGetVariable(atoi(argv[2]) & 0xffff, atoi(argv[3]), bank);
+    int frame = KEY_FRAME_CIRCLE;
+    size_t i;
+
+    (void)argc;
+    for (i = 0; i < sizeof(kFrames) / sizeof(kFrames[0]); i++) {
+        if (bits == kFrames[i].bits) {
+            frame = kFrames[i].frame;
+            break;
+        }
+    }
+    ssTrigSetVariable(atoi(argv[0]) & 0xffff, frame, atoi(argv[1]), bank);
+    return XCMD_DONE;
+}
+
+// CT3 0x018e5590: assigns the button bits in the variable argv[2] (global argv[3]) to the action in the
+// variable argv[0] (global argv[1]). An action among KEY_MAP_CONFIG_FIRST..LAST (not the two linked
+// slots) that already has those bits takes the action's old bits: the two swap.
+int tiXcmd_SetKeyToKeyMap(int argc, char **argv, int bank)
+{
+    int action = ssTrigGetVariable(atoi(argv[0]) & 0xffff, atoi(argv[1]), bank);
+    u_short bits = (u_short)ssTrigGetVariable(atoi(argv[2]) & 0xffff, atoi(argv[3]), bank);
+    int i;
+
+    (void)argc;
+    for (i = KEY_MAP_CONFIG_FIRST; i <= KEY_MAP_CONFIG_LAST; i++) {
+        if ((u_int)(i - KEY_MAP_LINKED_FIRST) > 1 && KEY_MAP[i] == bits) {
+            KEY_MAP[i] = KEY_MAP[action];
+            KEY_MAP[action] = bits;
+            return XCMD_DONE;
+        }
+    }
+    KEY_MAP[action] = bits;
+    return XCMD_DONE;
+}
+
+// CT3 0x018e56a0: the variable argv[0] (global argv[1]) = Alyssa's life (Character[0], not the player's
+// slot).
+int tiXcmd_GetAlyssaLife(int argc, char **argv, int bank)
+{
+    (void)argc;
+    ssTrigSetVariable(atoi(argv[0]) & 0xffff, Character[0].hp, atoi(argv[1]), bank);
+    return XCMD_DONE;
+}
+
+// CT3 0x018e5700: the event argv[0] (global argv[1]) is registered while the player has no life left,
+// removed while it has some.
+int tiXcmd_CheckLife(int argc, char **argv, int bank)
+{
+    (void)argc;
+    if (Character[Player_BankID].hp < 1)
+        ssTrigRegisterEvent(atoi(argv[0]), atoi(argv[1]), bank);
+    else
+        ssTrigRemoveEvent(atoi(argv[0]), atoi(argv[1]), bank);
+    return XCMD_DONE;
+}
+
+// CT3 0x018e57b0: the status bar (part argv[0]'s animation in this bank) stops at Alyssa's life in
+// percent: frame percent * XCMD_FRAME_TIME, played from the current frame (-1).
+int tiXcmd_SetStatusBar(int argc, char **argv, int bank)
+{
+    int percent = (int)((float)Character[0].hp * 100.0f / (float)Character[0].hpMax);
+
+    (void)argc;
+    asSceneAnimationStart(1.0f, 0, All_table_TBL[bank], STATUS_BAR_FROM_NOW, percent * XCMD_FRAME_TIME,
+                          atoi(argv[0]) & 0xffff, 1, 0, 0, 0, 1, 0, 1, 0);
+    return XCMD_DONE;
+}
+
+// CT3 0x018e5870: swaps the item slots the variables argv[0] / argv[2] (globals argv[1] / argv[3]) hold
+// (1-based).
+int tiXcmd_MoveItem(int argc, char **argv, int bank)
+{
+    int a = ssTrigGetVariable(atoi(argv[0]) & 0xffff, atoi(argv[1]), bank);
+    int b = ssTrigGetVariable(atoi(argv[2]) & 0xffff, atoi(argv[3]), bank);
+    int t;
+
+    (void)argc;
+    t = ItemList[a - 1];
+    ItemList[a - 1] = ItemList[b - 1];
+    ItemList[b - 1] = t;
+    return XCMD_DONE;
+}
+
+// CT3 0x018e5930: the variable argv[0] (global argv[1]) = the last held slot of ItemList (left as it was
+// when none is held). argv[2] 1 or 0 picks the list: the ROM has two copies of the same loop, both over
+// ItemList; any other value does nothing.
+int tiXcmd_GetItemListLastIndex(int argc, char **argv, int bank)
+{
+    int list = atoi(argv[2]);
+    int i;
+
+    (void)argc;
+    if (list != ITEM_LIST_LAST_A && list != ITEM_LIST_LAST_B)
+        return XCMD_DONE;
+    for (i = 0; i < ITEM_LIST_SLOTS; i++) {
+        if (ItemList[i] > 0)
+            ssTrigSetVariable(atoi(argv[0]) & 0xffff, i, atoi(argv[1]), bank);
+    }
+    return XCMD_DONE;
+}
+
+// CT3 0x018e6f50 / 0x018e6fb0 / 0x018e7010 / 0x018e7070 / 0x018e70d0: the memory-card screens' ids
+// (Character_Init.c's MemorycardUpdate reads them) = the variable argv[0] (global argv[1]).
+int tiXcmd_SetmcAccess_ID(int argc, char **argv, int bank)
+{
+    (void)argc;
+    mcAccess_ID = ssTrigGetVariable(atoi(argv[0]) & 0xffff, atoi(argv[1]), bank);
+    return XCMD_DONE;
+}
+
+int tiXcmd_SetmcErr_ID(int argc, char **argv, int bank)
+{
+    (void)argc;
+    mcErr_ID = ssTrigGetVariable(atoi(argv[0]) & 0xffff, atoi(argv[1]), bank);
+    return XCMD_DONE;
+}
+
+int tiXcmd_SetmcFile_ID(int argc, char **argv, int bank)
+{
+    (void)argc;
+    mcFile_ID = ssTrigGetVariable(atoi(argv[0]) & 0xffff, atoi(argv[1]), bank);
+    return XCMD_DONE;
+}
+
+int tiXcmd_SetmcSlot_ID(int argc, char **argv, int bank)
+{
+    (void)argc;
+    mcSlot_ID = ssTrigGetVariable(atoi(argv[0]) & 0xffff, atoi(argv[1]), bank);
+    return XCMD_DONE;
+}
+
+int tiXcmd_SetmcMain_ID(int argc, char **argv, int bank)
+{
+    (void)argc;
+    mcMain_ID = ssTrigGetVariable(atoi(argv[0]) & 0xffff, atoi(argv[1]), bank);
+    return XCMD_DONE;
+}
+
+// CT3 0x018e7590 / 0x018e75a0: the stereo commands kept their slots and lost their bodies.
+int tiXcmd_StereoCheckFlg(int argc, char **argv, int bank)
+{
+    (void)argc;
+    (void)argv;
+    (void)bank;
+    return XCMD_DONE;
+}
+
+int tiXcmd_StereoON_OFF(int argc, char **argv, int bank)
+{
+    (void)argc;
+    (void)argv;
+    (void)bank;
+    return XCMD_DONE;
+}
+
 // ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x018e8640
@@ -907,13 +1077,6 @@ int tiXcmd_Balows2th(int argc, char **argv, int bank)
 int tiXcmd_CheckCurrentScene(int argc, char **argv, int bank)
 {
     ALYSSAPAN_STUB("tiXcmd_CheckCurrentScene", 0x018e7e20);
-    return {};
-}
-
-// stub of CT3 0x018e5700
-int tiXcmd_CheckLife(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_CheckLife", 0x018e5700);
     return {};
 }
 
@@ -966,13 +1129,6 @@ int tiXcmd_FreeGhostPole(int argc, char **argv, int bank)
     return {};
 }
 
-// stub of CT3 0x018e56a0
-int tiXcmd_GetAlyssaLife(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_GetAlyssaLife", 0x018e56a0);
-    return {};
-}
-
 // stub of CT3 0x018e20c0
 int tiXcmd_GetBloodAttackObject(int argc, char **argv, int bank)
 {
@@ -1001,13 +1157,6 @@ int tiXcmd_GetItemData(int argc, char **argv, int bank)
     return {};
 }
 
-// stub of CT3 0x018e5930
-int tiXcmd_GetItemListLastIndex(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_GetItemListLastIndex", 0x018e5930);
-    return {};
-}
-
 // stub of CT3 0x018e7130
 int tiXcmd_GetMCflag(int argc, char **argv, int bank)
 {
@@ -1019,20 +1168,6 @@ int tiXcmd_GetMCflag(int argc, char **argv, int bank)
 int tiXcmd_Init_SPAttack_SCISSORS_MAN(int argc, char **argv, int bank)
 {
     ALYSSAPAN_STUB("tiXcmd_Init_SPAttack_SCISSORS_MAN", 0x018e2b30);
-    return {};
-}
-
-// stub of CT3 0x018e5360
-int tiXcmd_KeyNumToFrame(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_KeyNumToFrame", 0x018e5360);
-    return {};
-}
-
-// stub of CT3 0x018e5870
-int tiXcmd_MoveItem(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_MoveItem", 0x018e5870);
     return {};
 }
 
@@ -1071,13 +1206,6 @@ int tiXcmd_SetItemData(int argc, char **argv, int bank)
     return {};
 }
 
-// stub of CT3 0x018e5590
-int tiXcmd_SetKeyToKeyMap(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_SetKeyToKeyMap", 0x018e5590);
-    return {};
-}
-
 // stub of CT3 0x018e7d10
 int tiXcmd_SetPlayerChara(int argc, char **argv, int bank)
 {
@@ -1103,62 +1231,6 @@ int tiXcmd_SetRotation(int argc, char **argv, int bank)
 int tiXcmd_SetScale(int argc, char **argv, int bank)
 {
     ALYSSAPAN_STUB("tiXcmd_SetScale", 0x018e8930);
-    return {};
-}
-
-// stub of CT3 0x018e57b0
-int tiXcmd_SetStatusBar(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_SetStatusBar", 0x018e57b0);
-    return {};
-}
-
-// stub of CT3 0x018e6f50
-int tiXcmd_SetmcAccess_ID(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_SetmcAccess_ID", 0x018e6f50);
-    return {};
-}
-
-// stub of CT3 0x018e6fb0
-int tiXcmd_SetmcErr_ID(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_SetmcErr_ID", 0x018e6fb0);
-    return {};
-}
-
-// stub of CT3 0x018e7010
-int tiXcmd_SetmcFile_ID(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_SetmcFile_ID", 0x018e7010);
-    return {};
-}
-
-// stub of CT3 0x018e70d0
-int tiXcmd_SetmcMain_ID(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_SetmcMain_ID", 0x018e70d0);
-    return {};
-}
-
-// stub of CT3 0x018e7070
-int tiXcmd_SetmcSlot_ID(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_SetmcSlot_ID", 0x018e7070);
-    return {};
-}
-
-// stub of CT3 0x018e7590
-int tiXcmd_StereoCheckFlg(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_StereoCheckFlg", 0x018e7590);
-    return {};
-}
-
-// stub of CT3 0x018e75a0
-int tiXcmd_StereoON_OFF(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_StereoON_OFF", 0x018e75a0);
     return {};
 }
 
