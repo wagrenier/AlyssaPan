@@ -64,6 +64,8 @@ src/alyssapan/
            DisplayGeometry       THE source of display size and aspect (port feature #1)
            Renderer              the render thread: frames in, pictures out (2D path)
            UiCanvas              the 2D draw module, GS register values in (alyssapan_drawui.h)
+           GaMeshRecorder        the ga draw objects' module (alyssapan_drawga.h): records a frame's
+                                 meshes; transform and GPU pass to come (open-items.md item 4)
            TextureStore          TIM2 pictures decoded at their source to RGBA8, cached by content
            PresentPass           grade + HDR output; Screenshotter the smoke shots
   media/   MpegStream, MpegDecoder  libmpeg on the host: PSS demux, FFmpeg MPEG-2

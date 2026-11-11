@@ -230,16 +230,25 @@ typedef struct GA_SPR_WORK {
     u_int zero06c;                      /* 0x06c */
     float work26;                       /* 0x070: work[26] */
     float work27;                       /* 0x074: work[27] */
-    u_char pad078[0x14];
-    float work6b;                       /* 0x08c: work[6] again */
+    u_long objReg70;                    /* 0x078: the draw object's +0x70 GS register value (gaBGT_DrawObject's set-ups) */
+    u_int zero080;                      /* 0x080: 0 (the set-ups) */
+    u_int vertexCount;                  /* 0x084: the object's vertex count (the set-ups) */
+    u_int primCount;                    /* 0x088: the object's primitive count (the set-ups) */
+    float work6b;                      /* 0x08c: work[6] again */
     u_long giftagTri[2];                /* 0x090: PRE TRIANGLE, 9 regs (ST RGBAQ XYZF2) x 3 */
     u_long giftagTriNop[2];             /* 0x0a0: the same after 3 NOPs, 12 regs */
     float work9;                        /* 0x0b0: work[9] */
     float work25;                       /* 0x0b4: work[25] */
     float colourMax;                    /* 0x0b8: 255.0 */
     float work24;                       /* 0x0bc: work[24] */
-    u_char pad0c0[0x2c];
-    u_int work3dlibEE;                  /* 0x0ec: the 3dlib work gaInit3dlibWork was given (EE 0x70000400) */
+    u_long objReg78;                    /* 0x0c0: the draw object's +0x78 GS register value (the set-ups) */
+    u_int pad0c8;
+    float objLight;                     /* 0x0cc: the draw object's +0x30 (the light1 set-ups) */
+    u_char pad0d0[0x10];
+    u_int drawPrimCount;                /* 0x0e0: gaBGT_DrawObject*: the object's +0x44 */
+    u_int drawVertexCount;              /* 0x0e4: gaBGT_DrawObject*: the object's +0x48 */
+    u_int pad0e8;
+    u_int work3dlibEE;                 /* 0x0ec: the 3dlib work gaInit3dlibWork was given (EE 0x70000400) */
     u_int bgtPacketEE;                  /* 0x0f0: the BGT packet area (EE 0x70000a00), set by gaBGT_Start */
     u_char pad0f4[0x1c];
     u_int vifMscal6[4];                 /* 0x110: NOP NOP NOP MSCAL 6 */
@@ -264,6 +273,11 @@ static_assert(offsetof(GA_SPR_WORK, work6b) == 0x8c, "GA_SPR_WORK.work6b");
 static_assert(offsetof(GA_SPR_WORK, giftagTri) == 0x90, "GA_SPR_WORK.giftagTri");
 static_assert(offsetof(GA_SPR_WORK, work9) == 0xb0, "GA_SPR_WORK.work9");
 static_assert(offsetof(GA_SPR_WORK, work3dlibEE) == 0xec, "GA_SPR_WORK.work3dlibEE");
+static_assert(offsetof(GA_SPR_WORK, objReg70) == 0x78, "GA_SPR_WORK.objReg70");
+static_assert(offsetof(GA_SPR_WORK, primCount) == 0x88, "GA_SPR_WORK.primCount");
+static_assert(offsetof(GA_SPR_WORK, objReg78) == 0xc0, "GA_SPR_WORK.objReg78");
+static_assert(offsetof(GA_SPR_WORK, objLight) == 0xcc, "GA_SPR_WORK.objLight");
+static_assert(offsetof(GA_SPR_WORK, drawPrimCount) == 0xe0, "GA_SPR_WORK.drawPrimCount");
 static_assert(offsetof(GA_SPR_WORK, vifMscal6) == 0x110, "GA_SPR_WORK.vifMscal6");
 static_assert(offsetof(GA_SPR_WORK, minusHalf230) == 0x230, "GA_SPR_WORK.minusHalf230");
 static_assert(sizeof(GA_SPR_WORK) == 0x240, "GA_SPR_WORK");

@@ -11,7 +11,9 @@
 #include "alyssapan/ee/kernel.h"
 #include "alyssapan/os/alyssapan_time.h"
 #include "alyssapan/os/timed_waiter.h"
+#include "alyssapan/rendering/alyssapan_drawga.h"
 #include "alyssapan/rendering/alyssapan_drawui.h"
+#include "alyssapan/rendering/ga_mesh.h"
 #include "alyssapan/rendering/renderer.h"
 #include "alyssapan/rendering/ui_canvas.h"
 
@@ -95,6 +97,11 @@ void AlyssaPan_DrawUiMovie(const void *list, const void *owner, int picture, con
 {
     canvas().drawMacroblocks(list, owner, picture, macroblocks, columns, rows, static_cast<float>(x),
                              static_cast<float>(y));
+}
+
+void AlyssaPan_DrawGaObject(const AlyssaPanGaObject *object)
+{
+    alyssapan::rendering::GaMeshRecorder::instance().record(*object);
 }
 
 void AlyssaPan_DrawUiKick(const void *const *lists, int count)

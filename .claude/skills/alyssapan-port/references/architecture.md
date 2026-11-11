@@ -412,6 +412,33 @@ the TU map's evidence.
   -558..-524, y -73..-53. The view comes from camera_init0 / camera_view (stubs): the quads' place on
   screen is the camera's.
 
+## The ga draw object's send, ga/gaBGT_DrawObject.c (2026-11-10, slice 1)
+
+- An asm object (0x018a3148..0x018a4fd8): every function keeps its state in the scratchpad through
+  `t9 = 0x70000000` (GA_SPR_WORK: +0xe0 prim count, +0xe4 vertex count, +0xf0 the packet area, +0x104 the
+  packet's end, +0x220 the attr argument, +0x224 ra, +0x240.. s0-s7 saved). Read it with `mipsdis.py`, not
+  the decompiler.
+- **gaBGT_DrawObject_NoClippingCheck2**: flags & 0x20 -> the billboard path shared with
+  gaBGT_DrawObject_NoClippingCheck (0x018a3984, not written yet); else flags & 0x1c == 0 -> nc2 light0,
+  anything else -> nc2 light1. **nc2 light2 (0x018a4c78) is dead**: its call at 0x018a3f44 is never
+  branched to. After the set-up the packet goes to the BGT ring through D8 (SPR -> memory, waiting for room
+  behind VIF1's TADR) and the packet area flips between 0xa00 and 0x1800.
+- **The nc2 set-ups' chain**: CNT 15 (UNPACK V4-32 14 qwords to VU1 0x1a0: the scratchpad's 0x60..0x90
+  with +0x78 = obj +0x70, +0x80 0, +0x84 vertices, +0x88 prims, +0x90 the GIFtag's NLOOP = prims | EOP;
+  obj +0x38's position qword; light1: obj +0x5c's 3 qwords; obj +0x58's 4 qwords; the scratchpad's 0xb0 and
+  0xc0 = obj +0x78), then REF tags: light0 colours (+0x6c, (n+3)/4 + 1 qwords: a VIF head qword, then RGBA
+  bytes), positions (+0x60, n qwords, the tag's own UNPACK V4-32 to VU 0), MSCAL 0x1a + 2 x (flags & 3),
+  ST (+0x68, (n+1)/2 + 1: a head qword, then s t floats); light1 positions, MSCAL 0x22 + 2 x (flags & 3),
+  normals (+0x64, n + 1), a scratchpad REF (0x170), colours, the light work (+0x3c, CNT 17 qwords copied
+  in), a scratchpad REF (0x130), ST; both: the index record (+0x50: UNPACK V4-16 to 0x17f, (prims + 1) & ~1
+  elements), an optional DIRECT upload (attr: halfword qwc, data at +0x10; main_rtn passes 0) and the
+  scratchpad REF at 0x120 (FLUSH MSCNT FLUSHE). light1 also stores obj +0x30 at the scratchpad's 0xcc.
+- **The index record**: four halfwords per primitive, vertex offsets in qwords (x 0x10); ATLD's quad is
+  `0 1 2 0 / 3 2 1 3` -- the fourth repeats the first: read as a triangle each (the VU1 program confirms).
+- Host: the set-ups call `AlyssaPan_DrawGaObject` (rendering/alyssapan_drawga.h) with the blocks in place;
+  `rendering::GaMeshRecorder` copies a frame's meshes (positions, ST, RGBA, triangles, matrix). Smoke run:
+  ATLD's first object arrives as light0, flags 1, 4 vertices, 2 triangles, v0 (-845 80 0), st 1/2048.
+
 ## The file layer, game/ArtoolDebugOpen.c (2026-11-10)
 
 `IopLoadModules` reboots the IOP with `cdrom0:\IOP\IOPRP255.IMG;1` and loads the ten modules from

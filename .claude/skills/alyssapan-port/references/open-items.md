@@ -876,6 +876,21 @@ questions. Resolve items here when they are settled (move them to "Done" with th
 3. ~~**io::Disc's path table is root-only**~~ (2026-11-10, game/ArtoolDebugOpen.c): CT3 reads sectors
    through libcdvd and finds the pack with sceCdSearchFile, so the subfolders' files now get sectors and
    `Disc::find` answers by name; the ISO records still list only the root (no CT3 code reads them).
+4. **ga/gaBGT_DrawObject.c -- partial (2026-11-10, slice 1):** the no-clip path is written
+   (NoClippingCheck2, nc2 light0 / light1) and hands each object's blocks to `AlyssaPan_DrawGaObject`;
+   ATLD's quads arrive (architecture.md "The ga draw object's send"). **Nothing draws yet**: the host
+   module (`rendering::GaMeshRecorder`) only records. Left, in order: (a) **the transform**: read the VU1
+   programs at MSCAL 0x1a / 0x22 (+ 2 x (flags & 3)) with `vudis.py` -- how the header (the scratchpad's
+   0x60..0x90 3dlib constants, the object's matrix at +0x58 and position at +0x38) maps a vertex to the
+   screen, what flags & 3 selects, and how light0 / light1 make the colour; (b) **a GPU pass** that draws the
+   recorded meshes with that transform, widened (not stretched) at wide aspects from DisplayGeometry, the
+   texture from the TEX_INFO / tbuffer upload sunBGT_ExecTBufferData_VIF1 sends (decoded at its source,
+   ct3pack.py's decoder is the reference), and GS reg values +0x70 / +0x78 (probably TEX0 and a blend /
+   clamp register: confirm by reading ATLD's); (c) the billboard path (flags & 0x20, 0x018a3984, shared with
+   gaBGT_DrawObject_NoClippingCheck), gaBGT_DrawObject (the clipped path) and the non-nc2 set-ups; (d) the
+   camera (game/asEyeForcusUP2CamMat.c, next in the queue) places the quads. Doubts: the index record's
+   fourth halfword (repeats the first in ATLD) and the ST / colour blocks' single VIF head qword are read
+   from ATLD's data only.
 
 ## Decisions
 

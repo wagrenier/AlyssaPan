@@ -7,6 +7,12 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-10, gaBGT_DrawObject.c slice 1) **The ga library's asm objects decompile to nonsense**:
+  functions that keep their state through `t9 = 0x70000000` (the scratchpad) come out of Ghidra as stores to
+  `uRamfcea0000`-style addresses and "read-only address is written" warnings, with MIPS instruction words
+  (`0x7b2b0070` = `lq t3,0x70(t9)`) shown as data. Read them with `mipsdis.py <lo> +<len>`; also grep the
+  object's disassembly for branches into a call block before writing it (nc2 light2's was dead).
+
 - (2026-11-10, movie.c slice 2) **A run that reaches AA_movie hangs on its stubs**: initAll retries
   `AA_strFileOpen` every vsync until it answers non-zero (the stub answers 0), readMpeg waits for
   `AA_videoDecFlush` (stub 0) and busy-waits ~41 ms on `AA_cpuCycles` (stub 0: forever), and the fade-out

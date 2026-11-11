@@ -56,12 +56,21 @@
    "task": "First picture, 2D: once banks load (the file server), find the first 2D thing the game draws (title, logo or a menu sprite, whichever the smoke run reaches first) and route its packet-writing step to UiCanvas; textures decoded at their source. Done when the screenshot shows it like the game's own asset at 4:3 and at a wide aspect (DisplayGeometry anchoring). If the first 2D draw is in a game TU, write that TU's slice here as the way in, and say so."
   },
   "ga/gaBGT_DrawObject.c": {
+   "notes": "Read from the disassembly (asm object, t9 = scratchpad). nc2 light2 is dead code. Left: the VU1 programs at MSCAL 0x1a / 0x22 for the transform and colour, a GPU pass for the recorded meshes (widened at wide aspects, texture from the tbuffer upload), the billboard path at 0x018a3984, gaBGT_DrawObject and the non-nc2 set-ups. Screenshot black: no render pass, camera stubs. open-items.md item 4.",
    "ranges": [
     [
      "018a3148",
      "018a4fd8"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-10 20:45",
+     "status": "partial",
+     "summary": "slice 1: the no-clip path (NoClippingCheck2, nc2 light0 and light1) hands each ga draw object to the new host module AlyssaPan_DrawGaObject (GaMeshRecorder); ATLD's quads arrive, nothing draws yet"
+    }
+   ],
+   "status": "partial",
    "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 9 unkeyed; file name from the names"
   },
   "ga/gaDma.c": {
