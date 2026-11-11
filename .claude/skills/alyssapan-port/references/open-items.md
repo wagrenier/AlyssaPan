@@ -1376,6 +1376,15 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    16:42): its slice should start with aaXcmd_MovieFedeOutCancel. Open: (kf2) the skip leaves out the
    ROM's 60-frame fade after a skip (no picture to fade); (kg2) whether hhXcmd_PlayADS runs after the
    movies is not yet seen in the log (it prints nothing): title_trace.cpp's session checks it.
+   **game/PicPaz.c (verify, 2026-11-11):** all 9 functions (the aa x commands: movie fades, the card file
+   list / cursor / details, the work buffer, SceneEndBank by name; aa_search, aa_to_big). The smoke run
+   now passes aaXcmd_MovieFedeOutCancel: m_capcom.mov and m_title.mov start and are skipped; the shot stays
+   flat grey (TITL draws nothing yet): title_trace.cpp is next. Open: (kh2) the fade words map onto movie.h
+   as "WHITE" = AA_MV_WHITE, "BLACK" = AA_MV_FADE (fade in from black), "-" = AA_MV_BLACK (none): AA_MV_BLACK
+   reads oddly for "no fade-in" -- rename the AA_MV_* set when movie.c's fade code is re-read; (ki2) the
+   card commands' variable / event numbers come from the script: nothing exercised them yet (the card
+   screen is past the title); (kj2) the TU now ends at 0x018dab60 (aa_to_big's split loop test
+   FUN_018dab3c), game/asXcmd.c starts at asXcmd_PanicSet 0x018dab60.
    **For 3D after it** (not queued yet): a ga pass of its own with depth and fog, widened from
    DisplayGeometry (UiCanvas has neither and squeezes), gaObjectClippingCheck and ga/gaDrawObject.c (the
    clipped path most scene objects take), light1 / light2 lighting and billboards (item 4 (e) (f) (g)),

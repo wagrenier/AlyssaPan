@@ -89,7 +89,7 @@ the TU map's evidence.
   `game-symbol` with the rest (2,621 in all).
 - **Seven Ghidra functions have no symbol at all**: 0x0185c26c, 0x0185c4b0, 0x0185c4e8 (game code),
   0x0189f680 (just before `IopLoadModule` 0x0189f6a0), 0x018bf05c, 0x018d2838 (before the sdremote
-  client), 0x018dab3c. Probably code reached only through a branch or a table, or Ghidra splitting a body;
+  client), 0x018dab3c (aa_to_big's loop test, game/PicPaz.c, 2026-11-11). Probably code reached only through a branch or a table, or Ghidra splitting a body;
   each gets a `game-inferred` name, or is merged into its owner, when its TU is read.
 - **Data labels**: 2,657 symbols in the image (996 MW literals `@<n>`, 374 statics `<name>$<n>`, 1,287
   named), all labels in Ghidra. Ghidra lists `name$<n>` statics under the name with the `$` kept, which is

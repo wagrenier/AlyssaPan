@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-11 16:48 at commit `8c5e337` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-11 17:12 at commit `9562898` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1128**; stubs: **263**
+- reconstructed CT3 functions: **1137**; stubs: **256**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -63,7 +63,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/CpDivideEECom.c` | 0 | 10 |
 | `src/game/IOPGetFileSize.c` | 4 | 0 |
 | `src/game/LinkMatrixTree.c` | 4 | 0 |
-| `src/game/PicPaz.c` | 0 | 7 |
+| `src/game/PicPaz.c` | 9 | 0 |
 | `src/game/QuatSlerp.c` | 189 | 0 |
 | `src/game/RotateCamera.c` | 0 | 2 |
 | `src/game/SdMasterVolumeSetSE.c` | 61 | 0 |
@@ -98,9 +98,9 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 34, partial 4, verify 29, done 6, blocked 1
-- next: **game/PicPaz.c** (pinned in the queue)
-- pinned queue: game/PicPaz.c, alyssapan/core/title_trace.cpp, ga/pad_button_read.c, game/Clipping_Portal.c, alyssapan/rendering/ui_canvas.cpp, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
+- 65 TUs: todo 33, partial 4, verify 30, done 6, blocked 1
+- next: **alyssapan/core/title_trace.cpp** (pinned in the queue)
+- pinned queue: alyssapan/core/title_trace.cpp, ga/pad_button_read.c, game/Clipping_Portal.c, alyssapan/rendering/ui_canvas.cpp, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
 - partial: `game/Clipping_Portal.c` 31/73 -- Smoke run unchanged: frame 120 memory-card text, then the known flat grey; no scene draw is reached, so nothing here shows. open-items 7 jx..ka: MODEL_PARTS off
 - partial: `game/tiXcmd_TransItem.c` 85/93 -- Slice 10. Written: tiXcmd_UseItem (ITEM_USE_* modes from argv[4], ITEM_KIND_* from the row byte +0: give-take, signal, heal Character[0].hp up to hpMax, calm vi
 - partial: `game/wideXcmd_DebugPrint.c` 107/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed) -- the last function of the TU. New stubs
@@ -120,6 +120,7 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/Character_Init.c` 48/49 -- All 49 functions written; nothing on screen reaches the card yet (main2 is a stub), shot black as before. The save image layout is in architecture.md (The save 
 - verify: `game/IOPGetFileSize.c` 4/4 -- All 4 functions written. No host server answers FSYS_IOP SUNA yet (sif.cpp answers zeros), so a loose file's size reads 0: a host FSYS_IOP server on io::Disc is
 - verify: `game/LinkMatrixTree.c` 4/4 -- Code complete, nothing on screen shows it yet: the smoke run still crashes at main.c 2106 (ActressMP NULL, the known blocker) and the shot stays black. LinkMatr
+- verify: `game/PicPaz.c` 9/10 -- The smoke run passes aaXcmd_MovieFedeOutCancel: both title movies start and are skipped; the shot stays flat grey since TITL draws nothing yet (title_trace.cpp 
 - verify: `game/QuatSlerp.c` 177/177 -- 15 s smoke run: no fault, shot black (no host draw module yet). callcheck: GetAreaFloor's memcmp and ssTrigRemoveEvent come through ROOM_IS and AreaFloorClear (
 - verify: `game/SdMasterVolumeSetSE.c` 61/61 -- All 61 functions written. callcheck MISSING on SdLoadSQProc is its step helpers (SdLoadSQOpen/Read/Send/Command), as for SdLoadSEProc. ROM slips kept: step 6 pr
 - verify: `game/ahRelocateSunPs2ObjectArry.c` 93/93 -- All 93 functions written; nothing reaches the general body yet (the two written callers pass one flag each; asCharacterAnimationExecute and asResetCharacterPosi
@@ -137,6 +138,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-11 17:11 `game/PicPaz.c` verify: all 9 functions: the aa x commands (movie fades, memory-card file list, cursor and details, work buffer, SceneEndBank by name), aa_search, aa_to_big
 - 2026-11-11 16:48 `alyssapan/core/movie_skip.cpp` verify: movie skip: [game] skip_intro ends each movie at once, smoke runs turn it on
 - 2026-11-11 16:41 `game/hhXcmd_DressUp.c` verify: all 22 sound x commands: LoadSE, PlaySE, the SE changes, ADS, SQ, Sp1, DressUp, FootSEConversion
 - 2026-11-11 16:29 `game/Clipping_Portal.c` partial: slice 7: tiParticleInit and tiLensFlaresInit (scene_init set-up: parts matrix200 / pos words, emit rate, draw controls and textures, ring draw objects; flare sp
@@ -144,7 +146,6 @@ Recent sessions:
 - 2026-11-11 15:53 `game/Clipping_Portal.c` partial: slice 5: tiPipeJointInit and tiPipeJointUpdate (Character 3 tube: two-bone IK plus a damped spring), gaNormalizeVector3XYZ, tiXFadeOut_Start; XfadeEndTicks decl
 - 2026-11-11 15:31 `game/Clipping_Portal.c` partial: slice 4: tiHurikoInit (joint links and rest pose), tiHurikoHitUpdate, tiHurikoReset_On, tiSet_CharaTranslucenceON; HURIKO chains / jointTable, HURIKO_JOINT, HUR
 - 2026-11-11 15:12 `game/Clipping_Portal.c` partial: slice 3: tiParticleUpdate, tiCalc_LifeSpan, tiHurikoUpdate, gaNormalizeVectorXYZ, tiSet_CharaTranslucenceOFF; HURIKO, ALL_TABLE.huriko, PARTICLE2.life / age, BA
-- 2026-11-11 14:54 `game/Clipping_Portal.c` partial: slice 2: Clipping_Portal (portal side planes), tiCharaFootAdjust and tiCalc_FootPos (two-bone leg IK onto the floor); LOS_HIT, CHARACTER.footAdjust, CHARA_LEG m
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
@@ -158,8 +159,8 @@ Recent sessions:
 | `game/AA_GetDataWord.c` | todo | 0/8/15 | 4.9 | 21 | 2 |
 | `game/AA_SoundMonoSoart.c` | todo | 0/8/20 | 4.0 | 18 | 2 |
 | `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
-| `game/asUseArrow.c` | todo | 0/7/11 | 6.4 | 17 | 1 |
 | `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
+| `game/asUseArrow.c` | todo | 0/7/11 | 6.4 | 17 | 1 |
 
 ## Frontier (called by reconstructed code, not written yet)
 

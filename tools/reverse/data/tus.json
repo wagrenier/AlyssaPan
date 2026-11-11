@@ -1,6 +1,5 @@
 {
  "queue": [
-  "game/PicPaz.c",
   "alyssapan/core/title_trace.cpp",
   "ga/pad_button_read.c",
   "game/Clipping_Portal.c",
@@ -594,13 +593,22 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 70..70, 2 functions keyed by their statics, 2 unkeyed; file name from the names"
   },
   "game/PicPaz.c": {
+   "notes": "The smoke run passes aaXcmd_MovieFedeOutCancel: both title movies start and are skipped; the shot stays flat grey since TITL draws nothing yet (title_trace.cpp next). TU pinned to 0x018da090-0x018dab60 (aa_to_big's split loop test FUN_018dab3c); asXcmd.c from 0x018dab60. Card commands unexercised (past the title). open-items 8 (kh2..kj2).",
    "ranges": [
     [
      "018da090",
-     "018dab3c"
+     "018dab60"
     ]
    ],
-   "why": "tumap.py (bootstrap 5): symtab local chunks 129..129, 4 functions keyed by their statics, 5 unkeyed; file name from the names"
+   "sessions": [
+    {
+     "date": "2026-11-11 17:11",
+     "status": "verify",
+     "summary": "all 9 functions: the aa x commands (movie fades, memory-card file list, cursor and details, work buffer, SceneEndBank by name), aa_search, aa_to_big"
+    }
+   ],
+   "status": "verify",
+   "why": "aa_to_big (0x018dab10) is a CW while loop: b to its test at 0x018dab3c, which Ghidra split off as FUN_018dab3c (body to 0x018dab53, nop pad to 0x018dab60); the tail belongs to aa_to_big"
   },
   "game/QuatSlerp.c": {
    "notes": "15 s smoke run: no fault, shot black (no host draw module yet). callcheck: GetAreaFloor's memcmp and ssTrigRemoveEvent come through ROOM_IS and AreaFloorClear (explained). Open-items 1 (ga) asFindMotionID's motion table is NULL until asInitPlayerBehaviorControler's TU gives CHARACTER +0x350 a host form; (gb) the 1C02 branch has no else, from the decompilation.",
@@ -885,11 +893,11 @@
   "game/asXcmd.c": {
    "ranges": [
     [
-     "018dab3c",
+     "018dab60",
      "018dc1e0"
     ]
    ],
-   "why": "tumap.py (bootstrap 5): symtab local chunks 130..130, 4 functions keyed by their statics, 17 unkeyed; file name from the names"
+   "why": "starts at asXcmd_PanicSet 0x018dab60: 0x018dab3c..0x018dab60 is aa_to_big's loop tail (game/PicPaz.c)"
   },
   "game/copy2area.c": {
    "ranges": [

@@ -2520,12 +2520,12 @@
 /* 018da900 00000110 */ aaXcmd_SceneEndBank(){}  // sym
 /* 018daa10 00000100 */ aa_search(){}  // sym
 /* 018dab10 0000002c */ aa_to_big(){}  // sym
+/* 018dab3c 00000014 */ FUN_018dab3c(){}
 
 // *****************************************************************************
 // FILE -- game/asXcmd.c
 // *****************************************************************************
 
-/* 018dab3c 00000014 */ FUN_018dab3c(){}
 /* 018dab60 000001f0 */ asXcmd_PanicSet(){}  // sym
 /* 018dad50 000000e4 */ asXcmd_DistanceBetweenChar(){}  // sym
 /* 018dae40 000000e4 */ asXcmd_ALYSSA_ComeHere(){}  // sym
