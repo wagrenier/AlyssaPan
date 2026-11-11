@@ -1,5 +1,6 @@
 {
  "queue": [
+  "alyssapan/rendering/ga_fill.cpp",
   "game/Clipping_Portal.c",
   "alyssapan/rendering/ui_canvas.cpp",
   "game/wideXcmd_DebugPrint.c",
@@ -57,6 +58,9 @@
    ],
    "status": "done",
    "task": "The first picture, ATLD (the memory-card check screen): its quads now land on screen (grey, untextured, right of centre). Make the ga host draw module draw them as work/ref/ATLD shows (white outlined text and arrow marks, centred), at 4:3 and wide: the object texture from the bank TIM2 via TextureStore keyed by the GS registers, the light0 colour, CT3 window origin, then depth and fog. open-items.md Next up item 7."
+  },
+  "alyssapan/rendering/ga_fill.cpp": {
+   "task": "The ga full-screen fill: tiFade_Draw (game/Clipping_Portal.c, 2026-11-11) sends init_black / init_white, a GIF A+D SPRITE over the GS window 512x448, blended by its draw control (ALPHA_1 (Cs - Cd) * FIX + Cd, FIX = 128 x the fade's f), and the host drops raw GIF packets, so the screen stays flat grey where the ROM is black (fade type 4 at f 1 from frame ~60). Add a native call in alyssapan_drawga.h (colour, FIX) that the recorder keeps in draw order and the renderer draws over the whole window at any aspect (DisplayGeometry, never 4:3); call it from tiFade_Draw instead of the packet; also find where the flat 128 grey comes from. Done when the smoke shot after ATLD is black at 4:3 and wide."
   },
   "alyssapan/rendering/ui_canvas.cpp": {
    "notes": "Blocked on ga/gaBGT_DrawObject.c (host draw module for ga draw objects) and the camera (asEyeForcusUP2CamMat.c camera_init0 / camera_view stubs); triggers are not needed for ATLD. Reference: ct3pack.py tex ATLD.BIN writes work/ref/ATLD. Suggested reorder in open-items.md, not applied (the user's order).",
@@ -462,12 +466,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 105..105, 36 functions keyed by their statics, 13 unkeyed; file name from the names"
   },
   "game/Clipping_Portal.c": {
+   "notes": "Fade after ATLD is type 4 (OUT2_BLACK) reaching f 1; tiFade_Draw sends the ROM's GIF sprite packet, which the host drops, so the shot stays flat grey: host task alyssapan/rendering/ga_fill.cpp queued first. Slice left: tiDrawShadingOff, CaptureDBuffer, tiVRAMViewer, ExportDrawToTex, tiDrawLensFlares, tiLightBelt2Update, tiCharaFootAdjust, tiCalc_FootPos (draw path and feet). open-items.md item 7 update (ha..he).",
    "ranges": [
     [
      "01889cd0",
      "018951d0"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-11 14:19",
+     "status": "partial",
+     "summary": "slice 1: vibration (tiVibrationOn / Off / Timer), wind (tiWindInit / Update / End / End_All), tiLightBelt2Init, tiFade_Start, tiFade_Draw, tiFactorial; WIND, LIGHT_BELT2, ALL_TABLE.winds / lightBelts, MODEL_PARTS.matrix200, gaPadSetVibration declared"
+    }
+   ],
+   "status": "partial",
    "why": "tumap.py (bootstrap 5): symtab local chunks 88..88, 21 functions keyed by their statics, 52 unkeyed; file name from the names"
   },
   "game/Convert.c": {

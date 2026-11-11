@@ -389,7 +389,11 @@ typedef struct ALL_TABLE {
     u_int angleAtten;                   /* 0x84: ANGLE_ATTEN[] (AngleAttenuationUpdate), 0 = none */
     u_int pad88;
     u_int texFileSet;                   /* 0x8c: TEX_FILE_SET_TABLE (QuatSlerp.h: the paged textures), 0 = none */
-    u_int pad90[10];
+    u_int pad90[2];
+    u_int winds;                        /* 0x98: list of WIND (Clipping_Portal.h): tiWindInit registers them */
+    u_int pad9c;
+    u_int lightBelts;                   /* 0xa0: list of LIGHT_BELT2 (Clipping_Portal.h), 0 = none (tiLightBelt2Init) */
+    u_int pada4[5];
     u_int fog;                         /* 0xb8: FOG_INFO (scene_init -> FogCtrlAddr, bank types 0 / 1) */
     u_int behavior;                     /* 0xbc: scene_init -> pBehaviorHeader[bank]; the relocator reads
                                            words to 0xe8: the table's end is not known */
@@ -421,6 +425,8 @@ static_assert(offsetof(ALL_TABLE, objAfter) == 0x60, "ALL_TABLE.objAfter");
 static_assert(offsetof(ALL_TABLE, partsLight) == 0x70, "ALL_TABLE.partsLight");
 static_assert(offsetof(ALL_TABLE, particles2After) == 0x7c, "ALL_TABLE.particles2After");
 static_assert(offsetof(ALL_TABLE, fog) == 0xb8, "ALL_TABLE.fog");
+static_assert(offsetof(ALL_TABLE, winds) == 0x98, "ALL_TABLE.winds");
+static_assert(offsetof(ALL_TABLE, lightBelts) == 0xa0, "ALL_TABLE.lightBelts");
 
 // A bank's sound objects (ALL_TABLE.sound): the sources the trigger actions and room-in start play.
 // layout: ee -- bank data; loadSE and objs are relocated words (BankEePtr, open-items.md item 1 h).
@@ -482,7 +488,9 @@ typedef struct MODEL_PARTS {
     float pos[4];                      /* 0x130: the part's position (SSGetPositional: a sound source) */
     u_char pad140[0x80];
     float matrix[4][4];                 /* 0x1c0: the part's world matrix (SelfDiscardSceneLoad; ActressMP's) */
-    u_char pad200[0xc0];
+    float matrix200[4][4];              /* 0x200: a second matrix: a wind's frame (tiWindInit; its role is
+                                           unread, the writer names it) */
+    u_char pad240[0x80];
     float placeRot[3][4];               /* 0x2c0: rows 0..2 of the part's placement matrix, drawOnPos its
                                            row 3 (asObjectRotate sets or turns them) */
     float drawOnPos[4];                 /* 0x2f0: part 0's: where the bank was placed (a save keeps it;
@@ -495,6 +503,7 @@ typedef struct MODEL_PARTS {
     u_char pad330[0x50];
 } MODEL_PARTS;
 static_assert(offsetof(MODEL_PARTS, alpha) == 0x120, "MODEL_PARTS.alpha");
+static_assert(offsetof(MODEL_PARTS, matrix200) == 0x200, "MODEL_PARTS.matrix200");
 static_assert(offsetof(MODEL_PARTS, transInit) == 0x0f0, "MODEL_PARTS.transInit");
 static_assert(offsetof(MODEL_PARTS, warpH54) == 0x54, "MODEL_PARTS.warpH54");
 static_assert(offsetof(MODEL_PARTS, losAlpha) == 0x124, "MODEL_PARTS.losAlpha");

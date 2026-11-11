@@ -7,6 +7,14 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-11, Clipping_Portal.c slice 1) **A GIF packet sent with gaBGT_ExecDrawCommandData_VIF1 draws
+  nothing on the host.** Only ga draw objects (AlyssaPan_DrawGaObject) and the texture binding reach the
+  renderer; raw A+D packets (the frame clear, tiFade_Draw's init_black / init_white sprites) are dropped.
+  An effect built that way needs a native call before a shot can show it. Ghidra also loses such a
+  function's float work (tiFade_Draw's alpha shows as empty switch cases): read the listing (mipsdis.py)
+  and the jump tables in the ELF.
+- (2026-11-11) **In a Bash heredoc a Python string's escaped newline turned into a real newline** (a printf
+  probe broke the build): put C text with backslashes in a file written by the Write tool.
 - (2026-11-11) **Ghidra decompiles a function to an empty `void f(void) { return; }` when its only output is
   v0 set on some paths.** tkXcmd_GetValueType (0x018e8e70) reads `a0[0]` and answers 0 / 1 / 2 or leaves
   v0 untouched; Ghidra showed nothing. When a "todo" body is empty but the function is 0x80 bytes, read

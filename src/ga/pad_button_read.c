@@ -11,3 +11,9 @@ void gaPadRead(PAD_DATA *pad, int mode)
 {
     ALYSSAPAN_STUB("gaPadRead", 0x018a0b40);
 }
+
+// stub of CT3 0x018a0ac0
+void gaPadSetVibration(PAD_DATA *pad, u_char small, u_char large)
+{
+    ALYSSAPAN_STUB("gaPadSetVibration", 0x018a0ac0);
+}

@@ -691,7 +691,7 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    (TRIG_EVENT_LAVENDER 0x1a, _INVISIBLE 0x97, _PLAYER_STOP 0x90, PanicCheck's ON / OFF events,
    TRIG_VAR_PANIC_OFF 0x0b, SE 0x23 / 0x24 / 0x43 / 0x45 in slot 4), PANIC_MODE_FULL (mode bit 0) and
    tiVibrationOn's argument names are from this use only; act_small / act_large (0x0193f840 / 44) sit in
-   lib/unassigned_data.cpp until the vibration TU (Clipping_Portal.c's tiVibration*) owns them; the
+   lib/unassigned_data.cpp (Clipping_Portal.c slice 1 left them there: shared with QuatSlerp.c); the
    heartbeat's second SdSetParamSE argument (SD_SE_PARAM_30, level / 2) is unk30 until the Sd TU names it.
    Left (frontier): PanicUpdate, PanicFilter, XcmdScreenFilter / Skip, DemoScreenFilter, MonsterAIUpdate,
    FogAnimeUpdate, ExecuteWarpObject / 2, ssGetBankID, ssStrCmp4Byte and the brief's other ~70.
@@ -1206,6 +1206,21 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    scene teardown (ssParticleDeInit, ssPartMotionBlurAllEnd, tiWindEnd) and `hhXcmd_LoadSE`: the grey is
    the next scene's first screen or a fade nothing drives -- tiFade_Start's TU (and the fade draw) first.
    **Queued first: game/Clipping_Portal.c** (tiFade_Start's object; Claude's call, this run).
+   **Update 2026-11-11 (Clipping_Portal.c slice 1, scheduled run):** tiFade_Start and tiFade_Draw are
+   written. The fade that runs after ATLD is type 4 (FADE_TYPE_OUT2_BLACK, mc_load_set's) over 300 ticks:
+   it reaches f 1 (ALPHA_1 FIX 128, full black) within ~60 frames and stays (OUT2 kinds never end
+   themselves). The ROM draws it as a raw GIF A+D SPRITE (init_black / init_white), which the host drops
+   (no GS emulation), so the shot is still flat grey where the ROM is black. **Queued first (Claude's call):
+   the host task alyssapan/rendering/ga_fill.cpp**: a native full-screen fill in alyssapan_drawga.h that
+   tiFade_Draw calls instead of the packet, drawn over the whole window at any aspect; and find where the
+   flat 128 grey comes from (no draw seen makes it). Open from slice 1: (ha) WIND (ALL_TABLE +0x98) and
+   LIGHT_BELT2 (+0xa0) are named from their init / update only: their readers (particles, pendulums,
+   tiLightBelt2Update) name the points; MODEL_PARTS +0x200 (matrix200) is a second matrix whose writer is
+   unread; (hb) PARTS_KIND_WIND_ON_ROOT (1) = PARTS_KIND_ITEM_LOCKED: one of the two names is wrong;
+   (hc) tiVibrationTimer counts and calls tiVibrationOff every frame past the limit, timed or not (the
+   ROM's; harmless: Off only stops motors); (hd) tiWindInit returns on a 0 list word (PORT guard: the ROM
+   reads EE address 0); (he) tiVibrationOn's prototype is now (port, small, large, time): the callers'
+   argument names (PanicSound's) stand.
 
 ## Decisions
 

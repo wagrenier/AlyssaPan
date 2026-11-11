@@ -40,3 +40,5 @@ static_assert(offsetof(PAD_DATA, trg) == 0x04, "PAD_DATA.trg");
 static_assert(offsetof(PAD_DATA, key) == 0x06, "PAD_DATA.key");
 
 void gaPadRead(PAD_DATA *pad, int mode);                                                 // CT3 0x018a0b40
+// small == 1 runs the small motor; large: the large motor's level (0..255). From tiVibrationOn / Off.
+void gaPadSetVibration(PAD_DATA *pad, u_char small, u_char large);                        // CT3 0x018a0ac0
