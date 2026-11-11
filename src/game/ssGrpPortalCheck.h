@@ -1,7 +1,8 @@
 // game/ssGrpPortalCheck.h -- CT3 game/ssGrpPortalCheck.c: the trigger system (event flags, variables,
 // detectors, the trigger script) and the room portals a character steps through.
 // Slice 1 (2026-11-10): the event / variable API, the script byte readers, the enable checks, the
-// detector shapes, ProcessPortal and ssScnPortalCheck. The rest are prototypes from the call sites.
+// detector shapes, ProcessPortal and ssScnPortalCheck. Slice 2: Trigger_init / _deinit, TriggerGlobalInit,
+// the trigger work records and the delay-enable ring. The rest are prototypes from the call sites.
 #pragma once
 
 #include "sdk/scetypes.h"
@@ -53,7 +54,96 @@ static_assert(offsetof(GRP_PORTAL, normal) == 0x90, "GRP_PORTAL.normal");
 static_assert(offsetof(GRP_PORTAL, roomIdBack) == 0xa8, "GRP_PORTAL.roomIdBack");
 #define ROOM_ID_KEEP -1
 
-#define PORTAL_CHARA_COUNT 6            /* ssScnShiftCharList / ssGrpShiftCharList: the characters checked */
+// ---- the trigger script (Trigger_init) ----------------------------------------------------------------
+// ALL_TABLE.trigger points at three EE words (layout: ee): the bank's "other" block (a header, then the
+// script Trigger_main runs), its detector block and its actor block. The blocks are byte streams read
+// with ssTrigRead*Byte (little-endian, unaligned).
+typedef struct TRIG_DATA {
+    u_int other;                        /* 0x00: OthData: the header, then the script */
+    u_int detectors;                    /* 0x04: DetData: four 4-byte offsets per detector record */
+    u_int actors;                       /* 0x08: ActData: two 4-byte offsets per actor */
+} TRIG_DATA;
+static_assert(sizeof(TRIG_DATA) == 0x0c, "TRIG_DATA");
+
+// The other block's header, in read order: a word Trigger_init skips, then six u_shorts: detectors,
+// actors, temp event flags, temp variables, delay-enable slots, and the one TRIG_WORK keeps (header12).
+
+// TrigWork[bank]: the header's counts. layout: host (EE 12 bytes: +4 is a pointer).
+typedef struct TRIG_WORK {
+    u_short numDetectors;               /* EE 0x00: DetWork[bank]'s records */
+    u_short numActors;                  /* EE 0x02: ActWork[bank]'s records */
+    const u_char *script;               /* EE 0x04: the other block past its header */
+    short header12;                     /* EE 0x08: the header's last short (Trigger_main names it) */
+} TRIG_WORK;
+
+// DetWork[bank][i]: one detector's state. layout: host (EE 0x1c bytes: +0x14 is a pointer). The *Pos
+// fields are offsets into DetData[bank] (the record's act mode, condition count and actor count bytes).
+typedef struct TRIG_DET_WORK {
+    u_char state;                       /* EE 0x00: 0 at init */
+    u_char numConds;                    /* EE 0x01 */
+    u_char numActors;                   /* EE 0x02 */
+    u_char actMode;                     /* EE 0x03 */
+    u_char pad04[4];
+    u_int actModePos;                   /* EE 0x08 */
+    u_int condsPos;                     /* EE 0x0c */
+    u_int actorsPos;                    /* EE 0x10 */
+    const u_char *body;                 /* EE 0x14: DetData + the record's fourth offset + 2 */
+    short kind;                         /* EE 0x18: the body's first short (read before body is set) */
+} TRIG_DET_WORK;
+
+// ActWork[bank][i]: one actor's state and its activate / deactivate command lists. layout: ee.
+typedef struct TRIG_ACT_WORK {
+    int state;                          /* 0x00: 0 at init */
+    u_char pad04[8];
+    u_int activatePos;                  /* 0x0c: offset into ActData[bank]: the activate commands' count */
+    u_char pad10[4];
+    u_char numActivate;                 /* 0x14 */
+    u_char pad15[7];
+    u_int deactivatePos;                /* 0x1c: the deactivate commands' count */
+    u_char pad20[4];
+    u_char numDeactivate;               /* 0x24 */
+    u_char pad25[3];
+} TRIG_ACT_WORK;
+static_assert(offsetof(TRIG_ACT_WORK, activatePos) == 0x0c, "TRIG_ACT_WORK.activatePos");
+static_assert(offsetof(TRIG_ACT_WORK, numActivate) == 0x14, "TRIG_ACT_WORK.numActivate");
+static_assert(offsetof(TRIG_ACT_WORK, deactivatePos) == 0x1c, "TRIG_ACT_WORK.deactivatePos");
+static_assert(offsetof(TRIG_ACT_WORK, numDeactivate) == 0x24, "TRIG_ACT_WORK.numDeactivate");
+static_assert(sizeof(TRIG_ACT_WORK) == 0x28, "TRIG_ACT_WORK");
+
+// DlyEnaWork[bank]: a ring of delayed part switches (ssDERingFront / Rear, numMaxDECount[bank] slots).
+// ssTrigExecDelayEnable applies an entry once its wait has run out, then pops the front. layout: ee.
+typedef struct TRIG_DELAY_ENABLE {
+    short part;                         /* 0x00: the bank's model part */
+    u_char op;                          /* 0x02: DE_OP_* */
+    u_char wait;                        /* 0x03: frames left; push sets DE_WAIT_PENDING */
+} TRIG_DELAY_ENABLE;
+static_assert(sizeof(TRIG_DELAY_ENABLE) == 4, "TRIG_DELAY_ENABLE");
+#define DE_OP_HIDE 0                    /* set PARTS_FLAG_HIDDEN */
+#define DE_OP_SHOW 1                    /* clear it */
+#define DE_OP_TOGGLE 2                  /* flip it */
+#define DE_OP_CANCELLED 3               /* ssTrigDE_DisableReq: popped without effect */
+#define DE_WAIT_PENDING 1               /* ssTrigDE_ChangeReq walks the entries that still have it */
+#define DE_SLOTS_PER_COUNT 2            /* Trigger_init: numMaxDECount = 2 x the header's count */
+
+extern TRIG_WORK TrigWork[BANK_MAX];                    /* bss 0x01ad7810 */
+extern TRIG_DET_WORK *DetWork[BANK_MAX];                /* bss 0x01940db0 */
+extern TRIG_ACT_WORK *ActWork[BANK_MAX];                /* bss 0x01940f10 */
+
+TRIG_DELAY_ENABLE *ssTrigDEPop_Front(TRIG_DELAY_ENABLE *ring, int bank);                 // CT3 0x018d3f30
+int ssTrigDEPush_Back(TRIG_DELAY_ENABLE *ring, int bank, const TRIG_DELAY_ENABLE *req);  // CT3 0x018d3f90
+int ssTrigDE_ChangeReq(TRIG_DELAY_ENABLE *ring, int bank, short part, u_char op);        // CT3 0x018d3e00
+void ssTrigDE_DisableReq(TRIG_DELAY_ENABLE *ring, int bank, short part);                 // CT3 0x018d3ea0
+void ssTrigExecDelayEnable(int index, int bank);                                         // CT3 0x018d4010
+const u_char *ssTrigGetOtherData(int bank);                                              // CT3 0x018d9650
+const u_char *ssTrigGetActData(int bank);                                                // CT3 0x018d9670
+const u_char *ssTrigGetDetData(int bank);                                                // CT3 0x018d9690
+u_char ssTrigReadNumDeactivateCmd(const TRIG_ACT_WORK *act, int bank);                   // CT3 0x018d96b0
+u_char ssTrigReadNumActivateCmd(const TRIG_ACT_WORK *act, int bank);                     // CT3 0x018d96f0
+u_char ssTrigReadActMode(const TRIG_DET_WORK *det, int bank);                            // CT3 0x018d9750
+u_char ssTrigReadNumActors(const TRIG_DET_WORK *det, int bank);                          // CT3 0x018d9790
+u_char ssTrigReadNumConds(const TRIG_DET_WORK *det, int bank);                           // CT3 0x018d97d0
+
+#define PORTAL_CHARA_COUNT 6           /* ssScnShiftCharList / ssGrpShiftCharList: the characters checked */
 #define PORTAL_AMBIENT_FADE 0x40        /* ssScnPortalCheck: tnChangeCharAmbientColorSet's third short */
 #define PORTAL_DIRECT_LIGHT_FRAMES 20   /* DirectLightCharaCounter after a room change */
 #define PORTAL_INSIDE_ANGLE 65014.0f    /* CheckPlaneEntry: the corner angles (ahAcos units, 65536 = a turn)
@@ -68,8 +158,8 @@ void ProcessPortal(void);                                                       
 int CheckPlaneEntry(int bank, int chara, int part);                                      // CT3 0x018d3770
 void InitTriggerDetectorShape(int scene);                                                // CT3 0x018d3d90
 void Trigger_main(void);                                                                 // CT3 0x018d4120
-void Trigger_deinit(void);                                                               // CT3 0x018d4be0
-void Trigger_init(void);                                                                 // CT3 0x018d4c80
+void Trigger_deinit(int bank);                                                               // CT3 0x018d4be0
+void Trigger_init(int bank);                                                                 // CT3 0x018d4c80
 void TriggerGlobalInit(void);                                                            // CT3 0x018d5230
 int ssTrigCheckEnable(int part, int bank);                                               // CT3 0x018d8e80
 int ssTrigCheckInputEnable(u_int mask);                                                  // CT3 0x018d89c0

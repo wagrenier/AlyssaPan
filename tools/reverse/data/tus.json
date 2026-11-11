@@ -1013,7 +1013,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 102..102, 3 functions keyed by their statics, 2 unkeyed; file name from the names"
   },
   "game/ssGrpPortalCheck.c": {
-   "notes": "Temp event and variable sets are NULL until Trigger_init is written: PORT guards answer 0. Next: Trigger_init (TrigWork, DetWork, ActWork, the temp sets), then Trigger_main and the detector, condition and actor functions. Smoke run 15 s: no fault, shot black as before (no bank draws yet). open-items.md item 6.",
+   "notes": "Trigger_init and _deinit take the bank (scene_init and scene_end pass it in a0; main.c fixed). TRIG_WORK and TRIG_DET_WORK are layout host. Next: Trigger_main (three passes over banks 0..5 then 6..85), ssTrigProcDetRecur, ssTrigCheckDetector, ssTrigCheckConditions, the actor functions. Smoke run 15 s: no fault, shot black as before (no bank draws yet). open-items.md item 6 (c)-(e).",
    "ranges": [
     [
      "018d2ee0",
@@ -1025,6 +1025,11 @@
      "date": "2026-11-10 23:18",
      "status": "partial",
      "summary": "triggers slice 1: the event and variable API, the byte readers, the enable checks, InitTriggerDetectorShape, CheckRoomEntry and the room portals (ProcessPortal, ssScnPortalCheck, CheckPlaneEntry, ssGrpPortalCheck)"
+    },
+    {
+     "date": "2026-11-11 07:05",
+     "status": "partial",
+     "summary": "triggers slice 2: Trigger_init, Trigger_deinit, TriggerGlobalInit, the trigger block getters and count readers, the delay-enable ring (ssTrigDEPop_Front, PushBack, ChangeReq, DisableReq, ssTrigExecDelayEnable); ALL_TABLE +0x4c is trigger"
     }
    ],
    "status": "partial",

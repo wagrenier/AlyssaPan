@@ -3,7 +3,8 @@
 // Trigger_main runs them every frame, ProcessPortal moves the characters between rooms.
 // Slice 1 (2026-11-10): the event / variable API, the script byte readers, the enable checks,
 // InitTriggerDetectorShape, CheckRoomEntry and the portals (ProcessPortal, ssScnPortalCheck,
-// CheckPlaneEntry, ssGrpPortalCheck). Trigger_init / _main / _deinit and TriggerGlobalInit are still stubs.
+// CheckPlaneEntry, ssGrpPortalCheck). Slice 2 (2026-11-10): Trigger_init / _deinit, TriggerGlobalInit,
+// the trigger block getters and readers, the delay-enable ring. Trigger_main is still a stub.
 
 #include <math.h>
 #include <string.h>
@@ -11,6 +12,7 @@
 #include "common/alyssapan_stub.h"
 #include "game/ssGrpPortalCheck.h"
 #include "ga/gaInit3dlib.h"
+#include "game/ahalloc.h"
 #include "game/Character_Init.h"
 #include "game/QuatSlerp.h"
 #include "game/ahRelocateSunPs2ObjectArry.h"
@@ -26,6 +28,19 @@ short ssGrpShiftCharList[PORTAL_CHARA_COUNT] = {0, 2, 3, 4, 5, 6};   // CT3 0x01
 // arrays of EE words; the blocks are the TU's own, never bank data).
 static int *TempVariable[BANK_MAX];             // CT3 0x019440e0 (LOCAL, 344 bytes)
 static u_char *TempEventFlag[BANK_MAX];         // CT3 0x01944240 (LOCAL, 344 bytes)
+
+// The bank's trigger blocks (ALL_TABLE.trigger's three words, as host pointers into the bank image) and
+// the per-bank work Trigger_init builds from them. layout: host (arrays of EE words in the ROM).
+static const u_char *OthData[BANK_MAX];         // CT3 0x019446a0 (LOCAL, 344 bytes)
+static const u_char *DetData[BANK_MAX];         // CT3 0x01944760 (LOCAL, 344 bytes)
+static const u_char *ActData[BANK_MAX];         // CT3 0x01944600 (LOCAL, 344 bytes)
+TRIG_WORK TrigWork[BANK_MAX];                   // CT3 0x01ad7810 (1032 bytes)
+TRIG_DET_WORK *DetWork[BANK_MAX];               // CT3 0x01940db0 (344 bytes)
+TRIG_ACT_WORK *ActWork[BANK_MAX];               // CT3 0x01940f10 (344 bytes)
+static TRIG_DELAY_ENABLE *DlyEnaWork[BANK_MAX]; // CT3 0x01944080 (LOCAL, 344 bytes)
+static u_short ssDERingFront[BANK_MAX];         // CT3 0x01943fd0 (LOCAL, 172 bytes)
+static u_short ssDERingRear[BANK_MAX];          // CT3 0x01943f20 (LOCAL, 172 bytes)
+static u_short numMaxDECount[BANK_MAX];         // CT3 0x01943e70 (LOCAL, 172 bytes)
 
 // ---- portals -------------------------------------------------------------------------------------------
 
@@ -355,28 +370,290 @@ u_long ssTrigRead8Byte(int *pos, const u_char *data)
     return v;
 }
 
-// ---- stubs (tools/reverse/stubgen.py) ----
+// ---- the trigger blocks ------------------------------------------------------------------------------
 
-// stub of CT3 0x018d5230
+// The bank's TRIG_DATA word `index` as a host pointer into its image (NULL for a bank without one).
+static const u_char *TrigBlock(int bank, int index)
+{
+    const u_int *data = BANK_PTR(const u_int *, bank, All_table_TBL[bank]->trigger);
+    if (data == NULL) {
+        return NULL;                // PORT: the ROM would read EE address 0
+    }
+    return BANK_PTR(const u_char *, bank, data[index]);
+}
+
+// CT3 0x018d9650
+const u_char *ssTrigGetOtherData(int bank)
+{
+    return TrigBlock(bank, offsetof(TRIG_DATA, other) / 4);
+}
+
+// CT3 0x018d9670
+const u_char *ssTrigGetActData(int bank)
+{
+    return TrigBlock(bank, offsetof(TRIG_DATA, actors) / 4);
+}
+
+// CT3 0x018d9690
+const u_char *ssTrigGetDetData(int bank)
+{
+    return TrigBlock(bank, offsetof(TRIG_DATA, detectors) / 4);
+}
+
+// CT3 0x018d96b0
+u_char ssTrigReadNumDeactivateCmd(const TRIG_ACT_WORK *act, int bank)
+{
+    int pos = (int)act->deactivatePos;
+    return ssTrigRead1Byte(&pos, ActData[bank]);
+}
+
+// CT3 0x018d96f0
+u_char ssTrigReadNumActivateCmd(const TRIG_ACT_WORK *act, int bank)
+{
+    int pos = (int)act->activatePos;
+    return ssTrigRead1Byte(&pos, ActData[bank]);
+}
+
+// CT3 0x018d9750
+u_char ssTrigReadActMode(const TRIG_DET_WORK *det, int bank)
+{
+    int pos = (int)det->actModePos;
+    return ssTrigRead1Byte(&pos, DetData[bank]);
+}
+
+// CT3 0x018d9790
+u_char ssTrigReadNumActors(const TRIG_DET_WORK *det, int bank)
+{
+    int pos = (int)det->actorsPos;
+    return ssTrigRead1Byte(&pos, DetData[bank]);
+}
+
+// CT3 0x018d97d0
+u_char ssTrigReadNumConds(const TRIG_DET_WORK *det, int bank)
+{
+    int pos = (int)det->condsPos;
+    return ssTrigRead1Byte(&pos, DetData[bank]);
+}
+
+// ---- the delayed part switches (a ring per bank) -------------------------------------------------------
+
+// CT3 0x018d3f30
+// The front entry, popped (NULL when the ring is empty).
+TRIG_DELAY_ENABLE *ssTrigDEPop_Front(TRIG_DELAY_ENABLE *ring, int bank)
+{
+    u_short front = ssDERingFront[bank];
+    if (ssDERingRear[bank] == front) {
+        return NULL;
+    }
+    ssDERingFront[bank] = (u_short)((front + 1) % numMaxDECount[bank]);
+    return &ring[front];
+}
+
+// CT3 0x018d3f90
+// Appends req (part and op; its wait starts at DE_WAIT_PENDING). Zero when the ring is full.
+int ssTrigDEPush_Back(TRIG_DELAY_ENABLE *ring, int bank, const TRIG_DELAY_ENABLE *req)
+{
+    u_int rear = ssDERingRear[bank];
+    u_int next = (rear + 1) % numMaxDECount[bank];
+    if (next == ssDERingFront[bank]) {
+        return 0;
+    }
+    ring[rear].part = req->part;
+    ring[rear].op = req->op;
+    ring[rear].wait = DE_WAIT_PENDING;
+    ssDERingRear[bank] = (u_short)next;
+    return 1;
+}
+
+// CT3 0x018d3e00
+// Gives the first pending entry for part a new op; the walk stops at the first entry no longer pending.
+int ssTrigDE_ChangeReq(TRIG_DELAY_ENABLE *ring, int bank, short part, u_char op)
+{
+    u_int i = ssDERingFront[bank];
+    while (i != ssDERingRear[bank] && ring[i].wait == DE_WAIT_PENDING) {
+        if (ring[i].part == part) {
+            ring[i].op = op;
+            return 1;
+        }
+        i = (i + 1) & 0xffff;
+        if (i == numMaxDECount[bank]) {
+            i = 0;
+        }
+    }
+    return 0;
+}
+
+// CT3 0x018d3ea0
+// Cancels every queued switch of part (DE_OP_CANCELLED: popped without effect).
+void ssTrigDE_DisableReq(TRIG_DELAY_ENABLE *ring, int bank, short part)
+{
+    u_short rear = ssDERingRear[bank];
+    u_short count = numMaxDECount[bank];
+    u_int i = ssDERingFront[bank];
+    while (i != rear) {
+        if (ring[i].part == part) {
+            ring[i].op = DE_OP_CANCELLED;
+        }
+        i = (i + 1) & 0xffff;
+        if (i == count) {
+            i = 0;
+        }
+    }
+}
+
+// CT3 0x018d4010
+// Counts entry index's wait down; once it has run out, switches its part and pops the ring's front.
+void ssTrigExecDelayEnable(int index, int bank)
+{
+    TRIG_DELAY_ENABLE *de = &DlyEnaWork[bank][index];
+    u_char wait = de->wait--;
+    if (wait != 0) {
+        return;
+    }
+    MODEL_PARTS *parts = (MODEL_PARTS *)pModelPartsHeader[bank];
+    switch (de->op) {
+    case DE_OP_HIDE:
+        parts[(u_short)de->part].flags |= PARTS_FLAG_HIDDEN;
+        break;
+    case DE_OP_SHOW:
+        parts[(u_short)de->part].flags &= ~PARTS_FLAG_HIDDEN;
+        break;
+    case DE_OP_TOGGLE:
+        parts[(u_short)de->part].flags ^= PARTS_FLAG_HIDDEN;
+        break;
+    default:                        // DE_OP_CANCELLED and anything else: no switch
+        break;
+    }
+    ssTrigDEPop_Front(DlyEnaWork[bank], bank);
+}
+
+// ---- init and teardown ---------------------------------------------------------------------------------
+
+// CT3 0x018d5230
+// At boot (system_init): no bank has trigger work; the global flags clear, the global variables -1.
 void TriggerGlobalInit(void)
 {
-    ALYSSAPAN_STUB("TriggerGlobalInit", 0x018d5230);
+    for (int i = 0; i < BANK_MAX; i++) {
+        OthData[i] = NULL;
+        DetData[i] = NULL;
+        ActData[i] = NULL;
+        DetWork[i] = NULL;
+        ActWork[i] = NULL;
+        DlyEnaWork[i] = NULL;
+    }
+    memset(GlobalEventFlag, 0, sizeof(GlobalEventFlag));
+    for (int i = 0; i < GLOBAL_VARIABLE_COUNT; i++) {
+        GlobalVariable[i] = -1;
+    }
 }
 
-// stub of CT3 0x018d4be0
-void Trigger_deinit(void)
+// CT3 0x018d4be0
+// A scene's teardown (scene_end): its blocks forgotten, its work freed.
+void Trigger_deinit(int bank)
 {
-    ALYSSAPAN_STUB("Trigger_deinit", 0x018d4be0);
+    if (bank >= BANK_MAX) {
+        return;
+    }
+    OthData[bank] = NULL;
+    DetData[bank] = NULL;
+    ActData[bank] = NULL;
+    _SunFree(&gHeapJunc, (void **)&DetWork[bank]);
+    _SunFree(&gHeapJunc, (void **)&ActWork[bank]);
+    _SunFree(&gHeapJunc, (void **)&TempEventFlag[bank]);
+    _SunFree(&gHeapJunc, (void **)&TempVariable[bank]);
+    _SunFree(&gHeapJunc, (void **)&DlyEnaWork[bank]);
 }
+
+// CT3 0x018d4c80
+// A scene's start (scene_init): reads the bank's trigger header, builds a work record per detector and
+// per actor, and allocates its temp event flags (cleared), temp variables (-1) and delay-enable ring.
+void Trigger_init(int bank)
+{
+    if (bank >= BANK_MAX) {
+        return;
+    }
+    OthData[bank] = ssTrigGetOtherData(bank);
+    DetData[bank] = ssTrigGetDetData(bank);
+    ActData[bank] = ssTrigGetActData(bank);
+    if (OthData[bank] == NULL) {
+        return;                     // PORT: a bank without trigger data (the ROM reads EE address 0)
+    }
+
+    TRIG_WORK *tw = &TrigWork[bank];
+    int pos = 0;
+    ssTrigRead4Byte(&pos, OthData[bank]);
+    tw->numDetectors = ssTrigRead2Byte(&pos, OthData[bank]);
+    tw->numActors = ssTrigRead2Byte(&pos, OthData[bank]);
+    u_int numEvents = ssTrigRead2Byte(&pos, OthData[bank]);
+    u_int numVars = ssTrigRead2Byte(&pos, OthData[bank]);
+    u_int numDelay = ssTrigRead2Byte(&pos, OthData[bank]);
+    tw->header12 = (short)ssTrigRead2Byte(&pos, OthData[bank]);
+    tw->script = OthData[bank] + pos;
+
+    if (tw->numDetectors != 0) {
+        TRIG_DET_WORK *dw = (TRIG_DET_WORK *)_SunAlloc(&gHeapJunc,
+                                                       tw->numDetectors * (int)sizeof(TRIG_DET_WORK), 0x10);
+        DetWork[bank] = dw;
+        pos = 0;
+        for (int i = 0; i < tw->numDetectors; i++) {
+            TRIG_DET_WORK *d = &dw[i];
+            d->state = 0;
+            d->actModePos = ssTrigRead4Byte(&pos, DetData[bank]);
+            d->actMode = ssTrigReadActMode(d, bank);
+            d->condsPos = ssTrigRead4Byte(&pos, DetData[bank]);
+            d->numConds = ssTrigReadNumConds(d, bank);
+            d->actorsPos = ssTrigRead4Byte(&pos, DetData[bank]);
+            d->numActors = ssTrigReadNumActors(d, bank);
+            int body = (int)ssTrigRead4Byte(&pos, DetData[bank]);
+            d->kind = (short)ssTrigRead2Byte(&body, DetData[bank]);
+            d->body = DetData[bank] + body;
+        }
+    }
+
+    if (tw->numActors != 0) {
+        TRIG_ACT_WORK *aw = (TRIG_ACT_WORK *)_SunAlloc(&gHeapJunc,
+                                                       tw->numActors * (int)sizeof(TRIG_ACT_WORK), 0x10);
+        ActWork[bank] = aw;
+        pos = 0;
+        for (int i = 0; i < tw->numActors; i++) {
+            TRIG_ACT_WORK *a = &aw[i];
+            a->state = 0;
+            a->activatePos = ssTrigRead4Byte(&pos, ActData[bank]);
+            a->numActivate = ssTrigReadNumActivateCmd(a, bank);
+            a->deactivatePos = ssTrigRead4Byte(&pos, ActData[bank]);
+            a->numDeactivate = ssTrigReadNumDeactivateCmd(a, bank);
+        }
+    }
+
+    if (numEvents != 0) {
+        int bytes = (int)(numEvents >> 3) + 1;
+        TempEventFlag[bank] = (u_char *)_SunAlloc(&gHeapJunc, bytes, 0x10);
+        memset(TempEventFlag[bank], 0, (size_t)bytes);
+    }
+
+    if (numVars != 0) {
+        TempVariable[bank] = (int *)_SunAlloc(&gHeapJunc, (int)(numVars * 4), 0x10);
+        for (u_int i = 0; i < numVars; i++) {
+            TempVariable[bank][i] = -1;
+        }
+    }
+
+    ssDERingRear[bank] = 0;
+    ssDERingFront[bank] = 0;
+    if (numDelay == 0) {
+        numMaxDECount[bank] = 0;
+    } else {
+        // numDelay x 8 bytes: DE_SLOTS_PER_COUNT four-byte entries per counted switch
+        DlyEnaWork[bank] = (TRIG_DELAY_ENABLE *)_SunAlloc(&gHeapJunc,
+            (int)(numDelay * DE_SLOTS_PER_COUNT * sizeof(TRIG_DELAY_ENABLE)), 0x10);
+        numMaxDECount[bank] = (u_short)(numDelay * DE_SLOTS_PER_COUNT);
+    }
+}
+
+// ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x018d4120
 void Trigger_main(void)
 {
     ALYSSAPAN_STUB("Trigger_main", 0x018d4120);
-}
-
-// stub of CT3 0x018d4c80
-void Trigger_init(void)
-{
-    ALYSSAPAN_STUB("Trigger_init", 0x018d4c80);
 }

@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-10 23:18 at commit `ab6cd37` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-11 07:05 at commit `26437c3` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **873**; stubs: **173**
+- reconstructed CT3 functions: **899**; stubs: **170**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -81,7 +81,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/movie.c` | 20 | 0 |
 | `src/game/sound.c` | 73 | 0 |
 | `src/game/ssCalcInversMatrix2.c` | 0 | 1 |
-| `src/game/ssGrpPortalCheck.c` | 21 | 4 |
+| `src/game/ssGrpPortalCheck.c` | 47 | 1 |
 | `src/game/ssHitCheckAttackToScn.c` | 0 | 5 |
 | `src/game/ssSetTexUVforCubeMap.c` | 0 | 31 |
 | `src/game/tiAvoidObject.c` | 0 | 7 |
@@ -95,7 +95,7 @@ Least-named game-code regions (64 KB blocks):
 - 65 TUs: todo 38, partial 2, verify 25, done 4, blocked 1
 - next: **game/ssGrpPortalCheck.c** (pinned in the queue)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp, game/ssGrpPortalCheck.c, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
-- partial: `game/ssGrpPortalCheck.c` 17/59 -- Temp event and variable sets are NULL until Trigger_init is written: PORT guards answer 0. Next: Trigger_init (TrigWork, DetWork, ActWork, the temp sets), then 
+- partial: `game/ssGrpPortalCheck.c` 33/59 -- Trigger_init and _deinit take the bank (scene_init and scene_end pass it in a0; main.c fixed). TRIG_WORK and TRIG_DET_WORK are layout host. Next: Trigger_main (
 - partial: `game/wideXcmd_DebugPrint.c` 107/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed) -- the last function of the TU. New stubs
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
@@ -126,6 +126,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-11 07:05 `game/ssGrpPortalCheck.c` partial: triggers slice 2: Trigger_init, Trigger_deinit, TriggerGlobalInit, the trigger block getters and count readers, the delay-enable ring (ssTrigDEPop_Front, PushBa
 - 2026-11-10 23:18 `game/ssGrpPortalCheck.c` partial: triggers slice 1: the event and variable API, the byte readers, the enable checks, InitTriggerDetectorShape, CheckRoomEntry and the room portals (ProcessPortal,
 - 2026-11-10 22:53 `game/asEyeForcusUP2CamMat.c` verify: camera slice 4: camera_main (the pad camera: debug fly modes 0 / 1, the ND camera with its drive mode, mode 3 -> 4, the scene camera's controller-100 cut step);
 - 2026-11-10 22:35 `game/asEyeForcusUP2CamMat.c` partial: camera slice 3: asGetDestinationEYE (the seven eye kinds: part, rail, orbit, stay, plane, ring, segment; the cut path from OBJ_CTRL), CamSetNowDOFLevel, CamChan
@@ -133,7 +134,6 @@ Recent sessions:
 - 2026-11-10 22:01 `game/asEyeForcusUP2CamMat.c` partial: camera slice 1: 15 functions -- the view builder, the bank view switch, init / init0 / destroy, the cut chain (CamChange_S, CamChangeSub, target list) and the l
 - 2026-11-10 21:30 `ga/gaBGT_DrawObject.c` verify: slice 4: nc2_SetupDma_light2 written (dead in the ROM, nc2_light1's code instruction for instruction); every function of the TU is written; shot black until the
 - 2026-11-10 21:15 `ga/gaBGT_DrawObject.c` partial: slice 3: the clipped path (gaBGT_DrawObject), NoClippingCheck and the billboard jump into it, SetupDma_light0/1/2 build the ROM packet and hand the object to th
-- 2026-11-10 20:57 `ga/gaBGT_DrawObject.c` partial: slice 2: the light0 VU1 object program read (transform 0x04d, projection 0x0f5, cull 0x1fe / 0x22c) and run on the host per object; each frame's triangles go to
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
@@ -144,11 +144,11 @@ Recent sessions:
 | `game/tiAvoidObject.c` | todo | 0/7/82 | 30.5 | 27 | 4 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/ssHitCheckAttackToScn.c` | todo | 0/5/37 | 32.0 | 22 | 3 |
-| `game/ssGrpPortalCheck.c` | partial | 17/4/59 | 26.4 | 19 | 3 |
 | `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
 | `game/asUseArrow.c` | todo | 0/6/11 | 6.4 | 16 | 1 |
 | `game/tkXDTrg_GetSceneHash.c` | todo | 0/3/50 | 21.0 | 14 | 2 |
+| `game/AA_SoundMonoSoart.c` | todo | 0/8/20 | 4.0 | 13 | 1 |
 
 ## Frontier (called by reconstructed code, not written yet)
 

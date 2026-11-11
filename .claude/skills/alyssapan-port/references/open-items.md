@@ -1001,7 +1001,15 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    event / variable API (ssTrigCheckEvent, _RegisterEvent, _RemoveEvent, _GetVariable, _SetVariable), the
    byte readers (ssTrigRead1/2/4/8Byte), ssTrigCheckEnable, ssTrigCheckInputEnable, CheckRoomEntry,
    InitTriggerDetectorShape and the portals (ProcessPortal, ssScnPortalCheck, CheckPlaneEntry,
-   ssGrpPortalCheck); 15 s smoke run: no fault, shot black (as before). Next: Trigger_init (fills
+   ssGrpPortalCheck); 15 s smoke run: no fault, shot black (as before). **Slice 2 (2026-11-11):**
+   Trigger_init / Trigger_deinit (both take the bank: scene_init / scene_end pass it in a0, main.c fixed),
+   TriggerGlobalInit, ssTrigGetOther/Det/ActData, the five ssTrigRead* count readers, the delay-enable
+   ring (ssTrigDEPop_Front, _PushBack, _ChangeReq, _DisableReq, ssTrigExecDelayEnable); ALL_TABLE +0x4c
+   is now `trigger` (TRIG_DATA: other / detectors / actors). Open from slice 2: (c) TRIG_WORK.header12 and
+   TRIG_DET_WORK.kind / body are named from Trigger_init only -- Trigger_main / ssTrigCheckDetector name
+   them; (d) TRIG_WORK and TRIG_DET_WORK are layout host (they hold host pointers into the bank image);
+   (e) Trigger_init returns early for a bank whose ALL_TABLE.trigger is 0 (PORT guard; the ROM reads EE 0).
+   Still to write: Trigger_main and the detector / condition / actor functions. Old plan: Trigger_init (fills
    OthData / DetData / ActData, TrigWork 0xc-byte records at 0x01ad7810, DetWork 0x1c-byte and ActWork
    0x28-byte _SunAlloc blocks, TempEventFlag / TempVariable), then Trigger_main (three passes over
    banks 0..5 then 6..85: ssTrigProcDetRecur, ssTrigProceedActor, ssTrigExecDelayEnable), Trigger_deinit,

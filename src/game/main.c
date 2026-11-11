@@ -1491,7 +1491,7 @@ void main_rtn_DOF(int bank, int mode, int chara, int pass, int charaIndex, void 
 
 void scene_end(int scene)
 {
-    Trigger_deinit();
+    Trigger_deinit(scene);
     ssParticleDeInit(scene);
     ssPartMotionBlurAllEnd(scene);
     camera_destroy(scene, 0);
@@ -1562,7 +1562,7 @@ void scene_init(int scene)
     int list, i;
     u_int *objs = NULL;
 
-    Trigger_init();
+    Trigger_init(scene);
     tbl = &All_table_TBL[scene];
     BaseobjCount[scene] = (*tbl)->baseobjCount;
     pModelPartsHeader[scene] = BANK_PTR(u_char *, scene, (*tbl)->partsHeader);

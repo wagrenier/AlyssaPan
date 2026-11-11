@@ -358,8 +358,10 @@ typedef struct ALL_TABLE {
     u_int objGroups;                    /* 0x40: (short first, short count) pairs into objGroupIndex (EA_010's
                                            TRACK_KIND_UV / _COPY keys name one) */
     u_int objGroupIndex;                /* 0x44: short[]: indices into the objOpaque list */
-    u_int pad48[2];
-    u_int straw;                        /* 0x50: asMakeStraw's first argument (with partsHeader) */
+    u_int pad48;
+    u_int trigger;                      /* 0x4c: TRIG_DATA (ssGrpPortalCheck.h): the trigger script's
+                                           three blocks (Trigger_init) */
+    u_int straw;                       /* 0x50: asMakeStraw's first argument (with partsHeader) */
     u_int sound;                       /* 0x54: SOUND_OBJ_TABLE (sound.c's SSFindSoundObj) */
     u_int particles;                    /* 0x58: list of PARTICLE_ENTRY: main_rtn_Particle's */
     u_int pad5c;
