@@ -6,6 +6,7 @@
 #include "alyssapan/core/logger.h"
 #include "alyssapan/ee/interrupts.h"
 #include "alyssapan/ee/kernel.h"
+#include "alyssapan/rendering/frame.h"
 
 namespace alyssapan::rendering
 {
@@ -100,6 +101,18 @@ void GaMeshRecorder::cull(Mesh &mesh)
     }
 }
 
+void GaMeshRecorder::setTexture(std::shared_ptr<Image> image, std::uint64_t tex0, std::uint64_t clamp)
+{
+    if (!m_loggedTexture && image != nullptr) {
+        m_loggedTexture = true;
+        log::info("[ga] first texture: {}x{} TEX0 {:#018x} (PSM {:#x}, TFX {}, TCC {}) CLAMP {:#x}", image->width,
+                  image->height, tex0, tex0 >> 20 & 0x3f, tex0 >> 35 & 3, tex0 >> 34 & 1, clamp);
+    }
+    m_image = std::move(image);
+    m_tex0 = tex0;
+    m_clamp = clamp;
+}
+
 bool GaMeshRecorder::record(const AlyssaPanGaObject &object)
 {
     bool frameEnded = false;
@@ -118,6 +131,9 @@ bool GaMeshRecorder::record(const AlyssaPanGaObject &object)
     mesh.flags = object.flags;
     mesh.gsReg70 = object.gsReg70;
     mesh.gsReg78 = object.gsReg78;
+    mesh.image = m_image;
+    mesh.tex0 = m_tex0;
+    mesh.clamp = m_clamp;
     if (object.position != nullptr)
         std::memcpy(mesh.position.data(), object.position, sizeof(mesh.position));
     if (object.matrix != nullptr)

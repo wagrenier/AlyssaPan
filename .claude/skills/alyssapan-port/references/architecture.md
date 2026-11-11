@@ -412,6 +412,24 @@ the TU map's evidence.
   -558..-524, y -73..-53. The view comes from camera_init0 / camera_view (stubs): the quads' place on
   screen is the camera's.
 
+## The ga objects' textures and colour (2026-11-11, host task `alyssapan/rendering/ga_atld.cpp`)
+
+- **The texture:** main_rtn's passes set a part's texture up once per new `TEX_INFO.tim`
+  (sunSetupTBufferData + sunBGT_LoadGSTexClutData_VIF1) and send its 8-qword TEX0_1 / CLAMP_1 packet
+  (sunBGT_ExecTBufferData_VIF1) whenever the part's TEX_INFO changes; every ga object after it draws with
+  it. Host: that send hands TEX0, CLAMP, SUN_TEX_ATTR level 0 and the CLUT to `AlyssaPan_DrawGaTexture`;
+  the CLUT is `clutData[(TEX0.CBP x 64 - tbuf.cbp) / clutWords]`. Pixels are linear in PSM order (an image
+  transfer, no swizzle); CT32 CLUT entries, CSM1 for 8-bit. ATLD's text: 512 x 256 PSMT4, TW 9 TH 8, TFX
+  MODULATE, TCC 1, CLAMP 0xff001fff; its icons: 128 x 32 PSMT8, TW 7 TH 5, CLUT 0 / 2.
+- **The colour:** the light0 program's vf20 (the qword at obj +0x38's EE address) is the part's
+  `ALL_TABLE.partsPos[parts]`: **an ambient RGB offset plus the part's alpha in w**, not a position.
+  AmbientAlphaUpdate moves xyz toward `scene_alpha_anim[bank].target` over its steps and copies the part's
+  alpha into w; `tnXcmd_Scene_Ambient_Change(steps, r, g, b)` (0x018f1940, an event command) sets the
+  target. ATLD's vertex colours are (0, 0, 0, 0x7f) and its partsPos starts at 0: MODULATE draws the text
+  black until the event sets the ambient (white text needs 0x80).
+- **The window:** the VU1 projection centres on (2304, 2272) in a 512 x 448 frame; ATLD's text quad
+  lands at 2086..2521 x 2149..2395 (centred), its icons at 2410..2522 x 2353..2384.
+
 ## The ga draw object's send, ga/gaBGT_DrawObject.c (2026-11-10, slice 1)
 
 - An asm object (0x018a3148..0x018a4fd8): every function keeps its state in the scratchpad through

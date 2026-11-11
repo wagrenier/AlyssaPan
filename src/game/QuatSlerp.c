@@ -33,6 +33,7 @@
 #include "game/ssHitCheckAttackToScn.h"
 #include "game/movie.h"
 #include "ga/gaInitMeter.h"
+#include "alyssapan/rendering/alyssapan_drawga.h"
 
 #include <float.h>
 #include <math.h>
@@ -2406,9 +2407,40 @@ void sunBGT_LoadGSTexClutData_VIF1(void *tbuffer)
     }
 }
 
+// PORT: the GS the packet below sets up is the host draw module (alyssapan_drawga.h): it gets the texture
+// record's level 0 and the CLUT TEX0.CBP picks, in place in the bank, as the packet left them. The CLUT
+// is found the way sunSetupTBufferData put it: CBP = cbp + clutWords x clut, so clut = (CBP - cbp) /
+// clutWords, an index into SUN_TEX_ATTR.clutData's list (sunBGT_LoadGSTexClutData_VIF1 uploads them
+// in that order).
+#define TEX0_CBP_SHIFT 37
+#define TEX0_CBP_MASK 0x3fffull
+static void SunTBufferToHost(const SUN_TBUFFER_DATA *tbuf)
+{
+    AlyssaPanGaTexture texture;
+    const u_int *clutList;
+    u_int cbp;
+
+    memset(&texture, 0, sizeof(texture));
+    texture.tex0 = tbuf->tex0.data;
+    texture.clamp = tbuf->clamp.data;
+    texture.width = (int)tbuf->width;
+    texture.height = (int)tbuf->height;
+    texture.pixels = SunTexEePtr(tbuf->mipData[0]);
+    clutList = (const u_int *)SunTexEePtr(tbuf->clutData);
+    cbp = (u_int)((tbuf->tex0.data >> TEX0_CBP_SHIFT) & TEX0_CBP_MASK) << GS_BLOCK_SHIFT_SUN;
+    if (clutList != NULL && tbuf->clutWords != 0 && cbp >= tbuf->cbp) {
+        u_int clut = (cbp - tbuf->cbp) / tbuf->clutWords;
+
+        if (clut < tbuf->clutCount)
+            texture.clut = (const uint32_t *)SunTexEePtr(clutList[clut]);
+    }
+    AlyssaPan_DrawGaTexture(&texture);
+}
+
 // CT3 0x01859520: a tail jump -- send the packet's 8 qwords through the BGT ring.
 void sunBGT_ExecTBufferData_VIF1(void *tbuffer)
 {
+    SunTBufferToHost((const SUN_TBUFFER_DATA *)tbuffer);
     gaBGT_DmaSendN_fromSPR_VIF1(tbuffer, SUN_TBUFFER_SEND_QWC);
 }
 

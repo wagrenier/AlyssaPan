@@ -8,12 +8,15 @@
 
 #include <array>
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 #include "alyssapan/rendering/alyssapan_drawga.h"
 
 namespace alyssapan::rendering
 {
+
+struct Image;
 
 class GaMeshRecorder
 {
@@ -43,7 +46,16 @@ public:
         std::array<float, 16> matrix{};
         std::uint64_t gsReg70 = 0;
         std::uint64_t gsReg78 = 0;
+
+        // The texture bound when the object came (setTexture): null draws it untextured.
+        std::shared_ptr<Image> image;
+        std::uint64_t tex0 = 0;
+        std::uint64_t clamp = 0;
     };
+
+    // The texture the objects after it draw with (alyssapan_drawga.h AlyssaPan_DrawGaTexture): the ROM's
+    // TEX0_1 / CLAMP_1 and the picture decoded at its source; image null unbinds.
+    void setTexture(std::shared_ptr<Image> image, std::uint64_t tex0, std::uint64_t clamp);
 
     static GaMeshRecorder &instance();
 
@@ -61,6 +73,10 @@ private:
     std::vector<Mesh> m_last;
     std::uint64_t m_field = 0;
     bool m_loggedFirst = false;
+    bool m_loggedTexture = false;
+    std::shared_ptr<Image> m_image;
+    std::uint64_t m_tex0 = 0;
+    std::uint64_t m_clamp = 0;
 };
 
 } // namespace alyssapan::rendering

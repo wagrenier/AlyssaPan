@@ -408,6 +408,143 @@ std::shared_ptr<Image> TextureStore::imageOfTim2(const void *file, int picture)
     return image;
 }
 
+namespace
+{
+
+// The GS's PSM codes CT3's texture records use (SCE_GS_PSM*).
+enum GsPsm : int
+{
+    GsPsm_Ct32 = 0x00,
+    GsPsm_Ct24 = 0x01,
+    GsPsm_Ct16 = 0x02,
+    GsPsm_T8 = 0x13,
+    GsPsm_T4 = 0x14,
+};
+
+constexpr int kMaxGsLog2 = 10; // TW / TH: the GS reads up to 1024 texels a side
+
+std::size_t gsPixelBytes(int psm, std::size_t pixels)
+{
+    switch (psm)
+    {
+    case GsPsm_Ct32:
+        return pixels * 4;
+    case GsPsm_Ct24:
+        return pixels * 3;
+    case GsPsm_Ct16:
+        return pixels * 2;
+    case GsPsm_T8:
+        return pixels;
+    case GsPsm_T4:
+        return (pixels + 1) / 2;
+    default:
+        return 0;
+    }
+}
+
+Rgba ct32(std::uint32_t value)
+{
+    return {static_cast<std::uint8_t>(value), static_cast<std::uint8_t>(value >> 8),
+            static_cast<std::uint8_t>(value >> 16), expandAlpha(static_cast<std::uint8_t>(value >> 24))};
+}
+
+// CSM1 keeps an 8-bit CLUT in blocks of 32 with entries 8..15 and 16..23 exchanged.
+std::size_t csm1Slot(std::size_t index)
+{
+    return (index & ~std::size_t{0x18}) | ((index & kCsm1Group) << 1) | ((index & (kCsm1Group * 2)) >> 1);
+}
+
+} // namespace
+
+std::shared_ptr<Image> TextureStore::imageOfGsTexture(int psm, int width, int height, int tw, int th,
+                                                      const void *pixels, const std::uint32_t *clut, bool useAlpha)
+{
+    const bool indexed = psm == GsPsm_T8 || psm == GsPsm_T4;
+    const std::size_t count = static_cast<std::size_t>(std::max(width, 0)) * static_cast<std::size_t>(std::max(height, 0));
+    const std::size_t bytes = gsPixelBytes(psm, count);
+    if (pixels == nullptr || count == 0 || bytes == 0 || (indexed && clut == nullptr) || tw > kMaxGsLog2 ||
+        th > kMaxGsLog2 || width > (1 << kMaxGsLog2) || height > (1 << kMaxGsLog2))
+        return nullptr;
+    const std::size_t colors = psm == GsPsm_T8 ? kIndex8Colors : kIndex4Colors;
+    const auto *const data = static_cast<const std::uint8_t *>(pixels);
+
+    std::scoped_lock lock(m_lock);
+    ContentHash hash;
+    hash.add(static_cast<std::uint64_t>(psm) << 48 | static_cast<std::uint64_t>(tw) << 44 |
+             static_cast<std::uint64_t>(th) << 40 | static_cast<std::uint64_t>(width) << 20 |
+             static_cast<std::uint64_t>(height) << 1 | (useAlpha ? 1 : 0));
+    hash.add({data, bytes});
+    if (indexed)
+        hash.add({reinterpret_cast<const std::uint8_t *>(clut), colors * sizeof(std::uint32_t)});
+    const std::uint64_t key = hash.value();
+    if (const auto found = m_entries.find(key); found != m_entries.end())
+    {
+        found->second.lastUse = ++m_uses;
+        return found->second.image;
+    }
+
+    std::vector<Rgba> palette(indexed ? colors : 0);
+    for (std::size_t i = 0; i < palette.size(); ++i)
+        palette[i] = ct32(clut[colors == kIndex8Colors ? csm1Slot(i) : i]);
+
+    std::vector<Rgba> picture(count);
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        switch (psm)
+        {
+        case GsPsm_T8:
+            picture[i] = palette[data[i]];
+            break;
+        case GsPsm_T4:
+            picture[i] = palette[(i & 1) != 0 ? data[i / 2] >> 4 : data[i / 2] & 0xf];
+            break;
+        case GsPsm_Ct32:
+        {
+            std::uint32_t value = 0;
+            std::memcpy(&value, data + i * 4, sizeof(value));
+            picture[i] = ct32(value);
+            break;
+        }
+        case GsPsm_Ct24:
+            picture[i] = {data[i * 3], data[i * 3 + 1], data[i * 3 + 2], kOpaque};
+            break;
+        default: // GsPsm_Ct16
+        {
+            const unsigned value = data[i * 2] | static_cast<unsigned>(data[i * 2 + 1]) << 8;
+            picture[i] = {expandFiveBits(value), expandFiveBits(value >> 5), expandFiveBits(value >> 10),
+                          (value & 0x8000) != 0 ? kOpaque : std::uint8_t{0}};
+            break;
+        }
+        }
+        if (!useAlpha)
+            picture[i].a = kOpaque;
+    }
+
+    // The frame the GS reads through (TW x TH), the picture in its corner, its last row and column run on
+    // (as Tim2Decoder::decode).
+    const auto frameWidth = static_cast<std::size_t>(std::max(width, 1 << tw));
+    const auto frameHeight = static_cast<std::size_t>(std::max(height, 1 << th));
+    auto image = std::make_shared<Image>();
+    image->width = static_cast<int>(frameWidth);
+    image->height = static_cast<int>(frameHeight);
+    image->pixels.resize(frameWidth * frameHeight * sizeof(Rgba));
+    auto *const frame = reinterpret_cast<Rgba *>(image->pixels.data());
+    const auto w = static_cast<std::size_t>(width);
+    const auto h = static_cast<std::size_t>(height);
+    for (std::size_t row = 0; row < frameHeight; ++row)
+    {
+        const Rgba *const source = picture.data() + std::min(row, h - 1) * w;
+        Rgba *const target = frame + row * frameWidth;
+        std::copy_n(source, w, target);
+        std::fill_n(target + w, frameWidth - w, source[w - 1]);
+    }
+
+    m_bytes += image->pixels.size();
+    m_entries.emplace(key, Entry{image, ++m_uses});
+    evictOver(kByteBudget);
+    return image;
+}
+
 void TextureStore::evictOver(std::size_t byteBudget)
 {
     while (m_bytes > byteBudget && m_entries.size() > 1)

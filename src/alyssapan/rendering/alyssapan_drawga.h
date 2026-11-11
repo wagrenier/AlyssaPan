@@ -40,7 +40,8 @@ struct AlyssaPanGaObject
     const void *colourBlock;    /* +0x6c: one qword of VIF codes, then vertexCount x RGBA bytes */
     const void *normalBlock;    /* +0x64, light1 only: one qword of VIF codes, then vertexCount qwords */
     const uint16_t *indices;    /* +0x50: primCount x 4 halfwords (qword offsets of the vertices) */
-    const float *position;      /* +0x38: the object's position qword */
+    const float *position;      /* +0x38: the qword at that EE address, the part's ALL_TABLE.partsPos: the
+                                   ambient RGB the light0 program adds to each colour (vf20), alpha in w */
     const float *matrix;        /* +0x58: 4 qwords */
     const float *lightMatrix;   /* +0x5c, light1 only: 3 qwords */
     const void *lightWork;      /* +0x3c, light1 only: 17 qwords (GA_LIGHT_WORK) */
@@ -75,5 +76,24 @@ enum
 
 /* The object, in the order the game draws it. */
 void AlyssaPan_DrawGaObject(const AlyssaPanGaObject *object);
+
+/* The texture the ga objects after it draw with, as the texture buffer
+ * packet (game/QuatSlerp.h SUN_TBUFFER_DATA) sets it: where the ROM sends
+ * TEX0_1 / CLAMP_1 to the GS (sunBGT_ExecTBufferData_VIF1), the game hands
+ * over the texture record's level 0 and CLUT in place, decoded at their
+ * source (rendering::TextureStore::imageOfGsTexture). Added 2026-11-11
+ * (host task alyssapan/rendering/ga_atld.cpp). pixels null: no texture. */
+struct AlyssaPanGaTexture
+{
+    uint64_t tex0;              /* TEX0_1 as the packet holds it (TW, TH, PSM, TFX, TCC) */
+    uint64_t clamp;             /* CLAMP_1 */
+    int width;                  /* SUN_TEX_ATTR's size: the pixels' row length and rows */
+    int height;
+    const void *pixels;         /* level 0, raw GS pixels in PSM order (no swizzle: the ROM uploads them
+                                   with an image transfer) */
+    const uint32_t *clut;       /* the CLUT TEX0.CBP picks (16 or 256 PSMCT32 entries, CSM1), or null */
+};
+
+void AlyssaPan_DrawGaTexture(const AlyssaPanGaTexture *texture);
 
 #endif /* ALYSSAPAN_DRAWGA_H */

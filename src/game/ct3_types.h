@@ -581,7 +581,8 @@ static_assert(sizeof(DRAW_OBJ_ENTRY) == 0x1c, "DRAW_OBJ_ENTRY");
 #define DRAW_OBJ_CLIP 0x02              /* u_char: gaObjectClippingCheck's answer */
 #define DRAW_OBJ_CENTER 0x10            /* float[4]: a point in the part's frame (objSort, PARTS_FLAG_SORT_CENTER) */
 #define DRAW_OBJ_LIGHT 0x30             /* float */
-#define DRAW_OBJ_POS 0x38               /* u_int: EE address of the object's position qword (BankEePtr) */
+#define DRAW_OBJ_POS 0x38               /* u_int: EE address of the part's ALL_TABLE.partsPos qword (BankEePtr): the
+                                           ambient RGB the VU1 light0 program adds (vf20), alpha in w */
 #define DRAW_OBJ_ATTR 0x3c              /* int: MODEL_PARTS.attr */
 #define DRAW_OBJ_FLAG_CLIP 0x20         /* always drawn through the clipping path */
 

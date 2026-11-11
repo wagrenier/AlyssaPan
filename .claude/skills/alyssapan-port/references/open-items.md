@@ -1049,8 +1049,30 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    it, (c) the window origin (UiCanvas's FS2 origin 1792 vs CT3's 2048, open-items 4 Correction), (d)
    depth / fog / light1. **Queued first** (the user's ask): the host task
    `alyssapan/rendering/ga_atld.cpp` -- ATLD at 4:3 and wide as the reference shows it.
+   **Host task ga_atld.cpp, partial (2026-11-11, scheduled run):** (a) done -- sunBGT_ExecTBufferData_VIF1
+   hands the texture buffer's TEX0 / CLAMP, level 0 and the CLUT TEX0.CBP picks to `AlyssaPan_DrawGaTexture`
+   (alyssapan_drawga.h); `TextureStore::imageOfGsTexture` decodes PSMT4 / T8 (CSM1) / CT32 / CT24 / CT16
+   at their source; each recorded mesh keeps the texture bound when it came and DrawGaFrame draws it
+   textured, blended. (c) done -- DrawGaFrame maps CT3's window (512 x 448 centred on 2304, 2272) onto the
+   canvas, centred, 448 lines to 512. **Picture:** black, as before, for a game reason: (b) the vertex
+   colour is colour + vf20, and vf20 is the part's ALL_TABLE.partsPos qword -- the ambient colour
+   AmbientAlphaUpdate moves toward `scene_alpha_anim[bank]`, which only the event command
+   `tnXcmd_Scene_Ambient_Change` (0x018f1940, game/xcmd_tn.c, not written) sets. With the ambient forced
+   to 0x80 (a probe, stripped) the shot shows ATLD's text exactly as work/ref/ATLD/trans_04 has it,
+   centred, at 4:3 (683 x 512) and wide (1280 x 540: same shape, centred). Queued first: game/xcmd_tn.c
+   (Claude's call, Decisions). Left here: depth and fog (UiCanvas has neither), HIGHLIGHT / HIGHLIGHT2 drawn
+   as MODULATE, CT3's ALPHA_1 / TEX1_1 for ga draws not read (alpha blend and bilinear assumed); the icons'
+   ST offset (obj +0x78 = 0.5, 0) points their quads at an empty cell of the 128 x 32 sheet (u 64..80) --
+   likely a blink / animation cell the game moves (find the writer); a second bank's objects (a light1 grey
+   band and a gold ornament, window 2002..2230 x 2042..2145) draw top left under ATLD's camera: check
+   whether the ROM hides them (partsPos w, bank drawOn) or they belong to the next screen.
 
 ## Decisions
+
+- 2026-11-11 (Claude, scheduled run, for the user to overrule): **game/xcmd_tn.c queued ahead of
+  ga_atld.cpp's rest.** The host draw of ATLD is right (a forced ambient shows the reference), and what
+  keeps the shot black is the ambient colour the event command tnXcmd_Scene_Ambient_Change sets; no host
+  work can change the picture before it runs.
 
 - 2026-11-10 (the user, after the ui_canvas.cpp run): **the draw path and the camera go ahead of the
   triggers.** Queue now: `ga/gaBGT_DrawObject.c`, `game/asEyeForcusUP2CamMat.c`, then
