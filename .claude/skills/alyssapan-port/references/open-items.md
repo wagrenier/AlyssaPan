@@ -879,6 +879,12 @@ questions. Resolve items here when they are settled (move them to "Done" with th
 
 ## Decisions
 
+- 2026-11-10 (the user, after the ui_canvas.cpp run): **the draw path and the camera go ahead of the
+  triggers.** Queue now: `ga/gaBGT_DrawObject.c`, `game/asEyeForcusUP2CamMat.c`, then
+  `alyssapan/rendering/ui_canvas.cpp` again (the ATLD picture check: work/ref/ATLD/ at 4:3 and wide),
+  then `game/ssGrpPortalCheck.c` and the rest as before. Reason: ATLD, the first screen, is world-space
+  quads drawn by gaBGT_DrawObject_NoClippingCheck2 under the scene camera; no trigger takes part.
+
 - 2026-11-10 (the user): **the queue works toward the first picture** before more player logic. Pinned
   in this order: the host task `alyssapan/iop/fsys_server.cpp` (FSYS_IOP on io::Disc: `sdk/sif.cpp`
   answers zeros, so no bank loads), the host task `alyssapan/rendering/ui_canvas.cpp` (the first 2D draw
@@ -971,8 +977,8 @@ apply here):
   module for ga draw objects: positions, ST, colours from the object's unpack blocks, the light pass,
   the texture from TEX_INFO) and **the camera** (camera_init0 / camera_view / camera_main in
   game/asEyeForcusUP2CamMat.c, stubs), not the triggers: none of ATLD's draw goes through Trigger_main.
-  **Suggested (Claude, for the user to decide): pin ga/gaBGT_DrawObject.c and game/asEyeForcusUP2CamMat.c
-  ahead of game/ssGrpPortalCheck.c** -- the queue was not reordered, since its order is the user's.
+  **Reordered (the user, 2026-11-10, "Decisions"): ga/gaBGT_DrawObject.c and game/asEyeForcusUP2CamMat.c
+  now come before game/ssGrpPortalCheck.c.**
   UiCanvas stays the module for the true 2D draws (tiFade_Draw, the ssBGT_* screen sprites) when their
   TUs come. Also seen: the 15 s smoke run now makes ~420 frames (60 a second; earlier runs made ~26,000),
   and the ActressMP read in main.c no longer logs a crash in this run.

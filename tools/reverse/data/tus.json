@@ -1,9 +1,9 @@
 {
  "queue": [
+  "ga/gaBGT_DrawObject.c",
+  "game/asEyeForcusUP2CamMat.c",
   "alyssapan/rendering/ui_canvas.cpp",
   "game/ssGrpPortalCheck.c",
-  "game/asEyeForcusUP2CamMat.c",
-  "ga/gaBGT_DrawObject.c",
   "game/wideXcmd_DebugPrint.c",
   "game/tkXDTrg_GetSceneHash.c",
   "game/asUseArrow.c",
