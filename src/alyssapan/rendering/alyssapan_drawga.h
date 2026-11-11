@@ -105,4 +105,22 @@ void AlyssaPan_DrawGaTexture(const AlyssaPanGaTexture *texture);
  * Added 2026-11-11 (host task alyssapan/rendering/ga_fill.cpp). */
 void AlyssaPan_DrawGaFill(uint32_t rgba, int alphaFix);
 
+/* GS frame-buffer copies, kept in draw order with the objects (added
+ * 2026-11-11, Clipping_Portal.c slice 11: CaptureDBuffer, tiVRAMViewer).
+ * Where the ROM points the draw buffer at another GS address and draws
+ * the frame buffer into it as a texture, or draws a GS region as a
+ * textured sprite, the game names the copy: no GS memory on the host.
+ *
+ * Capture: the frame drawn so far, scaled into a width x height picture
+ * kept under the GS word address fbp (the effect buffer, 0xa8000). */
+void AlyssaPan_DrawGaCapture(uint32_t fbp, int width, int height);
+
+/* Copy: the picture kept under fbp (a capture; the frame drawn so far
+ * when fbp is the draw buffer), texWidth x texHeight of it, as a sprite
+ * over the GS window rectangle x0, y0 .. x1, y1 (pixels of the 512 x 448
+ * frame, inclusive), modulated by grey 0x80 (the texel as it is) and
+ * blended (Cs - Cd) * FIX + Cd, FIX 0..128. */
+void AlyssaPan_DrawGaCopy(uint32_t fbp, int texWidth, int texHeight, float x0, float y0, float x1, float y1,
+                          int alphaFix);
+
 #endif /* ALYSSAPAN_DRAWGA_H */

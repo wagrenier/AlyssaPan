@@ -277,6 +277,19 @@ void tiVibrationOn(int port, u_char small, int large, int time);                
 // base ** n (the name says factorial; the code is a power). tiDrawShadingOff's.
 int tiFactorial(int base, u_int n);                                                       // CT3 0x01894870
 void tiDrawShadingOff(void);                                                             // CT3 0x0188ced0
+
+// ---- GS frame-buffer copies (slice 11, 2026-11-11) ----
+#define EFFECT_FBUF_ADDRESS 0xa8000u    /* GS word address of the effect buffer (CaptureDBuffer's picture) */
+#define GS_FRAME_WIDTH 512              /* the frame buffer's pixels: the GS window 0..511 x 0..447 */
+#define GS_FRAME_HEIGHT 448
+#define GS_FRAME_LOG2 9                 /* TEX0 TW / TH of the whole frame read as a texture */
+#define VRAM_ALPHA_OPAQUE 0x80          /* tiVRAMViewer's alphaFix: the copy alone */
+// The frame drawn so far, scaled into width x height pixels at EFFECT_FBUF_ADDRESS.
+void CaptureDBuffer(u_int width, u_int height);                                          // CT3 0x018945f0
+// A GS region (fbp; texW x texH pixels, TEX0 tw / th / psm, bytesPerPixel) drawn as a sprite over the
+// window rectangle x, y, w x h, blended (Cs - Cd) * alphaFix + Cd. The ROM's f12..f15, then a0..t3.
+void tiVRAMViewer(float x, float y, float w, float h, u_int fbp, int texW, int texH, u_int tw, u_int th,
+                  u_int psm, int bytesPerPixel, int alphaFix);                           // CT3 0x01894ed0
 // time: seconds (f12; x30 frames), type: Fade_Type (a0, a byte). MemorycardUpdate leaves a0 unset (open-items.md).
 #define FADE_TYPE_MC_LOAD 4             /* mc_load_set (name from that use; = FADE_TYPE_OUT2_BLACK) */
 // tiXcmd_FadeStart's kinds (2026-11-11): direction by twos, white the odd one.

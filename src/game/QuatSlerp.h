@@ -154,7 +154,7 @@ typedef struct SUN_TEX_ATTR {
     u_int th;                           /* 0x0c: TEX0.TH */
     u_int psm;                          /* 0x10: SCE_GS_PSM* */
     int mipMax;                         /* 0x14: the last level to upload; -1 = none */
-    u_int pad18;                        /* unread (tex_attr_A: 0x000e0000) */
+    u_int bytes;                        /* 0x18: level 0 in bytes (w * h * bytes per pixel; tiVRAMViewer's); unread by sunSetupTBufferData */
     u_int mipData[SUN_MIP_LEVELS];      /* 0x1c: EE address of each level's pixels */
     u_int clutCount;                    /* 0x2c */
     u_int clutData;                     /* 0x30: EE address of u_int[clutCount], each a CLUT's EE address */
@@ -194,6 +194,8 @@ int sunBGT_SetLoadGSEnv(GA_LOADENV *env, u_int dbp, u_int dbw, u_int dpsm, u_int
                         int rrh);                                                        // CT3 0x01859390
 void sunBGT_ExecTBufferData_VIF1(void *tbuffer);                                        // CT3 0x01859520
 void sunSetupTBufferData(void *tbuffer, TEX_INFO tex);                                   // CT3 0x01859530 (tex by value, 0x2c bytes)
+// PORT: the same with the record as a host pointer (tex.tim unread): records with no bank EE address.
+void sunSetupTBufferDataFrom(void *tbuffer, TEX_INFO tex, const SUN_TEX_ATTR *attr);
 // The paged textures (ALL_TABLE.texFileSet; relocated by ahRelocateFileObject): a part's texture whose
 // pixels come one page at a time from DATA/IMG/ files (or packed slide data in the bank) into a ring of
 // buffers inside the bank; the page shown is patched into the part's SUN_TEX_ATTR. layout: ee.

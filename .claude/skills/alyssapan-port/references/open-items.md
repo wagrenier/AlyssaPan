@@ -1367,6 +1367,21 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    verts are named from tiGenerateParticle / tiGetmatL2WFromMeshEmitter alone; the 300 in the life
    (lifeTenths * 0.1 * 300) reads as 1/300 s ticks, the 5 in the emit count as emitRate per 1/60 s
    (tiParticleInit's 60): both unconfirmed; DRAW_OBJ_W78 (two words cleared per new record) unread.
+   Open from slice 11 (2026-11-11, the GS frame-buffer copies): (kk) **the host cannot draw a frame-buffer
+   copy yet**: CaptureDBuffer, ExportDrawToTex and tiVRAMViewer build and send their packets as the ROM
+   does and name the copy to the host (alyssapan_drawga.h AlyssaPan_DrawGaCapture / AlyssaPan_DrawGaCopy,
+   added this slice); GaMeshRecorder records them in draw order (Mesh::Copy) and DrawGaFrame skips them.
+   The renderer needs a render-target copy (the canvas so far, scaled into a picture kept per GS address)
+   and a sprite that samples it; until then the shade-off draws nothing and the objects after
+   ExportDrawToTex draw untextured (sunBGT_ExecTBufferData_VIF1 finds no pixels for the bound copy, so it
+   unbinds) -- a host task, rendering/ga_copy.cpp, before the first scene that uses refraction or the
+   shade-off; at wide aspects the copy must cover the widened frame, not 512 x 448 (the user's rule);
+   (kl) the smoke run reaches ExportDrawToTex (log: first frame-buffer capture, 0xa8000, 512 x 512) but not
+   tiDrawShadingOff (fShadeOff is the event command's); (km) tiDrawShadingOff's turned copies pass x + 512
+   / y + 448 as the size, so each spans x .. 2x + 511 (kept, ROM quirk); (kn) SUN_TEX_ATTR +0x18 is now
+   `bytes` (w * h * bytes per pixel, tiVRAMViewer's), still unread by sunSetupTBufferData;
+   sunSetupTBufferDataFrom (QuatSlerp.c, PORT) takes a host record for the game's own records (data and
+   stack) that SunTexEePtr cannot resolve.
 
 8. **(2026-11-11, the user: "queue the title blockers") The way to the title screen.** A probe run
    (16:25, reverted: every stubbed x command answering XCMD_DONE, AA_movie returning at once) showed the

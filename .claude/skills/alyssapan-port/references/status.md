@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-11 18:20 at commit `2313ae7` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-11 18:37 at commit `32e3d4e` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1155**; stubs: **258**
+- reconstructed CT3 functions: **1159**; stubs: **256**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -57,7 +57,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/AlignedNum.c` | 4 | 0 |
 | `src/game/ArtoolDebugOpen.c` | 15 | 0 |
 | `src/game/Character_Init.c` | 48 | 1 |
-| `src/game/Clipping_Portal.c` | 46 | 18 |
+| `src/game/Clipping_Portal.c` | 50 | 16 |
 | `src/game/Convert.c` | 0 | 2 |
 | `src/game/CpDivideEECom.c` | 0 | 10 |
 | `src/game/IOPGetFileSize.c` | 4 | 0 |
@@ -100,7 +100,7 @@ Least-named game-code regions (64 KB blocks):
 - 64 TUs: todo 31, partial 4, verify 30, done 7, blocked 1
 - next: **game/Clipping_Portal.c** (pinned in the queue)
 - pinned queue: game/Clipping_Portal.c, alyssapan/rendering/ui_canvas.cpp, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
-- partial: `game/Clipping_Portal.c` 46/73 -- Smoke run unchanged (flat grey, no particle or boss bank loads). open-items 7 ki..kj: boss belt words through BossInfoWord (none); particle names from this one 
+- partial: `game/Clipping_Portal.c` 50/73 -- Smoke run unchanged (flat grey); ExportDrawToTex now runs (log: first frame-buffer capture 0xa8000 512x512), the shade-off is not reached. The renderer cannot d
 - partial: `game/tiXcmd_TransItem.c` 85/93 -- Slice 10. Written: tiXcmd_UseItem (ITEM_USE_* modes from argv[4], ITEM_KIND_* from the row byte +0: give-take, signal, heal Character[0].hp up to hpMax, calm vi
 - partial: `game/wideXcmd_DebugPrint.c` 107/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed) -- the last function of the TU. New stubs
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
@@ -137,6 +137,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-11 18:37 `game/Clipping_Portal.c` partial: slice 11: the GS frame-buffer copies -- tiDrawShadingOff (the shade-off: 2^level capture stretched back, turned half-alpha copies), CaptureDBuffer, tiVRAMViewer
 - 2026-11-11 18:20 `game/Clipping_Portal.c` partial: slice 10: tiGenerateParticle and tiGetmatL2WFromMeshEmitter (ring emission: part or mesh-emitter start, jittered dir and scale, life, refractive index), tiLight
 - 2026-11-11 18:08 `game/Clipping_Portal.c` partial: slice 9: tiHurikoReset (rest pose back in the part frame), tiGetNewNormalData (pendulum vertex normals), tiGetCharaDirection, tiFreeBossData; HURIKO_JOINT norma
 - 2026-11-11 17:59 `game/Clipping_Portal.c` partial: slice 8: tiCalc_Orbit and its motions (tiCalc_Trans, Goal_Disable, TransToGoal, TransToGoal_Stop, matL2V, Refraction) from the disassembly; PARTICLE2 laid out (
@@ -144,22 +145,21 @@ Recent sessions:
 - 2026-11-11 17:33 `alyssapan/core/title_trace.cpp` done: frames no longer stop; after the title movies the ATLD script cycles the attract demos d01-d04 and never loads TITL: the press-start wait needs gaPadRead (stub)
 - 2026-11-11 17:11 `game/PicPaz.c` verify: all 9 functions: the aa x commands (movie fades, memory-card file list, cursor and details, work buffer, SceneEndBank by name), aa_search, aa_to_big
 - 2026-11-11 16:48 `alyssapan/core/movie_skip.cpp` verify: movie skip: [game] skip_intro ends each movie at once, smoke runs turn it on
-- 2026-11-11 16:41 `game/hhXcmd_DressUp.c` verify: all 22 sound x commands: LoadSE, PlaySE, the SE changes, ADS, SQ, Sp1, DressUp, FootSEConversion
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
 | `game/ssSetTexUVforCubeMap.c` | partial | 1/50/96 | 35.3 | 117 | 10 |
 | `game/CpDivideEECom.c` | todo | 0/10/18 | 3.3 | 80 | 10 |
-| `game/Clipping_Portal.c` | partial | 46/18/73 | 44.8 | 62 | 5 |
 | `ga/gaDrawObject.c` | todo | 0/11/11 | 6.9 | 39 | 0 |
+| `game/Clipping_Portal.c` | partial | 50/16/73 | 44.8 | 35 | 3 |
 | `game/tiAvoidObject.c` | todo | 0/7/82 | 30.5 | 27 | 4 |
 | `game/ssHitCheckAttackToScn.c` | todo | 0/6/37 | 32.0 | 25 | 3 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/AA_GetDataWord.c` | todo | 0/8/15 | 4.9 | 21 | 2 |
 | `game/AA_SoundMonoSoart.c` | todo | 0/8/20 | 4.0 | 18 | 2 |
 | `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
-| `game/asUseArrow.c` | todo | 0/7/11 | 6.4 | 17 | 1 |
 | `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
+| `game/asUseArrow.c` | todo | 0/7/11 | 6.4 | 17 | 1 |
 
 ## Frontier (called by reconstructed code, not written yet)
 
@@ -167,8 +167,6 @@ Recent sessions:
 |---|---|---|---|---|---|
 | `01851b10` | ConvertQuat2Matrix | 17 | sym | stub | game/Convert.c |
 | `018d1e70` | CpGetEEIOPStatus | 14 | sym | stub | game/CpDivideEECom.c |
-| `0188ced0` | tiDrawShadingOff | 9 | sym | stub | game/Clipping_Portal.c |
-| `01893cf0` | ExportDrawToTex | 8 | sym | stub | game/Clipping_Portal.c |
 | `01883ca0` | asMothPause | 7 | sym | stub | game/asMothPause.c |
 | `018a3078` | gaObjectClippingCheck | 7 | sym | stub | ga/gaObjectClippingCheck.c |
 | `018a4fe0` | gaDrawObject_VertexLocalViewWithClippingFlagSet | 6 | sym | stub | ga/gaDrawObject.c |
@@ -205,4 +203,6 @@ Recent sessions:
 | `0189d900` | ssTrigScreenBlurEnd | 2 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `018c1d80` | AA_videoDecSetStream | 2 | sym | stub | game/AA_mpegTS.c |
 | `018bff20` | AA_strFileOpen | 2 | sym | stub | game/AA_videoCallback.c |
+| `018d2120` | CpCall_IOPSndDriver_2 | 2 | sym | stub | game/CpDivideEECom.c |
+| `018d1e80` | CpCheckEE_IOPComEnd | 2 | sym | stub | game/CpDivideEECom.c |
 

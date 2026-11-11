@@ -2213,8 +2213,15 @@ static const void *SunTexEePtr(u_int ee)
 // TBW is the width >> 6 as is, the levels' widths have one minimum, and CLD is always 1.
 void sunSetupTBufferData(void *tbuffer, TEX_INFO tex)
 {
+    sunSetupTBufferDataFrom(tbuffer, tex, (const SUN_TEX_ATTR *)SunTexEePtr(tex.tim));
+}
+
+// PORT: sunSetupTBufferData with the record as a host pointer: for the records the game builds on its
+// stack or keeps in its own data (Clipping_Portal.c's tiVRAMViewer, CaptureDBuffer), which have no bank
+// EE address. tex.tim is not read.
+void sunSetupTBufferDataFrom(void *tbuffer, TEX_INFO tex, const SUN_TEX_ATTR *attr)
+{
     SUN_TBUFFER_DATA *tbuf = (SUN_TBUFFER_DATA *)tbuffer;
-    const SUN_TEX_ATTR *attr = (const SUN_TEX_ATTR *)SunTexEePtr(tex.tim);
     u_int width, height, psm, bpp, clutWords, clutW, clutH;
     u_int levelTbp[SUN_MIP_TBP_LEVELS];
     u_int levelTbw[SUN_MIP_TBP_LEVELS];

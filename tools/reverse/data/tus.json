@@ -489,7 +489,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 105..105, 36 functions keyed by their statics, 13 unkeyed; file name from the names"
   },
   "game/Clipping_Portal.c": {
-   "notes": "Smoke run unchanged (flat grey, no particle or boss bank loads). open-items 7 ki..kj: boss belt words through BossInfoWord (none); particle names from this one reader. Slice left: tiDrawShadingOff with CaptureDBuffer and tiVRAMViewer, ExportDrawToTex, tiDrawLensFlares, the refraction trio (tiBumpSTValueUpdate, tiRefractionMapUpdate, SetSTValueForRefraction), the translucence four, tiCalc_Leaf / Leaf_WIND / Trans_WIND / Twist, the six slice-3 helper stubs.",
+   "notes": "Smoke run unchanged (flat grey); ExportDrawToTex now runs (log: first frame-buffer capture 0xa8000 512x512), the shade-off is not reached. The renderer cannot draw the copies yet: open-items 7 kk (a host task, rendering/ga_copy.cpp: render-target copy plus a sampling sprite, widened at wide aspects); objects after ExportDrawToTex draw untextured until then. Slice left: tiDrawLensFlares, the refraction trio (tiBumpSTValueUpdate, tiRefractionMapUpdate, SetSTValueForRefraction), tiXFadeOut_Draw and the translucence four (they call tiVRAMViewer), tiCalc_HurikoCLOSED, tiCalc_Leaf / Leaf_WIND / Trans_WIND / Twist, the slice-3 helper stubs.",
    "ranges": [
     [
      "01889cd0",
@@ -546,6 +546,11 @@
      "date": "2026-11-11 18:20",
      "status": "partial",
      "summary": "slice 10: tiGenerateParticle and tiGetmatL2WFromMeshEmitter (ring emission: part or mesh-emitter start, jittered dir and scale, life, refractive index), tiLightBelt2UpdateForALYSSA_Battle and _BOSS_Battle (chain-set events); PARTICLE2_ENTRY chara / jitters / dir / accel / idleTicks / tail / refrIndex, PARTICLE2.startPos, PARTICLE2_EMITTER vertices"
+    },
+    {
+     "date": "2026-11-11 18:37",
+     "status": "partial",
+     "summary": "slice 11: the GS frame-buffer copies -- tiDrawShadingOff (the shade-off: 2^level capture stretched back, turned half-alpha copies), CaptureDBuffer, tiVRAMViewer, ExportDrawToTex; host seam AlyssaPan_DrawGaCapture / AlyssaPan_DrawGaCopy recorded in draw order; sunSetupTBufferDataFrom for host records; SUN_TEX_ATTR.bytes"
     }
    ],
    "status": "partial",

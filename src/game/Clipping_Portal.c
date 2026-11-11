@@ -2108,10 +2108,223 @@ void tiDrawLensFlares(void)
     ALYSSAPAN_STUB("tiDrawLensFlares", 0x0188df70);
 }
 
-// stub of CT3 0x0188ced0
+// ---- GS frame-buffer copies (slice 11, 2026-11-11): the shade-off and its two helpers ----
+
+// The two sprite packets (0x60 bytes: a DMAtag of qwc 5, NOPs and DIRECT, a GIFtag of NREG 6 in packed
+// mode, registers PRIM RGBAQ UV XYZ2 UV XYZ2), as u_long words; the draws rewrite the corners.
+#define SPRITE_PACKET_WORDS 12
+#define SPRITE_RGBAQ 7                  /* word 7: RGBAQ (Q 1.0 in the high word) */
+#define SPRITE_UV0 8                    /* the first corner's UV, then XYZ2 */
+#define SPRITE_XYZ0 9
+#define SPRITE_UV1 10                   /* the second corner's */
+#define SPRITE_XYZ1 11
+#define SPRITE_RGBAQ_GREY 0x3f80000080808080ul /* RGBA 0x80 each (the texel as it is), Q 1.0 */
+#define GS_XYZ_Z_FAR 0xfffffeul         /* the sprites' Z */
+#define GS_WINDOW_ORIGIN 0x8000         /* XYZ2's window origin, 12.4 (2048.0) */
+#define GS_UV_HALF 9                    /* UV's 12.4 fraction on the last texel (0.5625) */
+
+// data 0x019387e0 drawprim: CaptureDBuffer's sprite -- the whole 512 x 448 frame read with UV (0.5, 0.5625)
+// .. (511.5, 447.5625), from window (-0.5, -0.5); the second corner is written per capture.
+alignas(16) static u_long drawprim[SPRITE_PACKET_WORDS] = {
+    0x10000005ul, 0, 0, 0x5000000400000000ul, 0x6400000000008001ul, 0x434310ul,
+    6, SPRITE_RGBAQ_GREY, 0x90008ul, 0xfffffe7ff87ff8ul, 0x1bf91ff8ul, 0xfffffe9ff89ff8ul};
+// data 0x01938980 sprite_vram$61: tiVRAMViewer's sprite; RGBAQ, the second UV and both corners per call.
+alignas(16) static u_long sprite_vram_61[SPRITE_PACKET_WORDS] = {
+    0x10000005ul, 0, 0, 0x5000000400000000ul, 0x6400000000008001ul, 0x434310ul,
+    6, 0, 0x90009ul, 0, 0, 0};
+// data 0x01938880 tex_attr_before: the frame buffer read as a texture (512 x 448, CT32, already in GS
+// memory: no data words).
+static const SUN_TEX_ATTR tex_attr_before = {GS_FRAME_WIDTH, GS_FRAME_HEIGHT, GS_FRAME_LOG2, GS_FRAME_LOG2,
+                                             SCE_GS_PSMCT32, 0, 0x000e0000u, {0, 0, 0, 0}, 0, 0};
+alignas(16) static GA_DBUFFER_DATA d_buffer_140;    /* sbss 0x0193dc40 d_buffer$140 */
+alignas(16) static GA_DRAWCTRL_DATA drawctrl_138;   /* sbss 0x0193ddc0 drawctrl$138 */
+alignas(16) static u_char tex_before_139[0x100];    /* sbss 0x0193dcc0 tex_before$139: a SUN_TBUFFER_DATA */
+alignas(16) static GA_DRAWCTRL_DATA drawctrl_63;    /* sbss 0x0193df80 drawctrl$63 */
+alignas(16) static u_char tex_64[0x100];            /* sbss 0x0193de80 tex$64: a SUN_TBUFFER_DATA */
+
+// A window position (pixels of the frame) as XYZ2's X / Y fields: 12.4 about the window origin, truncated
+// as the ROM's __fixdfdi does, Z GS_XYZ_Z_FAR.
+static u_long SpriteXyz(float x, float y)
+{
+    u_long gx = (u_long)((int64_t)((double)x * 16.0) + GS_WINDOW_ORIGIN) & 0xffff;
+    u_long gy = (u_long)((int64_t)((double)y * 16.0) + GS_WINDOW_ORIGIN) & 0xffff;
+
+    return gx | gy << 16 | GS_XYZ_Z_FAR << 32;
+}
+
+// The capture's draw control: textured, alpha blended, UV; ATE with ATST 0 (never) AFAIL 1 (FB only), ZTE 1
+// ZTST 1 (always); ALPHA_1 (Cs - Cd) * 0x80 + Cd (the source alone); FBA 1; bilinear.
+#define CAPTURE_DRAWCTRL_ARGS {                                                     0, 1, 0, 1, 0, 1, 0, 0,      /* PRMODE: TME, ABE, FST */                       1, 0, 0, 1, 0, 0, 1, 1,      /* TEST_1: ATE, AFAIL 1, ZTE, ZTST 1 */           0, 1, 2, 1, VRAM_ALPHA_OPAQUE, /* ALPHA_1: A Cs, B Cd, C FIX, D Cd */           1,                           /* FBA_1 */                                       1, 2, 1, 1, 0, 0,            /* TEX1_1 */                                      0}                           /* TEXA */
+// tiVRAMViewer's: the same without ZTE and FBA, at the caller's FIX.
+#define VRAM_DRAWCTRL_ARGS(alphaFix) {                                              0, 1, 0, 1, 0, 1, 0, 0,      /* PRMODE: TME, ABE, FST */                       1, 0, 0, 1, 0, 0, 0, 1,      /* TEST_1: ATE, AFAIL 1, ZTST 1 */                0, 1, 2, 1, (u_int)(alphaFix), /* ALPHA_1: A Cs, B Cd, C FIX, D Cd */           0,                           /* FBA_1 */                                       1, 2, 1, 1, 0, 0,            /* TEX1_1 */                                      0}                           /* TEXA */
+
+// CT3 0x018945f0: the frame drawn so far (the draw buffer, ga_draw_fbuf_address) drawn into the effect
+// buffer, scaled to width x height: the draw buffer moves to EFFECT_FBUF_ADDRESS (width pixels wide,
+// scissored to the picture), the frame is bound as a texture and drawprim covers the picture; then
+// drawbuffer_0 is sent again. EffectBuffer_Use is held meanwhile.
+// PORT: the GS copy has no memory to land in on the host: the packets are built and sent as the ROM does,
+// and the host draw module is told the copy (alyssapan_drawga.h AlyssaPan_DrawGaCapture).
+void CaptureDBuffer(u_int width, u_int height)
+{
+    int fbuf = ga_draw_fbuf_address;
+
+    EffectBuffer_Use = 1;
+    drawprim[SPRITE_XYZ1] = SpriteXyz((float)width - 0.5f, (float)height - 0.5f);
+    gaSetupDBufferData(&d_buffer_140, EFFECT_FBUF_ADDRESS, width, 0, 0, 0, 0, 0, 0, 0, width - 1, height - 1,
+                       0, 0, 0);
+    {
+        GA_DRAWCTRL_ARGS args = CAPTURE_DRAWCTRL_ARGS;
+
+        gaSetupDrawCtrlData(&drawctrl_138, args);
+    }
+    {
+        TEX_INFO tex;
+
+        memset(&tex, 0, sizeof(tex));
+        tex.tim = 0x01938880u;                  /* tex_attr_before */
+        tex.tbp = (u_int)ga_draw_fbuf_address;
+        tex.wms = TEX_WRAP_CLAMP;
+        tex.wmt = TEX_WRAP_CLAMP;
+        sunSetupTBufferDataFrom(tex_before_139, tex, &tex_attr_before);
+    }
+    ga_draw_fbuf_address = EFFECT_FBUF_ADDRESS;
+    FlushCache(0);
+    gaBGT_ExecDBufferData_VIF1(&d_buffer_140);
+    gaBGT_ExecDrawCtrlData_VIF1(&drawctrl_138);
+    sunBGT_ExecTBufferData_VIF1(tex_before_139);
+    gaBGT_ExecDrawCommandData_VIF1((GA_DRAWCOMMAND_DATA *)drawprim);
+    AlyssaPan_DrawGaCapture(EFFECT_FBUF_ADDRESS, (int)width, (int)height);
+    ga_draw_fbuf_address = fbuf;
+    FlushCache(0);
+    gaBGT_ExecDBufferData_VIF1(&drawbuffer_0);
+    EffectBuffer_Use = 0;
+    // callcheck: sunSetupTBufferData (PORT: sunSetupTBufferDataFrom, the record is host data)
+    // callcheck: __fixdfdi, dpmul, fptodp (the corners' double maths: the compiler's runtime, in SpriteXyz)
+}
+
+// CT3 0x01894ed0: a GS region drawn as a sprite: fbp (texW x texH pixels; TEX0 tw / th / psm; the record's
+// size at bytesPerPixel) bound as a texture, its texels 0.5625 .. size - 0.4375 over the window rectangle
+// x, y .. x + w - 1, y + h - 1, grey 0x80 (the texel as it is), blended (Cs - Cd) * alphaFix + Cd.
+// The record starts as a copy of @62 (bss 0x0193d0d0, 0x80 zero bytes).
+// PORT: as CaptureDBuffer: the packets as the ROM's, the draw named to the host (AlyssaPan_DrawGaCopy).
+void tiVRAMViewer(float x, float y, float w, float h, u_int fbp, int texW, int texH, u_int tw, u_int th,
+                  u_int psm, int bytesPerPixel, int alphaFix)
+{
+    SUN_TEX_ATTR attr;
+
+    memset(&attr, 0, sizeof(attr));
+    attr.width = (u_int)texW;
+    attr.height = (u_int)texH;
+    attr.tw = tw;
+    attr.th = th;
+    attr.psm = psm;
+    attr.bytes = (u_int)(bytesPerPixel * texW * texH);
+    sprite_vram_61[SPRITE_RGBAQ] = SPRITE_RGBAQ_GREY;
+    sprite_vram_61[SPRITE_UV1] = ((u_long)(((texH - 1) * 16 | GS_UV_HALF) & 0xffff) << 16) |
+                                 (u_long)(((texW - 1) * 16 | GS_UV_HALF) & 0xffff);
+    sprite_vram_61[SPRITE_XYZ0] = SpriteXyz(x, y);
+    sprite_vram_61[SPRITE_XYZ1] = SpriteXyz(x + w - 1.0f, y + h - 1.0f);
+    {
+        GA_DRAWCTRL_ARGS args = VRAM_DRAWCTRL_ARGS(alphaFix);
+
+        gaSetupDrawCtrlData(&drawctrl_63, args);
+    }
+    {
+        TEX_INFO tex;
+
+        memset(&tex, 0, sizeof(tex));
+        tex.tbp = fbp;                          /* tim: the stack record (sunSetupTBufferDataFrom) */
+        tex.wms = TEX_WRAP_CLAMP;
+        tex.wmt = TEX_WRAP_CLAMP;
+        sunSetupTBufferDataFrom(tex_64, tex, &attr);
+    }
+    FlushCache(0);
+    gaBGT_ExecDrawCtrlData_VIF1(&drawctrl_63);
+    sunBGT_ExecTBufferData_VIF1(tex_64);
+    gaBGT_ExecDrawCommandData_VIF1((GA_DRAWCOMMAND_DATA *)sprite_vram_61);
+    AlyssaPan_DrawGaCopy(fbp, texW, texH, x, y, x + w - 1.0f, y + h - 1.0f, alphaFix);
+    // callcheck: sunSetupTBufferData (PORT: sunSetupTBufferDataFrom, the record is host data)
+    // callcheck: __fixdfdi, dpmul, fptodp (the corners' double maths: the compiler's runtime, in SpriteXyz)
+}
+
+// data 0x01938d40 @1854: the shade-off's slide direction (1, 1, 0, 0), scaled by the slide in pixels.
+static const float ShadeOffSlide_1854[4] = {1.0f, 1.0f, 0.0f, 0.0f};
+
+#define SHADE_OFF_TURN 0xfff0           /* gaSetRotMatrixZ angle shared out among the copies (0x10000 a turn) */
+#define SHADE_OFF_COPY_ALPHA 0x40       /* each turned copy's FIX: half */
+
+// CT3 0x0188ced0: once a frame while fShadeOff (tiXcmd_ShadeOff): the screen captured at 2^CapLevel
+// pixels square (512 x 448 at level 9) and drawn back over the whole frame (the blur), then ShadeOff_Level
+// copies of the frame at half alpha, each slid by the slide vector turned a share of a full turn. The slide
+// grows to ShadeOff_SlidePixel while it counts down (nowShadeOffFrame), or, on release
+// (KEEP_SCREEN_RELEASE), shrinks back with it and ends the shade-off. While held (KEEP_SCREEN_HOLD) the
+// first capture stays (KEEP_SCREEN_CAPTURED) and the effect buffer stays taken.
+// ROM quirk kept: the copies pass x + 512 / y + 448 as their size, so each spans x .. 2x + 511.
 void tiDrawShadingOff(void)
 {
-    ALYSSAPAN_STUB("tiDrawShadingOff", 0x0188ced0);
+    float slide[4];
+    float matrix[4][4];
+    float pos[4];
+    float pixels;
+    u_int width, height;
+    int i, k;
+
+    memcpy(slide, ShadeOffSlide_1854, sizeof(slide));
+    if (fShadeOff == 0)
+        return;
+
+    if ((fKeepScreen & KEEP_SCREEN_RELEASE) == 0) {
+        pixels = ShadeOff_SlidePixel;
+        if (nowShadeOffFrame != 0) {
+            nowShadeOffFrame--;
+            if (nowShadeOffFrame < 1)
+                nowShadeOffFrame = 0;
+            else
+                pixels = ShadeOff_SlidePixel * (1.0f - (float)nowShadeOffFrame / (float)ShadeOffFrame);
+        }
+    } else {
+        if (nowShadeOffFrame < 0) {
+            fShadeOff = 0;
+            fKeepScreen = 0;
+            EffectBuffer_Use = 0;
+            return;
+        }
+        pixels = (float)nowShadeOffFrame;
+        nowShadeOffFrame--;
+        pixels = (ShadeOff_SlidePixel * pixels) / (float)ShadeOffFrame;
+    }
+
+    width = GS_FRAME_WIDTH;
+    if (ShadeOff_CapLevel == SHADE_OFF_LEVELS) {
+        height = GS_FRAME_HEIGHT;
+    } else {
+        width = (u_int)tiFactorial(2, (u_int)(u_char)ShadeOff_CapLevel);
+        height = width;
+    }
+    if ((fKeepScreen & KEEP_SCREEN_CAPTURED) == 0) {
+        CaptureDBuffer(width, height);
+        if ((fKeepScreen & KEEP_SCREEN_HOLD) != 0) {
+            EffectBuffer_Use = 1;
+            fKeepScreen |= KEEP_SCREEN_CAPTURED;
+        }
+    }
+    // vmulx.xyz: w keeps its 0
+    slide[0] *= pixels;
+    slide[1] *= pixels;
+    slide[2] *= pixels;
+    tiVRAMViewer(0.0f, 0.0f, (float)GS_FRAME_WIDTH, (float)GS_FRAME_HEIGHT, EFFECT_FBUF_ADDRESS, (int)width,
+                 (int)height, (u_int)(u_char)ShadeOff_CapLevel, (u_int)(u_char)ShadeOff_CapLevel, SCE_GS_PSMCT32,
+                 4, VRAM_ALPHA_OPAQUE);
+    for (i = 0; i < (int)ShadeOff_Level; i++) {
+        gaSetRotMatrixZ(matrix, (SHADE_OFF_TURN / ShadeOff_Level) * i);
+        for (k = 0; k < 4; k++) {
+            pos[k] = matrix[0][k] * slide[0] + matrix[1][k] * slide[1] + matrix[2][k] * slide[2] +
+                     matrix[3][k] * slide[3];
+        }
+        tiVRAMViewer(pos[0], pos[1], pos[0] + (float)GS_FRAME_WIDTH, pos[1] + (float)GS_FRAME_HEIGHT,
+                     (u_int)ga_draw_fbuf_address, GS_FRAME_WIDTH, GS_FRAME_HEIGHT, GS_FRAME_LOG2, GS_FRAME_LOG2,
+                     SCE_GS_PSMCT32, 4, SHADE_OFF_COPY_ALPHA);
+    }
 }
 
 // stub of CT3 0x01894230
@@ -2126,10 +2339,96 @@ void tiXFadeOut_Draw(void)
     ALYSSAPAN_STUB("tiXFadeOut_Draw", 0x0188d3f0);
 }
 
-// stub of CT3 0x01893cf0
+#define EXPORT_FBUF_ADDRESS_SMALL 0xe0000u /* ExportDrawToTex's copy while the effect buffer is taken */
+#define EXPORT_TEX_SIZE 512             /* the copy's square side: 512 into the effect buffer ... */
+#define EXPORT_TEX_SIZE_SMALL 256       /* ... 256 at EXPORT_FBUF_ADDRESS_SMALL */
+#define EXPORT_TEX_LOG2 9
+#define EXPORT_TEX_LOG2_SMALL 8
+
+// data 0x01938900 tex_attr_after: the copy read as a texture (CT32, already in GS memory); ExportDrawToTex
+// rewrites its size per call. The ROM's bytes: 512 x 512.
+static SUN_TEX_ATTR tex_attr_after = {EXPORT_TEX_SIZE, EXPORT_TEX_SIZE, EXPORT_TEX_LOG2, EXPORT_TEX_LOG2,
+                                      SCE_GS_PSMCT32, 0, 0x00100000u, {0, 0, 0, 0}, 0, 0};
+alignas(16) static GA_DBUFFER_DATA d_buffer_226;    /* sbss 0x0193dbc0 d_buffer$226 */
+alignas(16) static GA_DRAWCTRL_DATA drawctrl_227;   /* sbss 0x0193db00 drawctrl$227 */
+alignas(16) static u_char tex_before_228[0x100];    /* sbss 0x0193da00 tex_before$228: a SUN_TBUFFER_DATA */
+alignas(16) static u_char tex_after_229[0x100];     /* sbss 0x0193d900 tex_after$229: a SUN_TBUFFER_DATA */
+
+// CT3 0x01893cf0: main's passes, before the objects drawn after the particles (ALL_TABLE.objAfter,
+// particles2After): the frame drawn so far copied, scaled, into a square texture -- 512 x 512 in the effect
+// buffer, or 256 x 256 at EXPORT_FBUF_ADDRESS_SMALL when the effect buffer is taken -- under the capture's
+// draw control and drawprim; then drawbuffer_0 is sent again and the copy is bound as the texture, so the
+// objects after it draw with the screen (refraction). The effect buffer is held during the copy only.
+// PORT: as CaptureDBuffer: the packets as the ROM's, the copy named to the host (AlyssaPan_DrawGaCapture).
+// The host has no picture for the bound copy yet: sunBGT_ExecTBufferData_VIF1 finds no pixels and the
+// objects after it draw untextured (open-items.md).
 void ExportDrawToTex(void)
 {
-    ALYSSAPAN_STUB("ExportDrawToTex", 0x01893cf0);
+    u_char wasUsed = EffectBuffer_Use;
+    int fbuf = ga_draw_fbuf_address;
+    u_int dest;
+
+    if (EffectBuffer_Use == 0) {
+        dest = EFFECT_FBUF_ADDRESS;
+        EffectBuffer_Use = 1;
+        tex_attr_after.bytes = EXPORT_TEX_SIZE * EXPORT_TEX_SIZE * 4;
+        tex_attr_after.tw = EXPORT_TEX_LOG2;
+        tex_attr_after.th = EXPORT_TEX_LOG2;
+        tex_attr_after.width = EXPORT_TEX_SIZE;
+        tex_attr_after.height = EXPORT_TEX_SIZE;
+        drawprim[SPRITE_XYZ1] = SpriteXyz(EXPORT_TEX_SIZE - 0.5f, EXPORT_TEX_SIZE - 0.5f);
+        gaSetupDBufferData(&d_buffer_226, dest, EXPORT_TEX_SIZE, 0, 0, 0, 0, 0, 0, 0, EXPORT_TEX_SIZE - 1,
+                           EXPORT_TEX_SIZE - 1, 0, 0, 0);
+    } else {
+        tex_attr_after.bytes = EXPORT_TEX_SIZE_SMALL * EXPORT_TEX_SIZE_SMALL * 4;
+        tex_attr_after.tw = EXPORT_TEX_LOG2_SMALL;
+        tex_attr_after.th = EXPORT_TEX_LOG2_SMALL;
+        dest = EXPORT_FBUF_ADDRESS_SMALL;
+        tex_attr_after.width = EXPORT_TEX_SIZE_SMALL;
+        tex_attr_after.height = EXPORT_TEX_SIZE_SMALL;
+        drawprim[SPRITE_XYZ1] = SpriteXyz(EXPORT_TEX_SIZE_SMALL - 0.5f, EXPORT_TEX_SIZE_SMALL - 0.5f);
+        gaSetupDBufferData(&d_buffer_226, dest, EXPORT_TEX_SIZE_SMALL, 0, 0, 0, 0, 0, 0, 0,
+                           EXPORT_TEX_SIZE_SMALL - 1, EXPORT_TEX_SIZE_SMALL - 1, 0, 0, 0);
+    }
+    {
+        GA_DRAWCTRL_ARGS args = CAPTURE_DRAWCTRL_ARGS;
+
+        gaSetupDrawCtrlData(&drawctrl_227, args);
+    }
+    {
+        TEX_INFO tex;
+
+        memset(&tex, 0, sizeof(tex));
+        tex.tim = 0x01938880u;                  /* tex_attr_before */
+        tex.tbp = (u_int)ga_draw_fbuf_address;
+        tex.wms = TEX_WRAP_CLAMP;
+        tex.wmt = TEX_WRAP_CLAMP;
+        sunSetupTBufferDataFrom(tex_before_228, tex, &tex_attr_before);
+    }
+    ga_draw_fbuf_address = (int)dest;
+    FlushCache(0);
+    gaBGT_ExecDBufferData_VIF1(&d_buffer_226);
+    gaBGT_ExecDrawCtrlData_VIF1(&drawctrl_227);
+    sunBGT_ExecTBufferData_VIF1(tex_before_228);
+    gaBGT_ExecDrawCommandData_VIF1((GA_DRAWCOMMAND_DATA *)drawprim);
+    AlyssaPan_DrawGaCapture(dest, (int)tex_attr_after.width, (int)tex_attr_after.height);
+    ga_draw_fbuf_address = fbuf;
+    {
+        TEX_INFO tex;
+
+        memset(&tex, 0, sizeof(tex));
+        tex.tim = 0x01938900u;                  /* tex_attr_after */
+        tex.tbp = dest;
+        tex.wms = TEX_WRAP_CLAMP;
+        tex.wmt = TEX_WRAP_CLAMP;
+        sunSetupTBufferDataFrom(tex_after_229, tex, &tex_attr_after);
+    }
+    FlushCache(0);
+    gaBGT_ExecDBufferData_VIF1(&drawbuffer_0);
+    sunBGT_ExecTBufferData_VIF1(tex_after_229);
+    if (wasUsed == 0)
+        EffectBuffer_Use = 0;
+    // callcheck: sunSetupTBufferData (PORT: sunSetupTBufferDataFrom, the records are host data)
 }
 
 // stub of CT3 0x0188dca0

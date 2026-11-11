@@ -136,6 +136,19 @@ bool GaMeshRecorder::recordFill(std::uint32_t rgba, int alphaFix)
     return frameEnded;
 }
 
+bool GaMeshRecorder::recordCopy(const Mesh &copy)
+{
+    const bool frameEnded = nextField();
+    if (!m_loggedCopy) {
+        m_loggedCopy = true;
+        log::info("[ga] first frame-buffer {}: GS {:#x}, {}x{} (recorded, not drawn yet: no render-target copy)",
+                  copy.copy == Mesh::Copy::Capture ? "capture" : "copy", copy.copyFbp, copy.copyWidth,
+                  copy.copyHeight);
+    }
+    m_frame.push_back(copy);
+    return frameEnded;
+}
+
 bool GaMeshRecorder::record(const AlyssaPanGaObject &object)
 {
     const bool frameEnded = nextField();

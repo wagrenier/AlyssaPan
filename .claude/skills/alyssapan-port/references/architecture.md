@@ -201,6 +201,13 @@ the TU map's evidence.
   drawn into FBP 0xa8000 after the frame clear, blended back by `ssBGT_HQDOF_WriteBackFB((HQDOFOpacity
   << 7) / 100)` (30 % -> 38). focusPos$905 then takes `Cam[asCheckBankID(6)]` +0xf0 (`Cam`, bss
   0x01ae7c40, 7 x 0x1c0).
+- **The effect buffer (GS 0xa8000; Clipping_Portal.c slice 11, 2026-11-11):** one GS area that HQ DOF,
+  the shade-off and ExportDrawToTex share, guarded by `EffectBuffer_Use`. `CaptureDBuffer(w, h)` draws the
+  frame (texture `tex_attr_before`: 512 x 448 CT32 at `ga_draw_fbuf_address`) into it at w x h under
+  `drawprim`; `tiVRAMViewer` draws any GS region back as a sprite at a FIX; `ExportDrawToTex` copies the
+  frame into a 512 x 512 texture there (256 x 256 at 0xe0000 when the buffer is taken) and binds it for
+  the objects after the particles. The shade-off (`tiXcmd_ShadeOff` -> `tiDrawShadingOff`) is a
+  2^level capture stretched back over the frame plus `ShadeOff_Level` half-alpha copies slid around a turn.
 - **main.c's globals** are taken to be the .sbss run 0x01942ab0..0x01942b48 (`pad_key_button` ..
   `gArgc`): contiguous, all used by main.c's functions, `gArgv` / `gArgc` surely its own. A guess from
   placement; the locals (symtab 895..911) are `a$1034`, `skip_wait_temp$61`, `focusPos$905` and the

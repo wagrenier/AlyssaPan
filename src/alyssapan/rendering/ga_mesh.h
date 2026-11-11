@@ -56,6 +56,17 @@ public:
         bool fill = false;
         std::uint32_t fillRgba = 0;
         std::uint8_t fillFix = 0;
+
+        // A frame-buffer copy (AlyssaPan_DrawGaCapture / AlyssaPan_DrawGaCopy) instead of a mesh: the GS
+        // address it names, the picture's size, and for a copy the window rectangle and FIX. Recorded in
+        // draw order; the canvas has no render-target copy yet, so the frame pass skips them.
+        enum class Copy : std::uint8_t { None, Capture, Sprite };
+        Copy copy = Copy::None;
+        std::uint32_t copyFbp = 0;
+        int copyWidth = 0;
+        int copyHeight = 0;
+        std::array<float, 4> copyRect{}; // x0, y0, x1, y1
+        std::uint8_t copyFix = 0;
     };
 
     // The texture the objects after it draw with (alyssapan_drawga.h AlyssaPan_DrawGaTexture): the ROM's
@@ -72,6 +83,9 @@ public:
     // object does, so a screen with nothing but a fade still reaches the display.
     bool recordFill(std::uint32_t rgba, int alphaFix);
 
+    // A frame-buffer capture or copy in draw order (alyssapan_drawga.h); it closes a frame as an object does.
+    bool recordCopy(const Mesh &copy);
+
     const std::vector<Mesh> &lastFrame() const { return m_last; }
 
 private:
@@ -85,6 +99,7 @@ private:
     std::uint64_t m_field = 0;
     bool m_loggedFirst = false;
     bool m_loggedTexture = false;
+    bool m_loggedCopy = false;
     std::shared_ptr<Image> m_image;
     std::uint64_t m_tex0 = 0;
     std::uint64_t m_clamp = 0;

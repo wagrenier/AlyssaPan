@@ -182,6 +182,11 @@ void DrawGaFrame(const std::vector<alyssapan::rendering::GaMeshRecorder::Mesh> &
             ui.fillColor(list, mesh.fillRgba, mesh.fillFix);
             continue;
         }
+        if (mesh.copy != GaMeshRecorder::Mesh::Copy::None) {
+            // PORT: the canvas has no render-target copy yet (open-items.md): captures and copies are
+            // recorded in order and skipped here.
+            continue;
+        }
         const bool textured = mesh.image != nullptr;
         const int tfx = static_cast<int>(mesh.tex0 >> kTex0TfxShift) & kTex0TfxMask;
         const bool texelAlpha = (mesh.tex0 >> kTex0TccShift & 1) != 0;
@@ -236,6 +241,36 @@ void AlyssaPan_DrawGaFill(uint32_t rgba, int alphaFix)
 {
     auto &recorder = alyssapan::rendering::GaMeshRecorder::instance();
     if (recorder.recordFill(rgba, alphaFix))
+        DrawGaFrame(recorder.lastFrame());
+}
+
+void AlyssaPan_DrawGaCapture(uint32_t fbp, int width, int height)
+{
+    using Mesh = alyssapan::rendering::GaMeshRecorder::Mesh;
+    auto &recorder = alyssapan::rendering::GaMeshRecorder::instance();
+    Mesh copy;
+    copy.copy = Mesh::Copy::Capture;
+    copy.copyFbp = fbp;
+    copy.copyWidth = width;
+    copy.copyHeight = height;
+    if (recorder.recordCopy(copy))
+        DrawGaFrame(recorder.lastFrame());
+}
+
+void AlyssaPan_DrawGaCopy(uint32_t fbp, int texWidth, int texHeight, float x0, float y0, float x1, float y1,
+                          int alphaFix)
+{
+    constexpr int kFixMax = 0xff; // ALPHA_1's FIX is a byte
+    using Mesh = alyssapan::rendering::GaMeshRecorder::Mesh;
+    auto &recorder = alyssapan::rendering::GaMeshRecorder::instance();
+    Mesh copy;
+    copy.copy = Mesh::Copy::Sprite;
+    copy.copyFbp = fbp;
+    copy.copyWidth = texWidth;
+    copy.copyHeight = texHeight;
+    copy.copyRect = {x0, y0, x1, y1};
+    copy.copyFix = static_cast<std::uint8_t>(std::clamp(alphaFix, 0, kFixMax));
+    if (recorder.recordCopy(copy))
         DrawGaFrame(recorder.lastFrame());
 }
 

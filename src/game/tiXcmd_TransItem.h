@@ -44,6 +44,7 @@
 #define SHADE_OFF_ON_ARGC_VAR 7         /* "ON" with 7 arguments: the frames are a variable */
 #define SHADE_OFF_OFF_ARGC_VAR 3        /* "OFF" with 3 arguments: the frames are a variable */
 #define KEEP_SCREEN_HOLD 0x1            /* fKeepScreen: "ON .. KEEP": the shaded screen is held */
+#define KEEP_SCREEN_CAPTURED 0x2        /* fKeepScreen: the held screen is captured (tiDrawShadingOff) */
 #define KEEP_SCREEN_RELEASE 0x4         /* fKeepScreen: "OFF": the shade-off ends */
 #define XFADE_TYPE_NONE 0               /* XFade_Type */
 #define XFADE_TYPE_PAUSE 1              /* the two kinds that reserved a pause (pause_reservation) */
