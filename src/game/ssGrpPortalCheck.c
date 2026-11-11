@@ -6,7 +6,9 @@
 // CheckPlaneEntry, ssGrpPortalCheck). Slice 2 (2026-11-10): Trigger_init / _deinit, TriggerGlobalInit,
 // the trigger block getters and readers, the delay-enable ring. Slice 3 (2026-11-11): Trigger_main, the
 // detector walk (ssTrigProcDetRecur, ssTrigProceedDetector, ssTrigCheckDetector and its shapes), the
-// actor runners, the waits and the small checks; ssTrigCheckConditions and ssTrigExecuteActCmd are stubs.
+// actor runners, the waits and the small checks. Slice 4 (2026-11-11): ssTrigCheckConditions and its
+// checks (ssTrigCheckInput, ssTrigCheckVariable, ssTrigLookAtCheck, ssTrigAttackHitCheck),
+// ssTrigSetEnable and Trigger_reset; ssTrigExecuteActCmd is a stub.
 
 #include <math.h>
 #include <string.h>
@@ -24,6 +26,8 @@
 #include "game/LinkMatrixTree.h"
 #include "game/main.h"
 #include "game/main2.h"
+#include "game/ssHitCheckAttackToScn.h"
+#include "game/wideXcmd_DebugPrint.h"
 
 // ---- data (symtab names) -------------------------------------------------------------------------------
 short ssScnShiftCharList[PORTAL_CHARA_COUNT] = {0, 2, 3, 4, 5, 6};   // CT3 0x01939d68
@@ -533,6 +537,40 @@ void ssTrigExecDelayEnable(int index, int bank)
     ssTrigDEPop_Front(DlyEnaWork[bank], bank);
 }
 
+// CT3 0x018d92d0
+// Switches a part of the bank (DE_OP_*): at once (delayed == 0; its queued switches are cancelled), or
+// queued on the delay-enable ring (a pending entry for the part takes the new op instead).
+void ssTrigSetEnable(int part, int op, int delayed, int bank)
+{
+    if (delayed == 0) {
+        MODEL_PARTS *parts = (MODEL_PARTS *)pModelPartsHeader[bank];
+        if (DlyEnaWork[bank] != NULL) {     // PORT: the ROM walks an empty ring at EE address 0
+            ssTrigDE_DisableReq(DlyEnaWork[bank], bank, (short)part);
+        }
+        switch ((u_char)op) {
+        case DE_OP_TOGGLE:
+            parts[(u_short)part].flags ^= PARTS_FLAG_HIDDEN;
+            break;
+        case DE_OP_SHOW:
+            parts[(u_short)part].flags &= ~PARTS_FLAG_HIDDEN;
+            break;
+        case DE_OP_HIDE:
+            parts[(u_short)part].flags |= PARTS_FLAG_HIDDEN;
+            break;
+        default:
+            break;
+        }
+        return;
+    }
+    if (DlyEnaWork[bank] == NULL) {
+        return;                     // PORT: no delay ring for the bank (Trigger_init found no slots)
+    }
+    if (ssTrigDE_ChangeReq(DlyEnaWork[bank], bank, (short)part, (u_char)op) == 0) {
+        TRIG_DELAY_ENABLE req = {(short)part, (u_char)op, 0};
+        ssTrigDEPush_Back(DlyEnaWork[bank], bank, &req);
+    }
+}
+
 // ---- init and teardown ---------------------------------------------------------------------------------
 
 // CT3 0x018d5230
@@ -551,6 +589,44 @@ void TriggerGlobalInit(void)
     for (int i = 0; i < GLOBAL_VARIABLE_COUNT; i++) {
         GlobalVariable[i] = -1;
     }
+}
+
+// CT3 0x018d4830
+// Back to the scene's start (wideXcmd_TriggerInit, the axe AI's resets): every detector false, no actor
+// running, the temp flags clear, the temp variables -1, the delay ring empty (its size from the header).
+void Trigger_reset(int bank)
+{
+    int pos = 0;
+    u_int numEvents, numVars, numDelay;
+    const u_char *oth;
+    if (bank >= BANK_MAX) {
+        return;
+    }
+    oth = OthData[bank];
+    if (oth == NULL) {
+        return;                     // PORT: a bank without trigger data (the ROM reads EE address 0)
+    }
+    ssTrigRead8Byte(&pos, oth);     // the skipped word, the detector and actor counts
+    numEvents = ssTrigRead2Byte(&pos, oth);
+    numVars = ssTrigRead2Byte(&pos, oth);
+    numDelay = ssTrigRead2Byte(&pos, oth);
+    for (int i = 0; i < TrigWork[bank].numDetectors; i++) {
+        DetWork[bank][i].state = DET_STATE_FALSE;
+    }
+    for (int i = 0; i < TrigWork[bank].numActors; i++) {
+        ActWork[bank][i].state = 0;
+    }
+    if (numEvents != 0) {
+        for (int i = 0; i < (int)(numEvents >> 3) + 1; i++) {
+            TempEventFlag[bank][i] = 0;
+        }
+    }
+    for (u_int i = 0; i < numVars; i++) {
+        TempVariable[bank][i] = -1;
+    }
+    ssDERingRear[bank] = 0;
+    ssDERingFront[bank] = 0;
+    numMaxDECount[bank] = (u_short)(numDelay * DE_SLOTS_PER_COUNT);
 }
 
 // CT3 0x018d4be0
@@ -1116,16 +1192,367 @@ int ssTrigCheckSceneDraw(int nameWord)
     return 0;
 }
 
-// ---- stubs (tools/reverse/stubgen.py) ----
+// ---- a detector's conditions (slice 4, 2026-11-11) ------------------------------------------------------
 
-// stub of CT3 0x018d7b70
-int ssTrigCheckConditions(TRIG_DET_WORK *det, int bank)
+// CT3 0x018d9070
+// Whether one of the action's KEY_MAP buttons is set in pad 1's word of the mode (TRIG_INPUT_*).
+int ssTrigCheckInput(int action, int mode)
 {
-    (void)det;
-    (void)bank;
-    ALYSSAPAN_STUB("ssTrigCheckConditions", 0x018d7b70);
+    u_int pad;
+    switch ((char)mode) {
+    case TRIG_INPUT_KEY:
+        pad = pad_key_button[0];
+        break;
+    case TRIG_INPUT_TRG:
+        pad = pad_trg_button[0];
+        break;
+    case TRIG_INPUT_CNT:
+        pad = pad_cnt_button[0];
+        break;
+    default:
+        return 0;
+    }
+    return (pad & KEY_MAP[action]) != 0;
+}
+
+// CT3 0x018d8ec0
+// A variable (global or the bank's temp set) compared with value by cmp (TRIG_CMP_*); 0 for another cmp.
+int ssTrigCheckVariable(int var, int value, int global, int cmp, int bank)
+{
+    int v;
+    if (cmp < TRIG_CMP_EQ || cmp > TRIG_CMP_GT) {
+        return 0;
+    }
+    if (global == TRIG_SET_TEMP) {
+        if (TempVariable[bank] == NULL) {
+            return 0;               // PORT: no trigger data for the bank yet (Trigger_init)
+        }
+        v = TempVariable[bank][var];
+    } else {
+        v = GlobalVariable[var];
+    }
+    switch (cmp) {
+    case TRIG_CMP_GT:
+        return v > value;
+    case TRIG_CMP_LT:
+        return v < value;
+    case TRIG_CMP_GE:
+        return v >= value;
+    case TRIG_CMP_LE:
+        return v <= value;
+    default:
+        return v == value;
+    }
+}
+
+// CT3 0x018d8cb0
+// Whether a character faces the target within the view angle (degrees, the whole cone): the target is a
+// Character, or with TRIG_COND_LOOK_PART a model part of the bank. Wraps the character's rot back into
+// [0, 0x10000) by one turn as it reads it (the ROM writes it back).
+// callcheck: dpmul, dpdiv, dptoli (the EE's software double: the host's double arithmetic)
+int ssTrigLookAtCheck(int isPart, int chara, int angle, int target, int bank)
+{
+    CHARACTER *ch = &Character[chara];
+    alignas(16) float from[4], to[4], d[4];
+    int dir, diff, half;
+    if (isPart == 0) {
+        memcpy(to, &Character[target].pos, sizeof(to));
+    } else {
+        memcpy(to, ((const MODEL_PARTS *)pModelPartsHeader[bank])[target].pos, sizeof(to));
+    }
+    memcpy(from, &ch->pos, sizeof(from));
+    for (int i = 0; i < 4; i++) {
+        d[i] = to[i] - from[i];
+    }
+    dir = (int)((ssRadianByO(d, 1) * 65536.0) / 6.283185307179586);
+    if (ch->rot < 0) {
+        ch->rot += 0x10000;
+    } else if (ch->rot > 0xffff) {
+        ch->rot -= 0x10000;
+    }
+    diff = (0x10000 - (dir & 0xffff)) - ch->rot;
+    half = (angle * 0x10000) / TRIG_LOOK_FULL_DEG;
+    if (diff < 0) {
+        diff = -diff;
+    }
+    return diff < half || diff > 0x10000 - half;
+}
+
+// The hit lists ssTrigAttackHitCheck walks in ALL_TABLE.hits, by the bank's type (names from this reader,
+// 2026-11-11; the collision TU that writes them confirms). Each list is an int count, then the EE word of
+// its records (the bank's); a record holds an EE word of the attacking object, whose short at idOff is
+// the attack id, and the attacker's character and an is-object byte. layout: host (a reading table, no
+// ROM data).
+typedef struct HIT_LIST_FORM {
+    u_short countOff;                   /* in the hits table; the records' EE word follows */
+    u_short recSize;
+    u_short objOff;                     /* the record's EE word of the object */
+    u_short idOff;                      /* the object's short */
+    u_short whoOff;                     /* the record's short: the attacking Character */
+    u_short isObjectOff;                /* the record's byte: 0 = a character's blow */
+} HIT_LIST_FORM;
+#define HIT_LISTS 2
+static const HIT_LIST_FORM HitListsScene[HIT_LISTS] = {    /* FS_LOAD_SCENE */
+    {0x2b0, 0x20, 0x10, 0xda, 0x1c, 0x1e},
+    {0x2b8, 0x20, 0x10, LOS_HIT_ID, 0x14, 0x18},
+};
+static const HIT_LIST_FORM HitListsShape[HIT_LISTS] = {    /* FS_LOAD_SHAPE: the second is HIT_REC */
+    {0x1c, 0x20, 0x10, 0xda, 0x1c, 0x1e},
+    {offsetof(HIT_TABLE, count), sizeof(HIT_REC), offsetof(HIT_REC, attacker), 0x1a0 /* id, before HIT_ATTACKER_KIND */,
+     offsetof(HIT_REC, who), offsetof(HIT_REC, isObject)},
+};
+
+// PORT: an attacking object's EE word may point into any bank: the bank whose EE image starts nearest
+// below it (BankOfHostPtr's rule, EE side). -1 (matches no u16 id) when no bank holds it.
+static int HitObjectId(u_int ee, int idOff)
+{
+    int bank, best = -1;
+    short id;
+    if (ee == 0) {
+        return -1;
+    }
+    for (bank = 0; bank < BANK_MAX; bank++) {
+        if (BankImage[bank] != NULL && BankImageEE[bank] != 0 && BankImageEE[bank] <= ee &&
+            (best < 0 || BankImageEE[bank] > BankImageEE[best])) {
+            best = bank;
+        }
+    }
+    if (best < 0) {
+        return -1;
+    }
+    memcpy(&id, BANK_PTR(const u_char *, best, ee) + idOff, sizeof(id));
+    return id;
+}
+
+// CT3 0x018d8a50
+// Whether this frame's hits of the bank (a scene or shape bank) hold an object with the attack id, struck
+// by character `who` (TRIG_HIT_ANY_CHARA: by anything, an object's blow too). The ROM compares the u16 id
+// with the object's sign-extended short: ids from 0x8000 never match; kept.
+int ssTrigAttackHitCheck(u_int attackId, u_int who, int bank)
+{
+    const HIT_LIST_FORM *forms;
+    const u_char *hits;
+    attackId &= 0xffff;
+    who &= 0xffff;
+    if (BankInfo[bank].type == FS_LOAD_SCENE) {
+        forms = HitListsScene;
+    } else if (BankInfo[bank].type == FS_LOAD_SHAPE) {
+        forms = HitListsShape;
+    } else {
+        return 0;
+    }
+    if (All_table_TBL[bank] == NULL) {
+        return 0;                   // PORT: the bank's table is not loaded
+    }
+    hits = BANK_PTR(const u_char *, bank, All_table_TBL[bank]->hits);
+    if (hits == NULL) {
+        return 0;
+    }
+    for (int l = 0; l < HIT_LISTS; l++) {
+        const HIT_LIST_FORM *f = &forms[l];
+        int count;
+        u_int recsEE;
+        const u_char *recs;
+        memcpy(&count, hits + f->countOff, sizeof(count));
+        memcpy(&recsEE, hits + f->countOff + 4, sizeof(recsEE));
+        recs = BANK_PTR(const u_char *, bank, recsEE);
+        for (int i = 0; i < count; i++) {
+            const u_char *rec = recs + i * f->recSize;
+            u_int objEE;
+            short recWho;
+            memcpy(&objEE, rec + f->objOff, sizeof(objEE));
+            if ((int)attackId != HitObjectId(objEE, f->idOff)) {
+                continue;
+            }
+            if (who == TRIG_HIT_ANY_CHARA) {
+                return 1;
+            }
+            memcpy(&recWho, rec + f->whoOff, sizeof(recWho));
+            if (rec[f->isObjectOff] == 0 && (int)who == recWho) {
+                return 1;
+            }
+        }
+    }
     return 0;
 }
+
+// The list kinds' entry sizes and any bits (0: not a list kind).
+static int CondEntrySize(int kind)
+{
+    switch (kind) {
+    case TRIG_COND_EVENT:
+        return 3;
+    case TRIG_COND_ENABLE:
+    case TRIG_COND_ATTACK_HIT:
+        return 2;
+    case TRIG_COND_INPUT:
+        return 1;
+    case TRIG_COND_SCENE_DRAW:
+        return 4;
+    default:
+        return 0;
+    }
+}
+
+static int CondAnyBit(int kind)
+{
+    return kind == TRIG_COND_EVENT || kind == TRIG_COND_INPUT ? TRIG_COND_ANY2 : TRIG_COND_ANY;
+}
+
+// One entry of a list condition, read and checked (0 or 1).
+static int CondEntry(int kind, int *pos, const u_char *data, int flags, int who, int bank)
+{
+    switch (kind) {
+    case TRIG_COND_EVENT: {
+        int event = ssTrigRead2Byte(pos, data);
+        int global = ssTrigRead1Byte(pos, data);
+        return ssTrigCheckEvent(event, global, bank) != 0;
+    }
+    case TRIG_COND_ENABLE:
+        return ssTrigCheckEnable(ssTrigRead2Byte(pos, data), bank) != 0;
+    case TRIG_COND_INPUT:
+        return ssTrigCheckInput(ssTrigRead1Byte(pos, data), flags & TRIG_INPUT_MASK) != 0;
+    case TRIG_COND_ATTACK_HIT:
+        return ssTrigAttackHitCheck(ssTrigRead2Byte(pos, data), (u_int)who, bank) != 0;
+    default:
+        return ssTrigCheckSceneDraw((int)ssTrigRead4Byte(pos, data)) != 0;
+    }
+}
+
+// CT3 0x018d7b70
+// The detector's conditions (the format above TRIG_COND_EVENT in the header); 1 when it has none.
+// callcheck: ssTrigCheckEvent, ssTrigCheckEnable, ssTrigCheckInput, ssTrigAttackHitCheck, ssTrigCheckSceneDraw (the list kinds' entries, in CondEntry)
+int ssTrigCheckConditions(TRIG_DET_WORK *det, int bank)
+{
+    const u_char *data = DetData[bank];
+    int *pos = &det->cursor;
+    int result = 0;
+    int skipping = 0;
+    if (det->numConds == 0) {
+        return 1;
+    }
+    *pos = (int)det->condsPos + 1;
+    for (;;) {
+        int kind = (signed char)ssTrigRead1Byte(pos, data);
+        int size = CondEntrySize(kind);
+        int negate;
+        if (kind == TRIG_COND_END) {
+            break;
+        }
+        if (kind == TRIG_COND_OR) {
+            if (!skipping) {
+                break;              // the group held
+            }
+            skipping = 0;
+            continue;
+        }
+        if (size != 0) {
+            // a list kind: negate, flags, count[, who], entries
+            int flags, count, who = 0, i;
+            if (skipping) {
+                *pos += 2;
+                count = ssTrigRead1Byte(pos, data);
+                if (kind == TRIG_COND_ATTACK_HIT) {
+                    *pos += 2;
+                }
+                *pos += count * size;
+                continue;
+            }
+            negate = ssTrigRead1Byte(pos, data) & TRIG_COND_NEGATE;
+            flags = ssTrigRead1Byte(pos, data);
+            count = ssTrigRead1Byte(pos, data);
+            if (kind == TRIG_COND_ATTACK_HIT) {
+                who = ssTrigRead2Byte(pos, data);
+            }
+            for (i = 0; i < count; i++) {
+                result = CondEntry(kind, pos, data, flags, who, bank) ^ negate;
+                if (result == 0) {
+                    if ((flags & CondAnyBit(kind)) == 0) {
+                        i++;
+                        break;      // one failed: all were asked
+                    }
+                } else if ((flags & CondAnyBit(kind)) != 0) {
+                    i++;
+                    *pos += (count - i) * size;
+                    break;          // one held: any was asked
+                }
+            }
+            if (result == 0) {
+                skipping = 1;
+                *pos += (count - i) * size;
+            }
+            continue;
+        }
+        switch (kind) {
+        case TRIG_COND_ANIM_FRAME: {
+            int flags, target, part, chara;
+            u_long hash;
+            u_int frame;
+            if (skipping) {
+                *pos += 0x11;
+                continue;
+            }
+            negate = ssTrigRead1Byte(pos, data) & TRIG_COND_NEGATE;
+            flags = ssTrigRead1Byte(pos, data);
+            target = (flags & TRIG_COND_ANIM_TARGET1) != 0 ? 1 : 2;
+            hash = ssTrigRead8Byte(pos, data);
+            frame = ssTrigRead4Byte(pos, data);
+            part = ssTrigRead2Byte(pos, data);
+            chara = ssTrigRead1Byte(pos, data);
+            result = (asCheckAnimationFlamePassing_S(hash, All_table_TBL[bank], frame, part,
+                                                     flags & PASS_DIR_EITHER, target, chara) != 0) ^ negate;
+            break;
+        }
+        case TRIG_COND_VARIABLE: {
+            int var, value, global, cmp;
+            if (skipping) {
+                *pos += 9;
+                continue;
+            }
+            negate = ssTrigRead1Byte(pos, data) & TRIG_COND_NEGATE;
+            var = ssTrigRead2Byte(pos, data);
+            value = (int)ssTrigRead4Byte(pos, data);
+            global = ssTrigRead1Byte(pos, data);
+            cmp = ssTrigRead1Byte(pos, data);
+            result = (ssTrigCheckVariable(var, value, global, cmp, bank) != 0) ^ negate;
+            break;
+        }
+        case TRIG_COND_LOOK_AT: {
+            int isPart, chara, angle, target;
+            if (skipping) {
+                *pos += 7;
+                continue;
+            }
+            negate = ssTrigRead1Byte(pos, data) & TRIG_COND_NEGATE;
+            isPart = ssTrigRead1Byte(pos, data) & TRIG_COND_LOOK_PART;
+            chara = ssTrigRead1Byte(pos, data);
+            angle = ssTrigRead2Byte(pos, data);
+            target = ssTrigRead2Byte(pos, data);
+            result = (ssTrigLookAtCheck(isPart, chara, angle, target, bank) != 0) ^ negate;
+            break;
+        }
+        case TRIG_COND_INPUT_ENABLE: {
+            int mask;
+            if (skipping) {
+                *pos += 2;
+                continue;
+            }
+            negate = ssTrigRead1Byte(pos, data) & TRIG_COND_NEGATE;
+            mask = ssTrigRead1Byte(pos, data);
+            result = (ssTrigCheckInputEnable((u_int)mask) != 0) ^ negate;
+            break;
+        }
+        default:
+            continue;               // the ROM reads on past an unknown kind byte
+        }
+        if (result == 0) {
+            skipping = 1;
+        }
+    }
+    return result;
+}
+
+// ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x018d5450
 int ssTrigExecuteActCmd(TRIG_ACT_CMDS *cmds, int bank)

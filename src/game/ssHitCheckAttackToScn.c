@@ -37,3 +37,10 @@ int CheckLOS_Multi(int bank, LOS_MULTI *q)
     ALYSSAPAN_STUB("CheckLOS_Multi", 0x018aa950);
     return {};
 }
+
+// stub of CT3 0x018ad300
+double ssRadianByO(const float *v, int axis)
+{
+    ALYSSAPAN_STUB("ssRadianByO", 0x018ad300);
+    return {};
+}

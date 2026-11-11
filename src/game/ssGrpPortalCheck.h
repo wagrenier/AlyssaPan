@@ -121,6 +121,43 @@ typedef struct TRIG_DET_WORK {
 #define DET_SHAPE_ROOM 3                /* CheckRoomEntry */
 #define DET_SHAPE_CONTACT 4             /* CheckContactSurface */
 #define DET_SHAPE_ALWAYS 5              /* always true */
+
+// ---- a detector's conditions (ssTrigCheckConditions, slice 4, 2026-11-11) -------------------------------
+// After the count byte at condsPos: condition records, each a kind byte, then a negate byte (bit 0 flips
+// the answer) and the kind's fields. Consecutive conditions must all hold (AND); TRIG_COND_OR closes a
+// group: a group that held makes the answer 1 at once, a failed one skips to the next group;
+// TRIG_COND_END ends the list with the last group's answer. The list kinds carry a flags byte, a count and
+// that many entries; their any bit (TRIG_COND_ANY / _ANY2) asks for one entry to hold instead of all.
+#define TRIG_COND_EVENT 0               /* flags, count; (u16 event, u8 global) each: ssTrigCheckEvent */
+#define TRIG_COND_ANIM_FRAME 1          /* flags (PASS_DIR_* in bits 0-1, TRIG_COND_ANIM_TARGET1), u64 hash,
+                                           u32 frame, u16 part, u8 chara: asCheckAnimationFlamePassing_S */
+#define TRIG_COND_ENABLE 2              /* flags, count; u16 part each: ssTrigCheckEnable */
+#define TRIG_COND_INPUT 3               /* flags (TRIG_INPUT_* in bits 2-3), count; u8 KEY_MAP action each */
+#define TRIG_COND_VARIABLE 4            /* u16 var, u32 value, u8 global, u8 TRIG_CMP_*: ssTrigCheckVariable */
+#define TRIG_COND_LOOK_AT 5             /* u8 isPart, u8 chara, u16 view angle (degrees), u16 target */
+#define TRIG_COND_ATTACK_HIT 6          /* flags, count, u16 attacking character; u16 attack id each */
+#define TRIG_COND_SCENE_DRAW 7          /* flags, count; u32 bank-name word each: ssTrigCheckSceneDraw */
+#define TRIG_COND_INPUT_ENABLE 8        /* u8 TRG_CHAR_STOP_* mask: ssTrigCheckInputEnable */
+#define TRIG_COND_END (-2)              /* 0xfe */
+#define TRIG_COND_OR (-3)               /* 0xfd */
+#define TRIG_COND_NEGATE 1              /* the negate byte's bit */
+#define TRIG_COND_ANY 1                 /* list flags: any entry (ENABLE, ATTACK_HIT, SCENE_DRAW) */
+#define TRIG_COND_ANY2 2                /* list flags: any entry (EVENT, INPUT) */
+#define TRIG_COND_ANIM_TARGET1 4        /* ANIM_FRAME flags: asCheckAnimationFlamePassing_S's target 1, else 2 */
+#define TRIG_COND_LOOK_PART 1           /* LOOK_AT isPart's bit: target is a part of the bank, else a Character */
+// ssTrigCheckInput's modes (the INPUT flags' bits 2-3): which of pad 1's words it tests.
+#define TRIG_INPUT_MASK 0x0c
+#define TRIG_INPUT_CNT 0                /* pad_cnt_button */
+#define TRIG_INPUT_TRG 4                /* pad_trg_button */
+#define TRIG_INPUT_KEY 8                /* pad_key_button */
+// ssTrigCheckVariable's comparisons: the variable against the value.
+#define TRIG_CMP_EQ 1
+#define TRIG_CMP_LE 2
+#define TRIG_CMP_GE 3
+#define TRIG_CMP_LT 4
+#define TRIG_CMP_GT 5
+#define TRIG_LOOK_FULL_DEG 720          /* ssTrigLookAtCheck: angle * 0x10000 / 720 = half the view angle */
+#define TRIG_HIT_ANY_CHARA 0xffff       /* ssTrigAttackHitCheck: any attacking character */
 // ssTrigProceedDetector's answer, and the actor run mode (also TRIG_ACT_WORK.state's bit).
 #define TRIG_RUN_NONE 0
 #define TRIG_RUN_ACTIVATE 1
@@ -185,6 +222,7 @@ int ssTrigDEPush_Back(TRIG_DELAY_ENABLE *ring, int bank, const TRIG_DELAY_ENABLE
 int ssTrigDE_ChangeReq(TRIG_DELAY_ENABLE *ring, int bank, short part, u_char op);        // CT3 0x018d3e00
 void ssTrigDE_DisableReq(TRIG_DELAY_ENABLE *ring, int bank, short part);                 // CT3 0x018d3ea0
 void ssTrigExecDelayEnable(int index, int bank);                                         // CT3 0x018d4010
+void ssTrigSetEnable(int part, int op, int delayed, int bank);                           // CT3 0x018d92d0
 const u_char *ssTrigGetOtherData(int bank);                                              // CT3 0x018d9650
 const u_char *ssTrigGetActData(int bank);                                                // CT3 0x018d9670
 const u_char *ssTrigGetDetData(int bank);                                                // CT3 0x018d9690
@@ -213,6 +251,10 @@ void ssTrigProcDetRecur(int count, const u_char *ids, int bank);                
 int ssTrigProceedDetector(short det, int bank);                                          // CT3 0x018d88a0
 int ssTrigCheckDetector(short det, int bank);                                            // CT3 0x018d8580
 int ssTrigCheckConditions(TRIG_DET_WORK *det, int bank);                                 // CT3 0x018d7b70
+int ssTrigCheckInput(int action, int mode);                                              // CT3 0x018d9070
+int ssTrigCheckVariable(int var, int value, int global, int cmp, int bank);              // CT3 0x018d8ec0
+int ssTrigLookAtCheck(int isPart, int chara, int angle, int target, int bank);           // CT3 0x018d8cb0
+int ssTrigAttackHitCheck(u_int attackId, u_int who, int bank);                           // CT3 0x018d8a50
 int CheckAxisAlignedBounds(int bank, int chara, short part);                             // CT3 0x018d3520
 int CheckInsidePlanes(int bank, int chara, short part);                                  // CT3 0x018d3bb0
 int CheckContactSurface(short bank, int chara, short part);                              // CT3 0x018d36f0
@@ -228,6 +270,7 @@ int ssTrigWaitByAnimFrameForGlobal(int *wait, int ticks);                       
 int ssTrigWaitByAnimFrame(int *wait, int ticks);                                         // CT3 0x018d9510
 void ssTrigGetCurActInfo(TRIG_CUR_ACT *out);                                             // CT3 0x018d9730
 void Trigger_deinit(int bank);                                                               // CT3 0x018d4be0
+void Trigger_reset(int bank);                                                                // CT3 0x018d4830
 void Trigger_init(int bank);                                                                 // CT3 0x018d4c80
 void TriggerGlobalInit(void);                                                            // CT3 0x018d5230
 int ssTrigCheckEnable(int part, int bank);                                               // CT3 0x018d8e80

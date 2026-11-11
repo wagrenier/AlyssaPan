@@ -28,3 +28,6 @@ typedef struct LOS_MULTI {
 #define LOS_HIT_ID 0x198                /* short: the hit record's id (the faded part's hitIds list) */
 int CheckLOS_Multi(int bank, LOS_MULTI *q);                                              // CT3 0x018aa950
 int CheckLOS(int bank, LOS_SEG *seg);                                                    // CT3 0x018ab180
+// The direction of v in the plane that drops `axis` (1: the XZ plane, from z and x), radians in [0, 2pi);
+// a software double on the EE (from ssTrigLookAtCheck's call, 2026-11-11).
+double ssRadianByO(const float *v, int axis);                                            // CT3 0x018ad300

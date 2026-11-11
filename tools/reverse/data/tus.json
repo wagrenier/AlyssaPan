@@ -1027,7 +1027,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 102..102, 3 functions keyed by their statics, 2 unkeyed; file name from the names"
   },
   "game/ssGrpPortalCheck.c": {
-   "notes": "ssTrigCheckConditions (0x018d7b70) and ssTrigExecuteActCmd (0x018d5450, 0x249c bytes) are stubs; the smoke run reaches both with real bank data. Next: ssTrigCheckConditions with its checks (ssTrigCheckInput, ssTrigCheckVariable, ssTrigLookAtCheck, ssTrigAttackHitCheck), then Trigger_reset, then ssTrigExecuteActCmd. TRIG_ACT_WORK is now state, det[2], cmds[2] (TRIG_ACT_CMDS). Shot black as before. open-items.md item 6 (g)-(j).",
+   "notes": "Only ssTrigExecuteActCmd (0x018d5450, 0x249c bytes, about 70 command kinds by u16 id from 0x6a8 down, 78 callees) is left; the smoke run reaches its stub now that conditions run. Do it in two or three slices: the dispatcher with every command's skip size first (cVar31 is the skipping flag), then the commands by callee TU. ssRadianByO is a stub (ssHitCheckAttackToScn.c), so ssTrigLookAtCheck answers from angle 0. Hit list layouts and HitObjectId are from this reader only. open-items.md item 6 (k)-(o).",
    "ranges": [
     [
      "018d2ee0",
@@ -1049,6 +1049,11 @@
      "date": "2026-11-11 07:24",
      "status": "partial",
      "summary": "triggers slice 3: Trigger_main, the detector walk (ssTrigProcDetRecur, ssTrigProceedDetector, ssTrigCheckDetector and its box, plane-volume and contact shapes), the actor runners, the waits, ssTrigCheckRandom, ssTrigCheckSceneDraw, ssTrigGetCurActInfo"
+    },
+    {
+     "date": "2026-11-11 08:37",
+     "status": "partial",
+     "summary": "triggers slice 4: ssTrigCheckConditions and its checks (ssTrigCheckInput, ssTrigCheckVariable, ssTrigLookAtCheck, ssTrigAttackHitCheck), ssTrigSetEnable, Trigger_reset"
     }
    ],
    "status": "partial",

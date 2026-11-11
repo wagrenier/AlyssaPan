@@ -997,7 +997,7 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    pad_key_button (repeat), wraps at 34, and the mode-2 entry copies Character[0].rot into NDAlyssaRot[1]
    only while NDAlyssaPos.w is 0 (the first time).
 
-6. **game/ssGrpPortalCheck.c (triggers and portals) -- partial (2026-11-10, slice 1):** written: the
+6. **game/ssGrpPortalCheck.c (triggers and portals) -- partial (2026-11-10, slice 1; slice 4 2026-11-11):** written: the
    event / variable API (ssTrigCheckEvent, _RegisterEvent, _RemoveEvent, _GetVariable, _SetVariable), the
    byte readers (ssTrigRead1/2/4/8Byte), ssTrigCheckEnable, ssTrigCheckInputEnable, CheckRoomEntry,
    InitTriggerDetectorShape and the portals (ProcessPortal, ssScnPortalCheck, CheckPlaneEntry,
@@ -1036,6 +1036,22 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    (ContactTargetPart answers -1, with 1 (v) / (ac)); (i) TRIG_ACT_CMDS.wait / .step and TRIG_DETECTOR's
    box / plane-volume fields are named from their starts and the shape readers only: ssTrigExecuteActCmd
    confirms them; (j) the shape kind > 5 answers 0 (the ROM's switch has no default).
+   **Slice 4 (2026-11-11):** (g) done but for the command runner: ssTrigCheckConditions (the condition
+   format, AND groups closed by TRIG_COND_OR, list kinds with an any bit, is in ssGrpPortalCheck.h above
+   TRIG_COND_EVENT), ssTrigCheckInput, ssTrigCheckVariable, ssTrigLookAtCheck, ssTrigAttackHitCheck,
+   ssTrigSetEnable, Trigger_reset. **Only ssTrigExecuteActCmd (0x018d5450, 0x249c bytes, ~70 command
+   kinds by u16 id from 0x6a8 down, 78 callees) is left**: the smoke run now reaches its stub (detectors
+   turn true with real bank data). Read it in two or three slices: the dispatcher and its skip sizes first
+   (cVar31 = skipping, like the conditions' groups), then the commands by callee TU. Open from slice 4:
+   (k) ssTrigAttackHitCheck's hit lists (ALL_TABLE.hits by BANK_INFO.type: a scene bank's two lists at
+   +0x2b0 / +0x2b8, a shape bank's at +0x1c and HIT_TABLE's +0x24; HitListsScene / HitListsShape in the .c)
+   are named from this reader only: the collision TU (ssHitCheckAttackToScn.c) confirms; (l) the records'
+   attacker objects are EE words of an unknown bank: HitObjectId resolves them by the bank whose EE image
+   starts nearest below (BankOfHostPtr's rule, EE side; PORT); (m) ssRadianByO is declared double (the EE
+   returns a software double in v0) in ssHitCheckAttackToScn.h, stubbed: ssTrigLookAtCheck answers by
+   the stub's 0 until that TU writes it; (n) TRIG_INPUT_KEY / _TRG / _CNT are named from the pad words
+   (pad_key_button / _trg_ / _cnt_), not from their meaning; (o) ssTrigLookAtCheck's angle is the whole
+   view cone in degrees (half = angle * 0x10000 / 720), read from the arithmetic only.
 
 7. **(2026-11-11, the user: "2D is still not showing up") The first picture.** Fixed: the black screen was
    Execute_ExecuteAnimationHistory writing an EE address into every camera cut's focal length (hazards.md
