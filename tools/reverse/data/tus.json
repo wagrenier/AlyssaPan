@@ -1,6 +1,5 @@
 {
  "queue": [
-  "alyssapan/core/title_trace.cpp",
   "ga/pad_button_read.c",
   "game/Clipping_Portal.c",
   "alyssapan/rendering/ui_canvas.cpp",
@@ -32,6 +31,15 @@
    "task": "Host task (the user, 2026-11-11: reach the title; the user's rule: skip cinematics in smoke runs). Add a switch smoke runs set (a config flag beside the window / display options, the way RosePan's rosepan_config holds START through the opening film) that makes the movie player end each movie at once as a skipped one: AA_movie (src/game/movie.c) answers as the ROM does when the player skips, with nothing decoded, so m_capcom.mov and m_title.mov pass without the decoder (AA_videoDecMain and the AA_mpegTS.c / AA_videoCallback.c / AA_GetDataWord.c stubs). The PORT branch is marked and off by default for players; build.py --run and tus.py check --run turn it on. Picture: after the memory-card text the run reaches the title music (hhXcmd_PlayADS) instead of hanging in the decode loop."
   },
   "alyssapan/core/title_trace.cpp": {
+   "notes": "No code. 90 s run: 2820 frames; 240 s run: 7200 frames, movies m_capcom, m_title, then d02 d04 d03 d01 d01 d04, shots flat grey. The 16:25 stop came from the probe hack. ga/pad_button_read.c is next in the queue; its check should script START after frame 900 and look for TITL. open-items 8 (kk2, kl2).",
+   "sessions": [
+    {
+     "date": "2026-11-11 17:33",
+     "status": "done",
+     "summary": "frames no longer stop; after the title movies the ATLD script cycles the attract demos d01-d04 and never loads TITL: the press-start wait needs gaPadRead (stub), so ga/pad_button_read.c is the blocker"
+    }
+   ],
+   "status": "done",
    "task": "Host task (the user, 2026-11-11: reach the title). Find why the run stops presenting frames after m_title.mov and hhXcmd_PlayADS: in the 16:25 probe (every stubbed x command answering done, both movies skipped) frames stop near frame 1860 and TITL.BIN never loads. Run with a time limit (build.py --run, or gdbrun.py under Monitor with a timeout), break or sample where the main loop spins (a load wait, a script wait, a movie or stream wait), name the stub or loop that holds it, and queue its TU at the top. Write findings in open-items.md item 8; no game code here unless it is the one-line fix."
   },
   "alyssapan/core/window.cpp": {

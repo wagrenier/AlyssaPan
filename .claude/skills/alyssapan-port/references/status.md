@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-11 17:12 at commit `9562898` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-11 17:33 at commit `98f36e0` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -98,9 +98,9 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 33, partial 4, verify 30, done 6, blocked 1
-- next: **alyssapan/core/title_trace.cpp** (pinned in the queue)
-- pinned queue: alyssapan/core/title_trace.cpp, ga/pad_button_read.c, game/Clipping_Portal.c, alyssapan/rendering/ui_canvas.cpp, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
+- 65 TUs: todo 32, partial 4, verify 30, done 7, blocked 1
+- next: **ga/pad_button_read.c** (pinned in the queue)
+- pinned queue: ga/pad_button_read.c, game/Clipping_Portal.c, alyssapan/rendering/ui_canvas.cpp, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
 - partial: `game/Clipping_Portal.c` 31/73 -- Smoke run unchanged: frame 120 memory-card text, then the known flat grey; no scene draw is reached, so nothing here shows. open-items 7 jx..ka: MODEL_PARTS off
 - partial: `game/tiXcmd_TransItem.c` 85/93 -- Slice 10. Written: tiXcmd_UseItem (ITEM_USE_* modes from argv[4], ITEM_KIND_* from the row byte +0: give-take, signal, heal Character[0].hp up to hpMax, calm vi
 - partial: `game/wideXcmd_DebugPrint.c` 107/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed) -- the last function of the TU. New stubs
@@ -138,6 +138,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-11 17:33 `alyssapan/core/title_trace.cpp` done: frames no longer stop; after the title movies the ATLD script cycles the attract demos d01-d04 and never loads TITL: the press-start wait needs gaPadRead (stub)
 - 2026-11-11 17:11 `game/PicPaz.c` verify: all 9 functions: the aa x commands (movie fades, memory-card file list, cursor and details, work buffer, SceneEndBank by name), aa_search, aa_to_big
 - 2026-11-11 16:48 `alyssapan/core/movie_skip.cpp` verify: movie skip: [game] skip_intro ends each movie at once, smoke runs turn it on
 - 2026-11-11 16:41 `game/hhXcmd_DressUp.c` verify: all 22 sound x commands: LoadSE, PlaySE, the SE changes, ADS, SQ, Sp1, DressUp, FootSEConversion
@@ -145,7 +146,6 @@ Recent sessions:
 - 2026-11-11 16:13 `game/Clipping_Portal.c` partial: slice 6: tiLightBelt2Update (light-belt ribbons: trail or Bezier points, screen-space edge rows, back into the part's draw space) and tiXFadeOut_Start2 with ini
 - 2026-11-11 15:53 `game/Clipping_Portal.c` partial: slice 5: tiPipeJointInit and tiPipeJointUpdate (Character 3 tube: two-bone IK plus a damped spring), gaNormalizeVector3XYZ, tiXFadeOut_Start; XfadeEndTicks decl
 - 2026-11-11 15:31 `game/Clipping_Portal.c` partial: slice 4: tiHurikoInit (joint links and rest pose), tiHurikoHitUpdate, tiHurikoReset_On, tiSet_CharaTranslucenceON; HURIKO chains / jointTable, HURIKO_JOINT, HUR
-- 2026-11-11 15:12 `game/Clipping_Portal.c` partial: slice 3: tiParticleUpdate, tiCalc_LifeSpan, tiHurikoUpdate, gaNormalizeVectorXYZ, tiSet_CharaTranslucenceOFF; HURIKO, ALL_TABLE.huriko, PARTICLE2.life / age, BA
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|

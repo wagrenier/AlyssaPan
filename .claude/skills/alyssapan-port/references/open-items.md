@@ -1385,6 +1385,21 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    card commands' variable / event numbers come from the script: nothing exercised them yet (the card
    screen is past the title); (kj2) the TU now ends at 0x018dab60 (aa_to_big's split loop test
    FUN_018dab3c), game/asXcmd.c starts at asXcmd_PanicSet 0x018dab60.
+   **alyssapan/core/title_trace.cpp (done, 2026-11-11 17:25, no code):** with PicPaz.c in, the frames
+   **no longer stop**: a 90 s run presents 2,820 frames and a 240 s run 7,200+ (the 16:25 probe's stop near
+   frame 1860 came from its own every-stub-answers-done hack, not from a game loop). After m_capcom.mov and
+   m_title.mov the ATLD script goes into the **attract cycle**: demo movies from data/movie3 one after
+   another (d02, d04, d03, d01, d01, d04 in the 240 s run, a random pick each time), the shot flat grey
+   throughout, and InitLoadSceneChar never runs again, so **TITL.BIN never loads**. main2.c loads TITL
+   only on a scene restart with PowerOn set (ATLD at power-on, TITL after), so the ATLD scene is the
+   "press start" screen: the script waits for a button between demos, and **gaPadRead is still a stub**
+   (ga/pad_button_read.c, CT3 0x018a0b40; main.c ControllerMain and movie.c's skip both call it), so
+   nothing ever presses START. **The blocker is ga/pad_button_read.c**, already next in the queue; its
+   check run should pass a scripted START (build.py --pad) after m_title.mov (about frame 900) and look
+   for TITL. Open: (kk2) hhXcmd_PlayADS (the title music) still prints nothing, so whether it runs
+   during the attract cycle is unseen (kg2 stays open); (kl2) the script's start test (which event or pad
+   word it reads) was not read: pad_button_read.c's session sees it when START does or does not end the
+   scene.
    **For 3D after it** (not queued yet): a ga pass of its own with depth and fog, widened from
    DisplayGeometry (UiCanvas has neither and squeezes), gaObjectClippingCheck and ga/gaDrawObject.c (the
    clipped path most scene objects take), light1 / light2 lighting and billboards (item 4 (e) (f) (g)),
