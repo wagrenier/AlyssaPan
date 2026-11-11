@@ -326,7 +326,10 @@ void Renderer::uploadVertices(SDL_GPUCopyPass *copy, const Frame &frame)
     destination.buffer = m_vertexBuffer.get();
     destination.size = bytes;
 
-    SDL_UploadToGPUBuffer(copy, &source, &destination, true);
+    // Not cycled (2026-11-10): with cycle on, the scene pass drew nothing from this buffer on D3D12 and
+    // Vulkan alike (a probe quad stayed invisible). The transfer buffer's map above still cycles, so the CPU
+    // never writes data a frame in flight is copying; the copy itself is ordered on the one queue.
+    SDL_UploadToGPUBuffer(copy, &source, &destination, false);
 }
 
 void Renderer::recordDraws(SDL_GPUCommandBuffer *commands, const Frame &frame, const PictureLayout &layout,

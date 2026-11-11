@@ -927,6 +927,12 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    (b') texture, depth, fog, frame end, CT3's window origin in UiCanvas; (e) light1's lighting; (f)
    billboards; (g) light2's VU1 program; (h) the shadow-volume resolver. The camera session (or a host task
    queued after it) takes them when ATLD's quads land on screen; the TU's picture check is then due.
+   **Correction (2026-11-10, the user: "nothing renders 2D"):** right -- no 2D draw reached the screen at
+   all, whatever the game sent: Renderer::uploadVertices cycled the vertex buffer on upload, and the scene
+   pass then drew nothing (a probe quad through UiCanvas stayed invisible on D3D12 and Vulkan; with the
+   upload not cycled it shows). Fixed in renderer.cpp (hazards.md). Still in the way of ATLD, besides the
+   camera: UiCanvas maps window y with FS2's origin (1792) and a 512-high frame, so CT3's window (2048..2496,
+   centre 2272) lands half below the frame -- the ui_canvas.cpp host task must set CT3's origin.
 
 ## Decisions
 
