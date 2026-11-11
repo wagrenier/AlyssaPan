@@ -489,7 +489,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 105..105, 36 functions keyed by their statics, 13 unkeyed; file name from the names"
   },
   "game/Clipping_Portal.c": {
-   "notes": "Smoke run unchanged (flat grey; no pendulum or boss bank loads). open-items 7 ke..kh: reset uses matrix200 while init used matrix; swing40/50 named from the reset only; last-chain normal indexing kept as the ROM; boss info pointer words not freed (no host form). Slice left: tiDrawShadingOff with CaptureDBuffer and tiVRAMViewer, ExportDrawToTex, tiDrawLensFlares, the refraction trio, the translucence four, tiGenerateParticle with tiGetmatL2WFromMeshEmitter, tiCalc_Leaf / Leaf_WIND / Trans_WIND / Twist, the six slice-3 helper stubs.",
+   "notes": "Smoke run unchanged (flat grey, no particle or boss bank loads). open-items 7 ki..kj: boss belt words through BossInfoWord (none); particle names from this one reader. Slice left: tiDrawShadingOff with CaptureDBuffer and tiVRAMViewer, ExportDrawToTex, tiDrawLensFlares, the refraction trio (tiBumpSTValueUpdate, tiRefractionMapUpdate, SetSTValueForRefraction), the translucence four, tiCalc_Leaf / Leaf_WIND / Trans_WIND / Twist, the six slice-3 helper stubs.",
    "ranges": [
     [
      "01889cd0",
@@ -541,6 +541,11 @@
      "date": "2026-11-11 18:08",
      "status": "partial",
      "summary": "slice 9: tiHurikoReset (rest pose back in the part frame), tiGetNewNormalData (pendulum vertex normals), tiGetCharaDirection, tiFreeBossData; HURIKO_JOINT normalRef / copies / swing40 / swing50"
+    },
+    {
+     "date": "2026-11-11 18:20",
+     "status": "partial",
+     "summary": "slice 10: tiGenerateParticle and tiGetmatL2WFromMeshEmitter (ring emission: part or mesh-emitter start, jittered dir and scale, life, refractive index), tiLightBelt2UpdateForALYSSA_Battle and _BOSS_Battle (chain-set events); PARTICLE2_ENTRY chara / jitters / dir / accel / idleTicks / tail / refrIndex, PARTICLE2.startPos, PARTICLE2_EMITTER vertices"
     }
    ],
    "status": "partial",

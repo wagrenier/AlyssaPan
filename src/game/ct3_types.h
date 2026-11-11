@@ -647,6 +647,7 @@ static_assert(sizeof(DRAW_OBJ_ENTRY) == 0x1c, "DRAW_OBJ_ENTRY");
 #define DRAW_OBJ_PACKET_QWC 0x48        /* u_int: the object's packet is this + 1 qwords (tiXcmd_CopySunPs2Object) */
 #define DRAW_OBJ_W58 0x58               /* u_int: a particle record's PARTICLE2_MATS.localView (tiParticleInit; unread) */
 #define DRAW_OBJ_W5C 0x5c               /* u_int: a particle record's PARTICLE2_MATS.rotView (tiParticleInit; unread) */
+#define DRAW_OBJ_W78 0x78               /* two words a new particle record clears (tiGenerateParticle; unread) */
 #define DRAW_OBJ_PACKET 0x68            /* u_int: EE address of the object's packet (relocated) */
 #define DRAW_OBJ_UV_U 0x78              /* a particle record's UV curve output (ssParticleGetUVValue; type unread) */
 #define DRAW_OBJ_UV_V 0x7c
@@ -701,7 +702,7 @@ typedef struct PARTICLE2 {
     u_char pad66[2];
     u_int obj;                          /* 0x68: the ga draw object (DRAW_OBJ_* offsets) */
     u_int mats;                         /* 0x6c: EE address of PARTICLE2_MATS (relocated) */
-    u_char pad70[0x10];
+    float startPos[4];                  /* 0x70: where the record was emitted (mats->local's row 3 then) */
 } PARTICLE2;
 static_assert(sizeof(PARTICLE2) == 0x80, "PARTICLE2");
 static_assert(offsetof(PARTICLE2, color) == 0x20, "PARTICLE2.color");
@@ -719,23 +720,34 @@ typedef struct PARTICLE2_MATS {
 } PARTICLE2_MATS;
 static_assert(sizeof(PARTICLE2_MATS) == 0xc0, "PARTICLE2_MATS");
 
-// The emitter a PARTICLE2_ENTRY may carry (+0x30). layout: ee -- named from tiParticleInit's writes only.
+// The mesh emitter a PARTICLE2_ENTRY may carry (+0x30): records start at its vertices, each taken once
+// in random order until all are used (tiGetmatL2WFromMeshEmitter). layout: ee.
 typedef struct PARTICLE2_EMITTER {
     int parts;                          /* 0x00: the model part it follows */
     u_int matrix;                       /* 0x04: <- EE address of that part's MODEL_PARTS.matrix200 (tiParticleInit) */
-    int pad08;
-    int state;                          /* 0x0c: <- 0 at init */
+    int count;                          /* 0x08: vertices */
+    int used;                           /* 0x0c: vertices taken since the last reset (<- 0 at init) */
+    u_int usedFlags;                    /* 0x10: u_char[count], 1 = taken (relocated) */
+    u_int verts;                        /* 0x14: float[count][4], in the part's frame (relocated) */
 } PARTICLE2_EMITTER;
-static_assert(offsetof(PARTICLE2_EMITTER, state) == 0x0c, "PARTICLE2_EMITTER.state");
+static_assert(offsetof(PARTICLE2_EMITTER, used) == 0x0c, "PARTICLE2_EMITTER.used");
+static_assert(offsetof(PARTICLE2_EMITTER, verts) == 0x14, "PARTICLE2_EMITTER.verts");
 
 typedef struct PARTICLE2_ENTRY {
     u_char orbit;                       /* 0x00: ORBIT_*: the records' motion (tiCalc_Orbit) */
-    u_char pad01[3];
+    s_char chara;                       /* 0x01: -1, or a character whose last-frame x and z (posBefore)
+                                           replace the new records' start x and z (tiGenerateParticle) */
+    u_char dirJitter;                   /* 0x02: +-percent of |dir| added to each of dir's axes per record */
+    u_char scaleJitter;                 /* 0x03: +-percent around 1 for a new record's scale */
     u_char leafArg;                     /* 0x04: tiCalc_Leaf / _Leaf_WIND's third argument */
-    u_char pad05[0x2b];
+    u_char pad05[0x0b];
+    float dir[4];                       /* 0x10: a new record's velocity in the part's frame (rotated by
+                                           partMatrix's rotation, tiGenerateParticle) */
+    float accel[4];                     /* 0x20: a new record's PARTICLE2.accel */
     u_int emitter;                      /* 0x30: PARTICLE2_EMITTER, 0 = none */
     int lifeTenths;                     /* 0x34: a record's life in 1/10 s (the emit rate's divisor) */
-    int w38;                            /* 0x38: <- -1 at init (its reader, tiGenerateParticle, is unread) */
+    int idleTicks;                      /* 0x38: ticks since the last emission (tiGenerateParticle); -1 at init:
+                                           the first frame only sets 0 */
     float emitRate;                     /* 0x3c: records per frame; under 0.1 tiParticleInit sets
                                            ringSize / (lifeTenths * 0.1 * 60): the ring filled over one life */
     u_short parts;                      /* EE 0x40: index into ALL_TABLE.partsPos */
@@ -743,7 +755,8 @@ typedef struct PARTICLE2_ENTRY {
     u_short ringSize;                   /* EE 0x44 */
     u_short count;                      /* EE 0x46: live records; 0 = nothing to draw */
     u_short head;                       /* EE 0x48: the oldest live record */
-    u_char pad4a[6];
+    u_short tail;                       /* 0x4a: the next record tiGenerateParticle writes */
+    float refrIndex;                    /* 0x4c: a new record's PARTICLE2.refrIndex */
     u_int drawCtrlId;                   /* 0x50: non-0: the draw control to switch to (relocated): the EE address
                                            of its GA_DRAWCTRL_ARGS, which tiParticleInit sets drawCtrl up from */
     u_int tex;                          /* 0x54: TEX_INFO (tiParticleInit sets tbuffer up from it); uploaded
@@ -766,6 +779,8 @@ static_assert(offsetof(PARTICLE2_ENTRY, emitter) == 0x30, "PARTICLE2_ENTRY.emitt
 static_assert(offsetof(PARTICLE2_ENTRY, partMatrix) == 0x58, "PARTICLE2_ENTRY.partMatrix");
 static_assert(offsetof(PARTICLE2_ENTRY, vrgbCurve) == 0x70, "PARTICLE2_ENTRY.vrgbCurve");
 static_assert(offsetof(PARTICLE2_ENTRY, leafArg) == 0x04, "PARTICLE2_ENTRY.leafArg");
+static_assert(offsetof(PARTICLE2_ENTRY, dir) == 0x10, "PARTICLE2_ENTRY.dir");
+static_assert(offsetof(PARTICLE2_ENTRY, refrIndex) == 0x4c, "PARTICLE2_ENTRY.refrIndex");
 static_assert(sizeof(PARTICLE2_ENTRY) == 0x80, "PARTICLE2_ENTRY");
 
 #define PARTS_POS_W_CENTER 128.0f       /* main_rtn_Particle2: w' = (w + 128) * scale - 128 */

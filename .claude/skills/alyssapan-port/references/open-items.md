@@ -1357,7 +1357,16 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    are absolute); (kh) tiFreeBossData frees only pBossInfo itself: its pointer words (0xe8..0x110,
    0x13c, 0x140 and the sub-block's 0x24 / 0x28) have no host form until the boss TU that allocates
    them decides (BossInfoFree is a no-op, as wideXcmd_DebugPrint.c's BossInfoPtr); the five trigger
-   variables (0x53, 0x54, 0x52, 0x56, 5) it resets to -1 are unnamed.
+   variables (0x53, 0x54, 0x52, 0x56, 5) it resets to -1 are unnamed. Open from slice 10 (2026-11-11):
+   (ki) 0x53 / 0x54 are now TRIG_VAR_CHAIN_B / _A (tiLightBelt2UpdateFor*_Battle: 2 drops the set's
+   events, 3 registers the holding chains'); the belts' source / end words (0xf4 / 0xf8, 0x104 / 0x108)
+   go through BossInfoWord, which answers none like BossInfoPtr: only the events run on the host until
+   the boss TU gives pBossInfo's words a host form (with as, kh); (kj) PARTICLE2_ENTRY's chara (+1),
+   dirJitter (+2), scaleJitter (+3), dir (+0x10), accel (+0x20), idleTicks (+0x38, was w38), tail
+   (+0x4a), refrIndex (+0x4c), PARTICLE2.startPos (+0x70) and the emitter's count / used / usedFlags /
+   verts are named from tiGenerateParticle / tiGetmatL2WFromMeshEmitter alone; the 300 in the life
+   (lifeTenths * 0.1 * 300) reads as 1/300 s ticks, the 5 in the emit count as emitRate per 1/60 s
+   (tiParticleInit's 60): both unconfirmed; DRAW_OBJ_W78 (two words cleared per new record) unread.
 
 8. **(2026-11-11, the user: "queue the title blockers") The way to the title screen.** A probe run
    (16:25, reverted: every stubbed x command answering XCMD_DONE, AA_movie returning at once) showed the

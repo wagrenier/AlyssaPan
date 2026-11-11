@@ -607,6 +607,139 @@ void tiParticleUpdate(void)
     // callcheck: ssTrigCheckEnable, tiCalc_LifeSpan, tiCalc_Orbit, tiGenerateParticle (ParticleList makes them)
 }
 
+// ---- emission (slice 10, 2026-11-11) ----
+
+// CT3 0x0188fa40
+// The ROM walks from a random vertex (tnRand(count - 1)) to the first one not yet taken; with every
+// vertex taken it clears the flags first. The matrix is matUnit with the vertex, moved into the part's
+// frame, added to its row 3 (so w is 1 + the moved vertex's w, as the ROM's vadd leaves it).
+void tiGetmatL2WFromMeshEmitter(float (*dst)[4], PARTICLE2_EMITTER *em, int bank)
+{
+    u_char *used = BANK_PTR(u_char *, bank, em->usedFlags);
+    float (*verts)[4] = BANK_PTR(float (*)[4], bank, em->verts);
+    float (*m)[4] = BANK_PTR(float (*)[4], bank, em->matrix);
+    int n = em->count;
+    int start, i, v = 0;
+    float p[4];
+
+    if (em->used == n) {
+        for (i = 0; i < n; i++) {
+            used[i] = 0;
+        }
+        em->used = 0;
+    }
+    start = tnRand(n - 1);
+    for (i = 0; i < n; i++) {
+        v = (start + i) % n;
+        if (used[v] == 0) {
+            used[v] = 1;
+            em->used++;
+            break;
+        }
+    }
+    // ROM: with no free vertex the index register keeps a stale value (cannot happen once the flags
+    // are cleared above); the port takes the last one walked.
+    PortApplyMatrix(p, m, verts[v]);
+    memcpy(dst, matUnit, sizeof(float[4][4]));
+    for (i = 0; i < 4; i++) {
+        dst[3][i] += p[i];
+    }
+}
+
+// CT3 0x0188fba0: emit new records into the entry's ring (tiParticleUpdate, after tiCalc_LifeSpan).
+// emitRate * (ticks + idleTicks) / 5 records are due; while `enabled` (ssTrigCheckEnable of the entry's
+// part) they start, up to a full ring: at the part's matrix200, or at an emitter vertex turned by the
+// part's rotation, with dir turned by that rotation (plus the jitter), the entry's accel, black at
+// full alpha, the entry's life and refractive index. With none due the ticks add up, else they restart
+// from 0; due records not emitted (disabled, or a full ring) are dropped, as in the ROM.
+void tiGenerateParticle(int ticks, PARTICLE2_ENTRY *ent, int enabled, int bank)
+{
+    float (*part)[4] = BANK_PTR(float (*)[4], bank, ent->partMatrix);
+    PARTICLE2 *ring = BANK_PTR(PARTICLE2 *, bank, ent->ring);
+    PARTICLE2_EMITTER *em = BANK_PTR(PARTICLE2_EMITTER *, bank, ent->emitter);
+    u_int ringSize = ent->ringSize;
+    int due, i;
+
+    if (ent->idleTicks < 0) {
+        ent->idleTicks = 0;
+        return;
+    }
+    due = (int)(ent->emitRate * (float)(ticks + ent->idleTicks) / PARTICLE_EMIT_DIV);
+    if (enabled != 0 && part != NULL && ring != NULL) {
+        float rot[4][4];
+        u_int tail = ent->tail;
+
+        // the part's rotation: rows 0..2 of its matrix, row 3 (0, 0, 0, 1)
+        memcpy(rot, part, sizeof(rot));
+        rot[3][0] = rot[3][1] = rot[3][2] = 0.0f;
+        rot[3][3] = 1.0f;
+        for (i = 0; i < due && ent->count != ringSize; i++) {
+            float local[4][4];
+            float dir[4];
+            int slot = (int)((tail + (u_int)i) % ringSize);
+            PARTICLE2 *rec = &ring[slot];
+            PARTICLE2_MATS *mats = BANK_PTR(PARTICLE2_MATS *, bank, rec->mats);
+            u_char *obj = BANK_PTR(u_char *, bank, rec->obj);
+
+            if (em == NULL) {
+                memcpy(local, part, sizeof(local));
+            } else {
+                tiGetmatL2WFromMeshEmitter(local, em, bank);
+                gaMulMatrix(local, local, rot);
+            }
+            if (ent->chara != -1) {
+                float before[4];
+
+                memcpy(before, &Character[(int)ent->chara].posBefore, sizeof(before));
+                local[3][0] = before[0];
+                local[3][2] = before[2];
+            }
+            memcpy(mats->local, local, sizeof(local));
+            memcpy(rec->startPos, local[3], sizeof(rec->startPos));
+            memcpy(dir, ent->dir, sizeof(dir));
+            if (ent->dirJitter != 0) {
+                float len = sqrtf(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]);
+                int k;
+
+                for (k = 0; k < 3; k++) {
+                    int r = tnRand(ent->dirJitter * 2) - ent->dirJitter;
+                    dir[k] += len * (float)r / PARTICLE_JITTER_PERCENT;
+                }
+            }
+            PortApplyMatrix(rec->vel, rot, dir);
+            memcpy(rec->accel, ent->accel, sizeof(rec->accel));
+            rec->color[0] = rec->color[1] = rec->color[2] = 0.0f;
+            rec->color[3] = 1.0f;
+            rec->life = (int)((float)ent->lifeTenths * 0.1f * PARTICLE_LIFE_TICKS);
+            rec->age = 0;
+            if (ent->scaleJitter == 0) {
+                rec->scale[0] = rec->scale[1] = rec->scale[2] = 1.0f;
+            } else {
+                int r = tnRand(ent->scaleJitter * 2) - ent->scaleJitter;
+                float sc = (float)r / PARTICLE_JITTER_PERCENT + 1.0f;
+
+                rec->scale[0] = rec->scale[1] = rec->scale[2] = sc;
+            }
+            rec->refrIndex = ent->refrIndex;
+            if (obj != NULL) {
+                memset(obj + DRAW_OBJ_W78, 0, 8); // the draw object's words 0x78 and 0x7c
+            }
+            rec->sizeCache = 0;
+            rec->refrCache = 0;
+            rec->alphaCache = 0;
+            rec->uvCache = 0;
+            rec->vrgbCache = 0;
+            ent->count++;
+            ent->tail = (u_short)((slot + 1) % (int)ringSize);
+        }
+    }
+    if (due == 0) {
+        ent->idleTicks += ticks;
+    } else {
+        ent->idleTicks = 0;
+    }
+}
+
 // ---- the records' motions (slice 8, 2026-11-11) ----
 // Written from the disassembly (VU0 macro code: every vector operation is .xyz, so a velocity's and a
 // matrix row's w stay as they are). dt = ticks / 300. The integration is the ROM's: the step is
@@ -1307,6 +1440,79 @@ static void BossInfoFree(u_char *base, int off)
     (void)off;
 }
 
+// The chain sets' light belts (the boss battle). A set's trigger variable at 2 clears its chains'
+// events; at 3 every chain holding (BOSS_INFO_CHAIN_x_ON[i] == 1) registers its event; then each chain
+// whose event is set copies the set's source position (EE word 0xf4 / 0xf8) into its belt end (the EE
+// word table at 0x104 / 0x108, entry i). PORT: those words have no host form (BossInfoPtr in
+// wideXcmd_DebugPrint.c, open-items.md 1 as): BossInfoWord answers none, so only the events run.
+#define TRIG_VAR_CHAIN_A 0x54           /* global: set A's state (CHAIN_STATE_*) */
+#define TRIG_VAR_CHAIN_B 0x53           /* global: set B's (the chains on Alyssa) */
+#define CHAIN_STATE_DROP 2              /* the set's events are cleared */
+#define CHAIN_STATE_HOLD 3              /* the holding chains' events are registered */
+#define BOSS_INFO_CHAIN_A_SRC 0xf4      /* EE word -> float[4]: set A's belt source */
+#define BOSS_INFO_CHAIN_B_SRC 0xf8
+#define BOSS_INFO_CHAIN_A_ENDS 0x104    /* EE word -> EE words[count]: each chain's belt end (float[4]) */
+#define BOSS_INFO_CHAIN_B_ENDS 0x108
+#define CHAIN_ON 1
+
+static void *BossInfoWord(int off)
+{
+    (void)off;
+    return NULL;
+}
+
+static void ChainBelts(int var, int countOff, int onOff, int srcOff, int endsOff, int firstEvent, int max)
+{
+    int count = pBossInfo[countOff];
+    const u_char *on = (const u_char *)BossInfoWord(onOff);
+    const float *src = (const float *)BossInfoWord(srcOff);
+    float **ends = (float **)BossInfoWord(endsOff);
+    int state = ssTrigGetVariable(var, XCMD_SCOPE_GLOBAL, 0);
+    int i;
+
+    if (state == CHAIN_STATE_DROP) {
+        for (i = 0; i < max; i++) {
+            ssTrigRemoveEvent(firstEvent + i, XCMD_SCOPE_GLOBAL, 0);
+        }
+    } else if (state == CHAIN_STATE_HOLD && on != NULL) {
+        // the ROM registers only chains 0..max-1 (its switch has no other case)
+        for (i = 0; i < count; i++) {
+            if (on[i] == CHAIN_ON && i < max) {
+                ssTrigRegisterEvent(firstEvent + i, XCMD_SCOPE_GLOBAL, 0);
+            }
+        }
+    }
+    for (i = 0; i < max; i++) {
+        if (ssTrigCheckEvent(firstEvent + i, XCMD_SCOPE_GLOBAL, 0) != 0 && src != NULL && ends != NULL) {
+            memcpy(ends[i], src, sizeof(float[4]));
+        }
+    }
+}
+
+// CT3 0x01889f70: main, in the chain fight -- set B (five chains, events 0x69..0x6d).
+void tiLightBelt2UpdateForALYSSA_Battle(void)
+{
+    if (pBossInfo == NULL) {
+        return; // PORT: guard; the ROM reads pBossInfo unchecked (main calls it only with a boss)
+    }
+    ChainBelts(TRIG_VAR_CHAIN_B, BOSS_INFO_CHAIN_B_COUNT, BOSS_INFO_CHAIN_B_ON, BOSS_INFO_CHAIN_B_SRC,
+               BOSS_INFO_CHAIN_B_ENDS, TRIG_EVENT_CHAIN_B_FIRST,
+               TRIG_EVENT_CHAIN_B_LAST - TRIG_EVENT_CHAIN_B_FIRST + 1);
+    // callcheck: ssTrigGetVariable, ssTrigRemoveEvent, ssTrigRegisterEvent, ssTrigCheckEvent (ChainBelts makes them)
+}
+
+// CT3 0x0188a1f0: main, in the chain fight -- set A (ten chains, events 0x3c..0x45).
+void tiLightBelt2UpdateForBOSS_Battle(void)
+{
+    if (pBossInfo == NULL) {
+        return; // PORT: guard, as above
+    }
+    ChainBelts(TRIG_VAR_CHAIN_A, BOSS_INFO_CHAIN_A_COUNT, BOSS_INFO_CHAIN_A_ON, BOSS_INFO_CHAIN_A_SRC,
+               BOSS_INFO_CHAIN_A_ENDS, TRIG_EVENT_CHAIN_A_FIRST,
+               TRIG_EVENT_CHAIN_A_LAST - TRIG_EVENT_CHAIN_A_FIRST + 1);
+    // callcheck: ssTrigGetVariable, ssTrigRemoveEvent, ssTrigRegisterEvent, ssTrigCheckEvent (ChainBelts makes them)
+}
+
 // CT3 0x01889df0: system_end, tiXcmd_BOSS_BattleEnd -- free the boss info's blocks and the info itself
 // (gHeapJunc), then clear the battle's trigger variables.
 void tiFreeBossData(void)
@@ -1790,14 +1996,14 @@ static void ParticleInitList(int scene, u_int listEE)
         PARTICLE2 *ring = BANK_PTR(PARTICLE2 *, scene, ent->ring);
         int n = ent->ringSize;
 
-        ent->w38 = -1;
+        ent->idleTicks = -1;
         ent->partMatrix = PartFieldEE(scene, ent->parts, offsetof(MODEL_PARTS, matrix200));
         if (ent->emitRate < 0.1f) {
             ent->emitRate = (float)ent->ringSize / ((float)ent->lifeTenths * 0.1f * 60.0f);
         }
         if (em != NULL) {
             em->matrix = PartFieldEE(scene, em->parts, offsetof(MODEL_PARTS, matrix200));
-            em->state = 0;
+            em->used = 0;
         }
         if (ent->part2 != 0) {
             ent->partPos = PartFieldEE(scene, ent->part2, offsetof(MODEL_PARTS, pos));
@@ -1908,18 +2114,6 @@ void tiDrawShadingOff(void)
     ALYSSAPAN_STUB("tiDrawShadingOff", 0x0188ced0);
 }
 
-// stub of CT3 0x01889f70
-void tiLightBelt2UpdateForALYSSA_Battle(void)
-{
-    ALYSSAPAN_STUB("tiLightBelt2UpdateForALYSSA_Battle", 0x01889f70);
-}
-
-// stub of CT3 0x0188a1f0
-void tiLightBelt2UpdateForBOSS_Battle(void)
-{
-    ALYSSAPAN_STUB("tiLightBelt2UpdateForBOSS_Battle", 0x0188a1f0);
-}
-
 // stub of CT3 0x01894230
 void tiRefractionMapUpdate(void)
 {
@@ -1966,16 +2160,6 @@ void tiChara_Translucence_Start2(void)
 void tiGetTransRotMatrix(float (*dst)[4], float *pos, float (*src)[4])
 {
     ALYSSAPAN_STUB("tiGetTransRotMatrix", 0x018949c0);
-}
-
-// stub of CT3 0x0188fba0
-void tiGenerateParticle(int ticks, PARTICLE2_ENTRY *ent, int enabled, int bank)
-{
-    (void)ticks;
-    (void)ent;
-    (void)enabled;
-    (void)bank;
-    ALYSSAPAN_STUB("tiGenerateParticle", 0x0188fba0);
 }
 
 // stub of CT3 0x01892310

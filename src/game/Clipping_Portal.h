@@ -196,6 +196,13 @@ struct CAMERA;
 void tiCalc_LifeSpan(struct PARTICLE2_ENTRY *ent, int bank);                            // CT3 0x0188f9a0
 // ROM (ticks, entry, enabled); PORT: bank added.
 void tiGenerateParticle(int ticks, struct PARTICLE2_ENTRY *ent, int enabled, int bank);  // CT3 0x0188fba0
+struct PARTICLE2_EMITTER;
+// dst <- a unit matrix moved to one of the emitter's vertices (taken at random, each once until all are
+// used), in the frame of the emitter's part. ROM (dst, emitter); PORT: bank added (its words are EE).
+void tiGetmatL2WFromMeshEmitter(float (*dst)[4], struct PARTICLE2_EMITTER *em, int bank); // CT3 0x0188fa40
+#define PARTICLE_EMIT_DIV 5.0f          /* records = emitRate * (ticks + idleTicks) / 5: emitRate per 1/60 s */
+#define PARTICLE_LIFE_TICKS 300.0f      /* lifeTenths * 0.1 * 300: the life in 1/300 s ticks */
+#define PARTICLE_JITTER_PERCENT 100.0f  /* dirJitter / scaleJitter are percent */
 // after: 0 for ALL_TABLE.particles2, 1 for particles2After; cam: Cam[0] for the scene banks, else Cam[6].
 void tiCalc_Orbit(int ticks, struct PARTICLE2_ENTRY *ent, int after, struct CAMERA *cam, int bank); // CT3 0x0188f2b0
 
