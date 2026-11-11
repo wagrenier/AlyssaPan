@@ -953,6 +953,21 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    reads quad[-1] in the ROM when three or four edges face away (@1029's -1 indices): the port returns 1
    with w 0 there (not reachable with a convex quad and its own normal); (f) camera_init0 indexes Cam[] by
    the bank number as the ROM does: a guard stops past Cam[6] (no caller passes more).
+   **Slice 2 (2026-11-10, scheduled run): camera_view, camera_view0** and their helpers (CamChange,
+   CamChange_Hash_S_Hash, asFindCamera, asCopyCameraMatrix, asCameraPositionTranser, asCamModeChange):
+   the smoke run's first object now gets a real view (eye (10, 10, 10) at the origin), the shot is still
+   black (the object lands at window (2804, 1884)): the eye stays camera_init0's until **asGetDestinationEYE**
+   (0x01884f50, 0x1740 bytes -- the size above was wrong -- seven eye kinds, VU-heavy: next, alone) places
+   it; then camera_main (0x018881a0, 0x1aac). Answered: (a) focal[0..3] are live / from / to / drawing,
+   b17a / b17c / b17f / b181 / w164 are eyeMode / trgMode / focalMoving / moveSpeed / moveTime, changeArg
+   is moveTicks (renamed). Doubts: (g) asFindCamera reads the part hash at ALL_TABLE.partsHeader + i *
+   0x380 + 0x48, i.e. MODEL_PARTS[i].hash with pModelPartsHeader as the records' start (as main.c), while
+   PARTS_REC (ahRelocateSunPs2ObjectArry.h) adds a 0x40 header: one of the two is off by 0x40 -- check with
+   a real bank; (h) CameraQuake guards a 0 period (the EE's divu answer is undefined there); (i) the smoke
+   run now passes about 1,800 frames a second (458 shots in 15 s, was 7): nothing waits on a present while
+   nothing draws -- watch it once the picture shows; (j) the follow cameras (iCameraMode 0 / 1 / 2) add
+   the turned translation to the turn's row 3 on xyz only, and asCameraPositionTranser's move writes w
+   too (from.w + to.w * step): both as the ROM.
 
 ## Decisions
 

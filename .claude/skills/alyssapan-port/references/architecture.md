@@ -774,6 +774,26 @@ view * matrix (+0x180) and +0x300 = that * diag(record +0x2c0 xyz).
   |front x right|, then asCamRUF2ViewMatrix with screen_0[8] swapped for the call; 0 when eye == focus.
 - camera_init: AlissaEyeHeight 135, CameraBehind 250, FOV_deg 40 (screen_0[8] = asFocalLength_LEICA2PS2(40)),
   every camera reset (identity view, DOF level 4, cut / bank -1).
+- **The frame's camera** (camera_view, slice 2): CameraError sets matUnit as the view and stops. Else
+  asCopyCameraMatrix keeps each view as view2 and focal[0] as focal[3] (**the drawing view lags the
+  built one by a frame**), a stocked cut is retried (CamChange_Hash_S_Hash stocks a cut by eye-part hash
+  in CamStock while its bank is not loaded and drawn), and every camera whose bank is loaded runs
+  camera_view0; a scene bank whose animation runs also gets the look-around stick (CameGri_Mode 0: pad
+  stick bytes 2 / 3, 1: bytes 0 / 1; dead zone the s_char at KEY_MAP + 0x44; deflection eased by
+  (1 - cos) / 4 into CameGri_dvsX / _dvsZ, turned by CameGri_DU about up and CameGri_DR about right) and
+  the three CamQuake shakes (0x14 bytes: amp, period, fade in / out, duration, time, phase; along the
+  view's right / up / forward); a stopped one runs camera_view0 once when its b182 asks. Then Cam[6] is
+  made the drawing view, and iCameraMode 0 / 1 builds a follow view behind Character[0] (CameraAngle
+  ints: [0] pitch, [1] yaw; AlissaEyeHeight up, CameraBehind back), 2 the same from the ND* set, 4 gives
+  a scene bank without a cut cut 0 (then the ND view when iNeoCameraLock).
+- **camera_view0** (a camera's frame): screen_0[8] from focal[0]; moveTime += the frame's ticks; the eye
+  / target kinds are the cut's while eyeMode is 0xff (the move), else eyeMode / trgMode;
+  asGetDestinationEYE / _TRG give eye / focus / up / focal; during the move they blend from the *From
+  set by w = moveTime / moveTicks (changeMode 2: (1 - cos) / 2), and at its end asCamModeChange makes the
+  cut's kinds eyeMode / trgMode. Kinds 0, 1, 3..6 set the *To set; kind 2 keeps the eye's distance from
+  the focus raised by ZelCam[3] within ZelCam[1]..[0]. The live set moves toward *To by
+  asCameraPositionTranser at the cut's moveSpeed (+0x1b; 0 jumps, the step grows with the remaining
+  distance up to 360 and with 20 / speed), then asEyeForcusUP2CamMat builds the view.
 
 ## Areas, rattles, warps, the slerp, game/QuatSlerp.c (2026-11-10, slice 2)
 

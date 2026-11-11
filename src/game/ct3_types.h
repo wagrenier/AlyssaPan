@@ -147,8 +147,10 @@ typedef struct CAMERA {
     float focal[4];                     /* 0x150: focal lengths (LEICA mm; 2.88 each at init): [0] live,
                                            [1] from, [2] to (CamChangeSub); asChangeViewMatrix_forTheBank
                                            turns [3] into screen_0's projection distance */
-    int changeArg;                      /* 0x160: CamChange_S's fourth argument (0 at init) */
-    int w164;                           /* 0x164: 0 at init and on a cut change */
+    int moveTicks;                      /* 0x160: CamChange_S's fourth argument: the cut's move in ticks
+                                           (0 = at once; camera_view0's blend weight moveTime / moveTicks;
+                                           0 at init) (was changeArg, 2026-11-10) */
+    int moveTime;                       /* 0x164: ticks since the cut (camera_view0 adds the frame's) */
     int bank;                           /* 0x168: the bank CamChange_S last cut to (-1 at init), written and
                                            compared as an int; asCharacterMoveByPad stocks it as a short
                                            with cut (iCameraBank_Stock / iCameraID_Stock) */
@@ -158,28 +160,33 @@ typedef struct CAMERA {
     u_int ctrlList;                     /* 0x174: ... of its OBJ_CTRL list (control table +8) */
     short cut;                        /* 0x178: the camera's cut, CamChange_S's second argument (a save
                                            keeps the live bank's; name from data_save_set); -1 at init */
-    u_char b17a;                        /* 0x17a: 0xff at init and on a cut change */
+    u_char eyeMode;                     /* 0x17a: the eye kind camera_view0 runs; 0xff (at init and on a
+                                           cut change) = the cut's move, which asCamModeChange ends by
+                                           taking eyeKind / trgKind here */
     u_char eyeKind;                     /* 0x17b: the cut's CAM_CUT_EYE_KIND (asGetDestinationEYE's kind) */
-    u_char b17c;                        /* 0x17c: camera_init0: 4 for a global bank (0..5), 0xff for a
-                                           scene bank; 0xff on a cut change */
+    u_char trgMode;                     /* 0x17c: the target kind beside eyeMode; camera_init0: 4 for a
+                                           global bank (0..5), 0xff for a scene bank; 0xff on a cut change */
     u_char trgKind;                     /* 0x17d: asGetDestinationTRG's kind: 0 = the cut's target list,
                                            4 = none (the cut's CAM_CUT_HAS_TARGETS is 0) */
     u_char changeMode;                  /* 0x17e: CamChange_S's third argument */
-    u_char b17f;                        /* 0x17f: 0 at init, 1 on a cut (CamChangeSub) */
+    u_char focalMoving;                 /* 0x17f: 1 on a cut (CamChangeSub): focal[0] still blends from
+                                           focal[1] to focal[2] after the move (camera_view0); 0 at init */
     u_char dofLevel;                    /* 0x180: the DOF level (CamGetNowDOFLevel reads Cam[6]'s); 4 at init */
-    u_char b181;                        /* 0x181: 0 at init; the cut's byte +0x1b */
-    u_char b182;                        /* 0x182: 0 at init */
+    u_char moveSpeed;                   /* 0x181: the cut's CAM_CUT_MOVE_SPEED: asCameraPositionTranser's
+                                           speed divisor (0 = jump); 0 at init */
+    u_char b182;                        /* 0x182: 0 at init; 1 asks camera_view for one camera_view0 while
+                                           the scene bank's animation is stopped */
     u_char pad183[0x3d];
 } CAMERA;
 static_assert(offsetof(CAMERA, eye) == 0x0c0, "CAMERA.eye");
 static_assert(offsetof(CAMERA, up) == 0x120, "CAMERA.up");
 static_assert(offsetof(CAMERA, focal) == 0x150, "CAMERA.focal");
-static_assert(offsetof(CAMERA, changeArg) == 0x160, "CAMERA.changeArg");
+static_assert(offsetof(CAMERA, moveTicks) == 0x160, "CAMERA.moveTicks");
 static_assert(offsetof(CAMERA, cuts) == 0x16c, "CAMERA.cuts");
 static_assert(offsetof(CAMERA, ctrlList) == 0x174, "CAMERA.ctrlList");
 static_assert(offsetof(CAMERA, eyeKind) == 0x17b, "CAMERA.eyeKind");
 static_assert(offsetof(CAMERA, trgKind) == 0x17d, "CAMERA.trgKind");
-static_assert(offsetof(CAMERA, b17c) == 0x17c, "CAMERA.b17c");
+static_assert(offsetof(CAMERA, trgMode) == 0x17c, "CAMERA.trgMode");
 static_assert(offsetof(CAMERA, changeMode) == 0x17e, "CAMERA.changeMode");
 static_assert(offsetof(CAMERA, dofLevel) == 0x180, "CAMERA.dofLevel");
 static_assert(offsetof(CAMERA, b182) == 0x182, "CAMERA.b182");

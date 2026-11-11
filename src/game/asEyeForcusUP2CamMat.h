@@ -15,8 +15,65 @@ extern char TheFirstChangeCamera;           /* sbss 0x0193cf0c: set by the first
 extern int iSm;                             /* sbss 0x0193cefc */
 extern char szCamModeAdd[64];               /* sbss 0x0193d010: "" at init */
 extern float NDAlyssaPos[4];                /* sbss 0x0193d090 */
-extern int iCameraMode;                     /* sbss 0x0193d0a0 */
-extern float CameraAngle[4];                /* sbss 0x0193d0c0 */
+extern int iCameraMode;                     /* sbss 0x0193d0a0: CAMERA_MODE_* (camera_view) */
+extern int CameraAngle[4];                  /* sbss 0x0193d0c0 (static): [0] pitch, [1] yaw, 16-bit angle
+                                               units (camera_view reads them with lw: ints) */
+extern int iNeoCameraLock;                  /* sbss 0x0193cf00: != 0 -> CAMERA_MODE_SCENE also runs the ND camera */
+extern char CameraError;                    /* sbss 0x0193cf04: != 0 -> camera_view sets matUnit as the view */
+extern float NDAlissaEyeHeight;             /* sdata 0x01938764: 135 */
+extern float NDCameraBehind;                /* sdata 0x01938768: 250 */
+extern int NDCameraAngle[4];                /* sbss 0x0193d070: the ND camera's CameraAngle */
+extern float CameGri_dvsZ;                  /* sbss 0x01941898: the stick's eased pitch deflection (-1..1) */
+extern float CameGri_dvsX;                  /* sbss 0x0194189c: ... and yaw deflection */
+extern u_int CameGri_DU;                    /* sbss 0x019418a0: yaw angle at full deflection (16-bit units) */
+extern u_int CameGri_DR;                    /* sbss 0x019418a4: pitch angle at full deflection */
+
+// iCameraMode (camera_view's cases; names from what each builds).
+#define CAMERA_MODE_FOLLOW 0                /* Cam[6] behind Character[0] (CameraAngle, CameraBehind) */
+#define CAMERA_MODE_FOLLOW1 1               /* the same */
+#define CAMERA_MODE_ND 2                    /* Cam[6] behind NDAlyssaPos (the ND* set) */
+#define CAMERA_MODE_SCENE 4                 /* a scene bank without a cut gets cut 0 */
+
+// The look-around stick (camera_view, CameGri_Mode 0 / 1: pad[0]'s stick bytes 2, 3 or 0, 1).
+#define CAMERA_STICK_CENTER 0x80
+#define KEY_MAP_STICK_DEAD_BYTE 0x44        /* the s_char at KEY_MAP + 0x44 (KEY_MAP[34]'s low byte): the dead zone */
+
+// One camera shake of CamQuake[3] (0x0193cf10, 0x14 bytes each; camera_view runs them on scene banks'
+// cameras along the view's right / up / forward axis; names from that use).
+typedef struct CAM_QUAKE {
+    float amp;                              /* 0x00: the shake's amplitude */
+    u_short period;                         /* 0x04: ticks per sine period */
+    u_short fadeIn;                         /* 0x06: ticks to full amplitude */
+    u_short h08;
+    u_short fadeOut;                        /* 0x0a: ticks back to 0 at the end */
+    u_short duration;                       /* 0x0c: 0 = off */
+    u_short time;                           /* 0x0e: ticks run (gGlobalNextTicksInterval a frame) */
+    u_short phase;                          /* 0x10: added to the sine's angle */
+    u_short h12;
+} CAM_QUAKE;
+static_assert(sizeof(CAM_QUAKE) == 0x14, "CAM_QUAKE");
+static_assert(offsetof(CAM_QUAKE, duration) == 0x0c, "CAM_QUAKE.duration");
+static_assert(offsetof(CAM_QUAKE, phase) == 0x10, "CAM_QUAKE.phase");
+#define CAM_QUAKE_AXES 3
+extern CAM_QUAKE CamQuake[CAM_QUAKE_AXES];  /* sbss 0x0193cf10 */
+
+// CamChange's request (camera_view builds one on the stack: {0, idCurrentScene, 0, 1}).
+typedef struct CAM_CHANGE {
+    int arg;                                /* 0x0: CAMERA.moveTicks */
+    int bank;                               /* 0x4 */
+    short cut;                              /* 0x8 */
+    u_char mode;                            /* 0xa: CAMERA.changeMode */
+    u_char pad;
+} CAM_CHANGE;
+static_assert(sizeof(CAM_CHANGE) == 0xc, "CAM_CHANGE");
+static_assert(offsetof(CAM_CHANGE, mode) == 0xa, "CAM_CHANGE.mode");
+
+// CamStock: a cut by part hash asked for while its bank is not drawn yet (CamChange_Hash_S_Hash stocks
+// it, camera_view retries it each frame).
+#define CAMSTOCK_HASH 0                     /* [0..1]: the u_long hash */
+#define CAMSTOCK_BANK 2                     /* -1 = nothing stocked (init, and every cut change) */
+#define CAMSTOCK_ARG 3
+#define CAMSTOCK_MODE 4                     /* read as a short */
 extern float FOV_deg;                       /* sbss 0x01941830: the field of view in degrees (40 at init) */
 extern float ZelCam[6];                     /* sbss 0x01941880: reset for a scene bank by camera_init0
                                                (400, 200, 180, 30, 0, 0) */
@@ -34,12 +91,19 @@ extern u_char *lpCopyMP[35];                /* sbss 0x0193cf80: per Character[] 
 #define CAM_CUT_SIZE 0x20
 #define CAM_CUT_HASH 0x00                   /* u_long: the model part the eye follows */
 #define CAM_CUT_CHARA 0x10                  /* u_short: the Character[] slot that part belongs to */
-#define CAM_CUT_ON_CHARA 0x12               /* u_char: 1 = the eye follows the character's part */
+#define CAM_CUT_PART 0x0e                   /* u_short: the eye's part in the bank (asFindCamera; not on a character) */
+#define CAM_CUT_ON_CHARA 0x12              /* u_char: 1 = the eye follows the character's part */
 #define CAM_CUT_TARGETS 0x13                /* u_char[3]: CAM_TRG record indices */
 #define CAM_CUT_TRG_MODE 0x17               /* s_char: how the focus comes from the targets (CAM_TRG_MODE_*) */
 #define CAM_CUT_EYE_KIND 0x18               /* u_char: asGetDestinationEYE's kind */
 #define CAM_CUT_DOF 0x1a                    /* u_char: CAMERA.dofLevel (4 = no DOF) */
-#define CAM_CUT_1B 0x1b                     /* u_char: CAMERA.b181 */
+#define CAM_CUT_MOVE_SPEED 0x1b             /* u_char: CAMERA.moveSpeed */
+#define CAM_EYE_MODE_MOVE 0xff              /* CAMERA.eyeMode / trgMode: the cut's move runs (camera_view0) */
+#define CAM_CHANGE_MODE_EASE 2              /* CAMERA.changeMode: the move eases (1 - cos) / 2, else linear */
+#define CAM_EYE_KIND_ORBIT 2                /* camera_view0: the eye keeps ZelCam's distance range from the
+                                               focus raised by ZelCam[3] (name from that use) */
+void asCameraPositionTranser(int speed, float *out, const float *to, const float *from); // CT3 0x01883fd0 written
+void asCamModeChange(int cam);                                                           // CT3 0x01884610 written
 // A target record (0x10 bytes; asCopyCharacterParameterTRG).
 #define CAM_TRG_SIZE 0x10
 #define CAM_TRG_HASH 0x00                   /* u_long: the model part looked at */
@@ -72,7 +136,12 @@ extern u_char *lpCopyMP[35];                /* sbss 0x0193cf80: per Character[] 
 void asChangeViewMatrix_forTheBank(int bank);                                            // CT3 0x01886690 written
 u_char CamGetNowDOFLevel(void);                                                          // CT3 0x01886770 written
 void camera_destroy(int scene, int mode);                                                // CT3 0x018875a0 written
-void camera_view(void);                                                                  // CT3 0x018875d0
+void camera_view(void);                                                                  // CT3 0x018875d0 written
+void camera_view0(int cam);                                                              // CT3 0x01885d20
+int CamChange(CAM_CHANGE *req);                                                          // CT3 0x01886f30 written
+int CamChange_Hash_S_Hash(int bank, u_long hash, short mode, int arg);                   // CT3 0x01886b70 written
+short asFindCamera(int bank, u_long hash);                                               // CT3 0x01886cf0 written
+void asCopyCameraMatrix(void);                                                           // CT3 0x01887040 written
 void camera_main(PAD_DATA *pad, int mode);                                               // CT3 0x018881a0
 void camera_init(void);                                                                  // CT3 0x01889c50 written
 // From data_load_set's calls (Character_Init.c, 2026-11-10).

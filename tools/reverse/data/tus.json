@@ -729,7 +729,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 67..67, 4 functions keyed by their statics, 3 unkeyed; source string ahalloc.c"
   },
   "game/asEyeForcusUP2CamMat.c": {
-   "notes": "asGetDestinationEYE (0x01884f50) is the slice's last function and next; then camera_view (reached each frame, fills the view: the shot stays black until it runs) and camera_main. CAMERA gained eye / focus / up live-from-to, focal, cuts / targets / ctrlList, eyeKind / trgKind, dofLevel; CAMERA.bank is now an int. Doubts in open-items.md Next up item 5.",
+   "notes": "asGetDestinationEYE (0x01884f50, 0x1740 bytes, seven eye kinds, VU-heavy) is next and alone: the eye stays camera_init0's (10, 10, 10) until it places it, so the shot is still black (first object at window 2804, 1884 with a real view now). Then camera_main (0x018881a0). Doubts in open-items.md Next up item 5 (g)..(j): the 0x40 parts-header offset question, the 0 quake period guard, the smoke run now at about 1800 frames a second.",
    "ranges": [
     [
      "01883db0",
@@ -741,6 +741,11 @@
      "date": "2026-11-10 22:01",
      "status": "partial",
      "summary": "camera slice 1: 15 functions -- the view builder, the bank view switch, init / init0 / destroy, the cut chain (CamChange_S, CamChangeSub, target list) and the line / plane / rect helpers"
+    },
+    {
+     "date": "2026-11-10 22:17",
+     "status": "partial",
+     "summary": "camera slice 2: 7 functions -- camera_view and camera_view0 (the frame's camera: last frame's view kept, stocked cut retried, cut move blend, look-around stick, shakes, follow views), CamChange, CamChange_Hash_S_Hash, asFindCamera, asCopyCameraMatrix, asCameraPositionTranser, asCamModeChange; CAMERA fields named (moveTicks, moveTime, eyeMode, trgMode, focalMoving, moveSpeed)"
     }
    ],
    "status": "partial",

@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-10 22:02 at commit `cb85291` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-10 22:17 at commit `9ed703d` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **840**; stubs: **183**
+- reconstructed CT3 functions: **848**; stubs: **182**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -67,7 +67,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/SdMasterVolumeSetSE.c` | 61 | 0 |
 | `src/game/ahRelocateSunPs2ObjectArry.c` | 93 | 0 |
 | `src/game/ahalloc.c` | 7 | 0 |
-| `src/game/asEyeForcusUP2CamMat.c` | 18 | 3 |
+| `src/game/asEyeForcusUP2CamMat.c` | 26 | 2 |
 | `src/game/asMothOperate.c` | 0 | 1 |
 | `src/game/asMothPause.c` | 0 | 1 |
 | `src/game/asMothRouteSearch.c` | 0 | 2 |
@@ -95,7 +95,7 @@ Least-named game-code regions (64 KB blocks):
 - 65 TUs: todo 39, partial 2, verify 24, done 4, blocked 1
 - next: **game/asEyeForcusUP2CamMat.c** (pinned in the queue)
 - pinned queue: game/asEyeForcusUP2CamMat.c, alyssapan/rendering/ui_canvas.cpp, game/ssGrpPortalCheck.c, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
-- partial: `game/asEyeForcusUP2CamMat.c` 18/30 -- asGetDestinationEYE (0x01884f50) is the slice's last function and next; then camera_view (reached each frame, fills the view: the shot stays black until it runs
+- partial: `game/asEyeForcusUP2CamMat.c` 26/30 -- asGetDestinationEYE (0x01884f50, 0x1740 bytes, seven eye kinds, VU-heavy) is next and alone: the eye stays camera_init0's (10, 10, 10) until it places it, so th
 - partial: `game/wideXcmd_DebugPrint.c` 107/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed) -- the last function of the TU. New stubs
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
@@ -125,6 +125,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-10 22:17 `game/asEyeForcusUP2CamMat.c` partial: camera slice 2: 7 functions -- camera_view and camera_view0 (the frame's camera: last frame's view kept, stocked cut retried, cut move blend, look-around stick,
 - 2026-11-10 22:01 `game/asEyeForcusUP2CamMat.c` partial: camera slice 1: 15 functions -- the view builder, the bank view switch, init / init0 / destroy, the cut chain (CamChange_S, CamChangeSub, target list) and the l
 - 2026-11-10 21:30 `ga/gaBGT_DrawObject.c` verify: slice 4: nc2_SetupDma_light2 written (dead in the ROM, nc2_light1's code instruction for instruction); every function of the TU is written; shot black until the
 - 2026-11-10 21:15 `ga/gaBGT_DrawObject.c` partial: slice 3: the clipped path (gaBGT_DrawObject), NoClippingCheck and the billboard jump into it, SetupDma_light0/1/2 build the ROM packet and hand the object to th
@@ -132,7 +133,6 @@ Recent sessions:
 - 2026-11-10 20:45 `ga/gaBGT_DrawObject.c` partial: slice 1: the no-clip path (NoClippingCheck2, nc2 light0 and light1) hands each ga draw object to the new host module AlyssaPan_DrawGaObject (GaMeshRecorder); AT
 - 2026-11-10 20:29 `alyssapan/rendering/ui_canvas.cpp` blocked: First screen found: ATLD, the memory-card check, drawn as world-space quads through gaBGT_DrawObject_NoClippingCheck2 (no 2D packet step); ct3pack.py reads CT3P
 - 2026-11-10 20:12 `alyssapan/iop/fsys_server.cpp` done: Host FSYS_IOP file server (iop::FsysServer) on io::Disc, registered when FSYS_IOP.IRX loads: SUNA answers a loose file's size and first sector
-- 2026-11-10 19:50 `game/wideXcmd_DebugPrint.c` partial: slice 9: the ground key-table entries -- standing, walking, running and the run stop (iRunCount), the move end, crouching and crawling (KEY_MAP_HIDE is the crou
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
@@ -144,10 +144,10 @@ Recent sessions:
 | `game/tiAvoidObject.c` | todo | 0/7/82 | 30.5 | 27 | 4 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/ssHitCheckAttackToScn.c` | todo | 0/5/37 | 32.0 | 22 | 3 |
-| `game/asEyeForcusUP2CamMat.c` | partial | 18/3/30 | 23.6 | 20 | 3 |
-| `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
 | `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
+| `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
 | `game/asUseArrow.c` | todo | 0/6/11 | 6.4 | 16 | 1 |
+| `game/asEyeForcusUP2CamMat.c` | partial | 26/2/30 | 23.6 | 15 | 2 |
 
 ## Frontier (called by reconstructed code, not written yet)
 

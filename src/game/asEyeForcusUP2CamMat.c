@@ -3,6 +3,8 @@
 // it, camera_view / camera_main run it each frame, asChangeViewMatrix_forTheBank selects a bank's view.
 // Slice 1 (2026-11-10): the view builder, the bank switch, init / destroy, the cut entry; the cut's
 // destination search (CamChangeSub, asGetDestination*) and the per-frame camera are still stubs.
+// Slice 2 (2026-11-10): the per-frame camera (camera_view, camera_view0), the move step, the cut by part
+// hash and its stock; asGetDestinationEYE and camera_main are still stubs.
 
 #include <float.h>
 #include <math.h>
@@ -11,10 +13,13 @@
 #include "common/alyssapan_stub.h"
 #include "game/asEyeForcusUP2CamMat.h"
 #include "ga/gaInit3dlib.h"
+#include "ga/gaSinCos.h"
+#include "game/LinkMatrixTree.h"
 #include "game/QuatSlerp.h"
 #include "game/ahRelocateSunPs2ObjectArry.h"
 #include "game/fileio.h"
 #include "game/main.h"
+#include "game/main2.h"
 #include "game/ssGrpPortalCheck.h"
 #include "game/unassigned_data.h"
 #include "game/wideXcmd_DebugPrint.h"
@@ -28,14 +33,32 @@ int iSm;                                    /* sbss 0x0193cefc */
 char szCamModeAdd[64];                      /* sbss 0x0193d010 */
 alignas(16) float NDAlyssaPos[4];           /* sbss 0x0193d090 */
 int iCameraMode;                            /* sbss 0x0193d0a0 */
-alignas(16) float CameraAngle[4];           /* sbss 0x0193d0c0 */
+alignas(16) int CameraAngle[4];             /* sbss 0x0193d0c0 */
 float FOV_deg;                              /* sbss 0x01941830 */
 float ZelCam[6];                            /* sbss 0x01941880 */
 u_char CameGri_Mode;                        /* sbss 0x019418a8 */
-int CamStock[6];                            /* sbss 0x019418b0 */
+alignas(8) int CamStock[6];                 /* sbss 0x019418b0 */
 u_char *lpCopyMP[35];                       /* sbss 0x0193cf80 */
+int iNeoCameraLock;                         /* sbss 0x0193cf00 */
+char CameraError;                           /* sbss 0x0193cf04 */
+float NDAlissaEyeHeight = CAMERA_EYE_HEIGHT_INIT; /* sdata 0x01938764 */
+float NDCameraBehind = CAMERA_BEHIND_INIT;  /* sdata 0x01938768 */
+alignas(16) int NDCameraAngle[4];           /* sbss 0x0193d070 */
+float CameGri_dvsZ;                         /* sbss 0x01941898 */
+float CameGri_dvsX;                         /* sbss 0x0194189c */
+u_int CameGri_DU;                           /* sbss 0x019418a0 */
+u_int CameGri_DR;                           /* sbss 0x019418a4 */
+CAM_QUAKE CamQuake[CAM_QUAKE_AXES];         /* sbss 0x0193cf10 */
 
-#define CAMSTOCK_RESET 2                    /* CamStock[2]: -1 at init and on every cut change */
+// vmulax / vmadday / vmaddaz / vmaddw.xyzw: out = v.x m[0] + v.y m[1] + v.z m[2] + v.w m[3] (out may be v).
+static void ApplyMatrixXYZW(float *out, float (*m)[4], const float *v)
+{
+    float r[4];
+    for (int k = 0; k < 4; k++)
+        r[k] = m[0][k] * v[0] + m[1][k] * v[1] + m[2][k] * v[2] + m[3][k] * v[3];
+    memcpy(out, r, sizeof(r));
+}
+
 
 // vmul / vaddy / vaddz, vrsqrt, vmulq.xyz: xyz by 1 / |xyz| (the VU's RSQRT of 0 is the largest float).
 static void NormalizeXYZ(float *v)
@@ -118,6 +141,57 @@ void asCameraPositionTranserUP(int step, float *out, const float *from, const fl
     out[1] = v[1];
     out[2] = v[2];
     out[3] = v[3];
+}
+
+// CT3 0x01883fd0
+// One frame of a camera point's move from `from` toward `to`: speed 0 jumps, -1 leaves it; else it moves
+// (ticks / 5) * 15 * (1 + cos(180 + half the distance, in degrees, at most 180)) / 2 * (20 / speed)
+// along the line, and lands on `to` once half the distance is under that step.
+void asCameraPositionTranser(int speed, float *out, const float *to, const float *from)
+{
+    alignas(16) float d[4];
+    float len2, q, half, step, ticks;
+    u_int angle;
+
+    if (speed == 0) {
+        memcpy(out, to, 4 * sizeof(float));
+        return;
+    }
+    if (speed == -1)
+        return;
+    d[0] = to[0] - from[0];                 // vsub.xyz: w stays to's
+    d[1] = to[1] - from[1];
+    d[2] = to[2] - from[2];
+    d[3] = to[3];
+    len2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+    q = len2 > 0.0f ? 1.0f / sqrtf(len2) : FLT_MAX;     // vrsqrt; then vdiv 1 / q: the length
+    d[0] *= q;
+    d[1] *= q;
+    d[2] *= q;
+    half = (1.0f / q) / 2.0f;
+    if (half < 180.0f)
+        angle = (u_int)(int)((half * 180.0f) / 180.0f) & 0xffff;
+    else
+        angle = 180;
+    ticks = gGlobalNextTicksInterval < 0 ? 0.0f : (float)gGlobalNextTicksInterval / 5.0f;
+    step = ((15.0f * ticks) * (1.0f + ahCos((int)(((float)(int)(angle + 180) * 65536.0f) / 360.0f) & 0xffff))) /
+           2.0f * (20.0f / (float)speed);
+    if (half < step) {
+        memcpy(out, to, 4 * sizeof(float));
+        return;
+    }
+    for (int k = 0; k < 4; k++)             // vmulx.xyzw, vadd.xyzw
+        out[k] = from[k] + d[k] * step;
+}
+
+// CT3 0x01884610
+// End camera cam's cut move: the cut's eye / target kinds take over, the move clock and the focal blend stop.
+void asCamModeChange(int cam)
+{
+    Cam[cam].eyeMode = Cam[cam].eyeKind;
+    Cam[cam].trgMode = Cam[cam].trgKind;
+    Cam[cam].moveTime = 0;
+    Cam[cam].focalMoving = 0;
 }
 
 // CT3 0x018841f0
@@ -409,7 +483,7 @@ int CamChangeSub(int cam)
     memcpy(c->focusFrom, c->focus, sizeof(c->focusFrom));
     memcpy(c->upFrom, c->up, sizeof(c->upFrom));
     c->focal[1] = c->focal[0];
-    c->b17f = 1;
+    c->focalMoving = 1;
     c->cuts = *(const u_int *)(ctrl + CAM_CTRL_CUTS);
     c->targets = *(const u_int *)(ctrl + CAM_CTRL_TARGETS);
     c->ctrlList = *(const u_int *)(ctrl + OBJ_CTRL_LIST);
@@ -423,7 +497,7 @@ int CamChangeSub(int cam)
             DrawMode = DRAW_MODE_DOF;
         }
     }
-    c->b181 = rec[CAM_CUT_1B];
+    c->moveSpeed = rec[CAM_CUT_MOVE_SPEED];
     c->eyeKind = rec[CAM_CUT_EYE_KIND];
     if (rec[CAM_CUT_TRG_MODE] == CAM_TRG_MODE_NONE) {
         if (c->eyeKind == CAM_EYE_KIND_1 || c->eyeKind == CAM_EYE_KIND_6)
@@ -483,14 +557,14 @@ int CamChange_S(int cam, short cut, u_char mode, int arg)
         SkipMain += CAMERA_FIRST_CUT_SKIP;
     }
     c = &Cam[id];
-    c->b17a = 0xff;
-    c->b17c = 0xff;
-    c->changeArg = arg;
-    c->w164 = 0;
+    c->eyeMode = 0xff;
+    c->trgMode = 0xff;
+    c->moveTicks = arg;
+    c->moveTime = 0;
     c->bank = cam;
     c->cut = cut;
     c->changeMode = mode;
-    CamStock[CAMSTOCK_RESET] = -1;
+    CamStock[CAMSTOCK_BANK] = -1;
     return CamChangeSub(cam);
 }
 
@@ -514,8 +588,8 @@ void camera_init0(int cam, int mode)
         if (i < 0 || i >= CAMERA_MAX)       // PORT: the ROM would write past Cam[] (no caller does)
             break;
         c = &Cam[i];
-        c->b17c = asCheckBankType(i) == 0 ? 4 : 0xff;
-        c->b17a = 0xff;
+        c->trgMode = asCheckBankType(i) == 0 ? 4 : 0xff;
+        c->eyeMode = 0xff;
         for (int k = 0; k < 3; k++) {
             float *e = k == 0 ? c->eye : k == 1 ? c->eyeFrom : c->eyeTo;
             float *f = k == 0 ? c->focus : k == 1 ? c->focusFrom : c->focusTo;
@@ -525,10 +599,10 @@ void camera_init0(int cam, int mode)
             u[0] = 0.0f, u[1] = 1.0f, u[2] = 0.0f, u[3] = 0.0f;
         }
         c->focal[0] = c->focal[1] = c->focal[2] = c->focal[3] = CAMERA_FOCAL_INIT;
-        c->b17f = 0;
+        c->focalMoving = 0;
         c->b182 = 0;
-        c->changeArg = 0;
-        c->w164 = 0;
+        c->moveTicks = 0;
+        c->moveTime = 0;
         memset(c->view, 0, sizeof(c->view));    // vf0 and its vmr32 rotations: the identity
         c->view[0][0] = c->view[1][1] = c->view[2][2] = c->view[3][3] = 1.0f;
         c->bank = -1;
@@ -539,7 +613,7 @@ void camera_init0(int cam, int mode)
         if (asCheckBankType(i) != 0)
             TheFirstChangeCamera = 0;
         c->dofLevel = CAM_DOF_NONE;
-        c->b181 = 0;
+        c->moveSpeed = 0;
         if (asCheckBankType(i) != 0) {
             ZelCam[4] = 0.0f;
             ZelCam[0] = 400.0f;
@@ -566,7 +640,7 @@ void camera_init(void)
 {
     AlissaEyeHeight = CAMERA_EYE_HEIGHT_INIT;
     CameraBehind = CAMERA_BEHIND_INIT;
-    CameraAngle[0] = CameraAngle[1] = CameraAngle[2] = CameraAngle[3] = 0.0f;
+    CameraAngle[0] = CameraAngle[1] = CameraAngle[2] = CameraAngle[3] = 0;
     iCameraMode = 0;
     szCamModeAdd[0] = '\0';
     FOV_deg = CAMERA_FOV_DEG_INIT;
@@ -575,7 +649,396 @@ void camera_init(void)
     CameGri_Mode = 0xff;
     iSm = 0;
     camera_init0(-1, 0);
-    CamStock[CAMSTOCK_RESET] = -1;
+    CamStock[CAMSTOCK_BANK] = -1;
+}
+
+// CT3 0x01886b70
+// Cut bank's camera to the cut whose eye is the bank part named `hash`: -1 when the bank is not loaded
+// and drawn yet (the request is stocked in CamStock and camera_view retries it each frame), else as
+// CamChange_S (CAMERA_CHANGE_NONE without a bank, CAMERA_CHANGE_SAME_CUT, or CamChangeSub's answer).
+int CamChange_Hash_S_Hash(int bank, u_long hash, short mode, int arg)
+{
+    CAMERA *c;
+    short cut;
+
+    if (bank == -1)
+        return CAMERA_CHANGE_NONE;
+    if (BankInfo[bank].state != BANK_STATE_LOADED || BankInfo[bank].drawOn != DRAW_BANK_ON) {
+        memcpy(&CamStock[CAMSTOCK_HASH], &hash, sizeof(hash));
+        CamStock[CAMSTOCK_BANK] = bank;
+        CamStock[CAMSTOCK_ARG] = arg;
+        CamStock[CAMSTOCK_MODE] = mode;
+        return -1;
+    }
+    c = &Cam[asCheckBankID(bank)];
+    cut = asFindCamera(bank, hash);
+    if (cut == c->cut && bank == c->bank)
+        return CAMERA_CHANGE_SAME_CUT;
+    c->eyeMode = 0xff;
+    c->trgMode = 0xff;
+    c->moveTicks = arg;
+    c->moveTime = 0;
+    c->bank = bank;
+    c->cut = cut;
+    c->changeMode = (u_char)mode;
+    CamStock[CAMSTOCK_BANK] = -1;
+    return CamChangeSub(bank);
+}
+
+// CT3 0x01886cf0
+// The cut of bank's camera whose eye is the bank part named `hash` (cuts on a character skipped), -1
+// when the bank is not loaded or no cut has it.
+short asFindCamera(int bank, u_long hash)
+{
+    const u_char *ctrl, *cuts;
+    const MODEL_PARTS *parts;
+    short i;
+
+    if (BankInfo[bank].state != BANK_STATE_LOADED)
+        return -1;
+    ctrl = (const u_char *)BankEePtr(bank, All_table_TBL[bank]->ctrl);
+    cuts = (const u_char *)BankEePtr(bank, *(const u_int *)(ctrl + CAM_CTRL_CUTS));
+    parts = (const MODEL_PARTS *)BankEePtr(bank, All_table_TBL[bank]->partsHeader);
+    for (i = 0; i < (short)ctrl[CAM_CTRL_CUT_COUNT]; i++) {
+        const u_char *rec = cuts + i * CAM_CUT_SIZE;
+        if (rec[CAM_CUT_ON_CHARA] == 0 && parts[*(const u_short *)(rec + CAM_CUT_PART)].hash == hash)
+            return i;
+    }
+    return -1;
+}
+
+// CT3 0x01886f30
+// CamChange_S from a request record, without the first-cut skip.
+int CamChange(CAM_CHANGE *req)
+{
+    int cam = req->bank;
+    CAMERA *c;
+
+    if (cam < 0)
+        return CAMERA_CHANGE_NONE;
+    c = &Cam[asCheckBankID(cam)];
+    if (req->cut == c->cut && cam == c->bank)
+        return CAMERA_CHANGE_SAME_CUT;
+    c->eyeMode = 0xff;
+    c->trgMode = 0xff;
+    c->moveTicks = req->arg;
+    c->moveTime = 0;
+    c->bank = cam;
+    c->cut = req->cut;
+    c->changeMode = req->mode;
+    CamStock[CAMSTOCK_BANK] = -1;
+    return CamChangeSub(cam);
+}
+
+// CT3 0x01887040
+// Keep every camera's view as view2 and its live focal length as focal[3] before camera_view moves
+// them: the drawing view (asChangeViewMatrix_forTheBank) is the one built the frame before.
+void asCopyCameraMatrix(void)
+{
+    for (int i = 0; i < CAMERA_MAX; i++) {
+        memcpy(Cam[i].view2, Cam[i].view, sizeof(Cam[i].view2));
+        Cam[i].focal[3] = Cam[i].focal[0];
+    }
+}
+
+// a = a * w + b * rest on xyz (vmulx.xyz, vadd.xyz: a keeps its w).
+static void BlendXYZ(float *a, const float *b, float w, float rest)
+{
+    for (int k = 0; k < 3; k++)
+        a[k] = a[k] * w + b[k] * rest;
+}
+
+// CT3 0x01885d20
+// One frame of camera cam (a loaded bank with a cut): the projection from the live focal length, the
+// move clock, the eye / focus / up the eye and target kinds ask for (asGetDestinationEYE / _TRG; during
+// the cut's move the cut's own kinds, blended from the *From set over moveTicks), the *To set from them
+// (kind CAM_EYE_KIND_ORBIT keeps the eye in ZelCam's range), the live set moved toward it at moveSpeed,
+// and the view matrix.
+void camera_view0(int cam)
+{
+    CAMERA *c = &Cam[cam];
+    alignas(16) float eye[4], focus[4], up[4];
+    float focal, w, rest;
+    int eyeKind, trgKind, speed = 0;
+
+    if (c->bank < 0 || BankInfo[c->bank].state != BANK_STATE_LOADED || c->cut < 0 || c->cuts == 0)
+        return;
+    screen_0[SCREEN_PROJ_DIST] = asFocalLength_LEICA2PS2(c->focal[0]);
+    if (gGlobalNextTicksInterval >= 0)
+        c->moveTime += gGlobalNextTicksInterval;
+    if ((s_char)c->eyeMode == (s_char)CAM_EYE_MODE_MOVE) {
+        trgKind = (s_char)c->trgKind;
+        eyeKind = (s_char)c->eyeKind;
+    } else {
+        trgKind = (s_char)c->trgMode;
+        eyeKind = (s_char)c->eyeMode;
+    }
+    memcpy(eye, c->eye, sizeof(eye));
+    memcpy(focus, c->focus, sizeof(focus));
+    memcpy(up, c->up, sizeof(up));
+    focal = c->focal[0];
+    if (asGetDestinationEYE(eyeKind, eye, focus, up, &focal, cam) == 1)
+        asGetDestinationTRG(trgKind, focus, cam);
+
+    if (c->moveTicks == 0) {
+        w = 1.0f;
+    } else {
+        if ((s_char)c->eyeMode != (s_char)CAM_EYE_MODE_MOVE)
+            w = 1.0f;
+        else if ((s_char)c->changeMode == CAM_CHANGE_MODE_EASE)
+            w = (1.0f - ahCos((int)(((float)(long long)c->moveTime * 32768.0f) / (float)c->moveTicks))) / 2.0f;
+        else
+            w = (float)(long long)c->moveTime / (float)c->moveTicks;
+        if (1.0f <= w)
+            w = 1.0f;
+    }
+    rest = 1.0f - w;
+    if ((s_char)c->trgMode == (s_char)CAM_EYE_MODE_MOVE) {
+        BlendXYZ(focus, c->focusFrom, w, rest);
+        BlendXYZ(eye, c->eyeFrom, w, rest);
+        BlendXYZ(up, c->upFrom, w, rest);
+        c->focal[2] = focal;
+        focal = rest * c->focal[1] + w * focal;
+    } else if (c->focalMoving == 1) {
+        if (c->moveTicks < c->moveTime) {
+            c->focalMoving = 0;
+            focal = c->focal[2];
+            c->focal[1] = c->focal[2];
+        } else {
+            focal = rest * c->focal[1] + w * c->focal[2];
+        }
+    } else {
+        c->focal[2] = focal;
+    }
+    c->focal[0] = focal;
+
+    switch ((s_char)c->eyeMode) {
+    case 0:
+    case 1:
+    case 3:
+    case 4:
+    case 5:
+    case 6:
+        memcpy(c->eyeTo, eye, sizeof(eye));
+        memcpy(c->focusTo, focus, sizeof(focus));
+        memcpy(c->upTo, up, sizeof(up));
+        speed = c->moveSpeed;
+        break;
+    case CAM_EYE_KIND_ORBIT: {
+        float d, keep;
+        memcpy(c->focusTo, focus, sizeof(focus));
+        memcpy(c->upTo, up, sizeof(up));
+        c->focusTo[1] += ZelCam[3];
+        c->eyeTo[1] = c->focusTo[1];
+        d = asVectorDistance2(c->focusTo, c->eyeTo);
+        keep = ZelCam[1];
+        if (ZelCam[1] <= d) {
+            keep = ZelCam[0];
+            if (d <= ZelCam[0])
+                keep = d;
+        }
+        for (int k = 0; k < 3; k++)         // vsub.xyz, vmulx, vadd.xyz: w stays focusTo's
+            c->eyeTo[k] = c->focusTo[k] + (c->eyeTo[k] - c->focusTo[k]) * (keep / d);
+        c->eyeTo[3] = c->focusTo[3];
+        c->focusTo[1] -= ZelCam[3];
+        speed = c->moveSpeed;
+        break;
+    }
+    case (s_char)CAM_EYE_MODE_MOVE:
+        memcpy(c->eye, eye, sizeof(eye));
+        memcpy(c->focus, focus, sizeof(focus));
+        memcpy(c->up, up, sizeof(up));
+        if (c->moveTicks <= c->moveTime) {
+            memcpy(c->eyeTo, eye, sizeof(eye));
+            memcpy(c->focusTo, focus, sizeof(focus));
+            memcpy(c->upTo, up, sizeof(up));
+            asCamModeChange(cam);
+        }
+        speed = -1;
+        break;
+    default:
+        break;
+    }
+    asCameraPositionTranser(speed, c->eye, c->eyeTo, c->eye);
+    asCameraPositionTranser(speed, c->focus, c->focusTo, c->focus);
+    asCameraPositionTranserUP(speed, c->up, c->upTo, c->up);
+    asEyeForcusUP2CamMat(asFocalLength_LEICA2PS2(c->focal[0]), c->view, c->eye, c->focus, c->up);
+}
+
+// The stick's deflection past the dead zone, -1..1 (camera_view; 0 inside it).
+static float CameGriDeflection(u_int v, u_int lo, u_int hi)
+{
+    if (v < lo)
+        return (float)(int)(v - lo) / 128.0f;
+    if (hi < v)
+        return (float)(int)(v - hi) / 128.0f;
+    return 0.0f;
+}
+
+// camera_view's follow cameras (modes 0 / 1 and the ND camera): Cam[6].view is the turn
+// RotX(-angle[0]) . RotY(-angle[1]) with the translation of (-pos - eye height on y) turned, pushed back
+// `behind` on z; then the view is rebuilt through its position / right / up / front.
+static void CameraFollowView(const float *pos, float eyeHeight, const int *angle, float behind)
+{
+    CAMERA *c = &Cam[CAMERA_SHARED];
+    alignas(16) float m[4][4];
+    float t[4] = {-pos[0], -pos[1] - eyeHeight, -pos[2], 1.0f};
+    alignas(16) float p[4], r[4], u[4], f[4];
+
+    gaSetRotMatrixY(m, -angle[1]);
+    gaRotMatrixX(m, -angle[0], m);
+    ApplyMatrixXYZW(t, m, t);
+    t[2] += behind;
+    memcpy(c->view, m, sizeof(c->view));
+    c->view[3][0] += t[0];                  // vadd.xyz: w stays the turn's
+    c->view[3][1] += t[1];
+    c->view[3][2] += t[2];
+    asViewMatrix2PosRUF(&c->view[0][0], p, r, u, f);
+    asCamRUF2ViewMatrix(c->view, p, r, u, f);
+}
+
+// camera_view's scene-bank look-around: the stick (CameGri_Mode 0: pad[0]'s stick bytes 2 / 3, 1: bytes
+// 0 / 1, else centred) eases CameGri_dvsX / _dvsZ toward its deflection; the eye's forward axis turns by
+// CameGri_DU * dvsX about the view's up and CameGri_DR * dvsZ about its right, and the camera looks there.
+static void CameraLookAround(int id)
+{
+    CAMERA *c = &Cam[id];
+    float dx = 0.0f, dz = 0.0f, nx, ez;
+    alignas(16) float inv[4][4], rot[4][4];
+    alignas(16) float focus[4];
+
+    if ((s_char)CameGri_Mode >= 0) {
+        int dead = ((const s_char *)KEY_MAP)[KEY_MAP_STICK_DEAD_BYTE];
+        u_int lo = (u_int)(CAMERA_STICK_CENTER - dead) & 0xff;
+        u_int hi = (u_int)(CAMERA_STICK_CENTER + dead) & 0xff;
+        u_int sx = CAMERA_STICK_CENTER, sz = CAMERA_STICK_CENTER;
+        if (CameGri_Mode == 0) {
+            sx = pad[0].stick[2];
+            sz = pad[0].stick[3];
+        } else if (CameGri_Mode == 1) {
+            sx = pad[0].stick[0];
+            sz = pad[0].stick[1];
+        }
+        dx = CameGriDeflection(sx, lo, hi);
+        dz = CameGriDeflection(sz, lo, hi);
+    }
+    dx -= CameGri_dvsX;
+    nx = CameGri_dvsX + (1.0f - ahCos((int)(dx * 32768.0f))) * 0.25f * dx;
+    dz -= CameGri_dvsZ;
+    CameGri_dvsZ = CameGri_dvsZ + (1.0f - ahCos((int)(dz * 32768.0f))) * 0.25f * dz;
+    ez = (float)CameGri_DR * CameGri_dvsZ;
+    memcpy(inv, c->view, sizeof(inv));
+    CameGri_dvsX = nx;
+    gaInversMatrix(inv, inv);
+    asMakeRotMatrixByQuartanion(rot, inv[1], (int)((float)CameGri_DU * nx));
+    ApplyMatrixXYZW(inv[2], rot, inv[2]);
+    asMakeRotMatrixByQuartanion(rot, inv[0], (int)ez);
+    ApplyMatrixXYZW(inv[2], rot, inv[2]);
+    for (int k = 0; k < 4; k++)
+        focus[k] = c->eye[k] + inv[2][k];
+    asEyeForcusUP2CamMat(asFocalLength_LEICA2PS2(c->focal[0]), c->view, c->eye, focus, c->up);
+}
+
+// camera_view's shakes: each running CamQuake moves the eye along the view's right / up / forward axis
+// by amp * sin(time / period + phase), the amplitude ramped over fadeIn and fadeOut ticks.
+static void CameraQuake(int id)
+{
+    CAMERA *c = &Cam[id];
+    alignas(16) float pos[4], axis[CAM_QUAKE_AXES][4];
+
+    asViewMatrix2CamRUF(c->view, pos, axis[0], axis[1], axis[2]);
+    for (int k = 0; k < CAM_QUAKE_AXES; k++) {
+        CAM_QUAKE *q = &CamQuake[k];
+        float amp, s;
+        if (q->duration == 0)
+            continue;
+        if (q->time < q->fadeIn)
+            amp = q->amp * (float)q->time / (float)q->fadeIn;
+        else if ((int)q->time < (int)q->duration - (int)q->fadeOut)
+            amp = q->amp;
+        else
+            amp = q->amp * (float)((int)q->duration - (int)q->time) / (float)q->fadeOut;
+        // PORT: a 0 period would divide by zero (divu's answer is undefined on the EE): no sine then.
+        s = ahSin((q->period ? (int)((float)(q->time % q->period) * 65536.0f / (float)q->period) : 0) +
+                  q->phase);
+        for (int j = 0; j < 4; j++)
+            pos[j] += axis[k][j] * (amp * s);
+        q->time = (u_short)(q->time + gGlobalNextTicksInterval);
+        if (q->duration <= q->time) {
+            q->duration = 0;
+            q->time = 0;
+        }
+    }
+    asCamRUF2ViewMatrix(c->view, pos, axis[0], axis[1], axis[2]);
+}
+
+// CT3 0x018875d0
+// The frame's cameras: keep last frame's views (asCopyCameraMatrix), retry a stocked cut, run every
+// loaded bank's camera (camera_view0: the cut's move; a scene bank's also the look-around stick and the
+// shakes; a stopped scene bank's only once when b182 asks), make the shared camera the drawing view,
+// then iCameraMode's follow camera. CameraError: the unit view instead.
+void camera_view(void)
+{
+    int i;
+
+    if (CameraError != 0) {
+        memcpy(matrix_global_view, matUnit, sizeof(matrix_global_view));
+        return;
+    }
+    asCopyCameraMatrix();
+    if (CamStock[CAMSTOCK_BANK] >= 0) {
+        u_long hash;
+        memcpy(&hash, &CamStock[CAMSTOCK_HASH], sizeof(hash));
+        CamChange_Hash_S_Hash(CamStock[CAMSTOCK_BANK], hash, (short)CamStock[CAMSTOCK_MODE],
+                              CamStock[CAMSTOCK_ARG]);
+    }
+    for (i = 0; i < CAMERA_MAX; i++) {
+        // ROM: indexes Cam[] by the loop and BankInfo by that camera's bank (-1 at init: BankInfo[-1]).
+        if (Cam[i].bank < 0 || BankInfo[Cam[i].bank].state != BANK_STATE_LOADED)
+            continue;
+        if (asCheckBankType(i) == 0) {
+            camera_view0(i);
+        } else if (asCheckAnimationExecutable_Scene(Cam[i].bank) == 0) {
+            if (Cam[asCheckBankID(i)].b182 == 1) {
+                Cam[asCheckBankID(i)].b182 = 0;
+                camera_view0(i);
+            }
+        } else {
+            int id;
+            camera_view0(i);
+            id = asCheckBankID(i);
+            CameraLookAround(id);
+            if (CamQuake[0].duration != 0 || CamQuake[1].duration != 0 || CamQuake[2].duration != 0)
+                CameraQuake(asCheckBankID(i));
+        }
+    }
+    if (Cam[CAMERA_SHARED].bank != -1)
+        asChangeViewMatrix_forTheBank(CAMERA_SHARED);
+    switch (iCameraMode) {
+    case CAMERA_MODE_ND:
+        break;
+    case CAMERA_MODE_SCENE:
+        for (i = 0; i < CAMERA_MAX; i++) {
+            if (Cam[i].cut < 0 && asCheckBankType(i) != 0 && idCurrentScene > GLOBAL_BANK_LAST &&
+                BankInfo[idCurrentScene].state == BANK_STATE_LOADED &&
+                BankInfo[idCurrentScene].drawOn != 0 &&
+                ((const u_char *)BankEePtr(idCurrentScene,
+                                           All_table_TBL[idCurrentScene]->ctrl))[CAM_CTRL_CUT_COUNT] != 0) {
+                CAM_CHANGE req = {0, idCurrentScene, 0, 1, 0};
+                CamChange(&req);
+            }
+        }
+        if (iNeoCameraLock == 0)
+            return;
+        break;
+    case CAMERA_MODE_FOLLOW1:
+    case CAMERA_MODE_FOLLOW:
+        CameraFollowView((const float *)Character[0].pos, AlissaEyeHeight, CameraAngle, CameraBehind);
+        return;
+    default:
+        return;
+    }
+    CameraFollowView(NDAlyssaPos, NDAlissaEyeHeight, NDCameraAngle, NDCameraBehind);
 }
 
 // ---- stubs (tools/reverse/stubgen.py) ----
@@ -586,11 +1049,7 @@ void camera_main(PAD_DATA *pad, int mode)
     ALYSSAPAN_STUB("camera_main", 0x018881a0);
 }
 
-// stub of CT3 0x018875d0
-void camera_view(void)
-{
-    ALYSSAPAN_STUB("camera_view", 0x018875d0);
-}
+
 
 
 // stub of CT3 0x01884f50
