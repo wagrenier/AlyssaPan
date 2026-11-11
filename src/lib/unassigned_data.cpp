@@ -173,6 +173,11 @@ char fShadeOff;                                 /* sbss 0x0193f750 */
 int fKeepScreen;                                /* sbss 0x0193f754 */
 int Clipping_System;                            /* sbss 0x01940eac */
 int nowShadeOffFrame;                           /* sbss 0x01942944 */
+int ShadeOffFrame;                              /* sbss 0x01942940 */
+char ShadeOff_CapLevel;                         /* sbss 0x0193f758 */
+float ShadeOff_SlidePixel;                      /* sbss 0x0193f75c */
+u_char ShadeOff_Level;                          /* sbss 0x0193f760 */
+u_char XFade_Type;                              /* sbss 0x01942958 */
 int FadeEndTicks;                               /* sbss 0x01942948 */
 int FadeStartTicks;                             /* sbss 0x0194294c */
 int XfadeStartTicks;                            /* sbss 0x01942954 */

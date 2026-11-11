@@ -151,6 +151,11 @@ extern char fShadeOff;                          /* sbss 0x0193f750 */
 extern int fKeepScreen;                         /* sbss 0x0193f754 */
 extern int Clipping_System;                     /* sbss 0x01940eac */
 extern int nowShadeOffFrame;                    /* sbss 0x01942944 */
+extern int ShadeOffFrame;                       /* sbss 0x01942940: the shade-off's length in frames */
+extern char ShadeOff_CapLevel;                  /* sbss 0x0193f758: SHADE_OFF_LEVELS - the level argument */
+extern float ShadeOff_SlidePixel;               /* sbss 0x0193f75c */
+extern u_char ShadeOff_Level;                   /* sbss 0x0193f760: the level argument x 4 */
+extern u_char XFade_Type;                       /* sbss 0x01942958: the cross-fade's kind (XFADE_TYPE_*) */
 extern int FadeEndTicks;                        /* sbss 0x01942948: a fade is over once FadeStartTicks reaches it */
 extern int FadeStartTicks;                      /* sbss 0x0194294c */
 extern int XfadeStartTicks;                     /* sbss 0x01942954 */

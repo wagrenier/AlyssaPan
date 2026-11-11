@@ -49,7 +49,11 @@ typedef struct CHARACTER {
     qword refractAxis;                  /* 0x4b0: asUpdateAnimation_Matrix, for a refracting shadowed
                                            character: row 1 of part CHARA_AXIS_HASH_ROW1's world matrix,
                                            else row 2 of part CHARA_AXIS_HASH_ROW2's, else (0, 0, 0, 1) */
-    u_char pad4c0[0x520 - 0x4c0];
+    u_char pad4c0[0x4e0 - 0x4c0];
+    qword strikeFrom;                   /* 0x4e0: where a boss's scripted strike comes from (CHARA_BOSS_STRIKE,
+                                           wideXcmd_DebugPrint.h; tiXcmd_CheckEarthquake: the source's pos at
+                                           the quake's first frame) */
+    u_char pad4f0[0x520 - 0x4f0];
     int keyTicks;                       /* 0x520: global ticks summed while the keys are enabled (asCharacterOperate) */
     int hp;                             /* 0x524: Character_All_Init: Char_Init_MAX_HP[i] */
     int hpMax;                          /* 0x528: Character_All_Init: Char_Init_MAX_HP[i] (which of the
@@ -73,6 +77,7 @@ static_assert(offsetof(CHARACTER, flagsPrev) == 0x8c, "CHARACTER.flagsPrev");
 static_assert(offsetof(CHARACTER, bank) == 0x002, "CHARACTER.bank");
 static_assert(offsetof(CHARACTER, refractAxis) == 0x4b0, "CHARACTER.refractAxis");
 static_assert(offsetof(CHARACTER, hp) == 0x524, "CHARACTER.hp");
+static_assert(offsetof(CHARACTER, strikeFrom) == 0x4e0, "CHARACTER.strikeFrom");
 static_assert(offsetof(CHARACTER, targetDot) == 0x0f0, "CHARACTER.targetDot");
 static_assert(offsetof(CHARACTER, targetState) == 0x0f4, "CHARACTER.targetState");
 static_assert(offsetof(CHARACTER, keyTicks) == 0x520, "CHARACTER.keyTicks");
@@ -97,7 +102,9 @@ static_assert(offsetof(CHARACTER, junc) == 0x570, "CHARACTER.junc");
 // The gHeapJunc block at CHARACTER.junc: only its buffer pointer (EE +0xc) is read so far (Character_All_Init
 // frees it, then the block). layout: host -- the EE's 0xc bytes before it are kept, the pointer is a host one.
 typedef struct CHARA_JUNC {
-    u_char pad00[0xc];
+    u_char pad00[4];
+    float ghostRange;                   /* EE 0x04: tiXcmd_SetPointForGhostArea's range */
+    u_int ghostPoint;                   /* EE 0x08: EE address (BankEeAddr) of the ghost area's part position */
     void *buf;                          /* EE 0x0c: a gHeapJunc block */
 } CHARA_JUNC;
 
@@ -454,7 +461,9 @@ typedef struct MODEL_PARTS {
     u_int flags;                        /* 0x50: PARTS_FLAG_* */
     short warpH54;                      /* 0x54: a warp onto this part (a marker) copies it to
                                            CHARACTER.h100 (ExecuteWarpObject) */
-    u_char pad056[0x9a];
+    u_char pad056[0x6a];
+    float initRot[3][4];                /* 0xc0: rows 0..2 of the part's initial placement, transInit its row 3
+                                           (tiXcmd_SetMapData copies the four rows into placeRot) */
     float transInit[4];                 /* 0xf0: the part's initial translation (asGetObjectTransInitialValue) */
     u_char pad100[0x20];
     float alpha;                        /* 0x120: the part's alpha: ALL_TABLE.partsPos w at AmbientAlphaInit */
@@ -491,6 +500,7 @@ static_assert(offsetof(MODEL_PARTS, flags43) == 0x43, "MODEL_PARTS.flags43");
 #define PARTS_FLAG43_WARPED 0x1         /* asWarpSceneObject placed the part (drawOnPos); its reader unread */
 #define PARTS_FLAG43_TRANS 0x2          /* asSetObjectTrans sets it with WARPED (3): its reader unread */
 static_assert(offsetof(MODEL_PARTS, matrix) == 0x1c0, "MODEL_PARTS.matrix");
+static_assert(offsetof(MODEL_PARTS, initRot) == 0x0c0, "MODEL_PARTS.initRot");
 
 // PanicInfoData (0x01940e50, 48 bytes): the player's panic state a save keeps whole. Fields by offset
 // (data_save_set / data_load_set copy them one by one; the load then ends any recovery: item -1, time 0).

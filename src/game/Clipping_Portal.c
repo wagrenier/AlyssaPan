@@ -227,3 +227,15 @@ void tiXFadeOut_Start(float time)
 {
     ALYSSAPAN_STUB("tiXFadeOut_Start", 0x0188d6e0);
 }
+
+// stub of CT3 0x018949c0
+void tiGetTransRotMatrix(float (*dst)[4], float *pos, float (*src)[4])
+{
+    ALYSSAPAN_STUB("tiGetTransRotMatrix", 0x018949c0);
+}
+
+// stub of CT3 0x01890ea0
+void tiHurikoReset_On(int bank, int id, int byChara)
+{
+    ALYSSAPAN_STUB("tiHurikoReset_On", 0x01890ea0);
+}

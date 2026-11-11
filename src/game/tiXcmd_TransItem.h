@@ -4,6 +4,26 @@
 
 #include "sdk/scetypes.h"
 
+// Slice 1 (2026-11-11): the patterns its commands use.
+#define PARTS_KIND_ITEM_LOCKED 1        /* MODEL_PARTS.kind: the item commands leave the part alone (the
+                                           kind's own meaning unread) */
+#define TI_ITEM_TRANS_MAX 100.0f        /* trans_add_value's top: the item comes this far toward the eye */
+#define TI_ITEM_CAMERA 0                /* tiXcmd_ItemCheckInit takes Cam[0]'s eye */
+#define CHARA_QUAKE_SOURCE 2            /* Character[2]: where tiXcmd_CheckEarthquake's quake starts */
+#define TI_QUAKE_SPEED_DIV 5.0f         /* the quake spreads argv[0] / 5 per tick */
+#define TI_QUAKE_RANGE_MAX 1000.0f      /* past this radius the quake is over unseen */
+#define BOSS_INFO_HIT_BACKS 0x9c        /* pBossInfo: float[6], tiXcmd_BOSS_SetHitBacks */
+#define BOSS_INFO_HIT_BACK_COUNT 6
+#define SHADE_OFF_LEVELS 9              /* ShadeOff_CapLevel = 9 - the level argument */
+#define SHADE_OFF_ON_ARGC_VAR 7         /* "ON" with 7 arguments: the frames are a variable */
+#define SHADE_OFF_OFF_ARGC_VAR 3        /* "OFF" with 3 arguments: the frames are a variable */
+#define KEEP_SCREEN_HOLD 0x1            /* fKeepScreen: "ON .. KEEP": the shaded screen is held */
+#define KEEP_SCREEN_RELEASE 0x4         /* fKeepScreen: "OFF": the shade-off ends */
+#define XFADE_TYPE_NONE 0               /* XFade_Type */
+#define XFADE_TYPE_PAUSE 1              /* the two kinds that reserved a pause (pause_reservation) */
+#define XFADE_TYPE_PAUSE2 3
+#define TRIG_EVENT_CAM_RESERVED 0x9b    /* global: a camera change is reserved (ChangeCam_Execute removes it) */
+
 // The x commands (ssXcmd_functions slots, ssTrigExecuteActCmd's command 0x514): declared with the
 // table's SS_XCMD shape (xcmd_tn.h) until this TU's session reads each one (2026-11-11).
 int tkXcmd_CharSceneChange(int argc, char **argv, int bank);                             // CT3 0x018e8d20

@@ -46,3 +46,10 @@ void tiPipeJointInit(int bank);                                                 
 void tiSet_CharaTranslucenceON(int chara, int level, int flag);                          // CT3 0x0188ded0
 void tiSet_CharaTranslucenceOFF(int chara, int flag);                                    // CT3 0x0188ddc0
 void tiXFadeOut_Start(float time);                                                       // CT3 0x0188d6e0
+
+// From tiXcmd_TransItem.c (2026-11-11). dst = src turned about the point pos (pos's translation out,
+// src, then back: two gaMulMatrix with matUnit + -pos / + pos rows).
+void tiGetTransRotMatrix(float (*dst)[4], float *pos, float (*src)[4]);                  // CT3 0x018949c0
+// Sets bit 2 of the pendulums (huriko) of bank `bank` whose id is `id` (0: all); byChara: `bank` is a
+// Character[] index and its bank is taken.
+void tiHurikoReset_On(int bank, int id, int byChara);                                    // CT3 0x01890ea0

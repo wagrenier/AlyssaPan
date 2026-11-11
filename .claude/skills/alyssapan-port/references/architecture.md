@@ -970,6 +970,35 @@ a strings' length u16, the table index, argc and argc C strings: ssXcmd_function
 bank) (0x0193a500, 256 distinct functions: wideXcmd_*, ssXcmd_*, tiXcmd_*, tkXcmd_*, tnXcmd_*, asXcmd_*,
 hhXcmd_*, aaXcmd_*, suXcmd_AnmDirection, RotateCamera / LockerCamera, PicPaz).
 
+
+## The ti x commands, game/tiXcmd_TransItem.c (2026-11-11, slice 1)
+
+0x018e0e80..0x018e90a0: tiXcmd_* with a few tkXcmd_* / wideXcmd_*, all ssXcmd_functions slots (argc,
+argv, bank) answering 1 when done. Statics (symtab LOCAL): trans_add_value 0x01944880, DirectToCamera
+0x01944870 (16), tiReserveTime / Type / CamID / Bank 0x01944888..0x01944894, CheckEarthquake's start$891 /
+Ticks$892.
+- **Item examination**: ItemCheckInit sets DirectToCamera = unit(Cam[0]'s eye - part.drawOnPos) (xyz;
+  asViewMatrix2PosRUF called with one stack qword for all four outputs: pos, written last, survives) and
+  zeroes trans_add_value; TransItem / OperateItem move drawOnPos along it, the sum clamped to 0..100. A part
+  of kind 1 is left alone (PARTS_KIND_ITEM_LOCKED, meaning unread). Both set flags43 bit 0.
+- **SetMapData** (the map screen's markers): CHARACTER +0xa0 (lightBank) is the character's room bank; its
+  MAP_B / MAP_D parts give the map's frame: offset = (chara.pos - MAP_B.pos, y 0) / argv[3] + this bank's
+  part named after the room (BankInfo name, 4 letters), turned by acos(z . unit(MAP_D - MAP_B)) about
+  z x that. MODEL_PARTS 0xc0..0xef are the initial placement rows (initRot; transInit row 3).
+- **CheckRange / CheckEarthquake** register global event 0x46 (TRIG_EVENT_BOSS_STRIKE) when the player is
+  within a part-to-part distance / within a radius growing at argv[0] / 5 per tick from Character[2]'s
+  pos copied to its +0x4e0 (CHARACTER.strikeFrom, = CHARA_BOSS_STRIKE). CheckRange also leaves the two
+  parts' EE record addresses in pSrcMPstock / pDstMPstock.
+- **ShadeOff**: "ON frames level slide depth KEEP|OFF [global]" / "OFF frames [global]" (argc 7 / 3: frames
+  from a variable); strings at 0x01936ce0 ("ON", "KEEP", "OFF"). ShadeOff_CapLevel = 9 - level,
+  ShadeOff_Level = depth << 2, fKeepScreen bits 1 (KEEP) / 4 (OFF).
+- **XFade_Break**: XFade_Type 1 or 3 had reserved a pause (pause_reservation cleared); then type, fXFade and
+  EffectBuffer_Use to 0. **ChangeCam_Execute** runs CamChange_S with the reserved four and removes global
+  event 0x9b. Free0..6, LightBeltStart / End are empty (Free1 / Free2 set / clear CHARACTER.translucent).
+- **Boss words**: SetHitBacks writes six floats at pBossInfo +0x9c; GetBloodAttackObject / SetWarp /
+  Init_SPAttack_SCISSORS_MAN store part addresses (EE words) and _SunAlloc'd lists at +0x130 / +0x134 /
+  +0x13c / +0x140 (+0xc4 the warp count); End_SPAttack frees with _SunFree(heap, &word) (it clears them).
+
 ## The IOP side (2026-11-09)
 
 The EE loads `cdrom0:\IOP\IOPRP255.IMG;1` (an IOP reboot), then `SIO2MAN`, `PADMAN`, `MCMAN`, `MCSERV`,

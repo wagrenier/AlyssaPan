@@ -1248,6 +1248,15 @@ apply here):
 
 ## Open questions
 
+- (2026-11-11, game/tiXcmd_TransItem.c slice 1) **The boss commands that store pointers in pBossInfo wait
+  for the boss TU's host form** (with (as) above): GetBloodAttackObject (+0x130 / +0x134: a part's EE
+  address), SetWarp (+0x13c: a _SunAlloc'd list of part addresses), Init / End / SPAttack_SCISSORS_MAN
+  (+0x140: a 0x70-byte record with two part lists at +0x24 / +0x28), BOSS_SetChain*, Balows2th (+0x10c /
+  +0x110 lists). They stay stubs; SetPointForGhostArea already writes an EE word (BankEeAddr) into the
+  junc record (CHARA_JUNC.ghostPoint) and CheckRange into pSrcMPstock / pDstMPstock, as the bank-data rule
+  (1 h) has it. Decide with the boss TU whether pBossInfo stays EE layout (then these are BankEeAddr words
+  too, plus the bank) or becomes a host struct.
+
 - (2026-11-10, host task `alyssapan/rendering/ui_canvas.cpp`, **blocked**) **The first screen has no 2D
   packet step to route to UiCanvas.** It is ATLD, the memory-card check ("Checking... Do not remove memory
   card..."; reference `ct3pack.py tex ATLD.BIN` -> `work/ref/ATLD/`), and its five objTrans entries are
