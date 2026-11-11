@@ -424,6 +424,12 @@ void UiCanvas::contrastFrame(const void *list, std::uint32_t rgba)
     fillFrame(target, BlendMode::Subtractive, rgba, 0);
 }
 
+void UiCanvas::fillColor(const void *list, std::uint32_t rgba, std::uint8_t fixedAlpha)
+{
+    std::scoped_lock lock(m_lock);
+    fillFrame(layer(list), BlendMode::FixedAlpha, rgba, fixedAlpha);
+}
+
 void UiCanvas::drawImage(const void *list, std::shared_ptr<Image> image, float x, float y)
 {
     std::scoped_lock lock(m_lock);

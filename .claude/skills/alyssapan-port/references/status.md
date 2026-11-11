@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-11 14:19 at commit `555835b` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-11 14:32 at commit `32c291d` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -98,9 +98,9 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 35, partial 4, verify 27, done 5, blocked 1
-- next: **alyssapan/rendering/ga_fill.cpp** (pinned in the queue)
-- pinned queue: alyssapan/rendering/ga_fill.cpp, game/Clipping_Portal.c, alyssapan/rendering/ui_canvas.cpp, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
+- 65 TUs: todo 34, partial 4, verify 27, done 6, blocked 1
+- next: **game/Clipping_Portal.c** (pinned in the queue)
+- pinned queue: game/Clipping_Portal.c, alyssapan/rendering/ui_canvas.cpp, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
 - partial: `game/Clipping_Portal.c` 11/73 -- Fade after ATLD is type 4 (OUT2_BLACK) reaching f 1; tiFade_Draw sends the ROM's GIF sprite packet, which the host drops, so the shot stays flat grey: host task
 - partial: `game/tiXcmd_TransItem.c` 85/93 -- Slice 10. Written: tiXcmd_UseItem (ITEM_USE_* modes from argv[4], ITEM_KIND_* from the row byte +0: give-take, signal, heal Character[0].hp up to hpMax, calm vi
 - partial: `game/wideXcmd_DebugPrint.c` 107/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed) -- the last function of the TU. New stubs
@@ -135,6 +135,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-11 14:32 `alyssapan/rendering/ga_fill.cpp` done: the fade draws: tiFade_Draw covers the whole window through AlyssaPan_DrawGaFill, black at 4:3 and wide where the shot was flat grey
 - 2026-11-11 14:19 `game/Clipping_Portal.c` partial: slice 1: vibration (tiVibrationOn / Off / Timer), wind (tiWindInit / Update / End / End_All), tiLightBelt2Init, tiFade_Start, tiFade_Draw, tiFactorial; WIND, LI
 - 2026-11-11 13:54 `alyssapan/rendering/ga_atld.cpp` done: ATLD draws as the game picks it: the memory-card text textured, centred, same size at 4:3 and 1280x540; the slot 2 wording is page 1 of a 10-page slide texture,
 - 2026-11-11 13:35 `game/xcmd_tn.c` verify: slice 5: the letterbox command (tnXcmd_VistaVision, its three statics and steps) and the key locks (tnXcmd_Key_Lock as per-stage rule tables); the TU code is co
@@ -142,7 +143,6 @@ Recent sessions:
 - 2026-11-11 12:55 `game/xcmd_tn.c` partial: slice 3: 11 x commands: the clear's points, control lock, screen adjust, omni lights and range, screen filter, movie buffers, puzzle start, current scene, textu
 - 2026-11-11 12:30 `game/tiXcmd_TransItem.c` partial: the item use command (UseItem)
 - 2026-11-11 12:08 `game/tiXcmd_TransItem.c` partial: reconstruct 2 functions: the script delay command and the boss second phase (Balows2th)
-- 2026-11-11 11:47 `game/tiXcmd_TransItem.c` partial: reconstruct 6 functions: part scale and rotation, scene animation skip to a variable, scope letters, caption flag, character room change
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
@@ -151,11 +151,11 @@ Recent sessions:
 | `game/CpDivideEECom.c` | todo | 0/10/18 | 3.3 | 80 | 10 |
 | `ga/gaDrawObject.c` | todo | 0/11/11 | 6.9 | 39 | 0 |
 | `game/tiAvoidObject.c` | todo | 0/7/82 | 30.5 | 27 | 4 |
-| `game/ssHitCheckAttackToScn.c` | todo | 0/6/37 | 32.0 | 23 | 3 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
-| `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
-| `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
+| `game/ssHitCheckAttackToScn.c` | todo | 0/6/37 | 32.0 | 23 | 3 |
 | `game/asUseArrow.c` | todo | 0/7/11 | 6.4 | 17 | 1 |
+| `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
+| `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
 | `ga/pad_button_read.c` | todo | 0/2/3 | 2.1 | 16 | 2 |
 | `game/tkXDTrg_GetSceneHash.c` | todo | 0/8/50 | 21.0 | 15 | 2 |
 

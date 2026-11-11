@@ -444,6 +444,16 @@ the TU map's evidence.
   failed". The trigger script picks the page (tnTrigTexFileSetPage); at frame 120 of a smoke run it shows
   page 1 (the check of slot 2 after slot 1: Character_Init.h MC_AUTO_NEXT_SLOT). **The reference for a
   paged part is the page the game picked, not the bank's level 0** (trans_04 is page 0).
+- **The full-screen fill (2026-11-11, host task `alyssapan/rendering/ga_fill.cpp`):** tiFade_Draw's
+  init_black / init_white are GIF A+D SPRITEs over the GS window 512 x 448 under ALPHA_1 (Cs - Cd) * FIX + Cd
+  (FIX = 128 x the fade's f). Host: `AlyssaPan_DrawGaFill(rgba, fix)` (alyssapan_drawga.h) records a fill in
+  the ga recorder's draw order (`GaMeshRecorder::recordFill`); DrawGaFrame turns it into
+  `UiCanvas::fillColor` (BlendMode::FixedAlpha over the whole frame, unsqueezed = the whole window at any
+  aspect). A fill also closes the frame as an object does (`nextField`), so a screen with only a fade on it
+  reaches the display. **The old flat 128 grey after ATLD was not a draw:** it showed only while no ga frame
+  was kicked at all (after ATLD's last object nothing closed a frame); with frames closing every field it is
+  black even with the fill left out (a probe run, 2026-11-11). What the present path shows when no frame
+  comes for a while is open (open-items.md).
 - **The x commands (2026-11-11, xcmd_tn.c slice 1):** the trigger script's command 0x514 in
   `ssTrigExecuteActCmd` (0x018d5450) reads a 2-byte length, an index byte and an argc byte, then argc
   NUL-terminated strings from ActData, and calls `ssXcmd_functions[index](argc, argv, bank)` (data

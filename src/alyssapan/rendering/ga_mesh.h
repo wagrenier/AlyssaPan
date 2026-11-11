@@ -51,6 +51,11 @@ public:
         std::shared_ptr<Image> image;
         std::uint64_t tex0 = 0;
         std::uint64_t clamp = 0;
+
+        // A full-screen fill (AlyssaPan_DrawGaFill) instead of a mesh: no vertices, its colour and FIX.
+        bool fill = false;
+        std::uint32_t fillRgba = 0;
+        std::uint8_t fillFix = 0;
     };
 
     // The texture the objects after it draw with (alyssapan_drawga.h AlyssaPan_DrawGaTexture): the ROM's
@@ -63,11 +68,17 @@ public:
     // Answers true when that happened (the caller draws lastFrame()).
     bool record(const AlyssaPanGaObject &object);
 
+    // A full-screen fill in draw order (alyssapan_drawga.h AlyssaPan_DrawGaFill); it closes a frame as an
+    // object does, so a screen with nothing but a fade still reaches the display.
+    bool recordFill(std::uint32_t rgba, int alphaFix);
+
     const std::vector<Mesh> &lastFrame() const { return m_last; }
 
 private:
     static void project(Mesh &mesh, const AlyssaPanGaObject &object);
     static void cull(Mesh &mesh);
+    // The first draw after a vblank: what was recorded becomes the last frame's. Answers whether it did.
+    bool nextField();
 
     std::vector<Mesh> m_frame;
     std::vector<Mesh> m_last;

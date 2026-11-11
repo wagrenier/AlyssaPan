@@ -113,16 +113,32 @@ void GaMeshRecorder::setTexture(std::shared_ptr<Image> image, std::uint64_t tex0
     m_clamp = clamp;
 }
 
+bool GaMeshRecorder::nextField()
+{
+    const std::uint64_t field = ee::Kernel::instance().interrupts().fieldCount();
+    if (field == m_field)
+        return false;
+    m_field = field;
+    m_last.swap(m_frame);
+    m_frame.clear();
+    return true;
+}
+
+bool GaMeshRecorder::recordFill(std::uint32_t rgba, int alphaFix)
+{
+    constexpr int kFixMax = 0xff; // ALPHA_1's FIX is a byte
+    const bool frameEnded = nextField();
+    Mesh mesh;
+    mesh.fill = true;
+    mesh.fillRgba = rgba;
+    mesh.fillFix = static_cast<std::uint8_t>(std::clamp(alphaFix, 0, kFixMax));
+    m_frame.push_back(std::move(mesh));
+    return frameEnded;
+}
+
 bool GaMeshRecorder::record(const AlyssaPanGaObject &object)
 {
-    bool frameEnded = false;
-    const std::uint64_t field = ee::Kernel::instance().interrupts().fieldCount();
-    if (field != m_field) {
-        m_field = field;
-        m_last.swap(m_frame);
-        m_frame.clear();
-        frameEnded = true;
-    }
+    const bool frameEnded = nextField();
     if (object.vertexCount <= 0 || object.positions == nullptr)
         return frameEnded;
 

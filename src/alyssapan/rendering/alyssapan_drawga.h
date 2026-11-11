@@ -96,4 +96,13 @@ struct AlyssaPanGaTexture
 
 void AlyssaPan_DrawGaTexture(const AlyssaPanGaTexture *texture);
 
+/* A flat colour over the whole screen, kept in draw order with the
+ * objects: where the ROM sends a full-window GIF SPRITE under a draw
+ * control of ALPHA_1 (Cs - Cd) * FIX + Cd (tiFade_Draw's init_black /
+ * init_white), the game calls this with the sprite's RGBA (r in the low
+ * byte, 0..255) and the FIX (0..128, 128 = the colour alone). The host
+ * covers the whole window at any aspect, not the 512 x 448 GS window.
+ * Added 2026-11-11 (host task alyssapan/rendering/ga_fill.cpp). */
+void AlyssaPan_DrawGaFill(uint32_t rgba, int alphaFix);
+
 #endif /* ALYSSAPAN_DRAWGA_H */

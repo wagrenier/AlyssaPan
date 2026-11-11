@@ -1221,6 +1221,19 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    ROM's; harmless: Off only stops motors); (hd) tiWindInit returns on a 0 list word (PORT guard: the ROM
    reads EE address 0); (he) tiVibrationOn's prototype is now (port, small, large, time): the callers'
    argument names (PanicSound's) stand.
+   **Host task ga_fill.cpp, done (2026-11-11, scheduled run): the fade draws.** tiFade_Draw calls
+   AlyssaPan_DrawGaFill (alyssapan_drawga.h) instead of sending init_black / init_white; the fill keeps draw
+   order with the ga objects and covers the whole window. Smoke run: frame 120 ATLD's text as before, frames
+   180..420 black edge to edge at 4:3 (683 x 512) and wide (1214 x 512 in 1280 x 540) where they were flat
+   128 grey. Open from it: (ia) the grey was no draw: it showed while no frame was kicked (nothing after
+   ATLD's last object closed a frame); a probe run with the fill left out is black too. Why a long gap
+   without kicks presents grey (the renderer says it shows the last frame again; the present and screenshot
+   passes load DONT_CARE: present_pass.cpp, screenshotter.cpp) is not read -- worth a look when a screen
+   stalls; (ib) the fade's draw control (PRMODE / TEST_1 / ALPHA_1 packet) is still built and sent as the ROM
+   does and dropped by the host; only its FIX reaches the fill. **Next blocker:** after the fade the run
+   tears the scene down (ssParticleDeInit, ssPartMotionBlurAllEnd stubs) and stops at the stub hhXcmd_LoadSE
+   with nothing more drawn: the next screen's load (the queue's game/Clipping_Portal.c rest, then the SE / load
+   x commands) comes next.
 
 ## Decisions
 

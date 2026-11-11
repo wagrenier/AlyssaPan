@@ -40,6 +40,9 @@ public:
     void scaleFrame(const void *list, float factor);
     // The whole frame pushed away from a colour: (Cd - Cs) * As + Cd, as ALPHA_1 0x41 does.
     void contrastFrame(const void *list, std::uint32_t rgba);
+    // The whole frame (the whole window, at any aspect) covered by a colour: (Cs - Cd) * FIX + Cd, FIX
+    // 0x80 = the colour alone. rgba's r in the low byte, 0..255.
+    void fillColor(const void *list, std::uint32_t rgba, std::uint8_t fixedAlpha);
     void begin(const void *list, int format);
     void addVertex(const void *list, const AlyssaPanUiVertex &vertex);
 

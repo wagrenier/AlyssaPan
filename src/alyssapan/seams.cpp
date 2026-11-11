@@ -177,6 +177,11 @@ void DrawGaFrame(const std::vector<alyssapan::rendering::GaMeshRecorder::Mesh> &
     ui.setRegister(list, kRegAlpha1, kGaAlphaBlend);
     ui.setRegister(list, kRegTex11, kGaTex1Linear);
     for (const GaMeshRecorder::Mesh &mesh : meshes) {
+        if (mesh.fill) {
+            // Over the whole window, not the GS's 512 x 448: the fill does not take the squeeze.
+            ui.fillColor(list, mesh.fillRgba, mesh.fillFix);
+            continue;
+        }
         const bool textured = mesh.image != nullptr;
         const int tfx = static_cast<int>(mesh.tex0 >> kTex0TfxShift) & kTex0TfxMask;
         const bool texelAlpha = (mesh.tex0 >> kTex0TccShift & 1) != 0;
@@ -224,6 +229,13 @@ void AlyssaPan_DrawGaObject(const AlyssaPanGaObject *object)
 {
     auto &recorder = alyssapan::rendering::GaMeshRecorder::instance();
     if (recorder.record(*object))
+        DrawGaFrame(recorder.lastFrame());
+}
+
+void AlyssaPan_DrawGaFill(uint32_t rgba, int alphaFix)
+{
+    auto &recorder = alyssapan::rendering::GaMeshRecorder::instance();
+    if (recorder.recordFill(rgba, alphaFix))
         DrawGaFrame(recorder.lastFrame());
 }
 
