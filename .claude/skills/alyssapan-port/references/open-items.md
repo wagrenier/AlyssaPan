@@ -1024,6 +1024,18 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    CHARACTER.h100: h100 is the character's room id); (e) TRIG_VAR_ROOM_ENTRY (0x20) is named from
    ssScnPortalCheck's one read (into CHARACTER.b102); (f) the ALL_TABLE.detectors and .groupPortals
    lists are guarded for a 0 word (PORT) -- the ROM reads EE address 0.
+   **Slice 3 (2026-11-11):** Trigger_main, ssTrigProcDetRecur, ssTrigProceedDetector,
+   ssTrigCheckDetector, CheckAxisAlignedBounds, CheckInsidePlanes, CheckContactSurface, the actor runners
+   (ssTrigRunActors, _RunActor, _ProceedActor, _CancelActor, _ExecuteActor), the waits
+   (ssTrigWaitByAnimFrame / _ForGlobal), ssTrigCheckRandom, ssTrigCheckSceneDraw, ssTrigGetCurActInfo.
+   Slice 2's (c) settled: header12 is numRoots (script -> roots), DET kind / body are numChildren /
+   children. Open from slice 3: (g) **ssTrigCheckConditions (0x018d7b70) and ssTrigExecuteActCmd
+   (0x018d5450) are stubs** (conditions answer 0, so no detector turns true; the command stub answers
+   "finished") -- the next slices, then ssTrigCheckInput, ssTrigCheckVariable, ssTrigLookAtCheck,
+   ssTrigAttackHitCheck, Trigger_reset; (h) CheckContactSurface's targets have no host form
+   (ContactTargetPart answers -1, with 1 (v) / (ac)); (i) TRIG_ACT_CMDS.wait / .step and TRIG_DETECTOR's
+   box / plane-volume fields are named from their starts and the shape readers only: ssTrigExecuteActCmd
+   confirms them; (j) the shape kind > 5 answers 0 (the ROM's switch has no default).
 
 ## Decisions
 

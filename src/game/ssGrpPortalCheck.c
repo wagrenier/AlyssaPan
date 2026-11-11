@@ -4,7 +4,9 @@
 // Slice 1 (2026-11-10): the event / variable API, the script byte readers, the enable checks,
 // InitTriggerDetectorShape, CheckRoomEntry and the portals (ProcessPortal, ssScnPortalCheck,
 // CheckPlaneEntry, ssGrpPortalCheck). Slice 2 (2026-11-10): Trigger_init / _deinit, TriggerGlobalInit,
-// the trigger block getters and readers, the delay-enable ring. Trigger_main is still a stub.
+// the trigger block getters and readers, the delay-enable ring. Slice 3 (2026-11-11): Trigger_main, the
+// detector walk (ssTrigProcDetRecur, ssTrigProceedDetector, ssTrigCheckDetector and its shapes), the
+// actor runners, the waits and the small checks; ssTrigCheckConditions and ssTrigExecuteActCmd are stubs.
 
 #include <math.h>
 #include <string.h>
@@ -19,6 +21,9 @@
 #include "game/sound.h"
 #include "game/ssSetTexUVforCubeMap.h"
 #include "game/unassigned_data.h"
+#include "game/LinkMatrixTree.h"
+#include "game/main.h"
+#include "game/main2.h"
 
 // ---- data (symtab names) -------------------------------------------------------------------------------
 short ssScnShiftCharList[PORTAL_CHARA_COUNT] = {0, 2, 3, 4, 5, 6};   // CT3 0x01939d68
@@ -41,6 +46,7 @@ static TRIG_DELAY_ENABLE *DlyEnaWork[BANK_MAX]; // CT3 0x01944080 (LOCAL, 344 by
 static u_short ssDERingFront[BANK_MAX];         // CT3 0x01943fd0 (LOCAL, 172 bytes)
 static u_short ssDERingRear[BANK_MAX];          // CT3 0x01943f20 (LOCAL, 172 bytes)
 static u_short numMaxDECount[BANK_MAX];         // CT3 0x01943e70 (LOCAL, 172 bytes)
+static TRIG_CUR_ACT curActInfo;                 // CT3 0x01943d60 (LOCAL, 8 bytes)
 
 // ---- portals -------------------------------------------------------------------------------------------
 
@@ -403,14 +409,14 @@ const u_char *ssTrigGetDetData(int bank)
 // CT3 0x018d96b0
 u_char ssTrigReadNumDeactivateCmd(const TRIG_ACT_WORK *act, int bank)
 {
-    int pos = (int)act->deactivatePos;
+    int pos = (int)act->cmds[ACT_CMDS_DEACTIVATE].pos;
     return ssTrigRead1Byte(&pos, ActData[bank]);
 }
 
 // CT3 0x018d96f0
 u_char ssTrigReadNumActivateCmd(const TRIG_ACT_WORK *act, int bank)
 {
-    int pos = (int)act->activatePos;
+    int pos = (int)act->cmds[ACT_CMDS_ACTIVATE].pos;
     return ssTrigRead1Byte(&pos, ActData[bank]);
 }
 
@@ -587,8 +593,8 @@ void Trigger_init(int bank)
     u_int numEvents = ssTrigRead2Byte(&pos, OthData[bank]);
     u_int numVars = ssTrigRead2Byte(&pos, OthData[bank]);
     u_int numDelay = ssTrigRead2Byte(&pos, OthData[bank]);
-    tw->header12 = (short)ssTrigRead2Byte(&pos, OthData[bank]);
-    tw->script = OthData[bank] + pos;
+    tw->numRoots = (short)ssTrigRead2Byte(&pos, OthData[bank]);
+    tw->roots = OthData[bank] + pos;
 
     if (tw->numDetectors != 0) {
         TRIG_DET_WORK *dw = (TRIG_DET_WORK *)_SunAlloc(&gHeapJunc,
@@ -605,8 +611,8 @@ void Trigger_init(int bank)
             d->actorsPos = ssTrigRead4Byte(&pos, DetData[bank]);
             d->numActors = ssTrigReadNumActors(d, bank);
             int body = (int)ssTrigRead4Byte(&pos, DetData[bank]);
-            d->kind = (short)ssTrigRead2Byte(&body, DetData[bank]);
-            d->body = DetData[bank] + body;
+            d->numChildren = (short)ssTrigRead2Byte(&body, DetData[bank]);
+            d->children = DetData[bank] + body;
         }
     }
 
@@ -618,10 +624,10 @@ void Trigger_init(int bank)
         for (int i = 0; i < tw->numActors; i++) {
             TRIG_ACT_WORK *a = &aw[i];
             a->state = 0;
-            a->activatePos = ssTrigRead4Byte(&pos, ActData[bank]);
-            a->numActivate = ssTrigReadNumActivateCmd(a, bank);
-            a->deactivatePos = ssTrigRead4Byte(&pos, ActData[bank]);
-            a->numDeactivate = ssTrigReadNumDeactivateCmd(a, bank);
+            a->cmds[ACT_CMDS_ACTIVATE].pos = ssTrigRead4Byte(&pos, ActData[bank]);
+            a->cmds[ACT_CMDS_ACTIVATE].num = ssTrigReadNumActivateCmd(a, bank);
+            a->cmds[ACT_CMDS_DEACTIVATE].pos = ssTrigRead4Byte(&pos, ActData[bank]);
+            a->cmds[ACT_CMDS_DEACTIVATE].num = ssTrigReadNumDeactivateCmd(a, bank);
         }
     }
 
@@ -650,10 +656,482 @@ void Trigger_init(int bank)
     }
 }
 
-// ---- stubs (tools/reverse/stubgen.py) ----
+// ---- the frame (Trigger_main) --------------------------------------------------------------------------
 
-// stub of CT3 0x018d4120
+// The scene banks' gate (0..5): drawn, not a behaviour bank, its animation not stopped.
+static int TrigSceneBankLive(int i)
+{
+    const BANK_INFO *b = &BankInfo[i];
+    return b->drawOn != 0 && b->type != FS_LOAD_BEHAVIOR && (b->flags & BANK_FLAG_ANIM_STOPPED) == 0;
+}
+
+// The other banks' gate (6..85): as the scene banks', except that a BANK_FLAG_DRAW_FIRST bank runs once
+// loaded (state > 0) whether drawn or not.
+static int TrigObjectBankLive(int i)
+{
+    const BANK_INFO *b = &BankInfo[i];
+    int live = (b->flags & BANK_FLAG_DRAW_FIRST) != 0 ? b->state > 0 : b->drawOn != 0;
+    return live && b->type != FS_LOAD_BEHAVIOR && (b->flags & BANK_FLAG_ANIM_STOPPED) == 0;
+}
+
+// The delay-enable pass's gate (both ranges): loaded rather than drawn.
+static int TrigDelayBankLive(int i)
+{
+    const BANK_INFO *b = &BankInfo[i];
+    return b->state > 0 && b->type != FS_LOAD_BEHAVIOR && (b->flags & BANK_FLAG_ANIM_STOPPED) == 0;
+}
+
+// Every running actor list of the bank one step on (the ROM inlines it in both passes).
+static void TrigProceedActors(int bank)
+{
+    u_short n = TrigWork[bank].numActors;
+    for (u_short i = 0; i < n; i++) {
+        const TRIG_ACT_WORK *a = &ActWork[bank][i];
+        if ((a->state & TRIG_RUN_ACTIVATE) != 0 && a->det[ACT_CMDS_ACTIVATE] != -1) {
+            ssTrigProceedActor(i, TRIG_RUN_ACTIVATE, bank);
+        }
+        if ((a->state & TRIG_RUN_DEACTIVATE) != 0 && a->det[ACT_CMDS_DEACTIVATE] != -1) {
+            ssTrigProceedActor(i, TRIG_RUN_DEACTIVATE, bank);
+        }
+    }
+}
+
+// The bank's delayed part switches, front to rear (the ring's ends as they stand before the walk).
+static void TrigExecDelayRing(int bank)
+{
+    u_int i = ssDERingFront[bank];
+    u_short rear = ssDERingRear[bank];
+    u_short count = numMaxDECount[bank];
+    while (i != rear) {
+        ssTrigExecDelayEnable((int)i, bank);
+        i = (i + 1) & 0xffff;
+        if (i == count) {
+            i = 0;
+        }
+    }
+}
+
+// CT3 0x018d4120
+// Once a frame (main): the scene banks' detectors, actors and delayed switches, then, unless the world
+// is paused, the other banks'. A bank that runs skips the rest of its group.
 void Trigger_main(void)
 {
-    ALYSSAPAN_STUB("Trigger_main", 0x018d4120);
+    for (int i = 0; i < BANK_SCENE_MAX; i++) {
+        if (TrigSceneBankLive(i) && DetData[i] != NULL) {
+            ssTrigProcDetRecur(TrigWork[i].numRoots, TrigWork[i].roots, i);
+            i += BankInfo[i].groupCount - 1;
+        }
+    }
+    for (int i = 0; i < BANK_SCENE_MAX; i++) {
+        if (TrigSceneBankLive(i) && ActData[i] != NULL) {
+            TrigProceedActors(i);
+            i += BankInfo[i].groupCount - 1;
+        }
+    }
+    for (int i = 0; i < BANK_SCENE_MAX; i++) {
+        if (TrigDelayBankLive(i) && DlyEnaWork[i] != NULL) {
+            TrigExecDelayRing(i);
+            i += BankInfo[i].groupCount - 1;
+        }
+    }
+    if ((pause != 0 && (pause & PAUSE_RUNNING) == 0) || pause_reservation != 0) {
+        return;
+    }
+    for (int i = BANK_SCENE_MAX; i < BANK_MAX; i++) {
+        if (TrigObjectBankLive(i) && DetData[i] != NULL) {
+            ssTrigProcDetRecur(TrigWork[i].numRoots, TrigWork[i].roots, i);
+            i += BankInfo[i].groupCount - 1;
+        }
+    }
+    for (int i = BANK_SCENE_MAX; i < BANK_MAX; i++) {
+        if (TrigObjectBankLive(i) && ActData[i] != NULL) {
+            TrigProceedActors(i);
+            i += BankInfo[i].groupCount - 1;
+        }
+    }
+    for (int i = BANK_SCENE_MAX; i < BANK_MAX; i++) {
+        if (TrigDelayBankLive(i) && DlyEnaWork[i] != NULL) {
+            TrigExecDelayRing(i);
+            i += BankInfo[i].groupCount - 1;
+        }
+    }
+    // callcheck: ssTrigProceedActor, ssTrigExecDelayEnable (in TrigProceedActors / TrigExecDelayRing,
+    // which the ROM inlines in both passes)
+}
+
+// ---- detectors -----------------------------------------------------------------------------------------
+
+// CT3 0x018d4710
+// Runs count detectors (ids: u_shorts) and their actors; a detector that is true runs its children.
+void ssTrigProcDetRecur(int count, const u_char *ids, int bank)
+{
+    int pos = 0;
+    for (int i = 0; i < count; i++) {
+        short det = (short)ssTrigRead2Byte(&pos, ids);
+        int run = ssTrigProceedDetector(det, bank);
+        if (run == TRIG_RUN_ACTIVATE) {
+            ssTrigRunActors(det, TRIG_RUN_ACTIVATE, bank);
+        } else if (run == TRIG_RUN_DEACTIVATE) {
+            ssTrigRunActors(det, TRIG_RUN_DEACTIVATE, bank);
+        }
+        const TRIG_DET_WORK *d = &DetWork[bank][det];
+        if (d->state == DET_STATE_TRUE && d->numChildren != 0) {
+            ssTrigProcDetRecur(d->numChildren, d->children, bank);
+        }
+    }
+}
+
+// CT3 0x018d88a0
+// The detector's new state (its shape, then its conditions) and what its actors do: a level detector
+// activates every frame it is true and deactivates every frame it is false; an edge detector only when
+// its state changes.
+int ssTrigProceedDetector(short det, int bank)
+{
+    TRIG_DET_WORK *d = &DetWork[bank][det];
+    if (d->actMode == DET_ACT_MODE_LEVEL) {
+        if (!ssTrigCheckDetector(det, bank) || !ssTrigCheckConditions(d, bank)) {
+            d->state = DET_STATE_FALSE;
+            return TRIG_RUN_DEACTIVATE;
+        }
+        d->state = DET_STATE_TRUE;
+        return TRIG_RUN_ACTIVATE;
+    }
+    if (!ssTrigCheckDetector(det, bank)) {
+        if (d->state == DET_STATE_TRUE) {
+            d->state = DET_STATE_FALSE;
+            return TRIG_RUN_DEACTIVATE;
+        }
+        return TRIG_RUN_NONE;
+    }
+    if (!ssTrigCheckConditions(d, bank)) {
+        if (d->state == DET_STATE_TRUE) {
+            d->state = DET_STATE_FALSE;
+            return TRIG_RUN_DEACTIVATE;
+        }
+    } else if (d->state == DET_STATE_FALSE) {
+        d->state = DET_STATE_TRUE;
+        return TRIG_RUN_ACTIVATE;
+    }
+    return TRIG_RUN_NONE;
+}
+
+// CT3 0x018d8580
+// The detector's shape: the byte after its act mode names the kind, then the character it watches and
+// the shapes' count; true as soon as one shape holds the character.
+int ssTrigCheckDetector(short det, int bank)
+{
+    TRIG_DET_WORK *d = &DetWork[bank][det];
+    const u_char *data = DetData[bank];
+    d->cursor = (int)d->actModePos + 1;
+    u_char kind = ssTrigRead1Byte(&d->cursor, data);
+    if (kind == DET_SHAPE_ALWAYS) {
+        return 1;
+    }
+    if (kind > DET_SHAPE_ALWAYS) {
+        return 0;
+    }
+    u_char chara = ssTrigRead1Byte(&d->cursor, data);
+    u_char count = ssTrigRead1Byte(&d->cursor, data);
+    for (int i = 0; i < count; i++) {
+        int hit;
+        switch (kind) {
+        case DET_SHAPE_BOX:
+            hit = CheckAxisAlignedBounds(bank, chara, (short)ssTrigRead2Byte(&d->cursor, data));
+            break;
+        case DET_SHAPE_PLANE_ENTRY:
+            hit = CheckPlaneEntry(bank, chara, (short)ssTrigRead2Byte(&d->cursor, data));
+            break;
+        case DET_SHAPE_INSIDE_PLANES:
+            hit = CheckInsidePlanes(bank, chara, (short)ssTrigRead2Byte(&d->cursor, data));
+            break;
+        case DET_SHAPE_ROOM:
+            hit = CheckRoomEntry(chara, ssTrigRead8Byte(&d->cursor, data));
+            break;
+        default:                    // DET_SHAPE_CONTACT
+            hit = CheckContactSurface((short)bank, chara, (short)ssTrigRead2Byte(&d->cursor, data));
+            break;
+        }
+        if (hit != 0) {
+            return hit;
+        }
+    }
+    return 0;
+}
+
+// CT3 0x018d3520
+// The character's position inside the detector's box (its centre moved by the part's matrix, its half
+// extents along the world axes). A hidden part holds nothing.
+int CheckAxisAlignedBounds(int bank, int chara, short part)
+{
+    MODEL_PARTS *parts = (MODEL_PARTS *)pModelPartsHeader[bank];
+    if ((parts[part].flags & PARTS_FLAG_HIDDEN) != 0) {
+        return 0;
+    }
+    u_int *list = BANK_PTR(u_int *, bank, All_table_TBL[bank]->detectors);
+    if (list == NULL) {
+        return 0;                   // PORT: the ROM would read EE address 0
+    }
+    float pos[4];
+    memcpy(pos, &Character[chara].pos, sizeof(pos));
+    for (int i = 0; list[i] != 0; i++) {
+        TRIG_DETECTOR *det = BANK_PTR(TRIG_DETECTOR *, bank, list[i]);
+        if (det->part != part) {
+            continue;
+        }
+        float (*m)[4] = BANK_PTR(float (*)[4], bank, det->matrix);
+        float c[4];
+        PortalTransform(c, m, det->centre);
+        for (int k = 0; k < 3; k++) {
+            if (!(fabsf(c[k] - pos[k]) < det->halfSize[k])) {
+                return 0;
+            }
+        }
+        return 1;
+    }
+    return 0;
+}
+
+// CT3 0x018d3bb0
+// The character's position behind every plane of the detector's volume (normals and points moved by the
+// part's matrix). A hidden part holds nothing.
+int CheckInsidePlanes(int bank, int chara, short part)
+{
+    MODEL_PARTS *parts = (MODEL_PARTS *)pModelPartsHeader[bank];
+    if ((parts[part].flags & PARTS_FLAG_HIDDEN) != 0) {
+        return 0;
+    }
+    float pos[4];
+    memcpy(pos, &Character[chara].pos, sizeof(pos));
+    u_int *list = BANK_PTR(u_int *, bank, All_table_TBL[bank]->detectors);
+    if (list == NULL) {
+        return 0;                   // PORT: the ROM would read EE address 0
+    }
+    for (int i = 0; list[i] != 0; i++) {
+        TRIG_DETECTOR *det = BANK_PTR(TRIG_DETECTOR *, bank, list[i]);
+        if (det->part != part) {
+            continue;
+        }
+        float (*m)[4] = BANK_PTR(float (*)[4], bank, det->matrix);
+        const TRIG_PLANE *planes = BANK_PTR(const TRIG_PLANE *, bank, det->normal);
+        const float (*points)[4] = BANK_PTR(const float (*)[4], bank, det->corners);
+        int point = 0;
+        for (int k = 0; k < det->numPlanes; k++) {
+            float n[4], q[4];
+            PortalTransform(n, m, planes[k].normal);
+            PortalTransform(q, m, points[point]);
+            float d = gaInnerProductXYZ(n, q);
+            if (!(gaInnerProductXYZ(n, pos) - d < 0.0f)) {
+                return 0;
+            }
+            point += planes[k].numPoints;
+        }
+        return 1;
+    }
+    return 0;
+}
+
+// The part a character's target stands on (the target object's +0x198 short), -1 for none. PORT: the
+// targets (CHARACTER.w300[0] / [1], CHARA_TARGET / CHARA_TARGET2 in wideXcmd_DebugPrint.h) are EE words
+// with no host form yet (open-items.md 1 (v), (ac)): the host answers -1 until their writer decides it.
+static int ContactTargetPart(u_int target)
+{
+    (void)target;
+    return -1;
+}
+
+// CT3 0x018d36f0
+// The character in the bank's light, touching the part through one of its two targets.
+int CheckContactSurface(short bank, int chara, short part)
+{
+    const CHARACTER *ch = &Character[chara];
+    if (bank != ch->lightBank) {
+        return 0;
+    }
+    if (ch->w300[0] != 0 && ContactTargetPart((u_int)ch->w300[0]) == part) {
+        return 1;
+    }
+    if (ch->w300[1] != 0 && ContactTargetPart((u_int)ch->w300[1]) == part) {
+        return 1;
+    }
+    return 0;
+}
+
+// ---- actors --------------------------------------------------------------------------------------------
+
+// CT3 0x018d7a90
+// Starts every actor of the detector (its u_short ids after the actor count) in mode.
+void ssTrigRunActors(short det, int mode, int bank)
+{
+    TRIG_DET_WORK *d = &DetWork[bank][det];
+    d->cursor = (int)d->actorsPos + 1;
+    u_char n = d->numActors;
+    for (int i = 0; i < n; i++) {
+        u_short actor = ssTrigRead2Byte(&d->cursor, DetData[bank]);
+        ssTrigRunActor(det, actor, (u_int)mode, bank);
+    }
+}
+
+// Rewinds an actor's command list to its first command.
+static void TrigRewindCmds(TRIG_ACT_CMDS *c)
+{
+    c->cursor = (int)c->pos + 1;
+}
+
+// CT3 0x018d79f0
+// Starts the actor's activate or deactivate list from its first command, on behalf of det.
+void ssTrigRunActor(short det, u_short actor, u_int mode, int bank)
+{
+    TRIG_ACT_WORK *a = &ActWork[bank][actor];
+    a->state |= mode;
+    if (mode == TRIG_RUN_DEACTIVATE || mode == TRIG_RUN_ACTIVATE) {
+        int k = mode == TRIG_RUN_DEACTIVATE ? ACT_CMDS_DEACTIVATE : ACT_CMDS_ACTIVATE;
+        a->det[k] = det;
+        TrigRewindCmds(&a->cmds[k]);
+        a->cmds[k].wait = -1;
+        a->cmds[k].step = 0;
+    }
+}
+
+// CT3 0x018d78f0
+// One step of the actor's list (curActInfo says which for the commands); a finished list rewinds and
+// stops running.
+void ssTrigProceedActor(u_short actor, int mode, int bank)
+{
+    curActInfo.bank = (short)bank;
+    curActInfo.mode = mode;
+    curActInfo.actor = actor;
+    TRIG_ACT_WORK *a = &ActWork[bank][actor];
+    int done = 1;
+    if (mode == TRIG_RUN_DEACTIVATE) {
+        done = ssTrigExecuteActCmd(&a->cmds[ACT_CMDS_DEACTIVATE], bank);
+    } else if (mode == TRIG_RUN_ACTIVATE) {
+        done = ssTrigExecuteActCmd(&a->cmds[ACT_CMDS_ACTIVATE], bank);
+    }
+    if ((char)done == 0) {
+        return;
+    }
+    if (mode == TRIG_RUN_DEACTIVATE) {
+        TrigRewindCmds(&a->cmds[ACT_CMDS_DEACTIVATE]);
+        a->state &= ~(u_int)TRIG_RUN_DEACTIVATE;
+    } else if (mode == TRIG_RUN_ACTIVATE) {
+        TrigRewindCmds(&a->cmds[ACT_CMDS_ACTIVATE]);
+        a->state &= ~(u_int)TRIG_RUN_ACTIVATE;
+    }
+}
+
+// CT3 0x018d9190
+// Stops the actor's list and rewinds it.
+void ssTrigCancelActor(u_short actor, int mode, int bank)
+{
+    TRIG_ACT_WORK *a = &ActWork[bank][actor];
+    if (mode == TRIG_RUN_DEACTIVATE) {
+        TrigRewindCmds(&a->cmds[ACT_CMDS_DEACTIVATE]);
+        a->state &= ~(u_int)TRIG_RUN_DEACTIVATE;
+    } else if (mode == TRIG_RUN_ACTIVATE) {
+        TrigRewindCmds(&a->cmds[ACT_CMDS_ACTIVATE]);
+        a->state &= ~(u_int)TRIG_RUN_ACTIVATE;
+    }
+}
+
+// CT3 0x018d9220
+// A script command that runs an actor to its end: the first call (*state == -1) starts it, each call
+// steps it; true (and *state back to -1) once the list has finished.
+int ssTrigExecuteActor(int *state, u_short actor, u_int mode, int bank)
+{
+    if (*state == -1) {
+        ssTrigRunActor(-1, actor, mode, bank);
+        *state = 1;
+    }
+    ssTrigProceedActor(actor, (int)mode, bank);
+    if ((mode & ActWork[bank][actor].state) != 0) {
+        return 0;
+    }
+    *state = -1;
+    return 1;
+}
+
+// CT3 0x018d9730
+void ssTrigGetCurActInfo(TRIG_CUR_ACT *out)
+{
+    *out = curActInfo;
+}
+
+// ---- waits and small checks ----------------------------------------------------------------------------
+
+// CT3 0x018d94c0
+// A wait on the global clock: the first call (*wait == -1) loads ticks, each later call takes this
+// frame's global ticks off; true (and *wait back to -1) once it has run out.
+int ssTrigWaitByAnimFrameForGlobal(int *wait, int ticks)
+{
+    if (*wait == -1) {
+        *wait = ticks;
+    } else {
+        *wait -= gGlobalNextTicksInterval;
+    }
+    int left = *wait;
+    if (left < 1) {
+        *wait = -1;
+    }
+    return left < 1;
+}
+
+// CT3 0x018d9510
+// The same on the scene clock (it stands while the world is paused).
+int ssTrigWaitByAnimFrame(int *wait, int ticks)
+{
+    if (*wait == -1) {
+        *wait = ticks;
+    } else {
+        *wait -= gNextTicksInterval;
+    }
+    int left = *wait;
+    if (left < 1) {
+        *wait = -1;
+    }
+    return left < 1;
+}
+
+// CT3 0x018d8e50
+// True with percent chances in a hundred.
+int ssTrigCheckRandom(int percent)
+{
+    return tnRand(100) < percent;
+}
+
+// CT3 0x018d89e0
+// A drawn bank whose name starts with the four characters of nameWord (compared as one word).
+int ssTrigCheckSceneDraw(int nameWord)
+{
+    for (int i = 0; i < BANK_MAX; i++) {
+        if (BankInfo[i].drawOn == 0) {
+            continue;
+        }
+        int word;
+        memcpy(&word, BankInfo[i].name, sizeof(word));
+        if (word == nameWord) {
+            return 1;
+        }
+        i += BankInfo[i].groupCount - 1;
+    }
+    return 0;
+}
+
+// ---- stubs (tools/reverse/stubgen.py) ----
+
+// stub of CT3 0x018d7b70
+int ssTrigCheckConditions(TRIG_DET_WORK *det, int bank)
+{
+    (void)det;
+    (void)bank;
+    ALYSSAPAN_STUB("ssTrigCheckConditions", 0x018d7b70);
+    return 0;
+}
+
+// stub of CT3 0x018d5450
+int ssTrigExecuteActCmd(TRIG_ACT_CMDS *cmds, int bank)
+{
+    (void)cmds;
+    (void)bank;
+    ALYSSAPAN_STUB("ssTrigExecuteActCmd", 0x018d5450);
+    return 1;
 }

@@ -906,6 +906,29 @@ roomHash, +0xa0 to the detector's bank, +0x100 the room id, the ambient fade (tn
 SSAutoStartSoundRoomIn, RoomInFlagOn and GetAreaFloor. A part with flags bit 0 (PARTS_FLAG_HIDDEN)
 switches its detector off (ssTrigCheckEnable answers the same bit).
 
+**The trigger run (slice 3, 2026-11-11).** `Trigger_main` (once a frame from main) makes three passes
+over banks 0..5 -- detectors (`ssTrigProcDetRecur` on the bank's root list), running actor lists
+(`ssTrigProceedActor`), delayed part switches (`ssTrigExecDelayEnable`, front to rear) -- then, unless
+`pause` is set without PAUSE_RUNNING or `pause_reservation` is set, the same three over banks 6..85. A
+bank runs when drawn (BankInfo.drawOn; a BANK_FLAG_DRAW_FIRST bank among 6..85 and the delay passes:
+when loaded, state > 0), not a behaviour bank (type FS_LOAD_BEHAVIOR) and without BANK_FLAG_ANIM_STOPPED;
+a bank that runs skips the rest of its group. The "other" block's header ends with the root detectors'
+count, their u_short ids follow. A detector record (DetData) is four offsets: act mode byte (then the
+shape: kind, character, count, then u_short part ids -- u_long room hashes for kind 3), condition count
+byte (conditions follow), actor count byte (u_short actor ids follow), and a child list (count short, ids).
+Shape kinds: 0 a box (TRIG_DETECTOR +0x20 centre through the part's matrix, +0x30 half extents on the
+world axes), 1 a quad crossed from the front (CheckPlaneEntry), 2 a plane volume (+0x08 plane count, +0x10
+TRIG_PLANE[] (normal, +0x10 points per plane), +0x14 points: inside = behind every plane), 3 the
+character's room hash, 4 the character in the bank's light touching the part through a target (w300[0] /
+[1], target +0x198), 5 always. `ssTrigProceedDetector`: act mode 1 (level) activates every frame the shape
+and conditions hold and deactivates every frame they do not; any other mode (edge) only on a change. A
+true detector then runs its children. An actor (ActWork, 0x28 bytes) has state bits 1 / 2 (its activate /
+deactivate list running), the starting detector per list (+4 / +6; -1 from a script's ssTrigExecuteActor)
+and two 0x10-byte command lists at +8 / +0x18 (cursor, count offset, wait -1, count, step 0): a start
+rewinds the cursor to offset + 1; `ssTrigExecuteActCmd` (0x018d5450, 0x249c bytes) steps a list and answers
+non-0 when it has finished. curActInfo (0x01943d60: mode, actor, bank) names the running actor. First smoke
+run with it: real bank data reaches ssTrigCheckConditions and ssTrigExecuteActCmd (both stubs).
+
 ## The IOP side (2026-11-09)
 
 The EE loads `cdrom0:\IOP\IOPRP255.IMG;1` (an IOP reboot), then `SIO2MAN`, `PADMAN`, `MCMAN`, `MCSERV`,

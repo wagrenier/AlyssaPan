@@ -1013,7 +1013,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 102..102, 3 functions keyed by their statics, 2 unkeyed; file name from the names"
   },
   "game/ssGrpPortalCheck.c": {
-   "notes": "Trigger_init and _deinit take the bank (scene_init and scene_end pass it in a0; main.c fixed). TRIG_WORK and TRIG_DET_WORK are layout host. Next: Trigger_main (three passes over banks 0..5 then 6..85), ssTrigProcDetRecur, ssTrigCheckDetector, ssTrigCheckConditions, the actor functions. Smoke run 15 s: no fault, shot black as before (no bank draws yet). open-items.md item 6 (c)-(e).",
+   "notes": "ssTrigCheckConditions (0x018d7b70) and ssTrigExecuteActCmd (0x018d5450, 0x249c bytes) are stubs; the smoke run reaches both with real bank data. Next: ssTrigCheckConditions with its checks (ssTrigCheckInput, ssTrigCheckVariable, ssTrigLookAtCheck, ssTrigAttackHitCheck), then Trigger_reset, then ssTrigExecuteActCmd. TRIG_ACT_WORK is now state, det[2], cmds[2] (TRIG_ACT_CMDS). Shot black as before. open-items.md item 6 (g)-(j).",
    "ranges": [
     [
      "018d2ee0",
@@ -1030,6 +1030,11 @@
      "date": "2026-11-11 07:05",
      "status": "partial",
      "summary": "triggers slice 2: Trigger_init, Trigger_deinit, TriggerGlobalInit, the trigger block getters and count readers, the delay-enable ring (ssTrigDEPop_Front, PushBack, ChangeReq, DisableReq, ssTrigExecDelayEnable); ALL_TABLE +0x4c is trigger"
+    },
+    {
+     "date": "2026-11-11 07:24",
+     "status": "partial",
+     "summary": "triggers slice 3: Trigger_main, the detector walk (ssTrigProcDetRecur, ssTrigProceedDetector, ssTrigCheckDetector and its box, plane-volume and contact shapes), the actor runners, the waits, ssTrigCheckRandom, ssTrigCheckSceneDraw, ssTrigGetCurActInfo"
     }
    ],
    "status": "partial",
