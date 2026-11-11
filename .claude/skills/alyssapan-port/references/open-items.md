@@ -169,7 +169,14 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    MODEL_PARTS[] from +0 by the cat walk (part i's flags at i * 0x380 + 0x50), which disagrees with
    QuatSlerp.h's "records from +0x40" comment: the loader TU settles it; (bf) callcheck flags the BEHIND /
    SITBEHIND entries for asRadianByO / asISubRotate16: the helpers AimBehind / BehindTurnMotion make
-   those calls. **Next:**
+   those calls. Open from slice 9 (2026-11-10): (bg) TRIG_EVENT_LOCK_9A swaps in a whole second set of
+   ground motions (0x53 / 0x54 / 0x55 / 0x59 / 0x5a / 0x5b / 0xc3): "hurt" is a guess, the event's setter
+   (a trigger script) names it; KEY_MAP_HIDE is really the crouch button (SIT / STAND / MOVEEND) and
+   KEY_MAP 24 (KEY_MAP_NO_CROUCH), TRIG_EVENT_CRAWL_88, MOTION_STAND_1 and the walk / run / crawl motion
+   indices are named from these uses only; (bh) asShootArrowSetting's first argument is a u_char kind
+   and asPIA0_KEY_TBL_YUMI passes ArrowList's low byte (lbu): ArrowList may be a u_char array, not
+   int[50] -- asUseArrow.c settles it; (bi) callcheck flags MOVEEND / RUN / WALK / STAND for
+   asYumi_Run_Check / asWater_Run_Check: the helper ItemKeyTaken makes those calls. **Next:**
    ~~`ga/gaInitInterrupt.c`~~ (verify, 2026-11-09: main's frame loops now), then in the order a smoke
    run reaches the stubs: `main2` (game/main2.c: title and scene set-up), `IOPInit` / `Character_All_Init`
    (Character_Init.c), `FS_work_init` / `FileSoundServer` (fileio.c), `SunAllocInit` (ahalloc.c), the ga

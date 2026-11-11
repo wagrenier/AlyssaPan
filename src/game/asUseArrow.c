@@ -30,3 +30,17 @@ float asGetTheArrowRad(void)
     ALYSSAPAN_STUB("asGetTheArrowRad", 0x01866720);
     return {};
 }
+
+// stub of CT3 0x01866980
+int asChangeTheArrowState(int state)
+{
+    ALYSSAPAN_STUB("asChangeTheArrowState", 0x01866980);
+    return {};
+}
+
+// stub of CT3 0x01866c10
+int asShootArrowSetting(u_char kind, u_short a1, u_short a2)
+{
+    ALYSSAPAN_STUB("asShootArrowSetting", 0x01866c10);
+    return {};
+}

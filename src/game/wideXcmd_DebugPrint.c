@@ -3344,63 +3344,6 @@ void asCharacterMoveByPad(CHARACTER *ch, PIA_KEY *key, int dir)
     }
 }
 
-// stub of CT3 0x018f9980
-int asPIA0_KEY_TBL_MOVEEND(CHARACTER *ch, PIA_KEY *key)
-{
-    ALYSSAPAN_STUB("asPIA0_KEY_TBL_MOVEEND", 0x018f9980);
-    return {};
-}
-
-// stub of CT3 0x018fa570
-int asPIA0_KEY_TBL_SIT(CHARACTER *ch, PIA_KEY *key)
-{
-    ALYSSAPAN_STUB("asPIA0_KEY_TBL_SIT", 0x018fa570);
-    return {};
-}
-
-// stub of CT3 0x018f91d0
-int asPIA0_KEY_TBL_YUMI(CHARACTER *ch, PIA_KEY *key)
-{
-    ALYSSAPAN_STUB("asPIA0_KEY_TBL_YUMI", 0x018f91d0);
-    return {};
-}
-
-// stub of CT3 0x018f97b0
-void asPIA1_KEY_TBL_MOVEEND(CHARACTER *ch, PIA_KEY *key)
-{
-    ALYSSAPAN_STUB("asPIA1_KEY_TBL_MOVEEND", 0x018f97b0);
-}
-
-// stub of CT3 0x018f9b00
-void asPIA1_KEY_TBL_RUN(CHARACTER *ch, PIA_KEY *key)
-{
-    ALYSSAPAN_STUB("asPIA1_KEY_TBL_RUN", 0x018f9b00);
-}
-
-// stub of CT3 0x018fa390
-void asPIA1_KEY_TBL_SIT(CHARACTER *ch, PIA_KEY *key)
-{
-    ALYSSAPAN_STUB("asPIA1_KEY_TBL_SIT", 0x018fa390);
-}
-
-// stub of CT3 0x018fa230
-void asPIA1_KEY_TBL_SITGO(CHARACTER *ch, PIA_KEY *key)
-{
-    ALYSSAPAN_STUB("asPIA1_KEY_TBL_SITGO", 0x018fa230);
-}
-
-// stub of CT3 0x018fa640
-void asPIA1_KEY_TBL_STAND(CHARACTER *ch, PIA_KEY *key)
-{
-    ALYSSAPAN_STUB("asPIA1_KEY_TBL_STAND", 0x018fa640);
-}
-
-// stub of CT3 0x018f9f30
-void asPIA1_KEY_TBL_WALK(CHARACTER *ch, PIA_KEY *key)
-{
-    ALYSSAPAN_STUB("asPIA1_KEY_TBL_WALK", 0x018f9f30);
-}
-
 // ---- slice 8 (2026-11-10): the cat walk, the lock, panic, hiding, stairs and bow key-table entries -------
 
 // KEY_MAP's actions these entries test (names from these uses).
@@ -3903,5 +3846,368 @@ void asPIA1_KEY_TBL_SITGONOUP(CHARACTER *ch, PIA_KEY *key)
             asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_SITGONOUP_STOP);
         else if (motion == MOTION_SITGONOUP2)
             asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_SITGONOUP2_STOP);
+    }
+}
+
+// ---- slice 9 (2026-11-10): standing, walking, running, crouching and the bow's pre-entry -------------------
+
+// The ground motions (names from these uses: the walk / run entries and their stops).
+#define MOTION_STAND 0                  /* standing still */
+#define MOTION_RUN 2                    /* = MOTION_STAIR_OFF_RUN: KEY_MAP_RUN held */
+#define MOTION_WALK_START 4             /* from standing (asPIA1_KEY_TBL_STAND) */
+#define MOTION_WALK 5                   /* = MOTION_STAIR_OFF_WALK */
+#define MOTION_RUN_STOP 6               /* stopping after RUN_STOP_COUNT frames or more of it */
+#define MOTION_TURN_BACK 0x0c           /* PIA_KEY.h0c set: the turn-around */
+#define MOTION_WALK_TURN_BACK 0xc6      /* the same walking off the stairs */
+#define MOTION_RUN_TURN_BACK 0xc7       /* running */
+#define MOTION_STAND_1 1                /* a stand STAND does not blend back to MOTION_STAND (only use) */
+#define MOTION_STAND_9A 0x9a            /* a stand STAND does not blend back to MOTION_STAND (only use) */
+#define RUN_STOP_COUNT 7                /* iRunCount below it stops at once */
+#define MOVE_FREE_FRAMES 2              /* frames with no pad move before a walk / run / crawl stops */
+
+// TRIG_EVENT_LOCK_9A set: her other set of ground motions (hurt, a guess; with MOTION_DAMAGE_68's mash).
+#define MOTION_9A_WALK_START 0x53
+#define MOTION_9A_WALK 0x54
+#define MOTION_9A_RUN_STOP 0x55
+#define MOTION_9A_CROUCH 0x59
+#define MOTION_9A_CROUCHED 0x5a         /* from MOTION_9A_SIT_0D when asPIA0_KEY_TBL_SIT sees the event */
+#define MOTION_9A_STAND_UP 0x5b
+#define MOTION_9A_SIT_0D 0x0d
+#define MOTION_9A_TURN_BACK 0xc3        /* running */
+
+// Crouching (asPIA1_KEY_TBL_SIT / _SITGO; KEY_MAP_HIDE is the crouch button: held, she stays down).
+#define KEY_MAP_NO_CROUCH 24            /* held: MOVEEND does not crouch on KEY_MAP_HIDE (name from this use) */
+#define MOTION_CROUCH 0xa0              /* going down (MOVEEND / STAND with KEY_MAP_HIDE) */
+#define MOTION_STAND_UP 0x90            /* getting up; asPIA0_KEY_TBL_SIT holds it SIT_STAND_UP_TIME */
+#define MOTION_SIT_GO 0x91              /* crouched, moving (h0c clear) */
+#define MOTION_SIT_GO2 0xbe             /* h0c set */
+#define MOTION_CRAWL 0x2f               /* low (TRIG_EVENT_CRAWL_88 at the stop) */
+#define MOTION_CRAWL_GO 0x10            /* moving from MOTION_CRAWL; PIA_KEY.h0c toggles the two */
+#define MOTION_CRAWL_GO2 0x11
+#define MOTION_CRAWL_STAND_UP 0x92      /* getting up from MOTION_CRAWL; MOTION_CRAWL_GO's stop */
+#define MOTION_CRAWL_STAND_UP2 0xbf     /* MOTION_CRAWL_GO2's stop */
+#define TRIG_EVENT_CRAWL_88 0x88        /* set: a crawl's stop goes back down to MOTION_CRAWL */
+#define SIT_STAND_UP_TIME 0x79          /* asPIA0_KEY_TBL_SIT: MOTION_STAND_UP takes no move before it */
+#define RUN_STOP_TIME 0x5b              /* asPIA0_KEY_TBL_MOVEEND: MOTION_RUN_STOP (/ _9A_) before it */
+#define CHAIN_HELD_LENGTH 300           /* asChainLengthCheck(0) from it: a chain holds her (no move) */
+#define MSG_KEY_GRACE 12                /* frames after a message (MsgCnt) when STAND reads the press, not the hold */
+
+// The bow before the keys (asPIA0_KEY_TBL_YUMI).
+#define MOTION_BOW_ARROW_RATE 0x38      /* the motion whose play rate an empty bow sets (Character[0]'s table) */
+#define BOW_RATE_EMPTY_HELD 0x14        /* a button held */
+#define BOW_RATE_EMPTY_FREE 100         /* none */
+#define BOW_RAISE_TIME 0x27             /* slot 0 past it: MOTION_BOW_RAISE is up */
+#define BOW_RAISE2_TIME 0x31            /* MOTION_BOW_RAISE2 */
+#define BOW_EMPTY_TIME 0x185            /* MOTION_BOW_EMPTY */
+#define ARROW_STATE_ASK 1               /* asChangeTheArrowState: only ask */
+#define ARROW_SHOOT_EMPTY 3             /* asShootArrowSetting's kind with no arrow (BOW_ARROW_NONE) */
+
+static int iFreeCount_993;              /* iFreeCount$993, sbss 0x0194498c (SITGO) */
+static u_short iFreeCount_1031;         /* iFreeCount$1031, sbss 0x01944990 (WALK) */
+static u_short iFreeCount_1088;         /* iFreeCount$1088, sbss 0x01944994 (RUN) */
+static u_short iRunCount_1089;          /* iRunCount$1089, sbss 0x01944998 (RUN): frames of MOTION_WALK / _9A_WALK */
+
+// KEY_MAP_ITEM pressed: the bow, else the holy water; else KEY_MAP_ARROW2: the second arrow. 1 when one
+// of them took over (the walk / run / stand / moveend entries share it).
+static int ItemKeyTaken(CHARACTER *ch, u_int pressed)
+{
+    if (KeyMapHeld(pressed, KEY_MAP_ITEM))
+        return asYumi_Run_Check(ch, BOW_ARROW_PLAIN) != 0 || asWater_Run_Check(ch) != 0;
+    return KeyMapHeld(pressed, KEY_MAP_ARROW2) && asYumi_Run_Check(ch, BOW_ARROW_LIST) != 0;
+}
+
+// The stair motion by the stair's direction (targetDot), blended (the walk / run entries on stairs).
+static void StairMove(CHARACTER *ch, int run)
+{
+    if (ch->targetDot > STAIR_DOT)
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_BLEND, run ? MOTION_STAIR_RUN_POS : MOTION_STAIR_WALK_POS);
+    else if (ch->targetDot < -STAIR_DOT)
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_BLEND, run ? MOTION_STAIR_RUN_NEG : MOTION_STAIR_WALK_NEG);
+    else
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_BLEND, MOTION_STAIR_STOP);
+}
+
+// The slot 0 record's MOTION_REC_RUN is MOTION_RUN_FAST (a motion that keeps the pad off).
+static int MotionRunsFast(const CHARACTER *ch, int motion)
+{
+    const u_char *rec = MotionRecord(ch, motion);
+    // PORT: no table on the host yet reads as not fast (the ROM reads through the word)
+    return rec != NULL && (s_char)rec[MOTION_REC_RUN] == MOTION_RUN_FAST;
+}
+
+// CT3 0x018f91d0
+// The bow before the keys: drawn with TRIG_VAR_BOW_53 at 0, she aims at once. Once a raise is up (or
+// drawn, or aiming) and no arrow is in flight (asChangeTheArrowState ask -1), the arrow is set: aiming
+// the empty kind; with no arrow (BOW_ARROW_NONE) the empty kind on a button, the arrow motion's rate by
+// whether one is held; else the arrow type's button. An empty bow let go goes back to standing. PIA_MOVE.
+int asPIA0_KEY_TBL_YUMI(CHARACTER *ch, PIA_KEY *key)
+{
+    short motion = CharaShort(ch, CHARA_MOTION_SLOTS);
+    int time = CharaInt(ch, CHARA_SLOT_TIME);
+
+    if (motion == MOTION_BOW_DRAW && ssTrigGetVariable(TRIG_VAR_BOW_53, 1, 0) == 0)
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_BOW_AIM);
+    if ((motion == MOTION_BOW_RAISE && time > BOW_RAISE_TIME) || (motion == MOTION_BOW_RAISE2 && time > BOW_RAISE2_TIME) ||
+        (motion == MOTION_BOW_EMPTY && time > BOW_EMPTY_TIME) || motion == MOTION_BOW_DRAW || motion == MOTION_BOW_AIM) {
+        if (asChangeTheArrowState(ARROW_STATE_ASK) != -1)
+            return PIA_MOVE;
+        if (motion == MOTION_BOW_AIM) {
+            asShootArrowSetting(ARROW_SHOOT_EMPTY, 1, 1);
+        } else if (iArrowType == BOW_ARROW_NONE) {
+            u_char *rec = MotionRecord(&Character[0], MOTION_BOW_ARROW_RATE);
+            u_char rate = BOW_RATE_EMPTY_HELD;
+            if (KeyMapHeld(key->cnt, KEY_MAP_ITEM) || KeyMapHeld(key->cnt, KEY_MAP_ARROW2))
+                asShootArrowSetting(ARROW_SHOOT_EMPTY, 1, 1);
+            else
+                rate = BOW_RATE_EMPTY_FREE;
+            if (rec != NULL)
+                rec[MOTION_REC_PLAY_RATE] = rate;
+        } else if (iArrowType == BOW_ARROW_LIST) {
+            if (KeyMapHeld(key->cnt, KEY_MAP_ARROW2))
+                asShootArrowSetting((u_char)ArrowList[0], 1, 1); /* the ROM reads its low byte (lbu) */
+        } else if (iArrowType == BOW_ARROW_PLAIN && KeyMapHeld(key->cnt, KEY_MAP_ITEM)) {
+            asShootArrowSetting(BOW_ARROW_PLAIN, 1, 1);
+        }
+    } else if (motion == MOTION_BOW_EMPTY && !KeyMapHeld(key->cnt, KEY_MAP_ARROW2) && !KeyMapHeld(key->cnt, KEY_MAP_ITEM)) {
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_STAND);
+    }
+    return PIA_MOVE;
+}
+
+// CT3 0x018f97b0
+// A move just ended: the crouch button (KEY_MAP_HIDE, unless TRIG_EVENT_HIDE_HELD) crouches her, not on
+// the stairs nor with KEY_MAP_NO_CROUCH; else, not chained, a pad move walks or runs on (blended), or
+// turns around.
+void asPIA1_KEY_TBL_MOVEEND(CHARACTER *ch, PIA_KEY *key)
+{
+    int go = 1, crouch = 0;
+    if (ssTrigCheckEvent(TRIG_EVENT_HIDE_HELD, 1, 0) == 0)
+        crouch = KeyMapHeld(key->cnt, KEY_MAP_HIDE);
+    if (ssTrigCheckEvent(TRIG_EVENT_LOCK_9A, 1, 0) == 0) {
+        if (!KeyMapHeld(key->cnt, KEY_MAP_NO_CROUCH) && crouch && (ch->targetState & 1) == 0) {
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_CROUCH);
+            go = 0;
+        }
+    } else if (crouch) {
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_9A_CROUCH);
+        go = 0;
+    }
+    if (asChainLengthCheck(0) >= CHAIN_HELD_LENGTH)
+        go = 0;
+    if (!go || key->h0a != PAD_MOVE_ON)
+        return;
+    if (key->h0c != 0)
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_TURN_BACK);
+    else if (ssTrigCheckEvent(TRIG_EVENT_LOCK_9A, 1, 0) != 0)
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_BLEND, MOTION_9A_WALK);
+    else
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_BLEND, KeyMapHeld(key->cnt, KEY_MAP_RUN) ? MOTION_RUN : MOTION_WALK);
+}
+
+// CT3 0x018f9980
+// A move just ended, before the keys: a pressed item key that took over answers PIA_NONE; the run's
+// stop (MOTION_RUN_STOP, or _9A_RUN_STOP with TRIG_EVENT_LOCK_9A) holds before RUN_STOP_TIME, a
+// fast-run motion holds. h0c set to 1.
+int asPIA0_KEY_TBL_MOVEEND(CHARACTER *ch, PIA_KEY *key)
+{
+    int answer = PIA_MOVE;
+    short motion;
+    int stop;
+
+    if (ItemKeyTaken(ch, key->trg))
+        return PIA_NONE;
+    motion = CharaShort(ch, CHARA_MOTION_SLOTS);
+    stop = ssTrigCheckEvent(TRIG_EVENT_LOCK_9A, 1, 0) == 0 ? MOTION_RUN_STOP : MOTION_9A_RUN_STOP;
+    if (motion == stop) {
+        if (CharaInt(ch, CHARA_SLOT_TIME) < RUN_STOP_TIME)
+            answer = PIA_NONE;
+    } else if (MotionRunsFast(ch, motion)) {
+        answer = PIA_NONE;
+    }
+    key->h0c = 1;
+    return answer;
+}
+
+// CT3 0x018f9b00
+// Running: a pressed item key takes over; a chain holds her. A pad move goes on (the turn-around with
+// h0c; off the stairs KEY_MAP_RUN keeps the run blended; on them the stair motion), counting the walk's
+// frames; with none, a walk start stands, a walk stops after MOVE_FREE_FRAMES (the run's stop after
+// RUN_STOP_COUNT frames of it). TRIG_EVENT_LOCK_9A plays the hurt set.
+void asPIA1_KEY_TBL_RUN(CHARACTER *ch, PIA_KEY *key)
+{
+    int hurt;
+    short motion;
+
+    if (ItemKeyTaken(ch, key->trg) | (asChainLengthCheck(0) >= CHAIN_HELD_LENGTH)) /* both run, as in the ROM */
+        return;
+    motion = CharaShort(ch, CHARA_MOTION_SLOTS);
+    if (key->h0a == PAD_MOVE_ON) {
+        hurt = ssTrigCheckEvent(TRIG_EVENT_LOCK_9A, 1, 0) != 0;
+        iFreeCount_1088 = 0;
+        if (motion == (hurt ? MOTION_9A_WALK : MOTION_WALK))
+            iRunCount_1089++;
+        if (hurt) {
+            if (key->h0c != 0)
+                asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_9A_TURN_BACK);
+        } else if ((ch->targetState & 1) == 0) {
+            if (key->h0c != 0)
+                asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_RUN_TURN_BACK);
+            if (KeyMapHeld(key->cnt, KEY_MAP_RUN))
+                asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_BLEND, MOTION_RUN);
+        } else {
+            StairMove(ch, KeyMapHeld(key->cnt, KEY_MAP_RUN));
+        }
+    } else if (key->h0a == PAD_MOVE_NONE) {
+        hurt = ssTrigCheckEvent(TRIG_EVENT_LOCK_9A, 1, 0) != 0;
+        if (motion == (hurt ? MOTION_9A_WALK_START : MOTION_WALK_START)) {
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_STAND);
+        } else if (motion == (hurt ? MOTION_9A_WALK : MOTION_WALK) && ++iFreeCount_1088 > MOVE_FREE_FRAMES) {
+            if (iRunCount_1089 < RUN_STOP_COUNT)
+                asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_STAND);
+            else
+                asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, hurt ? MOTION_9A_RUN_STOP : MOTION_RUN_STOP);
+            iRunCount_1089 = 0;
+        }
+    }
+}
+
+// CT3 0x018f9f30
+// Walking: a pressed item key takes over. A pad move walks or (KEY_MAP_RUN) runs, blended, or turns
+// around (h0c); on the stairs the stair motion. With none, the run stands after MOVE_FREE_FRAMES, the
+// rest at once (blended).
+void asPIA1_KEY_TBL_WALK(CHARACTER *ch, PIA_KEY *key)
+{
+    if (ItemKeyTaken(ch, key->trg) || key->h0a == PAD_MOVE_TURN || key->h0a == PAD_MOVE_BACK)
+        return;
+    if (key->h0a == PAD_MOVE_ON) {
+        iFreeCount_1031 = 0;
+        if ((ch->targetState & 1) != 0)
+            StairMove(ch, KeyMapHeld(key->cnt, KEY_MAP_RUN));
+        else if (key->h0c != 0)
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_WALK_TURN_BACK);
+        else
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_BLEND, KeyMapHeld(key->cnt, KEY_MAP_RUN) ? MOTION_RUN : MOTION_WALK);
+    } else if (key->h0a == PAD_MOVE_NONE) {
+        if (CharaShort(ch, CHARA_MOTION_SLOTS) != MOTION_RUN || ++iFreeCount_1031 > MOVE_FREE_FRAMES)
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_BLEND, MOTION_STAND);
+    }
+}
+
+// CT3 0x018fa230
+// Crawling (MOTION_CRAWL_GO / _GO2; not while getting up): a pad move toggles the two with h0c,
+// blended; MOVE_FREE_FRAMES frames with none, she gets up (or, TRIG_EVENT_CRAWL_88 set, lies low again).
+void asPIA1_KEY_TBL_SITGO(CHARACTER *ch, PIA_KEY *key)
+{
+    short motion = CharaShort(ch, CHARA_MOTION_SLOTS);
+    if (motion == MOTION_CRAWL_STAND_UP || motion == MOTION_CRAWL_STAND_UP2)
+        return;
+    if (key->h0a == PAD_MOVE_ON) {
+        iFreeCount_993 = 0;
+        if (key->h0c != 0) {
+            if (motion == MOTION_CRAWL_GO)
+                asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_BLEND, MOTION_CRAWL_GO2);
+            else if (motion == MOTION_CRAWL_GO2)
+                asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_BLEND, MOTION_CRAWL_GO);
+        }
+    } else if (key->h0a == PAD_MOVE_NONE && ++iFreeCount_993 > MOVE_FREE_FRAMES) {
+        if (ssTrigCheckEvent(TRIG_EVENT_CRAWL_88, 1, 0) != 0)
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_CRAWL);
+        else if (motion == MOTION_CRAWL_GO)
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_CRAWL_STAND_UP);
+        else if (motion == MOTION_CRAWL_GO2)
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_CRAWL_STAND_UP2);
+    }
+}
+
+// CT3 0x018fa390
+// Crouched: the crouch button let go (unless TRIG_EVENT_HIDE_HELD) gets her up (from MOTION_CRAWL its own
+// way; hurt, MOTION_9A_STAND_UP); held, a pad move moves her crouched (crawling from MOTION_CRAWL), h0c
+// picking the step. Nothing while going down or getting up, or chained, or hurt.
+void asPIA1_KEY_TBL_SIT(CHARACTER *ch, PIA_KEY *key)
+{
+    short motion = CharaShort(ch, CHARA_MOTION_SLOTS);
+    int held = 1, move;
+
+    if (ssTrigCheckEvent(TRIG_EVENT_HIDE_HELD, 1, 0) == 0)
+        held = KeyMapHeld(key->cnt, KEY_MAP_HIDE);
+    move = ssTrigCheckEvent(TRIG_EVENT_LOCK_9A, 1, 0) == 0;
+    if (motion == MOTION_CROUCH || motion == MOTION_STAND_UP) {
+        move = 0;
+    } else if (!held) {
+        if (ssTrigCheckEvent(TRIG_EVENT_LOCK_9A, 1, 0) != 0)
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_9A_STAND_UP);
+        else
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, motion == MOTION_CRAWL ? MOTION_CRAWL_STAND_UP : MOTION_STAND_UP);
+        move = 0;
+    }
+    if (asChainLengthCheck(0) >= CHAIN_HELD_LENGTH)
+        move = 0;
+    if (!move || key->h0a != PAD_MOVE_ON || ssTrigCheckEvent(TRIG_EVENT_LOCK_9A, 1, 0) != 0)
+        return;
+    if (motion == MOTION_CRAWL)
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, key->h0c == 0 ? MOTION_CRAWL_GO : MOTION_CRAWL_GO2);
+    else
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, key->h0c == 0 ? MOTION_SIT_GO : MOTION_SIT_GO2);
+}
+
+// CT3 0x018fa570
+// Crouched, before the keys: hurt (TRIG_EVENT_LOCK_9A) holds, MOTION_9A_SIT_0D going on to
+// MOTION_9A_CROUCHED; getting up holds before SIT_STAND_UP_TIME, a fast-run motion holds. h0c set to 1.
+int asPIA0_KEY_TBL_SIT(CHARACTER *ch, PIA_KEY *key)
+{
+    int answer = PIA_MOVE;
+    short motion;
+
+    if (ssTrigCheckEvent(TRIG_EVENT_LOCK_9A, 1, 0) != 0) {
+        answer = PIA_HOLD;
+        if (CharaShort(ch, CHARA_MOTION_SLOTS) == MOTION_9A_SIT_0D)
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_9A_CROUCHED);
+    }
+    motion = CharaShort(ch, CHARA_MOTION_SLOTS);
+    if (motion == MOTION_STAND_UP) {
+        if (CharaInt(ch, CHARA_SLOT_TIME) < SIT_STAND_UP_TIME)
+            answer = PIA_HOLD;
+    } else if (MotionRunsFast(ch, motion)) {
+        answer = PIA_HOLD;
+    }
+    key->h0c = 1;
+    return answer;
+}
+
+// CT3 0x018fa640
+// Standing: the crouch button (held, or pressed within MSG_KEY_GRACE frames of a message; not with
+// TRIG_EVENT_HIDE_HELD, not on the stairs) crouches her; else a pressed item key takes over; else, not
+// chained, a pad move starts the walk or run (blended) or turns around, and none settles to standing
+// (on the stairs, the stair stop).
+void asPIA1_KEY_TBL_STAND(CHARACTER *ch, PIA_KEY *key)
+{
+    short motion = CharaShort(ch, CHARA_MOTION_SLOTS);
+    int crouch = 0, go = 1;
+
+    if (ssTrigCheckEvent(TRIG_EVENT_HIDE_HELD, 1, 0) == 0)
+        crouch = KeyMapHeld((u_int)MsgCnt + MSG_KEY_GRACE < (u_int)FrameCounter ? key->cnt : key->trg, KEY_MAP_HIDE);
+    if (crouch && (ch->targetState & 1) == 0) {
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY,
+                                        ssTrigCheckEvent(TRIG_EVENT_LOCK_9A, 1, 0) == 0 ? MOTION_CROUCH : MOTION_9A_CROUCH);
+        go = 0;
+    }
+    if (go && ItemKeyTaken(ch, key->trg))
+        go = 0;
+    if (asChainLengthCheck(0) >= CHAIN_HELD_LENGTH)
+        go = 0;
+    if (!go)
+        return;
+    if (key->h0a == PAD_MOVE_ON) {
+        if (key->h0c != 0)
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_TURN_BACK);
+        else if (ssTrigCheckEvent(TRIG_EVENT_LOCK_9A, 1, 0) != 0)
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_BLEND, MOTION_9A_WALK_START);
+        else
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_BLEND, KeyMapHeld(key->cnt, KEY_MAP_RUN) ? MOTION_RUN : MOTION_WALK_START);
+    } else if (key->h0a == PAD_MOVE_NONE) {
+        if ((ch->targetState & 1) != 0)
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_BLEND, MOTION_STAIR_STOP);
+        else if (motion != MOTION_STAND_1 && motion != MOTION_STAND_9A)
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_BLEND, MOTION_STAND);
     }
 }
