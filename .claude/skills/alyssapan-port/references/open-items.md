@@ -1072,6 +1072,19 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    CamChangeFOV_S take fewer arguments than the ROM passes: the extra operands are read and dropped;
    (v) ssXcmd_LockToTargChara (short bank), asXcmd_AddForLockToTargChara and wideXcmd_DebugPrint (void)
    sit in the table through a cast until their TUs give them the SS_XCMD shape.
+   **Picture session (2026-11-11, scheduled run): verify.** The black screen was not (p)'s part switch: every
+   ga object's +0x38 word (the EE address of its part's partsPos, the ambient the light0 program adds) was 0
+   because `ssSetAmbColorToAllObj` (0x01895f00, game/ssSetTexUVforCubeMap.c) was a stub; it is written now
+   (the one function of that TU, Claude's call: it is this TU's picture fix). The shot at frame 120 shows
+   ATLD's "Checking... Do not remove memory card..." text as work/ref/ATLD/trans_04 has it, centred, at
+   4:3 (683 x 512) and wide (1280 x 540: same shape, centred, not stretched); from frame 180 the ROM's own
+   switch hides parts 2 / 3 (the text) and shows 5 / 6 / 7. Left, for other TUs: (w) parts 6 / 7 (the
+   icon sheet's arrow marks, window ~2410..2476 x 2384, colour 90 90 90 78) still sample an empty cell
+   (ST offset obj +0x78 = 0.5, 0): the UV track (EA_010, written) must move it -- bank 0's animation does
+   not reach that key, probably because the scripts wait in stubs (wideXcmd_PlayAnimeToFream2, (r)); (x)
+   the shot reads "slot 2" where the decoded reference reads "slot 1": the sheet probably holds both
+   lines and the game picks one by the card slot (the memory card shim answers for slot 2?) -- check
+   which slot sdk_libmc.cpp reports; (q) and (r) stand (camera cut, PlayAnimeToFream2).
 
 7. **(2026-11-11, the user: "2D is still not showing up") The first picture.** Fixed: the black screen was
    Execute_ExecuteAnimationHistory writing an EE address into every camera cut's focal length (hazards.md

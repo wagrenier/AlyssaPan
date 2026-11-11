@@ -3,6 +3,50 @@
 
 #include "common/alyssapan_stub.h"
 #include "game/ssSetTexUVforCubeMap.h"
+#include "game/ct3_types.h"
+#include "game/unassigned_data.h"
+
+// The three draw lists ssSetAmbColorToAllObj walks, in its order (ALL_TABLE +0x18, +0x1c, +0x60).
+#define AMB_LIST_COUNT 3
+#define PARTS_POS_STRIDE 0x10           /* ALL_TABLE.partsPos: one float[4] qword per part */
+
+// The bank's draw list `which` (0 opaque, 1 translucent, 2 after the particles).
+static u_int AmbList(const ALL_TABLE *tbl, int which)
+{
+    switch (which) {
+    case 0:
+        return tbl->objOpaque;
+    case 1:
+        return tbl->objTrans;
+    default:
+        return tbl->objAfter;
+    }
+}
+
+// CT3 0x01895f00
+// Every draw object of the scene's three lists gets the EE address of its part's ALL_TABLE.partsPos
+// qword at DRAW_OBJ_POS: the ambient RGB (alpha in w) the VU1 light programs add to each vertex colour
+// (scene_init, once per loaded scene). The word stays an EE address (BankEePtr reads it; open-items 1 (h)).
+void ssSetAmbColorToAllObj(int scene)
+{
+    const ALL_TABLE *tbl = All_table_TBL[scene];
+    u_int partsPos = tbl->partsPos;
+    int which;
+
+    for (which = 0; which < AMB_LIST_COUNT; which++) {
+        const u_int *list = BANK_PTR(const u_int *, scene, AmbList(tbl, which));
+        int i;
+
+        if (list == NULL)
+            continue;               // PORT: a 0 list word (the ROM reads EE address 0)
+        for (i = 0; list[i] != 0; i++) {
+            const DRAW_OBJ_ENTRY *ent = BANK_PTR(const DRAW_OBJ_ENTRY *, scene, list[i]);
+            u_char *obj = BANK_PTR(u_char *, scene, ent->obj);
+
+            *(u_int *)(obj + DRAW_OBJ_POS) = partsPos + (u_int)ent->parts * PARTS_POS_STRIDE;
+        }
+    }
+}
 
 // ---- stubs (tools/reverse/stubgen.py) ----
 
@@ -180,12 +224,6 @@ void ssBGT_HQDOF_WriteBackFB(int alpha)
 void ssParticleInit(int scene)
 {
     ALYSSAPAN_STUB("ssParticleInit", 0x0189a9d0);
-}
-
-// stub of CT3 0x01895f00
-void ssSetAmbColorToAllObj(int scene)
-{
-    ALYSSAPAN_STUB("ssSetAmbColorToAllObj", 0x01895f00);
 }
 
 // stub of CT3 0x018962a0

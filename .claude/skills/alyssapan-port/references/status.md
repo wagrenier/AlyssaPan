@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-11 09:05 at commit `e478aac` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-11 09:21 at commit `df02e2b` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **948**; stubs: **418**
+- reconstructed CT3 functions: **949**; stubs: **417**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -86,7 +86,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/ssCalcInversMatrix2.c` | 0 | 1 |
 | `src/game/ssGrpPortalCheck.c` | 74 | 0 |
 | `src/game/ssHitCheckAttackToScn.c` | 0 | 6 |
-| `src/game/ssSetTexUVforCubeMap.c` | 0 | 45 |
+| `src/game/ssSetTexUVforCubeMap.c` | 1 | 44 |
 | `src/game/tiAvoidObject.c` | 0 | 7 |
 | `src/game/tiXcmd_TransItem.c` | 0 | 92 |
 | `src/game/tkXDTrg_GetSceneHash.c` | 0 | 7 |
@@ -98,11 +98,10 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 37, partial 4, verify 25, done 4, blocked 1
-- next: **game/ssGrpPortalCheck.c** (pinned in the queue)
-- pinned queue: game/ssGrpPortalCheck.c, game/xcmd_tn.c, alyssapan/rendering/ga_atld.cpp, alyssapan/rendering/ui_canvas.cpp, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
+- 65 TUs: todo 36, partial 4, verify 26, done 4, blocked 1
+- next: **game/xcmd_tn.c** (pinned in the queue)
+- pinned queue: game/xcmd_tn.c, alyssapan/rendering/ga_atld.cpp, alyssapan/rendering/ui_canvas.cpp, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
 - partial: `alyssapan/rendering/ga_atld.cpp` 0/0 -- Shot still black for a game reason: the light0 colour is vertex colour plus the part's ALL_TABLE.partsPos (the ambient RGB), which only the event command tnXcmd
-- partial: `game/ssGrpPortalCheck.c` 59/59 -- Code complete, picture regressed: black where the grey ATLD banner showed. Probes bisected two ROM-faithful causes: bank 0 hides parts 2 and 3 (the banner) and 
 - partial: `game/wideXcmd_DebugPrint.c` 107/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed) -- the last function of the TU. New stubs
 - partial: `game/xcmd_tn.c` 22/57 -- Dispatcher found: ssTrigExecuteActCmd command 0x514 calls ssXcmd_functions[index](argc, argv, bank) (0x0193a500, 256 words; slot 138 = the ambient command). It 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
@@ -130,10 +129,12 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/main2.c` 18/18 -- Smoke run leaves main2 and runs the frame loop with no crash; the shot stays black because FSMltLoad (fileio.c) is a stub so no bank loads. PORT BankReady skips
 - verify: `game/movie.c` 20/21 -- Playback kept in the ROM shape: host EE kernel runs the decoder thread and vblank handler, sdk/libmpeg decodes, the picture goes through AA_GetDataWord.c displa
 - verify: `game/sound.c` 69/69 -- All 69 written. SSLoadSEfromLoadPoint takes the bank image (BankInfo +0x1c); All_table_TBL[bank] is image + 0x80, so the old +0xd4 record is ALL_TABLE.sound, wo
+- verify: `game/ssGrpPortalCheck.c` 59/59 -- Code complete. The black screen was the ga objects' +0x38 word (EE address of the part's partsPos, the ambient light0 adds) left 0 by the ssSetAmbColorToAllObj 
 - blocked: `alyssapan/rendering/ui_canvas.cpp` 0/0 -- Blocked on ga/gaBGT_DrawObject.c (host draw module for ga draw objects) and the camera (asEyeForcusUP2CamMat.c camera_init0 / camera_view stubs); triggers are n
 
 Recent sessions:
 
+- 2026-11-11 09:21 `game/ssGrpPortalCheck.c` verify: picture: ssSetAmbColorToAllObj (game/ssSetTexUVforCubeMap.c) fills every ga object's +0x38 ambient pointer; ATLD's Checking text shows at 4:3 and wide
 - 2026-11-11 09:05 `game/ssGrpPortalCheck.c` partial: triggers slice 5: ssTrigExecuteActCmd (every command id and operand size, TRIG_CMD_*), the 256-slot ssXcmd_functions table from the ELF, suXcmd_AnmDirection; 23
 - 2026-11-11 08:37 `game/ssGrpPortalCheck.c` partial: triggers slice 4: ssTrigCheckConditions and its checks (ssTrigCheckInput, ssTrigCheckVariable, ssTrigLookAtCheck, ssTrigAttackHitCheck), ssTrigSetEnable, Trigge
 - 2026-11-11 08:08 `game/xcmd_tn.c` partial: slice 1: tnXcmd_Scene_Ambient_Change and 21 small x commands (waits, variables, room-in icons, bank and flag commands), BankUseCheck; SS_XCMD slot type
@@ -141,19 +142,18 @@ Recent sessions:
 - 2026-11-11 07:24 `game/ssGrpPortalCheck.c` partial: triggers slice 3: Trigger_main, the detector walk (ssTrigProcDetRecur, ssTrigProceedDetector, ssTrigCheckDetector and its box, plane-volume and contact shapes),
 - 2026-11-11 07:05 `game/ssGrpPortalCheck.c` partial: triggers slice 2: Trigger_init, Trigger_deinit, TriggerGlobalInit, the trigger block getters and count readers, the delay-enable ring (ssTrigDEPop_Front, PushBa
 - 2026-11-10 23:18 `game/ssGrpPortalCheck.c` partial: triggers slice 1: the event and variable API, the byte readers, the enable checks, InitTriggerDetectorShape, CheckRoomEntry and the room portals (ProcessPortal,
-- 2026-11-10 22:53 `game/asEyeForcusUP2CamMat.c` verify: camera slice 4: camera_main (the pad camera: debug fly modes 0 / 1, the ND camera with its drive mode, mode 3 -> 4, the scene camera's controller-100 cut step);
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
 | `game/Clipping_Portal.c` | todo | 0/37/73 | 44.8 | 163 | 18 |
-| `game/ssSetTexUVforCubeMap.c` | todo | 0/45/96 | 35.3 | 102 | 9 |
+| `game/ssSetTexUVforCubeMap.c` | partial | 1/44/96 | 35.3 | 96 | 8 |
 | `game/CpDivideEECom.c` | todo | 0/10/18 | 3.3 | 80 | 10 |
 | `ga/gaDrawObject.c` | todo | 0/11/11 | 6.9 | 39 | 0 |
 | `game/tiAvoidObject.c` | todo | 0/7/82 | 30.5 | 27 | 4 |
-| `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/ssHitCheckAttackToScn.c` | todo | 0/6/37 | 32.0 | 23 | 3 |
-| `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
+| `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
+| `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
 | `game/asUseArrow.c` | todo | 0/6/11 | 6.4 | 16 | 1 |
 | `game/tkXDTrg_GetSceneHash.c` | todo | 0/7/50 | 21.0 | 14 | 2 |
 | `game/AA_SoundMonoSoart.c` | todo | 0/8/20 | 4.0 | 13 | 1 |

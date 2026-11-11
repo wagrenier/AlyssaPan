@@ -426,7 +426,11 @@ the TU map's evidence.
   AmbientAlphaUpdate moves xyz toward `scene_alpha_anim[bank].target` over its steps and copies the part's
   alpha into w; `tnXcmd_Scene_Ambient_Change(steps, r, g, b)` (0x018f1940, an event command) sets the
   target. ATLD's vertex colours are (0, 0, 0, 0x7f) and its partsPos starts at 0: MODULATE draws the text
-  black until the event sets the ambient (white text needs 0x80).
+  black until the event sets the ambient (white text needs 0x80). **Who fills obj +0x38 (2026-11-11):**
+  no relocator does; `ssSetAmbColorToAllObj(scene)` (0x01895f00, scene_init after BuildMatrixTree) walks
+  the scene's three draw lists (ALL_TABLE +0x18 objOpaque, +0x1c objTrans, +0x60 objAfter) and stores
+  `partsPos + entry.parts * 0x10` (an EE address) at each entry's ga object +0x38. While it was a stub the
+  word stayed 0, the host added no ambient and every light0 part drew in its bare vertex colour (black).
 - **The x commands (2026-11-11, xcmd_tn.c slice 1):** the trigger script's command 0x514 in
   `ssTrigExecuteActCmd` (0x018d5450) reads a 2-byte length, an index byte and an argc byte, then argc
   NUL-terminated strings from ActData, and calls `ssXcmd_functions[index](argc, argv, bank)` (data
