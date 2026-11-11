@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-11 11:47 at commit `0438415` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-11 12:08 at commit `063d60d` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1048**; stubs: **325**
+- reconstructed CT3 functions: **1050**; stubs: **323**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -88,7 +88,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/ssHitCheckAttackToScn.c` | 0 | 6 |
 | `src/game/ssSetTexUVforCubeMap.c` | 1 | 44 |
 | `src/game/tiAvoidObject.c` | 0 | 7 |
-| `src/game/tiXcmd_TransItem.c` | 82 | 11 |
+| `src/game/tiXcmd_TransItem.c` | 84 | 9 |
 | `src/game/tkXDTrg_GetSceneHash.c` | 0 | 8 |
 | `src/game/tnXcmd.c` | 0 | 8 |
 | `src/game/wideXcmd_DebugPrint.c` | 107 | 1 |
@@ -102,7 +102,7 @@ Least-named game-code regions (64 KB blocks):
 - next: **game/tiXcmd_TransItem.c** (pinned in the queue)
 - pinned queue: game/tiXcmd_TransItem.c, game/xcmd_tn.c, alyssapan/rendering/ga_atld.cpp, alyssapan/rendering/ui_canvas.cpp, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
 - partial: `alyssapan/rendering/ga_atld.cpp` 0/0 -- Shot still black for a game reason: the light0 colour is vertex colour plus the part's ALL_TABLE.partsPos (the ambient RGB), which only the event command tnXcmd
-- partial: `game/tiXcmd_TransItem.c` 82/93 -- Slice 8. Written: tkXcmd_GetValueType (XCMD_SCOPE_BANK/GLOBAL/LITERAL; Ghidra shows it empty, mipsdis has it; PORT: an unknown letter answers BANK where the ROM
+- partial: `game/tiXcmd_TransItem.c` 84/93 -- Slice 9. Written: wideXcmd_Delay (the running actor list's wait word, TRIG_RUN_ACTIVATE / DEACTIVATE; DELAY_MODE_TICKS waits value x 1000 / anim_play_slow ticks
 - partial: `game/wideXcmd_DebugPrint.c` 107/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed) -- the last function of the TU. New stubs
 - partial: `game/xcmd_tn.c` 37/57 -- 15 commands written. Picture: frame 120 shows ATLD memory-card text at 4:3 as before; black from frame 180 because the script waits on the stub tiXcmd_XFade_Bre
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
@@ -135,6 +135,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-11 12:08 `game/tiXcmd_TransItem.c` partial: reconstruct 2 functions: the script delay command and the boss second phase (Balows2th)
 - 2026-11-11 11:47 `game/tiXcmd_TransItem.c` partial: reconstruct 6 functions: part scale and rotation, scene animation skip to a variable, scope letters, caption flag, character room change
 - 2026-11-11 11:32 `game/tiXcmd_TransItem.c` partial: reconstruct 9 functions: rate and digit variables, add variable, ghost poles set and free, player character, global-only draw mode, draw object copy, test comma
 - 2026-11-11 11:24 `game/tiXcmd_TransItem.c` partial: reconstruct 7 functions: vibration start, end and option, wait for a free brain, character HP data, memory-card file digits
@@ -142,7 +143,6 @@ Recent sessions:
 - 2026-11-11 10:53 `game/tiXcmd_TransItem.c` partial: reconstruct 8 functions: item and key-item table fields, variable compare, copy and subtract, current-scene check, soft reset
 - 2026-11-11 10:30 `game/tiXcmd_TransItem.c` partial: reconstruct 14 functions: key-config frame and assignment, Alyssa life and status bar, item slot swap and last index, memory-card screen ids, stereo slots
 - 2026-11-11 10:15 `game/tiXcmd_TransItem.c` partial: reconstruct 13 functions: pad-driven item examination, fade start, cross-fade out, reserved camera, translucence and edge-shading animations, letter list and da
-- 2026-11-11 09:59 `game/tiXcmd_TransItem.c` partial: reconstruct 22 functions: item examination, scene and map commands, free slots, range and earthquake checks, shade-off, cross-fade break, pendulum reset, reserv
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
@@ -151,8 +151,8 @@ Recent sessions:
 | `game/CpDivideEECom.c` | todo | 0/10/18 | 3.3 | 80 | 10 |
 | `ga/gaDrawObject.c` | todo | 0/11/11 | 6.9 | 39 | 0 |
 | `game/tiAvoidObject.c` | todo | 0/7/82 | 30.5 | 27 | 4 |
-| `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/ssHitCheckAttackToScn.c` | todo | 0/6/37 | 32.0 | 23 | 3 |
+| `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
 | `game/asUseArrow.c` | todo | 0/6/11 | 6.4 | 16 | 1 |

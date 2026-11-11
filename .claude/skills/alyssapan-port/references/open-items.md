@@ -1314,6 +1314,9 @@ apply here):
   junc record (CHARA_JUNC.ghostPoint) and CheckRange into pSrcMPstock / pDstMPstock, as the bank-data rule
   (1 h) has it. Decide with the boss TU whether pBossInfo stays EE layout (then these are BankEeAddr words
   too, plus the bank) or becomes a host struct.
+  Slice 9 (2026-11-11): Balows2th is written without its pointer writes (PORT in its comment): the
+  chain sets' holding arrays at +0x10c / +0x110 and Character[32].brain's bytes (+0, +1, +0x181; the AI
+  TU's host form, (1 am)) are skipped. Fill them in when either host form lands.
 
 - (2026-11-10, host task `alyssapan/rendering/ui_canvas.cpp`, **blocked**) **The first screen has no 2D
   packet step to route to UiCanvas.** It is ATLD, the memory-card check ("Checking... Do not remove memory

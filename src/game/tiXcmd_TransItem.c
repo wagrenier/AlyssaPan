@@ -8,6 +8,7 @@
 // TU's host layout (SetWarp, the SCISSORS_MAN attack, SetChain*, GetBloodAttackObject), and the rest.
 // Slice 3 (2026-11-11): the key-config commands, life and status bar, item slots, memory-card ids, stereo.
 // Slice 8 (2026-11-11): scale, rotation, the scene animation skip, the caption flag, the character's room.
+// Slice 9 (2026-11-11): wideXcmd_Delay, Balows2th (its brain bytes and chain arrays wait for a host form).
 
 #include <math.h>
 #include <stdlib.h>
@@ -24,6 +25,7 @@
 #include "game/LinkMatrixTree.h"
 #include "game/main.h"
 #include "game/ssGrpPortalCheck.h"
+#include "game/sound.h"
 #include "game/tkXDTrg_GetSceneHash.h"
 #include "game/unassigned_data.h"
 #include "game/wideXcmd_DebugPrint.h"
@@ -1523,6 +1525,7 @@ int wideXcmd_GetRate(int argc, char **argv, int bank)
     float a = TiRateOperand(argv, 2, bank);
     float b = TiRateOperand(argv, 4, bank);
     int rate = (int)((a / b) * c);
+    // callcheck: atoff, ssTrigGetVariable (TiRateOperand makes them, for each operand)
 
     (void)argc;
     if (rate == 0 && a != 0.0f)
@@ -1713,11 +1716,50 @@ int tiXcmd_BOSS_SetWarp(int argc, char **argv, int bank)
     return {};
 }
 
-// stub of CT3 0x018e1bc0
+// CT3 0x018e1bc0
+// The boss's second phase: Character[BALOWS_CHARA] gets BALOWS_2_HP and its brain is reset, the phase
+// event is registered and two global variables go to -1; each chain set still up is dropped (its pull
+// time and holding flags cleared, its events removed, its loops stopped, TRIG_EVENT_CHAINS_CUT raised).
+// PORT: the brain's bytes (+0 = 1, +1 = 0, +0x181 = 0) and the chain sets' holding arrays (EE words at
+// BOSS_INFO_CHAIN_A_ON / +4) have no host form until the AI and boss TUs give them one (as
+// wideXcmd_DebugPrint.c's BossInfoPtr): they are not written. With no boss info (no boss TU yet) only the
+// character and the script state change.
 int tiXcmd_Balows2th(int argc, char **argv, int bank)
 {
-    ALYSSAPAN_STUB("tiXcmd_Balows2th", 0x018e1bc0);
-    return {};
+    int ev;
+
+    (void)argc;
+    (void)argv;
+    (void)bank;
+    Character[BALOWS_CHARA].hp = BALOWS_2_HP;
+    if (pBossInfo != NULL) {
+        int phase = BOSS_PHASE_BALOWS_2;
+        memcpy(pBossInfo + BOSS_INFO_PHASE, &phase, sizeof(phase));
+    }
+    ssTrigRegisterEvent(TRIG_EVENT_BALOWS_2, 1, 0);
+    ssTrigSetVariable(TRIG_VAR_BALOWS_52, -1, 1, 0);
+    ssTrigSetVariable(TRIG_VAR_BALOWS_05, -1, 1, 0);
+    if (pBossInfo == NULL)
+        return XCMD_DONE;
+    if (pBossInfo[BOSS_INFO_CHAIN_A_ACTIVE] != 0) {
+        memset(pBossInfo + BOSS_INFO_CHAIN_A_TIME, 0, sizeof(int));
+        for (ev = TRIG_EVENT_CHAIN_A_FIRST; ev <= TRIG_EVENT_CHAIN_A_LAST; ev++)
+            ssTrigRemoveEvent(ev, 1, 0);
+        ssTrigRegisterEvent(TRIG_EVENT_CHAINS_CUT, 1, 0);
+        SSStopSE("T_0010", SE_BOSS_LOOP_T, 1);
+        SSStopSE(SE_BANK_COMMON, SE_BOSS_LOOP_C, 1);
+        pBossInfo[BOSS_INFO_CHAIN_A_ACTIVE] = 0;
+    }
+    if (pBossInfo[BOSS_INFO_CHAIN_B_ACTIVE] != 0) {
+        memset(pBossInfo + BOSS_INFO_CHAIN_B_TIME, 0, sizeof(int));
+        for (ev = TRIG_EVENT_CHAIN_B_FIRST; ev <= TRIG_EVENT_CHAIN_B_LAST; ev++)
+            ssTrigRemoveEvent(ev, 1, 0);
+        ssTrigRegisterEvent(TRIG_EVENT_CHAINS_CUT, 1, 0);
+        SSStopSE("T_0010", SE_BOSS_LOOP_T, 2);
+        SSStopSE(SE_BANK_COMMON, SE_BOSS_LOOP_C, 2);
+        pBossInfo[BOSS_INFO_CHAIN_B_ACTIVE] = 0;
+    }
+    return XCMD_DONE;
 }
 
 // stub of CT3 0x018e2ae0
@@ -1896,10 +1938,37 @@ int tkXcmd_CharSceneChange(int argc, char **argv, int bank)
     return XCMD_DONE;
 }
 
-// stub of CT3 0x018e8f00
+// CT3 0x018e8f00
+// Waits argv[0] (a variable in argv[1]'s scope, or the number itself) on the running actor's list's own
+// wait word: animation ticks when argv[2] is "0", else frames (done once the count passes the value).
 int wideXcmd_Delay(int argc, char **argv, int bank)
 {
-    ALYSSAPAN_STUB("wideXcmd_Delay", 0x018e8f00);
-    return {};
+    static int noActorWait = -1;        /* PORT: the ROM's wait pointer is unset with no actor running */
+    TRIG_CUR_ACT cur;
+    int *wait = &noActorWait;
+    int scope;
+    u_int value;
+
+    (void)argc;
+    ssTrigGetCurActInfo(&cur);
+    if (cur.mode == TRIG_RUN_DEACTIVATE)
+        wait = &ActWork[cur.bank][cur.actor].cmds[ACT_CMDS_DEACTIVATE].wait;
+    else if (cur.mode == TRIG_RUN_ACTIVATE)
+        wait = &ActWork[cur.bank][cur.actor].cmds[ACT_CMDS_ACTIVATE].wait;
+    scope = tkXcmd_GetValueType(argv[1]);
+    if (scope == XCMD_SCOPE_LITERAL)
+        value = (u_int)atoi(argv[0]);
+    else
+        value = (u_int)ssTrigGetVariable(atoi(argv[0]), scope, bank);
+    if (argv[2][0] == DELAY_MODE_TICKS)
+        return ssTrigWaitByAnimFrame(wait, (int)(value * DELAY_TICK_SCALE) / anim_play_slow);
+    if (*wait < 0)
+        *wait = 0;
+    *wait += 1;
+    if (value < (u_int)*wait) {
+        *wait = -1;
+        return XCMD_DONE;
+    }
+    return XCMD_WAIT;
 }
 

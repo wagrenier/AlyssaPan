@@ -1115,7 +1115,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 81..81, 18 functions keyed by their statics, 13 unkeyed; file name from the names"
   },
   "game/tiXcmd_TransItem.c": {
-   "notes": "Slice 8. Written: tkXcmd_GetValueType (XCMD_SCOPE_BANK/GLOBAL/LITERAL; Ghidra shows it empty, mipsdis has it; PORT: an unknown letter answers BANK where the ROM leaves v0), tkXcmd_CaptionFlag (CAPTION_FLAG_* ties an event to OMAKE_2), tkXcmd_CharSceneChange (CHARACTER roomHash / lightBank; tkBri_DoorDraw_GetBnkId declared in tkXDTrg_GetSceneHash.h), tiXcmd_SetScale (MODEL_PARTS.scale at 0x300 = REC_SCALE, xyz only), tiXcmd_SetRotation (ROTATION_AXIS_*, DEGREES_TO_GA_ANGLE), tiXcmd_SceneAnimationSkipToVariable (seek-bar modes, from -1, x XCMD_FRAME_TIME). Left: Balows2th, GetBloodAttackObject, SCISSORS_MAN x3, BOSS SetWarp / SetChain / SetChain_Alyssa / BattleStart (all write pBossInfo: wait for the boss TU host form), UseItem, wideXcmd_Delay. Screen unchanged: flat grey; the script still waits at tiFade_Start and hhXcmd_LoadSE (stubs).",
+   "notes": "Slice 9. Written: wideXcmd_Delay (the running actor list's wait word, TRIG_RUN_ACTIVATE / DEACTIVATE; DELAY_MODE_TICKS waits value x 1000 / anim_play_slow ticks, else counts frames; PORT: a static wait with no actor running), tiXcmd_Balows2th (Character[32].hp = 10, BOSS_INFO_PHASE = 4, event 0x55e, variables 0x52 / 5 to -1, chain sets A (0x92, events 0x3c..0x45) and B (0x93, events 0x69..0x6d) dropped with their loops; PORT: brain bytes and the +0x10c / +0x110 holding arrays skipped, open-items.md). callcheck: wideXcmd_GetRate explained (its calls are in TiRateOperand). Left: GetBloodAttackObject, SCISSORS_MAN x3, BOSS SetWarp / SetChain / SetChain_Alyssa / BattleStart (all write pointer words into pBossInfo: wait for the boss TU host form), UseItem (0x018e6330). Screen unchanged: flat grey; the script still waits at tiFade_Start and hhXcmd_LoadSE (stubs).",
    "ranges": [
     [
      "018e0e80",
@@ -1162,6 +1162,11 @@
      "date": "2026-11-11 11:47",
      "status": "partial",
      "summary": "reconstruct 6 functions: part scale and rotation, scene animation skip to a variable, scope letters, caption flag, character room change"
+    },
+    {
+     "date": "2026-11-11 12:08",
+     "status": "partial",
+     "summary": "reconstruct 2 functions: the script delay command and the boss second phase (Balows2th)"
     }
    ],
    "status": "partial",

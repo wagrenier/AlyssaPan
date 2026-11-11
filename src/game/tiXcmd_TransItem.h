@@ -14,6 +14,32 @@
 #define TI_QUAKE_RANGE_MAX 1000.0f      /* past this radius the quake is over unseen */
 #define BOSS_INFO_HIT_BACKS 0x9c        /* pBossInfo: float[6], tiXcmd_BOSS_SetHitBacks */
 #define BOSS_INFO_HIT_BACK_COUNT 6
+// Slice 9 (2026-11-11): tiXcmd_Balows2th's boss info (names from this use; the boss TU confirms them).
+#define BOSS_INFO_PHASE 0x0c            /* int: Balows2th sets BOSS_PHASE_BALOWS_2 */
+#define BOSS_PHASE_BALOWS_2 4
+#define BOSS_INFO_CHAIN_A_TIME 0x40     /* int: chain set A's pull time (set B's is 0x44, BOSS_INFO_PULL_TIME) */
+#define BOSS_INFO_CHAIN_B_TIME 0x44
+#define BOSS_INFO_CHAIN_A_COUNT 0x90    /* u_char: set A's chains (set B's count is 0x91) */
+#define BOSS_INFO_CHAIN_A_ACTIVE 0x92   /* u_char: set A is up (events 0x3c..0x45, SE slot 1) */
+#define BOSS_INFO_CHAIN_B_ACTIVE 0x93   /* u_char: set B is up (events 0x69..0x6d, SE slot 2) = sound.h's
+                                           BOSS_INFO_BAL_LOOP */
+#define BOSS_INFO_CHAIN_A_ON 0x10c      /* EE word -> u_char[count]: set A's chains holding (set B: 0x110) */
+#define BALOWS_CHARA 32                 /* Character[32]: the boss Balows2th resets (hp, brain) */
+#define BALOWS_2_HP 10
+#define TRIG_EVENT_BALOWS_2 0x55e       /* registered as the second phase starts */
+#define TRIG_EVENT_CHAINS_CUT 0x85      /* registered when a chain set is dropped */
+#define TRIG_EVENT_CHAIN_A_FIRST 0x3c   /* set A's events 0x3c..0x45 */
+#define TRIG_EVENT_CHAIN_A_LAST 0x45
+#define TRIG_EVENT_CHAIN_B_FIRST 0x69   /* set B's events 0x69..0x6d */
+#define TRIG_EVENT_CHAIN_B_LAST 0x6d
+#define TRIG_VAR_BALOWS_52 0x52         /* global variables Balows2th sets to -1 (meaning unread) */
+#define TRIG_VAR_BALOWS_05 0x05
+#define SE_BOSS_LOOP_T 0xf              /* "T_0010" 15 and "C_0000" 0x4b: sound.h's boss loops */
+#define SE_BOSS_LOOP_C 0x4b
+// wideXcmd_Delay's third argument: "0" waits animation ticks (value * 1000 / anim_play_slow), anything
+// else counts frames.
+#define DELAY_MODE_TICKS '0'
+#define DELAY_TICK_SCALE 1000
 #define SHADE_OFF_LEVELS 9              /* ShadeOff_CapLevel = 9 - the level argument */
 #define SHADE_OFF_ON_ARGC_VAR 7         /* "ON" with 7 arguments: the frames are a variable */
 #define SHADE_OFF_OFF_ARGC_VAR 3        /* "OFF" with 3 arguments: the frames are a variable */
