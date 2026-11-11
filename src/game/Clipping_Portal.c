@@ -9,6 +9,7 @@
 #include "game/main.h"
 #include "game/QuatSlerp.h"
 #include "game/ahRelocateSunPs2ObjectArry.h"
+#include "game/ssGrpPortalCheck.h"
 #include "game/ssHitCheckAttackToScn.h"
 #include "game/unassigned_data.h"
 #include "ga/gaInit3dlib.h"
@@ -526,6 +527,180 @@ void tiCharaFootAdjust(void)
     // callcheck: CheckLOS, tiCalc_FootPos (FootAdjustLeg makes them)
 }
 
+// ---- particles and pendulums (slice 3, 2026-11-11) ----
+// The banks tiParticleUpdate and tiHurikoUpdate run: the scene banks (0..5) always, on the global clock;
+// the rest only while the world runs (pause 0 or PAUSE_RUNNING), on the scene clock, and not while the
+// bank's animation is forced still. A group's later banks are skipped with groupCount.
+
+// CT3 0x0188f9a0: drop expired records off the ring's head. The ROM reads count and head once and walks
+// all count records from that head: any expired one (life - age < 1) moves head past it and takes one
+// off count, wherever it sits -- kept.
+void tiCalc_LifeSpan(PARTICLE2_ENTRY *ent, int bank)
+{
+    u_int count = ent->count;
+    u_int head = ent->head;
+    PARTICLE2 *ring = BANK_PTR(PARTICLE2 *, bank, ent->ring);
+    u_int i;
+
+    for (i = 0; i < count; i++) {
+        int slot = (int)((head + i) % ent->ringSize);
+
+        if (ring[slot].life - ring[slot].age < 1) {
+            ent->head = (u_short)((slot + 1) % ent->ringSize);
+            ent->count--;
+        }
+    }
+}
+
+// One list of a bank's second particles (ALL_TABLE.particles2: after 0; particles2After: after 1).
+static void ParticleList(int bank, u_int listEE, int after, int ticks, CAMERA *cam)
+{
+    u_int *list = BANK_PTR(u_int *, bank, listEE);
+    int i;
+
+    if (list == NULL) {
+        return; // PORT: the ROM reads the list at EE address 0
+    }
+    for (i = 0; list[i] != 0; i++) {
+        PARTICLE2_ENTRY *ent = BANK_PTR(PARTICLE2_ENTRY *, bank, list[i]);
+
+        tiCalc_LifeSpan(ent, bank);
+        tiGenerateParticle(ticks, ent, ssTrigCheckEnable(ent->parts, bank), bank);
+        tiCalc_Orbit(ticks, ent, after, cam, bank);
+    }
+}
+
+static void ParticleBank(int bank, int ticks, CAMERA *cam)
+{
+    ParticleList(bank, All_table_TBL[bank]->particles2, 0, ticks, cam);
+    ParticleList(bank, All_table_TBL[bank]->particles2After, 1, ticks, cam);
+}
+
+// CT3 0x01890070: age, emit and move every loaded bank's second particles (main, once a frame). The
+// scene banks take Cam[0] and do not test the bank's type; the rest take Cam[CAMERA_SHARED] and skip a
+// behaviour bank.
+void tiParticleUpdate(void)
+{
+    int bank;
+
+    for (bank = 0; bank < BANK_SCENE_MAX; bank++) {
+        if (BankInfo[bank].drawOn != 0) {
+            ParticleBank(bank, gGlobalNextTicksInterval, &Cam[0]);
+            bank += BankInfo[bank].groupCount - 1;
+        }
+    }
+    if (pause != 0 && (pause & PAUSE_RUNNING) == 0) {
+        return;
+    }
+    for (bank = BANK_SCENE_MAX; bank < BANK_MAX; bank++) {
+        if (BankInfo[bank].drawOn != 0 && BankInfo[bank].type != BANK_TYPE_BEHAVIOR) {
+            if ((BankInfo[bank].flags & BANK_FLAG_ANIM_FORCE_STOP) == 0) {
+                ParticleBank(bank, gNextTicksInterval, &Cam[CAMERA_SHARED]);
+            }
+            bank += BankInfo[bank].groupCount - 1;
+        }
+    }
+    // callcheck: ssTrigCheckEnable, tiCalc_LifeSpan, tiCalc_Orbit, tiGenerateParticle (ParticleList makes them)
+}
+
+// One bank's pendulums. A pendulum whose trigger is off only marks itself DISABLED; once on again it
+// becomes RESET (a scene bank's still swings that frame, the others wait a frame), and on the next
+// enabled frame tiHurikoReset puts it back before it swings.
+static void HurikoBank(int bank, int ticks, int sceneBank)
+{
+    u_int *list = BANK_PTR(u_int *, bank, All_table_TBL[bank]->huriko);
+    int i;
+
+    if (list == NULL) {
+        return; // PORT: the ROM reads the list at EE address 0
+    }
+    for (i = 0; list[i] != 0; i++) {
+        HURIKO *h = BANK_PTR(HURIKO *, bank, list[i]);
+        u_int was = h->flags;
+
+        if (ssTrigCheckEnable(h->trigPart, bank) == 0) {
+            h->flags |= HURIKO_FLAG_DISABLED;
+            continue;
+        }
+        if (was & HURIKO_FLAG_RESET) {
+            tiHurikoReset(bank, h);
+            h->flags &= ~HURIKO_FLAG_RESET;
+        }
+        if (was & HURIKO_FLAG_DISABLED) {
+            h->flags &= ~HURIKO_FLAG_DISABLED;
+            h->flags |= HURIKO_FLAG_RESET;
+            if (!sceneBank) {
+                continue;
+            }
+        }
+        if ((was & HURIKO_FLAG_CLOSED) == 0) {
+            tiCalc_HurikoOPEN(h, bank, ticks);
+        } else {
+            tiCalc_HurikoCLOSED(h, bank, ticks);
+        }
+        tiGetNewNormalData(h);
+    }
+}
+
+// CT3 0x01892ee0: swing every loaded bank's pendulums (main, once a frame); the banks are
+// tiParticleUpdate's, but the scene banks skip a behaviour bank too.
+void tiHurikoUpdate(void)
+{
+    int bank;
+
+    for (bank = 0; bank < BANK_SCENE_MAX; bank++) {
+        if (BankInfo[bank].drawOn != 0 && BankInfo[bank].type != BANK_TYPE_BEHAVIOR) {
+            HurikoBank(bank, gGlobalNextTicksInterval, 1);
+            bank += BankInfo[bank].groupCount - 1;
+        }
+    }
+    if (pause != 0 && (pause & PAUSE_RUNNING) == 0) {
+        return;
+    }
+    for (bank = BANK_SCENE_MAX; bank < BANK_MAX; bank++) {
+        if (BankInfo[bank].drawOn != 0 && BankInfo[bank].type != BANK_TYPE_BEHAVIOR) {
+            if ((BankInfo[bank].flags & BANK_FLAG_ANIM_FORCE_STOP) == 0) {
+                HurikoBank(bank, gNextTicksInterval, 0);
+            }
+            bank += BankInfo[bank].groupCount - 1;
+        }
+    }
+    // callcheck: ssTrigCheckEnable, tiCalc_HurikoCLOSED, tiCalc_HurikoOPEN, tiGetNewNormalData, tiHurikoReset (HurikoBank makes them)
+}
+
+// CT3 0x01891570: VU0 -- the whole vector (w too) times rsqrt(x*x + y*y + z*z).
+void gaNormalizeVectorXYZ(float *dst, const float *src)
+{
+    float q = 1.0f / sqrtf(src[0] * src[0] + src[1] * src[1] + src[2] * src[2]);
+
+    dst[0] = src[0] * q;
+    dst[1] = src[1] * q;
+    dst[2] = src[2] * q;
+    dst[3] = src[3] * q;
+}
+
+// ---- translucence ----
+
+// CT3 0x0188ddc0: end a character's translucence (ssTrigExecuteActCmd, ssAI_BrainEndSpecialProc,
+// tiXcmd_SetCharacterEdgeShading): flag bit 0 clears CHARA_TRANS_TRANSLUCENT, else bit 1 clears
+// CHARA_TRANS_GHOST; either way the alpha, the edge level and the edge parameters go to 0.
+void tiSet_CharaTranslucenceOFF(int chara, int flag)
+{
+    CHARACTER *chr = &Character[chara];
+    int i;
+
+    if (flag & 1) {
+        chr->translucent &= (u_char)~CHARA_TRANS_TRANSLUCENT;
+    } else if (flag & 2) {
+        chr->translucent &= (u_char)~CHARA_TRANS_GHOST;
+    }
+    chr->translucentAlpha = 0.0f;       /* the ROM stores the word 0 */
+    chr->edgeLevel = 0;
+    for (i = 0; i < 6; i++) {
+        chr->h536[i] = 0;
+    }
+}
+
 // ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x01893850
@@ -552,12 +727,6 @@ void tiHurikoHitUpdate(void)
     ALYSSAPAN_STUB("tiHurikoHitUpdate", 0x018931f0);
 }
 
-// stub of CT3 0x01892ee0
-void tiHurikoUpdate(void)
-{
-    ALYSSAPAN_STUB("tiHurikoUpdate", 0x01892ee0);
-}
-
 // stub of CT3 0x0188a610
 void tiLightBelt2Update(void)
 {
@@ -574,12 +743,6 @@ void tiLightBelt2UpdateForALYSSA_Battle(void)
 void tiLightBelt2UpdateForBOSS_Battle(void)
 {
     ALYSSAPAN_STUB("tiLightBelt2UpdateForBOSS_Battle", 0x0188a1f0);
-}
-
-// stub of CT3 0x01890070
-void tiParticleUpdate(void)
-{
-    ALYSSAPAN_STUB("tiParticleUpdate", 0x01890070);
 }
 
 // stub of CT3 0x0188bb60
@@ -660,12 +823,6 @@ void tiPipeJointInit(int bank)
     ALYSSAPAN_STUB("tiPipeJointInit", 0x0188bf30);
 }
 
-// stub of CT3 0x0188ddc0
-void tiSet_CharaTranslucenceOFF(int chara, int flag)
-{
-    ALYSSAPAN_STUB("tiSet_CharaTranslucenceOFF", 0x0188ddc0);
-}
-
 // stub of CT3 0x0188ded0
 void tiSet_CharaTranslucenceON(int chara, int level, int flag)
 {
@@ -694,4 +851,58 @@ void tiHurikoReset_On(int bank, int id, int byChara)
 void tiXFadeOut_Start2(float time, u_char kind)
 {
     ALYSSAPAN_STUB("tiXFadeOut_Start2", 0x0188d5e0);
+}
+
+// stub of CT3 0x0188fba0
+void tiGenerateParticle(int ticks, PARTICLE2_ENTRY *ent, int enabled, int bank)
+{
+    (void)ticks;
+    (void)ent;
+    (void)enabled;
+    (void)bank;
+    ALYSSAPAN_STUB("tiGenerateParticle", 0x0188fba0);
+}
+
+// stub of CT3 0x0188f2b0
+void tiCalc_Orbit(int ticks, PARTICLE2_ENTRY *ent, int after, CAMERA *cam, int bank)
+{
+    (void)ticks;
+    (void)ent;
+    (void)after;
+    (void)cam;
+    (void)bank;
+    ALYSSAPAN_STUB("tiCalc_Orbit", 0x0188f2b0);
+}
+
+// stub of CT3 0x01890c00
+void tiHurikoReset(int bank, HURIKO *h)
+{
+    (void)bank;
+    (void)h;
+    ALYSSAPAN_STUB("tiHurikoReset", 0x01890c00);
+}
+
+// stub of CT3 0x01892310
+void tiCalc_HurikoOPEN(HURIKO *h, int bank, int ticks)
+{
+    (void)h;
+    (void)bank;
+    (void)ticks;
+    ALYSSAPAN_STUB("tiCalc_HurikoOPEN", 0x01892310);
+}
+
+// stub of CT3 0x018915a0
+void tiCalc_HurikoCLOSED(HURIKO *h, int bank, int ticks)
+{
+    (void)h;
+    (void)bank;
+    (void)ticks;
+    ALYSSAPAN_STUB("tiCalc_HurikoCLOSED", 0x018915a0);
+}
+
+// stub of CT3 0x018912b0
+void tiGetNewNormalData(HURIKO *h)
+{
+    (void)h;
+    ALYSSAPAN_STUB("tiGetNewNormalData", 0x018912b0);
 }

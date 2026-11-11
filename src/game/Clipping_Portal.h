@@ -52,6 +52,35 @@ static_assert(offsetof(LIGHT_BELT2, points) == 0x10, "LIGHT_BELT2.points");
 static_assert(offsetof(LIGHT_BELT2, halfA) == 0x20, "LIGHT_BELT2.halfA");
 static_assert(sizeof(LIGHT_BELT2) == 0x40, "LIGHT_BELT2");
 
+// ---- pendulums (huriko; tiHurikoUpdate, 2026-11-11 slice 3) ----
+// A bank's pendulums (ALL_TABLE.huriko, a 0-ended list of EE words). layout: ee -- bank data; only the
+// trigger part and the flags are read so far (tiCalc_HurikoOPEN / _CLOSED, tiHurikoReset name the rest).
+typedef struct HURIKO {
+    short trigPart;                     /* 0x00: ssTrigCheckEnable's part: the pendulum swings while enabled */
+    u_char pad02[0x16];
+    u_int flags;                        /* 0x18: HURIKO_FLAG_* */
+} HURIKO;
+static_assert(offsetof(HURIKO, flags) == 0x18, "HURIKO.flags");
+#define HURIKO_FLAG_CLOSED 0x1          /* tiCalc_HurikoCLOSED swings it, else tiCalc_HurikoOPEN */
+#define HURIKO_FLAG_DISABLED 0x4        /* its trigger was off (set each frame it is off) */
+#define HURIKO_FLAG_RESET 0x8           /* re-enabled: tiHurikoReset on the next enabled frame */
+
+// ---- particles (tiParticleUpdate, 2026-11-11 slice 3) ----
+// PORT: the bank is added to the helpers that read a PARTICLE2_ENTRY's ring (an EE word in the bank).
+struct PARTICLE2_ENTRY;
+struct CAMERA;
+void tiCalc_LifeSpan(struct PARTICLE2_ENTRY *ent, int bank);                            // CT3 0x0188f9a0
+// ROM (ticks, entry, enabled); PORT: bank added.
+void tiGenerateParticle(int ticks, struct PARTICLE2_ENTRY *ent, int enabled, int bank);  // CT3 0x0188fba0
+// after: 0 for ALL_TABLE.particles2, 1 for particles2After; cam: Cam[0] for the scene banks, else Cam[6].
+void tiCalc_Orbit(int ticks, struct PARTICLE2_ENTRY *ent, int after, struct CAMERA *cam, int bank); // CT3 0x0188f2b0
+void tiHurikoReset(int bank, HURIKO *h);                                                 // CT3 0x01890c00
+void tiCalc_HurikoOPEN(HURIKO *h, int bank, int ticks);                                  // CT3 0x01892310
+void tiCalc_HurikoCLOSED(HURIKO *h, int bank, int ticks);                                // CT3 0x018915a0
+void tiGetNewNormalData(HURIKO *h);                                                      // CT3 0x018912b0
+// dst.xyz = src.xyz / |src.xyz|; w scaled the same (VU0: the whole vector times rsqrt(x2+y2+z2)).
+void gaNormalizeVectorXYZ(float *dst, const float *src);                                 // CT3 0x01891570
+
 // ---- vibration ----
 // Ticks run 5 a frame (LinkMatrixTree.c): tiVibrationOn's time is in frames.
 #define VIB_TICKS_PER_FRAME 5

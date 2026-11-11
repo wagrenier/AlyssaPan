@@ -1251,6 +1251,20 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    globals pPipe_Joint / _Base / _Target, length1 / 2, matParent, prevMatrix, Pipe_Vel: do them together),
    tiDrawShadingOff with CaptureDBuffer and tiVRAMViewer (a frame-buffer capture: needs a host call),
    ExportDrawToTex, tiDrawLensFlares, tiLightBelt2Update.
+   **Update 2026-11-11 (Clipping_Portal.c slice 3, scheduled run):** tiParticleUpdate, tiCalc_LifeSpan,
+   tiHurikoUpdate, gaNormalizeVectorXYZ, tiSet_CharaTranslucenceOFF written; tiGenerateParticle,
+   tiCalc_Orbit, tiHurikoReset, tiCalc_HurikoOPEN / _CLOSED, tiGetNewNormalData stubbed (their prototypes
+   from these call sites). Smoke run unchanged (frame 120 ATLD's memory-card text, then black). Open from
+   slice 3: (jg) PORT: tiCalc_LifeSpan, tiGenerateParticle and tiCalc_Orbit take the bank as an extra
+   argument (the entry's ring is an EE word in it); (jh) PARTICLE2.life (+0x50) / .age (+0x54) and
+   HURIKO (trigPart +0, flags +0x18: CLOSED 1, DISABLED 4, RESET 8) are named from these readers only;
+   tiHurikoReset_On's "bit 2" is probably DISABLED (4), which leads to a RESET next frame -- confirm in its
+   slice; (ji) BANK_TYPE_BEHAVIOR (3 = FS_LOAD_BEHAVIOR) is skipped by both updates (the particle one only
+   past the scene banks); neither honours BANK_FLAG_ANIM_FORCE_RUN while paused (the ROM tests only
+   pause 0 or PAUSE_RUNNING), kept; (jj) tiCalc_LifeSpan walks every live record and drops any expired
+   one by moving head past it, not only the leading ones: the ROM's, kept; (jk) ALL_TABLE +0x68 is now
+   huriko. Slice left as before (pipe joint, shading-off capture, ExportDrawToTex, lens flares,
+   tiLightBelt2Update) plus the six new stubs and tiParticleInit / tiHurikoInit.
 
 ## Decisions
 

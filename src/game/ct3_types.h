@@ -287,6 +287,8 @@ static_assert(offsetof(BANK_INFO, shadow70) == 0x70, "BANK_INFO.shadow70");
                                            bank's type is the FS_LOAD_* kind it was loaded as, so 1 is
                                            FS_LOAD_SCENE, the scene bank (rename when its users are next
                                            touched) */
+#define BANK_TYPE_BEHAVIOR 3            /* = FS_LOAD_BEHAVIOR: tiParticleUpdate (past the scene banks) and
+                                           tiHurikoUpdate skip a behaviour bank */
 #define BANK_TYPE_0 0                   /* scene_init: takes the table's fog record, like type 1 */
 #define BANK_SCENE_MAX 6                /* asCheckBankID: banks 0..5 have their own view matrix, the
                                            rest share bank 6's; GlobalDrawObject draws banks 0..5 */
@@ -392,7 +394,9 @@ typedef struct ALL_TABLE {
     u_int particles;                    /* 0x58: list of PARTICLE_ENTRY: main_rtn_Particle's */
     u_int pad5c;
     u_int objAfter;                     /* 0x60: list: after the particles; non-empty -> ExportDrawToTex */
-    u_int pad64[2];
+    u_int pad64;
+    u_int huriko;                       /* 0x68: list of HURIKO (Clipping_Portal.h): the bank's pendulums
+                                           (tiHurikoUpdate) */
     u_int shadow;                       /* 0x6c: the shadow table (relocated: 7 words, then 8 key tables);
                                            its word 0 is the shadow volume's ga draw objects, 0x80 apart,
                                            ended by a 0 kind byte (asDrawShadowVolume) */
@@ -439,6 +443,7 @@ static_assert(offsetof(ALL_TABLE, sound) == 0x54, "ALL_TABLE.sound");
 static_assert(offsetof(ALL_TABLE, objAfter) == 0x60, "ALL_TABLE.objAfter");
 static_assert(offsetof(ALL_TABLE, partsLight) == 0x70, "ALL_TABLE.partsLight");
 static_assert(offsetof(ALL_TABLE, particles2After) == 0x7c, "ALL_TABLE.particles2After");
+static_assert(offsetof(ALL_TABLE, huriko) == 0x68, "ALL_TABLE.huriko");
 static_assert(offsetof(ALL_TABLE, fog) == 0xb8, "ALL_TABLE.fog");
 static_assert(offsetof(ALL_TABLE, winds) == 0x98, "ALL_TABLE.winds");
 static_assert(offsetof(ALL_TABLE, lightBelts) == 0xa0, "ALL_TABLE.lightBelts");
@@ -668,7 +673,10 @@ typedef struct PARTICLE2 {
     u_char pad00[0x20];
     float offset[4];                    /* 0x20: added to the part's position; w scales its w
                                            around PARTS_POS_W_CENTER */
-    u_char pad30[0x38];
+    u_char pad30[0x20];
+    int life;                           /* 0x50: tiCalc_LifeSpan: the record expires once life - age < 1 */
+    int age;                            /* 0x54 (both named from that one use) */
+    u_char pad58[0x10];
     u_int obj;                          /* 0x68: the ga draw object (DRAW_OBJ_* offsets) */
     u_int obj6c;                        /* 0x6c: relocated; not read yet */
     u_char pad70[0x10];
@@ -676,6 +684,7 @@ typedef struct PARTICLE2 {
 static_assert(sizeof(PARTICLE2) == 0x80, "PARTICLE2");
 static_assert(offsetof(PARTICLE2, offset) == 0x20, "PARTICLE2.offset");
 static_assert(offsetof(PARTICLE2, obj) == 0x68, "PARTICLE2.obj");
+static_assert(offsetof(PARTICLE2, life) == 0x50, "PARTICLE2.life");
 
 typedef struct PARTICLE2_ENTRY {
     u_char pad00[0x40];

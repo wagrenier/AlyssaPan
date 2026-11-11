@@ -474,7 +474,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 105..105, 36 functions keyed by their statics, 13 unkeyed; file name from the names"
   },
   "game/Clipping_Portal.c": {
-   "notes": "Smoke run unchanged: frame 120 ATLD text, then black after the fade; none of the new code runs yet (Clipping_System 0, no character, CheckLOS a stub). Slice left: tiPipeJointUpdate together with tiPipeJointInit (shared pipe globals), tiDrawShadingOff with CaptureDBuffer and tiVRAMViewer (frame-buffer capture needs a host call), ExportDrawToTex, tiDrawLensFlares, tiLightBelt2Update. open-items.md item 7 update (ja..jf).",
+   "notes": "Smoke run unchanged: frame 120 ATLD memory-card text, then black; no particle or pendulum bank is loaded yet. New stubs: tiGenerateParticle, tiCalc_Orbit, tiHurikoReset, tiCalc_HurikoOPEN / CLOSED, tiGetNewNormalData (bank added as a PORT argument to the particle helpers). Slice left: tiPipeJointUpdate with tiPipeJointInit, tiDrawShadingOff with CaptureDBuffer and tiVRAMViewer, ExportDrawToTex, tiDrawLensFlares with tiLensFlaresInit, tiLightBelt2Update, tiParticleInit, tiHurikoInit. open-items.md item 7 (jg..jk).",
    "ranges": [
     [
      "01889cd0",
@@ -491,6 +491,11 @@
      "date": "2026-11-11 14:54",
      "status": "partial",
      "summary": "slice 2: Clipping_Portal (portal side planes), tiCharaFootAdjust and tiCalc_FootPos (two-bone leg IK onto the floor); LOS_HIT, CHARACTER.footAdjust, CHARA_LEG moved to ct3_types.h"
+    },
+    {
+     "date": "2026-11-11 15:12",
+     "status": "partial",
+     "summary": "slice 3: tiParticleUpdate, tiCalc_LifeSpan, tiHurikoUpdate, gaNormalizeVectorXYZ, tiSet_CharaTranslucenceOFF; HURIKO, ALL_TABLE.huriko, PARTICLE2.life / age, BANK_TYPE_BEHAVIOR; six helper stubs"
     }
    ],
    "status": "partial",
