@@ -193,3 +193,88 @@ void tnChangeCharAmbientColorSet(short *set)
 {
     ALYSSAPAN_STUB("tnChangeCharAmbientColorSet", 0x018962a0);
 }
+
+// stub of CT3 0x01897140
+void ssPartMotionBlurEnd(int part, int bank)
+{
+    ALYSSAPAN_STUB("ssPartMotionBlurEnd", 0x01897140);
+}
+
+// stub of CT3 0x018976d0
+void ssPartMotionBlurStart(int part, int a, int bank, int b, int c)
+{
+    ALYSSAPAN_STUB("ssPartMotionBlurStart", 0x018976d0);
+}
+
+// stub of CT3 0x0189b580
+void ssTrigHQDOFEnd(void)
+{
+    ALYSSAPAN_STUB("ssTrigHQDOFEnd", 0x0189b580);
+}
+
+// stub of CT3 0x0189b5a0
+void ssTrigHQDOFStart(int a, int b)
+{
+    ALYSSAPAN_STUB("ssTrigHQDOFStart", 0x0189b5a0);
+}
+
+// stub of CT3 0x0189d2f0
+void ssTrigHazyScreenEnd(void)
+{
+    ALYSSAPAN_STUB("ssTrigHazyScreenEnd", 0x0189d2f0);
+}
+
+// stub of CT3 0x0189d310
+void ssTrigHazyScreenStart(int level, int time)
+{
+    ALYSSAPAN_STUB("ssTrigHazyScreenStart", 0x0189d310);
+}
+
+// stub of CT3 0x01898710
+void ssTrigParticleAllOffImmediately(int particle, int bank)
+{
+    ALYSSAPAN_STUB("ssTrigParticleAllOffImmediately", 0x01898710);
+}
+
+// stub of CT3 0x018988b0
+void ssTrigParticleStart(int particle, int bank, int arg)
+{
+    ALYSSAPAN_STUB("ssTrigParticleStart", 0x018988b0);
+}
+
+// stub of CT3 0x018988a0
+void ssTrigParticleStop(int particle, int bank)
+{
+    ALYSSAPAN_STUB("ssTrigParticleStop", 0x018988a0);
+}
+
+// stub of CT3 0x0189d920
+void ssTrigScreenBlurStart(int level)
+{
+    ALYSSAPAN_STUB("ssTrigScreenBlurStart", 0x0189d920);
+}
+
+// stub of CT3 0x0189b920
+void ssTrigVaselineEnd(void)
+{
+    ALYSSAPAN_STUB("ssTrigVaselineEnd", 0x0189b920);
+}
+
+// stub of CT3 0x0189bd40
+void ssTrigVaselineStart(int a, int b, int c, int d, int e, int f, int g, int h, int i)
+{
+    ALYSSAPAN_STUB("ssTrigVaselineStart", 0x0189bd40);
+}
+
+// stub of CT3 0x0189ce30
+void ssTrigWaveEnd(void)
+{
+    ALYSSAPAN_STUB("ssTrigWaveEnd", 0x0189ce30);
+}
+
+// stub of CT3 0x0189ce60
+void ssTrigWaveStart(int a, int b, int c, int d, int e, int f, int g, int h, int i, int j, int bank,
+                     int k)
+{
+    ALYSSAPAN_STUB("ssTrigWaveStart", 0x0189ce60);
+}

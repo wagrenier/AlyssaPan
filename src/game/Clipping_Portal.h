@@ -41,3 +41,8 @@ void tiLensFlaresInit(int scene);                                               
 void tiParticleInit(int scene);                                                          // CT3 0x01890350
 void tiHurikoInit(int scene);                                                            // CT3 0x018933f0
 void tiPipeJointInit(int bank);                                                          // CT3 0x0188bf30 (main2.c: chara 3's shape)
+
+// From ssTrigExecuteActCmd's commands (2026-11-11): the arguments the command passes; the last is 1 there.
+void tiSet_CharaTranslucenceON(int chara, int level, int flag);                          // CT3 0x0188ded0
+void tiSet_CharaTranslucenceOFF(int chara, int flag);                                    // CT3 0x0188ddc0
+void tiXFadeOut_Start(float time);                                                       // CT3 0x0188d6e0

@@ -316,3 +316,250 @@ int BankUseCheck(int first, int count)
     }
     return 0;
 }
+
+// ---- stubs (tools/reverse/stubgen.py) ----
+
+// stub of CT3 0x018f3ba0
+int tnCurrentSceneSet(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tnCurrentSceneSet", 0x018f3ba0);
+    return {};
+}
+
+// stub of CT3 0x018f2c50
+int tnXcmd_1P01_PazzleAnim(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tnXcmd_1P01_PazzleAnim", 0x018f2c50);
+    return {};
+}
+
+// stub of CT3 0x018f2fa0
+int tnXcmd_1P01_PazzleInit(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tnXcmd_1P01_PazzleInit", 0x018f2fa0);
+    return {};
+}
+
+// stub of CT3 0x018ef550
+int tnXcmd_AllOmniEffect(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tnXcmd_AllOmniEffect", 0x018ef550);
+    return {};
+}
+
+// stub of CT3 0x018f1e20
+int tnXcmd_BankFree(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tnXcmd_BankFree", 0x018f1e20);
+    return {};
+}
+
+// stub of CT3 0x018f2720
+int tnXcmd_BehaviorFree(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tnXcmd_BehaviorFree", 0x018f2720);
+    return {};
+}
+
+// stub of CT3 0x018f20b0
+int tnXcmd_CharFogAnimation(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tnXcmd_CharFogAnimation", 0x018f20b0);
+    return {};
+}
+
+// stub of CT3 0x018ef670
+int tnXcmd_CharOmniEffect(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tnXcmd_CharOmniEffect", 0x018ef670);
+    return {};
+}
+
+// stub of CT3 0x018f36b0
+int tnXcmd_Character_Ambient_Change(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tnXcmd_Character_Ambient_Change", 0x018f36b0);
+    return {};
+}
+
+// stub of CT3 0x018ef320
+int tnXcmd_Continue(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tnXcmd_Continue", 0x018ef320);
+    return {};
+}
+
+// stub of CT3 0x018ef3d0
+int tnXcmd_EndPanic(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tnXcmd_EndPanic", 0x018ef3d0);
+    return {};
+}
+
+// stub of CT3 0x018f1710
+int tnXcmd_Filter_Change(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tnXcmd_Filter_Change", 0x018f1710);
+    return {};
+}
+
+// stub of CT3 0x018efc50
+int tnXcmd_Key_Lock(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tnXcmd_Key_Lock", 0x018efc50);
+    return {};
+}
+
+// stub of CT3 0x018f1570
+int tnXcmd_Menu_MapLoad(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tnXcmd_Menu_MapLoad", 0x018f1570);
+    return {};
+}
+
+// stub of CT3 0x018ef810
+int tnXcmd_OmniRange(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tnXcmd_OmniRange", 0x018ef810);
+    return {};
+}
+
+// stub of CT3 0x018f2240
+int tnXcmd_SceneFogAnimation(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tnXcmd_SceneFogAnimation", 0x018f2240);
+    return {};
+}
+
+// stub of CT3 0x018ee9c0
+int tnXcmd_SetAllControlDisableCamera(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tnXcmd_SetAllControlDisableCamera", 0x018ee9c0);
+    return {};
+}
+
+// stub of CT3 0x018f26f0
+int tnXcmd_SetFarClip(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tnXcmd_SetFarClip", 0x018f26f0);
+    return {};
+}
+
+// stub of CT3 0x018f2430
+int tnXcmd_SetMovieWorkBuff(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tnXcmd_SetMovieWorkBuff", 0x018f2430);
+    return {};
+}
+
+// stub of CT3 0x018f26c0
+int tnXcmd_SetNearClip(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tnXcmd_SetNearClip", 0x018f26c0);
+    return {};
+}
+
+// stub of CT3 0x018f25c0
+int tnXcmd_SetPanic(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tnXcmd_SetPanic", 0x018f25c0);
+    return {};
+}
+
+// stub of CT3 0x018ee5f0
+int tnXcmd_SetRoodersPts(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tnXcmd_SetRoodersPts", 0x018ee5f0);
+    return {};
+}
+
+// stub of CT3 0x018f2830
+int tnXcmd_ShapeFree(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tnXcmd_ShapeFree", 0x018f2830);
+    return {};
+}
+
+// stub of CT3 0x018efa90
+int tnXcmd_StayRoom(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tnXcmd_StayRoom", 0x018efa90);
+    return {};
+}
+
+// stub of CT3 0x018f3bd0
+int tnXcmd_TexFileSetNext(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tnXcmd_TexFileSetNext", 0x018f3bd0);
+    return {};
+}
+
+// stub of CT3 0x018f3c30
+int tnXcmd_TexFileSetPage(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tnXcmd_TexFileSetPage", 0x018f3c30);
+    return {};
+}
+
+// stub of CT3 0x018f1a10
+int tnXcmd_TimeSet(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tnXcmd_TimeSet", 0x018f1a10);
+    return {};
+}
+
+// stub of CT3 0x018ef1c0
+int tnXcmd_TimeStop(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tnXcmd_TimeStop", 0x018ef1c0);
+    return {};
+}
+
+// stub of CT3 0x018f37e0
+int tnXcmd_VistaVision(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tnXcmd_VistaVision", 0x018f37e0);
+    return {};
+}
+
+// stub of CT3 0x018f3280
+int wideXcmd_PlayAnimeRange(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("wideXcmd_PlayAnimeRange", 0x018f3280);
+    return {};
+}
+
+// stub of CT3 0x018f30e0
+int wideXcmd_PlayAnimeToFream(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("wideXcmd_PlayAnimeToFream", 0x018f30e0);
+    return {};
+}
+
+// stub of CT3 0x018f28f0
+int wideXcmd_PlayAnimeToFream2(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("wideXcmd_PlayAnimeToFream2", 0x018f28f0);
+    return {};
+}
+
+// stub of CT3 0x018efb80
+int wideXcmd_ReadChengeMsg(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("wideXcmd_ReadChengeMsg", 0x018efb80);
+    return {};
+}
+
+// stub of CT3 0x018eedf0
+int wideXcmd_ScreenAdjust(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("wideXcmd_ScreenAdjust", 0x018eedf0);
+    return {};
+}
+
+// stub of CT3 0x018f34a0
+int wideXcmd_VariableCal(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("wideXcmd_VariableCal", 0x018f34a0);
+    return {};
+}

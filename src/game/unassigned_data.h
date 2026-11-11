@@ -170,6 +170,8 @@ extern int ArrowList[50];                       /* sbss 0x0193f790 */
 extern int idNextScene;                         /* sbss 0x01940e38 */
 extern int backup_progress_time;                /* sbss 0x0193fa18: the play time ContinueBackupGet restores */
 extern int idCameraScene;                       /* sbss 0x01940e30: the bank whose camera is live */
+extern u_long haCameraRoom;                     /* sbss 0x01940e28: ahGetHash of that bank's 4-letter room name
+                                                   (ssTrigExecuteActCmd's camera command) */
 extern int TransparentBodyTime;                 /* sbss 0x01940e48: data_load_set: 360 */
 extern int KekkaiOn;                            /* sbss 0x0193f9a4 (no symbol; game-inferred): cleared when
                                                    Kekkai_Check spends the last barrier charm */

@@ -291,6 +291,7 @@ int ArrowList[50];                              /* sbss 0x0193f790 */
 int idNextScene;                                /* sbss 0x01940e38 */
 int backup_progress_time;                       /* sbss 0x0193fa18 */
 int idCameraScene;                              /* sbss 0x01940e30 */
+u_long haCameraRoom;                            /* sbss 0x01940e28 */
 int TransparentBodyTime;                        /* sbss 0x01940e48 */
 int KekkaiOn;                                   /* sbss 0x0193f9a4 */
 PANIC_INFO PanicInfoData;                       /* sbss 0x01940e50 */

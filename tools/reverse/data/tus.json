@@ -1027,7 +1027,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 102..102, 3 functions keyed by their statics, 2 unkeyed; file name from the names"
   },
   "game/ssGrpPortalCheck.c": {
-   "notes": "Only ssTrigExecuteActCmd (0x018d5450, 0x249c bytes, about 70 command kinds by u16 id from 0x6a8 down, 78 callees) is left; the smoke run reaches its stub now that conditions run. Do it in two or three slices: the dispatcher with every command's skip size first (cVar31 is the skipping flag), then the commands by callee TU. ssRadianByO is a stub (ssHitCheckAttackToScn.c), so ssTrigLookAtCheck answers from angle 0. Hit list layouts and HitObjectId are from this reader only. open-items.md item 6 (k)-(o).",
+   "notes": "Code complete, picture regressed: black where the grey ATLD banner showed. Probes bisected two ROM-faithful causes: bank 0 hides parts 2 and 3 (the banner) and shows 6 and 7, which the host does not draw; bank 5 cuts its own camera (CamChange_S, first scene-bank cut) and the view goes blank. Bank 5 then waits in wideXcmd_PlayAnimeToFream2 (stub). Next: why parts 6 and 7 of bank 0 draw nothing, and the first cut camera. open-items.md item 6 (p)-(v).",
    "ranges": [
     [
      "018d2ee0",
@@ -1054,6 +1054,11 @@
      "date": "2026-11-11 08:37",
      "status": "partial",
      "summary": "triggers slice 4: ssTrigCheckConditions and its checks (ssTrigCheckInput, ssTrigCheckVariable, ssTrigLookAtCheck, ssTrigAttackHitCheck), ssTrigSetEnable, Trigger_reset"
+    },
+    {
+     "date": "2026-11-11 09:05",
+     "status": "partial",
+     "summary": "triggers slice 5: ssTrigExecuteActCmd (every command id and operand size, TRIG_CMD_*), the 256-slot ssXcmd_functions table from the ELF, suXcmd_AnmDirection; 232 x commands declared and stubbed in their TUs"
     }
    ],
    "status": "partial",

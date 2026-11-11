@@ -163,13 +163,100 @@ typedef struct TRIG_DET_WORK {
 #define TRIG_RUN_ACTIVATE 1
 #define TRIG_RUN_DEACTIVATE 2
 
+// ssTrigExecuteActCmd's commands: a u16 id, then its operands (bytes after the id in the comment; a
+// skipped command steps over exactly these). "name" is a 5-byte inline string (4 letters and a NUL);
+// "-1" marks a byte the command passes minus one. Ids not listed do nothing and take no operands.
+#define TRIG_CMD_SET_ENABLE 1           /* 4: part u16, op-1 u8, delayed u8 (ssTrigSetEnable) */
+#define TRIG_CMD_WARP 2                 /* 16: room name, mode-1 u8, chara u16, part hash u64 (WarpObject) */
+#define TRIG_CMD_PLAYER_CONTROL 3       /* 1: mode-1 (PlayerControlUpdate) */
+#define TRIG_CMD_MONSTER_AI 4           /* 1: mode-1 (MonsterAIUpdate) */
+#define TRIG_CMD_PAUSE 5                /* 1: resume-1 (PauseUpdate; 0 = again next frame) */
+#define TRIG_CMD_MENU 6                 /* 1: mode-1 (ssMenuUpdate) */
+#define TRIG_CMD_SE_PLAY 100            /* 3: sound object u16, u8 */
+#define TRIG_CMD_SE_STOP 101            /* 2: sound object u16 */
+#define TRIG_CMD_SE_LOAD_BANK 102       /* 15: a 13-byte name, u16 */
+#define TRIG_CMD_SE_VOLUME 103          /* 4: sound object u16, u8, u8 */
+#define TRIG_CMD_EVENT 200              /* 4: TRIG_EVENT_* u8, event u16, global u8 */
+#define TRIG_CMD_CAM_ZELCAM 300         /* 11: 5 x u16, u8 (CamChangeZELCAM_S) */
+#define TRIG_CMD_CAM_CHANGE 301         /* scene s16, then -1: 4 (cut u8, mode u8, time u16), else 16
+                                           (a name, hash u64, mode u8, time u16) */
+#define TRIG_CMD_CAM_FOV 302            /* 3: time u16, degrees u8 */
+#define TRIG_CMD_CAM_DOF 303            /* 1: level */
+#define TRIG_CMD_ANIM_STOP 500          /* 15: hash u64, part u16, 5 x u8 (asSceneAnimationStop_S) */
+#define TRIG_CMD_ANIM_RANGE 501         /* 36: hash u64, from u32, to u32, speed*10 u8, part u16, 7 x u8,
+                                           second bank u16, its hash u64 */
+#define TRIG_CMD_ANIM_PLAY 502          /* 32: as 501 without from (from = -1) */
+#define TRIG_CMD_TEX_SET_PAGE 503       /* 6: part u16, literal-1 u8, u8, page u16 */
+#define TRIG_CMD_TEX_SET_NEXT 504       /* 3: part u16, back-1 u8 */
+#define TRIG_CMD_WAIT_FRAMES 700        /* 4: animation ticks u32 (scaled by anim_play_slow) */
+#define TRIG_CMD_WAIT_ANIM 701          /* 15: as 500; waits while asCheckAnimationState_S answers 1 */
+#define TRIG_CMD_SCENE_LOAD 800         /* 9: name, bank u16, arg u16 */
+#define TRIG_CMD_SCENE_DRAW 801         /* 11: name, on-1 u8, u8, part u16, u16 */
+#define TRIG_CMD_SELF_DISCARD_LOAD 802  /* 13: name, u16, u16, draw-1 u8, byPos-1 u8, part u16 */
+#define TRIG_CMD_SET_VARIABLE 900       /* 7: var u16, value u32, global u8 */
+#define TRIG_CMD_IF 1000                /* 0: opens a block (depth + 1) */
+#define TRIG_CMD_ENDIF 1001             /* 0: closes it */
+#define TRIG_CMD_ELSE 1002              /* 0 */
+#define TRIG_CMD_RETURN 1003            /* 0: the list ends here */
+#define TRIG_CMD_IF_ENABLE 1100         /* 3: part u16, expected+1 u8 */
+#define TRIG_CMD_IF_EVENT 1101          /* 4: event u16, global u8, expected+1 u8 */
+#define TRIG_CMD_IF_VARIABLE 1102       /* 8: var u16, value u32, global u8, TRIG_CMP_* u8 */
+#define TRIG_CMD_IF_RANDOM 1103         /* 1: percent */
+#define TRIG_CMD_IF_SCENE_DRAW 1104     /* 5: name word u32, expected+1 u8 */
+#define TRIG_CMD_RUN_ACTOR 1200         /* 3: actor u16, mode u8 (waits for it) */
+#define TRIG_CMD_CANCEL_ACTOR 1201      /* 3: actor u16, mode u8 */
+#define TRIG_CMD_XCMD 1300              /* strings' length u16, index u8, argc u8, argc strings */
+#define TRIG_CMD_PARTICLE_START 1400    /* 4: particle u16, u16 */
+#define TRIG_CMD_PARTICLE_STOP 1401     /* 3: immediately u8, particle u16 */
+#define TRIG_CMD_MOTION_BLUR_START 1402 /* 5: part u16, 3 x u8 */
+#define TRIG_CMD_MOTION_BLUR_END 1403   /* 2: part u16 */
+#define TRIG_CMD_SCREEN_BLUR_START 1404 /* 1 */
+#define TRIG_CMD_SCREEN_BLUR_END 1405
+#define TRIG_CMD_HAZY_START 1406        /* 3: u8, u16 */
+#define TRIG_CMD_HAZY_END 1407
+#define TRIG_CMD_WAVE_START 1408        /* 16: 4 x u16, 5 x u8, u16, u8 */
+#define TRIG_CMD_WAVE_END 1409
+#define TRIG_CMD_VASELINE_START 1410    /* 14: 4 x u16, 3 x u8, u16, u8 */
+#define TRIG_CMD_VASELINE_END 1411
+#define TRIG_CMD_HQDOF_START 1412       /* 2: u8, u8 */
+#define TRIG_CMD_HQDOF_END 1413
+#define TRIG_CMD_FADE_OUT 1414          /* 1: time */
+#define TRIG_CMD_TRANSLUCENT_ON 1415    /* 2: chara, level */
+#define TRIG_CMD_TRANSLUCENT_OFF 1416   /* 1: chara */
+#define TRIG_CMD_SHADOW_ATTACH 1500     /* 10: chara u8 (0xff = this bank), part u16, level u8, value u8,
+                                           angle lock u8, two lock angles*10 u16 */
+#define TRIG_CMD_SHADOW_DISABLE 1501    /* 1: chara */
+#define TRIG_CMD_SHADOW_DETACH 1502     /* 1: chara */
+#define TRIG_CMD_SHADOW_TRANS_MODE 1503 /* 1: mode */
+#define TRIG_CMD_NOP_1600 1600          /* 0: no operation in the ROM */
+#define TRIG_CMD_NOP_1601 1601          /* 0 */
+#define TRIG_CMD_MOVIE_OPEN 1602        /* movie length u8, caption length u8, both strings, skip u16 */
+#define TRIG_CMD_MOVIE_PLAY 1603        /* 0: AA_PlayMovieReady */
+#define TRIG_CMD_CHARA_SHAPE_LOAD 1700  /* 10: name, chara u8, bank u16, u16 */
+#define TRIG_CMD_CHARA_BEHAVIOR_LOAD 1701 /* 10: name, chara u8, bank u16, u16 */
+#define TRIG_CMD_CHARA_SHAPE_SET 1702   /* 11: name, chara u8, bank u16, u8, u16 */
+#define TRIG_CMD_CHARA_BEHAVIOR_SET 1703 /* 8: name, chara u8, bank u16 */
+#define TRIG_CMD_CHARA_DRAW 1704        /* 2: on-1 u8, chara u8 */
+#define TRIG_CMD_END 0xfffe             /* the list's end */
+#define TRIG_CMD_NAME_LEN 5             /* the inline names: 4 letters and a NUL */
+#define TRIG_CMD_SE_NAME_LEN 13         /* TRIG_CMD_SE_LOAD_BANK's name */
+#define TRIG_EVENT_REMOVE 1             /* TRIG_CMD_EVENT's op: 1 removes, any other registers */
+#define TRIG_SHADOW_THIS_BANK 0xff      /* TRIG_CMD_SHADOW_*'s chara: the bank running the list */
+#define TRIG_CAM_THIS_SCENE (-1)        /* TRIG_CMD_CAM_CHANGE's scene: this bank's camera */
+#define TRIG_TIME_SCALE_NUM 300         /* camera times: u16 * 300 / 1000 */
+#define TRIG_TIME_SCALE_DEN 1000
+#define TRIG_FOV_FULL_DEG 360           /* TRIG_CMD_CAM_FOV: degrees * 0x10000 / 360 */
+#define TRIG_ANGLE_SCALE 10.0f          /* speeds and lock angles are stored * 10 */
+#define TRIG_XCMD_COUNT 256             /* ssXcmd_functions' slots */
+
 // One command list of an actor (activate or deactivate; ssTrigExecuteActCmd runs it). layout: ee.
 typedef struct TRIG_ACT_CMDS {
     int cursor;                         /* 0x00: the next command's offset into ActData (pos + 1 at a start) */
     u_int pos;                          /* 0x04: offset into ActData[bank]: the commands' count byte */
     int wait;                           /* 0x08: -1 at a start (the running command's own state) */
     u_char num;                         /* 0x0c: the commands' count */
-    u_char step;                        /* 0x0d: 0 at a start */
+    u_char step;                        /* 0x0d: 0 at a start; ssTrigExecuteActCmd's TRIG_CMD_IF depth (a
+                                           false test skips to the ENDIF / ELSE of this depth) */
     u_char pad0e[2];
 } TRIG_ACT_CMDS;
 static_assert(sizeof(TRIG_ACT_CMDS) == 0x10, "TRIG_ACT_CMDS");
@@ -262,6 +349,7 @@ void ssTrigRunActors(short det, int mode, int bank);                            
 void ssTrigRunActor(short det, u_short actor, u_int mode, int bank);                     // CT3 0x018d79f0
 void ssTrigProceedActor(u_short actor, int mode, int bank);                              // CT3 0x018d78f0
 int ssTrigExecuteActCmd(TRIG_ACT_CMDS *cmds, int bank);                                  // CT3 0x018d5450
+int suXcmd_AnmDirection(int argc, char **argv, int bank);                                // CT3 0x018d99c0
 void ssTrigCancelActor(u_short actor, int mode, int bank);                               // CT3 0x018d9190
 int ssTrigExecuteActor(int *state, u_short actor, u_int mode, int bank);                 // CT3 0x018d9220
 int ssTrigCheckRandom(int percent);                                                      // CT3 0x018d8e50

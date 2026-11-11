@@ -23,3 +23,31 @@ void tkXcmd_DoorFlagClear(u_char *eventFlags)
 {
     ALYSSAPAN_STUB("tkXcmd_DoorFlagClear", 0x018ed320);
 }
+
+// stub of CT3 0x018ee5e0
+int tkXcmd_AiSoundPosition(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tkXcmd_AiSoundPosition", 0x018ee5e0);
+    return {};
+}
+
+// stub of CT3 0x018ed9e0
+int tkXcmd_DoorTrigger(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tkXcmd_DoorTrigger", 0x018ed9e0);
+    return {};
+}
+
+// stub of CT3 0x018ee5b0
+int tkXcmd_SceneDraw(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tkXcmd_SceneDraw", 0x018ee5b0);
+    return {};
+}
+
+// stub of CT3 0x018ee5a0
+int tkXcmd_WaitUntil(int argc, char **argv, int bank)
+{
+    ALYSSAPAN_STUB("tkXcmd_WaitUntil", 0x018ee5a0);
+    return {};
+}

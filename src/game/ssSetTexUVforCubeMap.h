@@ -36,3 +36,21 @@ void ssBGT_HQDOF_WriteBackFB(int alpha);                                        
 void ssBGT_HQDOF_SetDrawEnvPreRend(void);                                                // CT3 0x0189b510
 void ssSetAmbColorToAllObj(int scene);                                                   // CT3 0x01895f00
 void ssParticleInit(int scene);                                                          // CT3 0x0189a9d0
+
+// The screen effects the trigger commands start and end (ssTrigExecuteActCmd, 2026-11-11): the arguments in
+// the order the command reads them; the ROM call sites give the counts (Wave: 12, the last four on the stack).
+void ssTrigParticleStart(int particle, int bank, int arg);                               // CT3 0x018988b0
+void ssTrigParticleStop(int particle, int bank);                                         // CT3 0x018988a0
+void ssTrigParticleAllOffImmediately(int particle, int bank);                            // CT3 0x01898710
+void ssPartMotionBlurStart(int part, int a, int bank, int b, int c);                     // CT3 0x018976d0
+void ssPartMotionBlurEnd(int part, int bank);                                            // CT3 0x01897140
+void ssTrigScreenBlurStart(int level);                                                   // CT3 0x0189d920
+void ssTrigHazyScreenStart(int level, int time);                                         // CT3 0x0189d310
+void ssTrigHazyScreenEnd(void);                                                          // CT3 0x0189d2f0
+void ssTrigWaveStart(int a, int b, int c, int d, int e, int f, int g, int h, int i, int j, int bank,
+                     int k);                                                             // CT3 0x0189ce60
+void ssTrigWaveEnd(void);                                                                // CT3 0x0189ce30
+void ssTrigVaselineStart(int a, int b, int c, int d, int e, int f, int g, int h, int i); // CT3 0x0189bd40
+void ssTrigVaselineEnd(void);                                                            // CT3 0x0189b920
+void ssTrigHQDOFStart(int a, int b);                                                     // CT3 0x0189b5a0
+void ssTrigHQDOFEnd(void);                                                               // CT3 0x0189b580

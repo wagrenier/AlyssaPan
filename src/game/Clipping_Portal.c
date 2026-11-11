@@ -209,3 +209,21 @@ void tiVibrationOn(int port, int a1, int a2, int a3)
 {
     ALYSSAPAN_STUB("tiVibrationOn", 0x0188ce10);
 }
+
+// stub of CT3 0x0188ddc0
+void tiSet_CharaTranslucenceOFF(int chara, int flag)
+{
+    ALYSSAPAN_STUB("tiSet_CharaTranslucenceOFF", 0x0188ddc0);
+}
+
+// stub of CT3 0x0188ded0
+void tiSet_CharaTranslucenceON(int chara, int level, int flag)
+{
+    ALYSSAPAN_STUB("tiSet_CharaTranslucenceON", 0x0188ded0);
+}
+
+// stub of CT3 0x0188d6e0
+void tiXFadeOut_Start(float time)
+{
+    ALYSSAPAN_STUB("tiXFadeOut_Start", 0x0188d6e0);
+}

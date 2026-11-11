@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-11 08:38 at commit `1dd2899` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-11 09:05 at commit `e478aac` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **946**; stubs: **171**
+- reconstructed CT3 functions: **948**; stubs: **418**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -58,12 +58,14 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/AlignedNum.c` | 4 | 0 |
 | `src/game/ArtoolDebugOpen.c` | 15 | 0 |
 | `src/game/Character_Init.c` | 48 | 1 |
-| `src/game/Clipping_Portal.c` | 0 | 34 |
+| `src/game/Clipping_Portal.c` | 0 | 37 |
 | `src/game/Convert.c` | 0 | 2 |
 | `src/game/CpDivideEECom.c` | 0 | 10 |
 | `src/game/IOPGetFileSize.c` | 4 | 0 |
 | `src/game/LinkMatrixTree.c` | 4 | 0 |
+| `src/game/PicPaz.c` | 0 | 7 |
 | `src/game/QuatSlerp.c` | 189 | 0 |
+| `src/game/RotateCamera.c` | 0 | 2 |
 | `src/game/SdMasterVolumeSetSE.c` | 61 | 0 |
 | `src/game/ahRelocateSunPs2ObjectArry.c` | 93 | 0 |
 | `src/game/ahalloc.c` | 7 | 0 |
@@ -72,23 +74,26 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/asMothPause.c` | 0 | 1 |
 | `src/game/asMothRouteSearch.c` | 0 | 2 |
 | `src/game/asUseArrow.c` | 0 | 6 |
-| `src/game/asXcmd.c` | 0 | 1 |
+| `src/game/asXcmd.c` | 0 | 20 |
 | `src/game/copy2area.c` | 0 | 1 |
 | `src/game/fileio.c` | 40 | 0 |
-| `src/game/hhXcmd_DressUp.c` | 0 | 1 |
+| `src/game/hhXcmd_BGM_SE_VOLUME.c` | 0 | 1 |
+| `src/game/hhXcmd_DressUp.c` | 0 | 21 |
 | `src/game/main.c` | 29 | 0 |
 | `src/game/main2.c` | 18 | 0 |
 | `src/game/movie.c` | 20 | 0 |
 | `src/game/sound.c` | 73 | 0 |
 | `src/game/ssCalcInversMatrix2.c` | 0 | 1 |
-| `src/game/ssGrpPortalCheck.c` | 72 | 1 |
+| `src/game/ssGrpPortalCheck.c` | 74 | 0 |
 | `src/game/ssHitCheckAttackToScn.c` | 0 | 6 |
-| `src/game/ssSetTexUVforCubeMap.c` | 0 | 31 |
+| `src/game/ssSetTexUVforCubeMap.c` | 0 | 45 |
 | `src/game/tiAvoidObject.c` | 0 | 7 |
-| `src/game/tkXDTrg_GetSceneHash.c` | 0 | 3 |
+| `src/game/tiXcmd_TransItem.c` | 0 | 92 |
+| `src/game/tkXDTrg_GetSceneHash.c` | 0 | 7 |
+| `src/game/tnXcmd.c` | 0 | 8 |
 | `src/game/wideXcmd_DebugPrint.c` | 107 | 1 |
-| `src/game/wideXcmd_TriggerInit.c` | 0 | 1 |
-| `src/game/xcmd_tn.c` | 22 | 0 |
+| `src/game/wideXcmd_TriggerInit.c` | 0 | 44 |
+| `src/game/xcmd_tn.c` | 22 | 35 |
 | `src/lib/unassigned_stubs.cpp` | 0 | 1 |
 
 ## Translation units (one session each: `tus.py`)
@@ -97,7 +102,7 @@ Least-named game-code regions (64 KB blocks):
 - next: **game/ssGrpPortalCheck.c** (pinned in the queue)
 - pinned queue: game/ssGrpPortalCheck.c, game/xcmd_tn.c, alyssapan/rendering/ga_atld.cpp, alyssapan/rendering/ui_canvas.cpp, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
 - partial: `alyssapan/rendering/ga_atld.cpp` 0/0 -- Shot still black for a game reason: the light0 colour is vertex colour plus the part's ALL_TABLE.partsPos (the ambient RGB), which only the event command tnXcmd
-- partial: `game/ssGrpPortalCheck.c` 57/59 -- Only ssTrigExecuteActCmd (0x018d5450, 0x249c bytes, about 70 command kinds by u16 id from 0x6a8 down, 78 callees) is left; the smoke run reaches its stub now th
+- partial: `game/ssGrpPortalCheck.c` 59/59 -- Code complete, picture regressed: black where the grey ATLD banner showed. Probes bisected two ROM-faithful causes: bank 0 hides parts 2 and 3 (the banner) and 
 - partial: `game/wideXcmd_DebugPrint.c` 107/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed) -- the last function of the TU. New stubs
 - partial: `game/xcmd_tn.c` 22/57 -- Dispatcher found: ssTrigExecuteActCmd command 0x514 calls ssXcmd_functions[index](argc, argv, bank) (0x0193a500, 256 words; slot 138 = the ambient command). It 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
@@ -129,6 +134,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-11 09:05 `game/ssGrpPortalCheck.c` partial: triggers slice 5: ssTrigExecuteActCmd (every command id and operand size, TRIG_CMD_*), the 256-slot ssXcmd_functions table from the ELF, suXcmd_AnmDirection; 23
 - 2026-11-11 08:37 `game/ssGrpPortalCheck.c` partial: triggers slice 4: ssTrigCheckConditions and its checks (ssTrigCheckInput, ssTrigCheckVariable, ssTrigLookAtCheck, ssTrigAttackHitCheck), ssTrigSetEnable, Trigge
 - 2026-11-11 08:08 `game/xcmd_tn.c` partial: slice 1: tnXcmd_Scene_Ambient_Change and 21 small x commands (waits, variables, room-in icons, bank and flag commands), BankUseCheck; SS_XCMD slot type
 - 2026-11-11 07:55 `alyssapan/rendering/ga_atld.cpp` partial: ga textures: sunBGT_ExecTBufferData_VIF1 hands TEX0, CLAMP, level 0 and the CLUT to AlyssaPan_DrawGaTexture; TextureStore decodes CT3 GS textures at their sourc
@@ -136,12 +142,11 @@ Recent sessions:
 - 2026-11-11 07:05 `game/ssGrpPortalCheck.c` partial: triggers slice 2: Trigger_init, Trigger_deinit, TriggerGlobalInit, the trigger block getters and count readers, the delay-enable ring (ssTrigDEPop_Front, PushBa
 - 2026-11-10 23:18 `game/ssGrpPortalCheck.c` partial: triggers slice 1: the event and variable API, the byte readers, the enable checks, InitTriggerDetectorShape, CheckRoomEntry and the room portals (ProcessPortal,
 - 2026-11-10 22:53 `game/asEyeForcusUP2CamMat.c` verify: camera slice 4: camera_main (the pad camera: debug fly modes 0 / 1, the ND camera with its drive mode, mode 3 -> 4, the scene camera's controller-100 cut step);
-- 2026-11-10 22:35 `game/asEyeForcusUP2CamMat.c` partial: camera slice 3: asGetDestinationEYE (the seven eye kinds: part, rail, orbit, stay, plane, ring, segment; the cut path from OBJ_CTRL), CamSetNowDOFLevel, CamChan
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `game/Clipping_Portal.c` | todo | 0/34/73 | 44.8 | 160 | 18 |
-| `game/ssSetTexUVforCubeMap.c` | todo | 0/31/96 | 35.3 | 87 | 9 |
+| `game/Clipping_Portal.c` | todo | 0/37/73 | 44.8 | 163 | 18 |
+| `game/ssSetTexUVforCubeMap.c` | todo | 0/45/96 | 35.3 | 102 | 9 |
 | `game/CpDivideEECom.c` | todo | 0/10/18 | 3.3 | 80 | 10 |
 | `ga/gaDrawObject.c` | todo | 0/11/11 | 6.9 | 39 | 0 |
 | `game/tiAvoidObject.c` | todo | 0/7/82 | 30.5 | 27 | 4 |
@@ -150,7 +155,7 @@ Recent sessions:
 | `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
 | `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `game/asUseArrow.c` | todo | 0/6/11 | 6.4 | 16 | 1 |
-| `game/tkXDTrg_GetSceneHash.c` | todo | 0/3/50 | 21.0 | 14 | 2 |
+| `game/tkXDTrg_GetSceneHash.c` | todo | 0/7/50 | 21.0 | 14 | 2 |
 | `game/AA_SoundMonoSoart.c` | todo | 0/8/20 | 4.0 | 13 | 1 |
 
 ## Frontier (called by reconstructed code, not written yet)
@@ -192,9 +197,9 @@ Recent sessions:
 | `018c1ce0` | AA_videoDecAbort | 3 | sym | stub | game/AA_mpegTS.c |
 | `018666c0` | asInitArrowInfo | 2 | sym | stub | game/asUseArrow.c |
 | `01882c10` | asInitMothInfo | 2 | sym | stub | game/asMothRouteSearch.c |
-| `018d5450` | ssTrigExecuteActCmd | 2 | sym | stub | game/ssGrpPortalCheck.c |
 | `018a6080` | gaDrawObject_SetBig | 2 | sym | stub | ga/gaDrawObject.c |
 | `0189f720` | gaDrawObject_Redraw_Polygon | 2 | sym | stub | ga/gaDrawObject_Redraw_Polygon.c |
 | `0189dec0` | ssBGT_ZBufferClear | 2 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `018eda60` | SceneDoorFlagClear | 2 | sym | stub | game/tkXDTrg_GetSceneHash.c |
+| `018aa950` | CheckLOS_Multi | 2 | sym | stub | game/ssHitCheckAttackToScn.c |
 

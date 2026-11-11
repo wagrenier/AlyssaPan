@@ -1052,6 +1052,26 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    the stub's 0 until that TU writes it; (n) TRIG_INPUT_KEY / _TRG / _CNT are named from the pad words
    (pad_key_button / _trg_ / _cnt_), not from their meaning; (o) ssTrigLookAtCheck's angle is the whole
    view cone in degrees (half = angle * 0x10000 / 720), read from the arithmetic only.
+   **Slice 5 (2026-11-11): ssTrigExecuteActCmd, ssXcmd_functions and suXcmd_AnmDirection written: the TU's
+   code is complete.** The command ids and operand sizes are TRIG_CMD_* in ssGrpPortalCheck.h; the smoke
+   run parses the menu banks' lists cleanly (consecutive offsets match every size). The 256-slot x-command
+   table is filled from the ELF (0x0193a500); 232 of its functions had no declaration and are declared in
+   their TUs' headers with the SS_XCMD shape and stubbed (new files tiXcmd_TransItem.c, tnXcmd.c,
+   PicPaz.c, RotateCamera.c, hhXcmd_BGM_SE_VOLUME.c). **The picture went black (it showed the grey ATLD
+   banner before):** bisected with probes: (p) bank 0's list (after tnXcmd_AutoLoad, slot 255) hides parts
+   2 and 3 (the banner) and shows 6 and 7 (5 delayed) -- the ROM's own switch, so parts 6 / 7 are the next
+   thing to draw: find why the host draws nothing for them (their draw path or ATLD); (q) bank 5's
+   TRIG_CMD_CAM_CHANGE (scene -1: CamChange_S on bank 5 itself, the first scene-bank cut) also blanks the
+   view on its own: the cut's camera on the host (asEyeForcusUP2CamMat.c / the animated eye, cf. item 7)
+   is the suspect; (r) bank 5 then waits in wideXcmd_PlayAnimeToFream2 (slot 106, a stub answering 0).
+   Open: (s) the five-arg ssTrigWaveStart / Vaseline / MotionBlur / Particle / HQDOF / Hazy prototypes
+   (ssSetTexUVforCubeMap.h) follow the call sites (Wave takes 12, the last four on the stack; Vaseline 9);
+   (t) asSceneAnimationStart's stack arguments for commands 501 / 502 were read from the disassembly
+   (501: started = byte 4, toEnd 0; 502: started 0, toEnd = byte 4; then byte 5, target, chara) -- 502's
+   byte order is assumed like 501's; (u) the host's SSActPlaySound / SSActVolume / SSActLoadBankSE /
+   CamChangeFOV_S take fewer arguments than the ROM passes: the extra operands are read and dropped;
+   (v) ssXcmd_LockToTargChara (short bank), asXcmd_AddForLockToTargChara and wideXcmd_DebugPrint (void)
+   sit in the table through a cast until their TUs give them the SS_XCMD shape.
 
 7. **(2026-11-11, the user: "2D is still not showing up") The first picture.** Fixed: the black screen was
    Execute_ExecuteAnimationHistory writing an EE address into every camera cut's focal length (hazards.md

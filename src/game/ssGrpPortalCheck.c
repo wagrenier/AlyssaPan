@@ -8,9 +8,11 @@
 // detector walk (ssTrigProcDetRecur, ssTrigProceedDetector, ssTrigCheckDetector and its shapes), the
 // actor runners, the waits and the small checks. Slice 4 (2026-11-11): ssTrigCheckConditions and its
 // checks (ssTrigCheckInput, ssTrigCheckVariable, ssTrigLookAtCheck, ssTrigAttackHitCheck),
-// ssTrigSetEnable and Trigger_reset; ssTrigExecuteActCmd is a stub.
+// ssTrigSetEnable and Trigger_reset; slice 5 the actor commands (ssTrigExecuteActCmd, ssXcmd_functions,
+// suXcmd_AnmDirection).
 
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "common/alyssapan_stub.h"
@@ -28,6 +30,19 @@
 #include "game/main2.h"
 #include "game/ssHitCheckAttackToScn.h"
 #include "game/wideXcmd_DebugPrint.h"
+#include "game/asEyeForcusUP2CamMat.h"
+#include "game/movie.h"
+#include "game/Clipping_Portal.h"
+#include "game/xcmd_tn.h"
+#include "game/wideXcmd_TriggerInit.h"
+#include "game/tiXcmd_TransItem.h"
+#include "game/tnXcmd.h"
+#include "game/PicPaz.h"
+#include "game/RotateCamera.h"
+#include "game/tkXDTrg_GetSceneHash.h"
+#include "game/asXcmd.h"
+#include "game/hhXcmd_DressUp.h"
+#include "game/hhXcmd_BGM_SE_VOLUME.h"
 
 // ---- data (symtab names) -------------------------------------------------------------------------------
 short ssScnShiftCharList[PORTAL_CHARA_COUNT] = {0, 2, 3, 4, 5, 6};   // CT3 0x01939d68
@@ -1552,13 +1567,992 @@ int ssTrigCheckConditions(TRIG_DET_WORK *det, int bank)
     return result;
 }
 
-// ---- stubs (tools/reverse/stubgen.py) ----
+// ---- the actor commands (slice 5, 2026-11-11) -------------------------------------------------------
 
-// stub of CT3 0x018d5450
+// ssXcmd_functions (data 0x0193a500, 256 words): TRIG_CMD_XCMD's commands by index byte. The symtab gives
+// no object for the table; its one reader is ssTrigExecuteActCmd, so it lives here. Three slots are written
+// with their own prototypes (cast: CodeWarrior passes argc / argv / bank in a0..a2 whatever the callee
+// declares).
+SS_XCMD ssXcmd_functions[TRIG_XCMD_COUNT] = {
+    ssXcmd_SetHideAttackPole,                               /*   0: 0x018de410 */
+    wideXcmd_TriggerInit,                                   /*   1: 0x018dd550 */
+    ssXcmd_test3,                                           /*   2: 0x018e0e30 */
+    tkXcmd_CharSceneChange,                                 /*   3: 0x018e8d20 */
+    ssXcmd_ArrowSetStartPos,                                /*   4: 0x018e0420 */
+    tnXcmd_Probability,                                     /*   5: 0x018f3eb0 */
+    tnXcmd_PlayerDamage,                                    /*   6: 0x018f3e80 */
+    tnXcmd_PlayerControllStart,                             /*   7: 0x018f3e60 */
+    tnXcmd_PlayerControllStop,                              /*   8: 0x018f3e40 */
+    tnXcmd_MonsterControllStart,                            /*   9: 0x018f3e20 */
+    tnXcmd_MonsterControllStop,                             /*  10: 0x018f3e00 */
+    tnXcmd_LeverClattering,                                 /*  11: 0x018f3cb0 */
+    tnXcmd_LeverClatteringInit,                             /*  12: 0x018f3dd0 */
+    PicPaz,                                                 /*  13: 0x018da090 */
+    LockerCamera,                                           /*  14: 0x018d9b50 */
+    tiXcmd___________Free0,                                 /*  15: 0x018e20b0 */
+    RotateCamera,                                           /*  16: 0x018d9a40 */
+    tkXcmd_AiSoundPosition,                                 /*  17: 0x018ee5e0 */
+    ssXcmd_ScnAtkRequest,                                   /*  18: 0x018e0c10 */
+    ssXcmd_SetDurabilityToVar,                              /*  19: 0x018e0b40 */
+    tiXcmd_SetRotation,                                     /*  20: 0x018e89d0 */
+    tiXcmd_SetScale,                                        /*  21: 0x018e8930 */
+    ssXcmd_SetArrowPath,                                    /*  22: 0x018e0670 */
+    tiXcmd_VibrationON_OFF,                                 /*  23: 0x018e7810 */
+    tiXcmd_VibrationCheckFlg,                               /*  24: 0x018e77b0 */
+    tiXcmd_VibrationStart,                                  /*  25: 0x018e75e0 */
+    tiXcmd_VibrationEnd,                                    /*  26: 0x018e75b0 */
+    tiXcmd___________Free1,                                 /*  27: 0x018e2020 */
+    tiXcmd___________Free2,                                 /*  28: 0x018e1fc0 */
+    (SS_XCMD)ssXcmd_LockToTargChara,                        /*  29: 0x018dfd70 */
+    ssXcmd_SetArrowPath2,                                   /*  30: 0x018e0590 */
+    tiXcmd_StereoON_OFF,                                    /*  31: 0x018e75a0 */
+    tiXcmd_StereoCheckFlg,                                  /*  32: 0x018e7590 */
+    tiXcmd_SetParaDefault,                                  /*  33: 0x018e7580 */
+    ssXcmd_GetAtkHitInfoID,                                 /*  34: 0x018dfb80 */
+    ssXcmd_CheckAtkHitMaterial,                             /*  35: 0x018dfa10 */
+    tiXcmd_CheckMCFile,                                     /*  36: 0x018e71f0 */
+    tiXcmd_CopyVariable,                                    /*  37: 0x018e88a0 */
+    tiXcmd_SetReset,                                        /*  38: 0x018e8890 */
+    tiXcmd_GetMCflag,                                       /*  39: 0x018e7130 */
+    tiXcmd_SetmcMain_ID,                                    /*  40: 0x018e70d0 */
+    tiXcmd_SetmcSlot_ID,                                    /*  41: 0x018e7070 */
+    tiXcmd_SetmcFile_ID,                                    /*  42: 0x018e7010 */
+    tiXcmd_SetmcErr_ID,                                     /*  43: 0x018e6fb0 */
+    tiXcmd_SetmcAccess_ID,                                  /*  44: 0x018e6f50 */
+    tiXcmd___________Free3,                                 /*  45: 0x018e1fb0 */
+    tiXcmd_SetPlayerChara,                                  /*  46: 0x018e7d10 */
+    tiXcmd_GetItem,                                         /*  47: 0x018e6bf0 */
+    tiXcmd_UseItem,                                         /*  48: 0x018e6330 */
+    tiXcmd_GetIDfromList,                                   /*  49: 0x018e6160 */
+    tiXcmd_SetStatusBar,                                    /*  50: 0x018e57b0 */
+    tiXcmd_SceneAnimationSkipToVariable,                    /*  51: 0x018e86d0 */
+    tiXcmd_AddVariable,                                     /*  52: 0x018e8640 */
+    tiXcmd_SubVariable,                                     /*  53: 0x018e85b0 */
+    tiXcmd_GetItemData,                                     /*  54: 0x018e5ce0 */
+    tiXcmd_SetItemData,                                     /*  55: 0x018e5a50 */
+    ssXcmd_CheckAtkHitChara,                                /*  56: 0x018df8a0 */
+    ssXcmd_ArrowSetChild,                                   /*  57: 0x018e01d0 */
+    tiXcmd_GetItemListLastIndex,                            /*  58: 0x018e5930 */
+    tiXcmd_CopySunPs2Object,                                /*  59: 0x018e83d0 */
+    tiXcmd_CompareVariable,                                 /*  60: 0x018e8260 */
+    tiXcmd_MoveItem,                                        /*  61: 0x018e5870 */
+    ssXcmd_ArrowSetHitPos,                                  /*  62: 0x018e0a90 */
+    tnXcmd_TexFileSetPage,                                  /*  63: 0x018f3c30 */
+    tnXcmd_TexFileSetNext,                                  /*  64: 0x018f3bd0 */
+    ssXcmd_ObjectSetHitPos,                                 /*  65: 0x018e09c0 */
+    tnCurrentSceneSet,                                      /*  66: 0x018f3ba0 */
+    wideXcmd_CinemaTheaterSet,                              /*  67: 0x018eeb70 */
+    wideXcmd_TitleStart,                                    /*  68: 0x018eeb40 */
+    ssXcmd_GetCharFootEndMaterial,                          /*  69: 0x018df610 */
+    tiXcmd_SetKeyToKeyMap,                                  /*  70: 0x018e5590 */
+    tiXcmd_GetKeyFromKeyMap,                                /*  71: 0x018e54f0 */
+    tiXcmd_ResetKeyMap,                                     /*  72: 0x018e54c0 */
+    tkXcmd_SceneDraw,                                       /*  73: 0x018ee5b0 */
+    suXcmd_AnmDirection,                                    /*  74: 0x018d99c0 */
+    ssXcmd_GetAttackMotionID,                               /*  75: 0x018e08a0 */
+    ssXcmd_SetArwRotMaxID,                                  /*  76: 0x018e0170 */
+    tiXcmd_ItemCheckInit,                                   /*  77: 0x018e1550 */
+    tiXcmd_TransItem,                                       /*  78: 0x018e0e80 */
+    tiXcmd_SetSceneID,                                      /*  79: 0x018e1610 */
+    tiXcmd_CheckLife,                                       /*  80: 0x018e5700 */
+    tnXcmd_VistaVision,                                     /*  81: 0x018f37e0 */
+    tiXcmd_XFadeOut2Start,                                  /*  82: 0x018e4c00 */
+    tiXcmd_SetDrawMode_Global,                              /*  83: 0x018e8210 */
+    tiXcmd_GetAlyssaLife,                                   /*  84: 0x018e56a0 */
+    tiXcmd_OperateItem,                                     /*  85: 0x018e0fa0 */
+    tiXcmd___________Free4,                                 /*  86: 0x018e1fa0 */
+    tiXcmd___________Free5,                                 /*  87: 0x018e1f90 */
+    tiXcmd___________Free6,                                 /*  88: 0x018e1f80 */
+    tkXcmd_CaptionFlag,                                     /*  89: 0x018e8bc0 */
+    tiXcmd_SetPointForGhostArea,                            /*  90: 0x018e1ed0 */
+    aaXcmd_MovieFedeOutCancel,                              /*  91: 0x018da0a0 */
+    tiXcmd_Balows2th,                                       /*  92: 0x018e1bc0 */
+    tnXcmd_SetAllControlDisableCamera,                      /*  93: 0x018ee9c0 */
+    tiXcmd_TEST00,                                          /*  94: 0x018e8b70 */
+    tnXcmd_Character_Ambient_Change,                        /*  95: 0x018f36b0 */
+    test_ssXcmd_ChangeGroupID,                              /*  96: 0x018df600 */
+    tkXcmd_WaitUntil,                                       /*  97: 0x018ee5a0 */
+    tiXcmd_SetMapData,                                      /*  98: 0x018e1810 */
+    wideXcmd_VariableCal,                                   /*  99: 0x018f34a0 */
+    wideXcmd_PlayAnimeRange,                                /* 100: 0x018f3280 */
+    wideXcmd_PlayAnimeToFream,                              /* 101: 0x018f30e0 */
+    tnXcmd_1P01_PazzleInit,                                 /* 102: 0x018f2fa0 */
+    tnXcmd_1P01_PazzleAnim,                                 /* 103: 0x018f2c50 */
+    tiXcmd_CompareVar2,                                     /* 104: 0x018e7eb0 */
+    tiXcmd_CheckCurrentScene,                               /* 105: 0x018e7e20 */
+    wideXcmd_PlayAnimeToFream2,                             /* 106: 0x018f28f0 */
+    asXcmd_ShadowOrderBW,                                   /* 107: 0x018dc1b0 */
+    asXcmd_PlayMotionByNowMotion,                           /* 108: 0x018dc050 */
+    test_ssXcmd_BrainSet,                                   /* 109: 0x018df5f0 */
+    tnXcmd_ShapeFree,                                       /* 110: 0x018f2830 */
+    tnXcmd_BehaviorFree,                                    /* 111: 0x018f2720 */
+    tiXcmd_SetCharacterEdgeShading,                         /* 112: 0x018e4b40 */
+    tnXcmd_SetFarClip,                                      /* 113: 0x018f26f0 */
+    tnXcmd_SetNearClip,                                     /* 114: 0x018f26c0 */
+    tnXcmd_SetPanic,                                        /* 115: 0x018f25c0 */
+    tiXcmd_LightBeltStart,                                  /* 116: 0x018e4b30 */
+    tiXcmd_LightBeltEnd,                                    /* 117: 0x018e4b20 */
+    tnXcmd_SetMovieWorkBuff,                                /* 118: 0x018f2430 */
+    asXcmd_CameraGuriGuriSetting,                           /* 119: 0x018dbf40 */
+    test_ssXcmd_SetGroupID,                                 /* 120: 0x018dee50 */
+    tnXcmd_SceneFogAnimation,                               /* 121: 0x018f2240 */
+    tnXcmd_CharFogAnimation,                                /* 122: 0x018f20b0 */
+    test_ssXcmd_BrainSet2,                                  /* 123: 0x018df5e0 */
+    test_ssXcmd_BrainSet3,                                  /* 124: 0x018df5d0 */
+    tiXcmd_TranslucenceAlphaAnim,                           /* 125: 0x018e4a20 */
+    tiXcmd_HurikoReset,                                     /* 126: 0x018e4990 */
+    tnXcmd_LoadWait,                                        /* 127: 0x018f1ff0 */
+    test_ssXcmd_BrainEnd,                                   /* 128: 0x018deed0 */
+    tnXcmd_BankFree,                                        /* 129: 0x018f1e20 */
+    asXcmd_SeekBarSetting,                                  /* 130: 0x018dbd80 */
+    test_ssXcmd_BrainSet4,                                  /* 131: 0x018def30 */
+    tnXcmd_ScneName,                                        /* 132: 0x018f1da0 */
+    tnXcmd_TimeSet,                                         /* 133: 0x018f1a10 */
+    ssXcmd_GetChaseAIState,                                 /* 134: 0x018ded70 */
+    ssXcmd_SetChaseFlagAndTimer,                            /* 135: 0x018dec60 */
+    ssXcmd_SetAppearanceTimer,                              /* 136: 0x018dec30 */
+    tkXcmd_DoorTrigger,                                     /* 137: 0x018ed9e0 */
+    tnXcmd_Scene_Ambient_Change,                            /* 138: 0x018f1940 */
+    tnXcmd_Char_DirectLight_Change,                         /* 139: 0x018f1880 */
+    tnXcmd_Filter_Change,                                   /* 140: 0x018f1710 */
+    wideXcmd_Variable_Copy,                                 /* 141: 0x018f1680 */
+    tnXcmd_Menu_MapLoad,                                    /* 142: 0x018f1570 */
+    tnXcmd_Menu_MapOff,                                     /* 143: 0x018f1510 */
+    tnXcmd_Room_IN_Check,                                   /* 144: 0x018f1480 */
+    tnXcmd_Room_IN_ALYSSA,                                  /* 145: 0x018f1340 */
+    tnXcmd_Key_Lock,                                        /* 146: 0x018efc50 */
+    tiXcmd_KeyNumToFrame,                                   /* 147: 0x018e5360 */
+    hhXcmd_LoadSE,                                          /* 148: 0x018dd4d0 */
+    hhXcmd_PurgeSE,                                         /* 149: 0x018dd490 */
+    hhXcmd_PlaySE,                                          /* 150: 0x018dd200 */
+    hhXcmd_VolumeChangeSE,                                  /* 151: 0x018dcba0 */
+    hhXcmd_PitchChangeSE,                                   /* 152: 0x018dcaf0 */
+    hhXcmd_PanChangeSE,                                     /* 153: 0x018dca40 */
+    hhXcmd_StopSE,                                          /* 154: 0x018dc9e0 */
+    hhXcmd_EffectSE,                                        /* 155: 0x018dc930 */
+    hhXcmd_PlayADS,                                         /* 156: 0x018dc890 */
+    hhXcmd_StopADS,                                         /* 157: 0x018dc7e0 */
+    hhXcmd_VolumeADS,                                       /* 158: 0x018dc810 */
+    tnXcmd_SetRoodersPts,                                   /* 159: 0x018ee5f0 */
+    wideXcmd_ReadChengeMsg,                                 /* 160: 0x018efb80 */
+    tiXcmd_GetLetterData,                                   /* 161: 0x018e5120 */
+    tiXcmd_FadeStart,                                       /* 162: 0x018e47b0 */
+    aaXcmd_SceneEndBank,                                    /* 163: 0x018da900 */
+    tiXcmd_BOSS_BattleStart,                                /* 164: 0x018e3460 */
+    tiXcmd_BOSS_BattleEnd,                                  /* 165: 0x018e2e70 */
+    tiXcmd_CharaEdgeShadeAnim,                              /* 166: 0x018e43d0 */
+    hhXcmd_StopSESp1,                                       /* 167: 0x018dc5e0 */
+    hhXcmd_PlaySESp1,                                       /* 168: 0x018dc640 */
+    hhXcmd_PlayMIDI,                                        /* 169: 0x018dc500 */
+    hhXcmd_StopMIDI,                                        /* 170: 0x018dc420 */
+    hhXcmd_VolumeMIDI,                                      /* 171: 0x018dc3a0 */
+    hhXcmd___________Free3,                                 /* 172: 0x018dc390 */
+    hhXcmd___________Free4,                                 /* 173: 0x018dc380 */
+    tiXcmd_GetINDEX_FromLetterList,                         /* 174: 0x018e5030 */
+    ssXcmd_SetAllControlDisable,                            /* 175: 0x018de9d0 */
+    asXcmd_CharacterAutoAiming,                             /* 176: 0x018dbc20 */
+    tnXcmd_StayRoom,                                        /* 177: 0x018efa90 */
+    asXcmd_I_have_x_Arrows,                                 /* 178: 0x018dba30 */
+    asXcmd_ShootArrow,                                      /* 179: 0x018dba20 */
+    ssXcmd_SetNoReactionTimer,                              /* 180: 0x018de9a0 */
+    ssXcmd_StayGroup,                                       /* 181: 0x018de890 */
+    asXcmd_AttachObject,                                    /* 182: 0x018db880 */
+    asXcmd_CameraQuake,                                     /* 183: 0x018db7b0 */
+    tnXcmd_OmniRange,                                       /* 184: 0x018ef810 */
+    tnXcmd_CharOmniEffect,                                  /* 185: 0x018ef670 */
+    tnXcmd_AllOmniEffect,                                   /* 186: 0x018ef550 */
+    tnXcmd_EndPanic,                                        /* 187: 0x018ef3d0 */
+    tnXcmd_Continue,                                        /* 188: 0x018ef320 */
+    hhXcmd___________Free5,                                 /* 189: 0x018dc370 */
+    hhXcmd_DressUp,                                         /* 190: 0x018dc330 */
+    hhXcmd_BGM_SE_VOLUME,                                   /* 191: 0x018dc1e0 */
+    aaXcmd_McWorkAlloc,                                     /* 192: 0x018da210 */
+    ssXcmd_IsMonAI_SearchMode,                              /* 193: 0x018de7e0 */
+    asXcmd_SlowMotion,                                      /* 194: 0x018db770 */
+    tnXcmd_TimeStop,                                        /* 195: 0x018ef1c0 */
+    tiXcmd_BOSS_SetChain,                                   /* 196: 0x018e31d0 */
+    asXcmd_SetHitPoint,                                     /* 197: 0x018db580 */
+    tiXcmd_XFade_Break,                                     /* 198: 0x018e4390 */
+    tiXcmd_ChangeCam_Reserve,                               /* 199: 0x018e4c90 */
+    tiXcmd_ChangeCam_Execute,                               /* 200: 0x018e4c50 */
+    asXcmd_SettingCameraReset,                              /* 201: 0x018db510 */
+    wideXcmd_GetNumberOfBeam,                               /* 202: 0x018e7d60 */
+    ssXcmd_SetMonReturnTimer,                               /* 203: 0x018de670 */
+    tiXcmd_CheckEarthquake,                                 /* 204: 0x018e2d10 */
+    ssXcmd_AXE_InitParam,                                   /* 205: 0x018de260 */
+    ssXcmd_AXE_SetStartPos,                                 /* 206: 0x018de100 */
+    ssXcmd_AXE_SetPath,                                     /* 207: 0x018ddcd0 */
+    wideXcmd_Delay,                                         /* 208: 0x018e8f00 */
+    ssXcmd_AXE_CheckHitAndCompDir,                          /* 209: 0x018dd760 */
+    tiXcmd_BOSS_SetWarp,                                    /* 210: 0x018e2e90 */
+    tiXcmd_ShadeOff,                                        /* 211: 0x018e41f0 */
+    tnXcmd_TexFileInitPageStop,                             /* 212: 0x018ef1b0 */
+    (SS_XCMD)asXcmd_AddForLockToTargChara,                  /* 213: 0x018db340 */
+    ssXcmd_AXE_ThrowEnd,                                    /* 214: 0x018dd6b0 */
+    ssXcmd_ForceIntoSearchMode,                             /* 215: 0x018de5e0 */
+    asXcmd_I_have_x_Mothes,                                 /* 216: 0x018db160 */
+    asXcmd_SetMoth,                                         /* 217: 0x018db000 */
+    ssXcmd_MonsterSetDraw,                                  /* 218: 0x018de580 */
+    tiXcmd_Init_SPAttack_SCISSORS_MAN,                      /* 219: 0x018e2b30 */
+    tiXcmd_End_SPAttack_SCISSORS_MAN,                       /* 220: 0x018e2ae0 */
+    tiXcmd_SPAttack_SCISSORS_MAN,                           /* 221: 0x018e22f0 */
+    tiXcmd_CheckinLetterList,                               /* 222: 0x018e4cf0 */
+    tiXcmd_FreeGhostPole,                                   /* 223: 0x018e7b70 */
+    tiXcmd_SetGhostPole,                                    /* 224: 0x018e7bf0 */
+    wideXcmd_GlobalSetEnable,                               /* 225: 0x018dd590 */
+    tnXcmd_Room_IN_Icon,                                    /* 226: 0x018f13f0 */
+    asXcmd_ForceOperateAnimation,                           /* 227: 0x018daf80 */
+    tiXcmd_BOSS_SetHitBacks,                                /* 228: 0x018e33d0 */
+    wideXcmd_GetRate,                                       /* 229: 0x018e79d0 */
+    wideXcmd_GetCharaData,                                  /* 230: 0x018e78c0 */
+    wideXcmd_DemoSkipCheck,                                 /* 231: 0x018ef0e0 */
+    wideXcmd_GameOver,                                      /* 232: 0x018ef0b0 */
+    ssXcmd_CheckAtkHitALYSSA,                               /* 233: 0x018df6c0 */
+    wideXcmd_BranchClear,                                   /* 234: 0x018ef090 */
+    tiXcmd_WaitUntilBrainFree,                              /* 235: 0x018e7870 */
+    (SS_XCMD)wideXcmd_DebugPrint,                           /* 236: 0x018f3f60 */
+    ssXcmd_GetMonAImode,                                    /* 237: 0x018de4e0 */
+    wideXcmd_GlobalFree,                                    /* 238: 0x018eeff0 */
+    tiXcmd_BOSS_SetChain_Alyssa,                            /* 239: 0x018e2f70 */
+    asXcmd_ForceOperateMirroring,                           /* 240: 0x018daf30 */
+    asXcmd_ALYSSA_ComeHere,                                 /* 241: 0x018dae40 */
+    tiXcmd_CheckRange,                                      /* 242: 0x018e2170 */
+    wideXcmd_ScreenAdjust,                                  /* 243: 0x018eedf0 */
+    wideXcmd_FrameWait,                                     /* 244: 0x018eed50 */
+    aaXcmd_CheckMCFile,                                     /* 245: 0x018da530 */
+    aaXcmd_MCFileList,                                      /* 246: 0x018da420 */
+    wideXcmd_SkipWait,                                      /* 247: 0x018eed40 */
+    wideXcmd_MovieWait,                                     /* 248: 0x018eecf0 */
+    aaXcmd_McCursorUpDate,                                  /* 249: 0x018da280 */
+    asXcmd_DistanceBetweenChar,                             /* 250: 0x018dad50 */
+    tiXcmd_GetBloodAttackObject,                            /* 251: 0x018e20c0 */
+    ssXcmd_SetAdvantageousTime,                             /* 252: 0x018de4a0 */
+    asXcmd_PanicSet,                                        /* 253: 0x018dab60 */
+    tnXcmd_AutoLoadInit,                                    /* 254: 0x018eecd0 */
+    tnXcmd_AutoLoad,                                        /* 255: 0x018eebb0 */
+};
+
+// TRIG_CMD_SHADOW_*'s first byte: a Character[] slot's bank, or this bank (TRIG_SHADOW_THIS_BANK).
+static int TrigShadowBank(u_char chara, int bank)
+{
+    return chara == TRIG_SHADOW_THIS_BANK ? bank : Character[chara].bank;
+}
+
+// TRIG_CMD_CAM_*'s times: the stored u16 * 300 / 1000.
+static int TrigCamTime(u_short t)
+{
+    return (int)t * TRIG_TIME_SCALE_NUM / TRIG_TIME_SCALE_DEN;
+}
+
+// TRIG_CMD_CAM_CHANGE: make `scene` the live camera bank and hash its 4-letter room name.
+static void TrigSetCameraScene(int scene)
+{
+    char room[16];
+
+    idCameraScene = scene;
+    strcpy(room, BankInfo[scene].name);
+    room[XCMD_ROOM_NAME_LEN] = '\0';
+    haCameraRoom = ahGetHash(room);
+    SwapDrawingDoor();
+}
+
+// TRIG_CMD_ANIM_RANGE / _PLAY: start the bank's animation, and the same on a second bank (part 0) when one
+// is named and loaded.
+static void TrigAnimStart(int *pos, const u_char *data, int range, int bank)
+{
+    u_long hash = ssTrigRead8Byte(pos, data);
+    int from = range ? (int)ssTrigRead4Byte(pos, data) : -1;
+    int to = (int)ssTrigRead4Byte(pos, data);
+    float speed = (float)ssTrigRead1Byte(pos, data) / TRIG_ANGLE_SCALE;
+    u_short part = ssTrigRead2Byte(pos, data);
+    s_char pose = (s_char)ssTrigRead1Byte(pos, data);
+    s_char other = (s_char)ssTrigRead1Byte(pos, data);
+    s_char byPart = (s_char)ssTrigRead1Byte(pos, data);
+    s_char e4 = (s_char)ssTrigRead1Byte(pos, data);
+    s_char e5 = (s_char)ssTrigRead1Byte(pos, data);
+    u_char target = ssTrigRead1Byte(pos, data);
+    u_char chara = ssTrigRead1Byte(pos, data);
+    u_short bank2 = ssTrigRead2Byte(pos, data);
+    u_long hash2 = ssTrigRead8Byte(pos, data);
+    // RANGE passes e4 as `started` (toEnd 0); PLAY passes it as `toEnd` (started 0): the ROM's stack slots.
+    int started = range ? e4 : 0;
+    int toEnd = range ? 0 : e4;
+
+    asSceneAnimationStart(speed, hash, All_table_TBL[bank], from, to, part, pose, other, byPart, started,
+                          toEnd, e5, target, chara);
+    if (bank2 != 0xffff && BankInfo[bank2].state > 0) {
+        asSceneAnimationStart(speed, hash2, All_table_TBL[bank2], from, to, 0, pose, other, byPart, started,
+                              toEnd, e5, target, chara);
+    }
+}
+
+// CT3 0x018d5450
+// Run an actor's command list from its cursor until a command waits (answers 0: the cursor is stepped back
+// over it, so it runs again next frame), TRIG_CMD_RETURN or TRIG_CMD_END. TRIG_CMD_IF opens a block
+// (cmds->step counts the depth); a false TRIG_CMD_IF_* test skips to that depth's ELSE / ENDIF: skipped
+// commands step over their operands without running (`skip` is the depth being skipped, 0 = running).
+// Answers the last command's answer (0 = waiting).
 int ssTrigExecuteActCmd(TRIG_ACT_CMDS *cmds, int bank)
 {
-    (void)cmds;
-    (void)bank;
-    ALYSSAPAN_STUB("ssTrigExecuteActCmd", 0x018d5450);
-    return 1;
+    const u_char *data = ActData[bank];
+    int *pos = &cmds->cursor;
+    int answer = 1;
+    u_char skip = 0;
+    int end = 0;
+
+    do {
+        u_short id = ssTrigRead2Byte(pos, data);
+        if (id == TRIG_CMD_END) {
+            end = 1;
+            continue;
+        }
+        switch (id) {
+        case TRIG_CMD_CHARA_DRAW:
+            if (skip == 0) {
+                int on = ssTrigRead1Byte(pos, data) - 1;
+                TrgCharacterDraw(on, ssTrigRead1Byte(pos, data));
+            } else {
+                *pos += 2;
+            }
+            break;
+        case TRIG_CMD_CHARA_BEHAVIOR_SET:
+            if (skip == 0) {
+                char *name = (char *)data + *pos;
+                *pos += TRIG_CMD_NAME_LEN;
+                u_char chara = ssTrigRead1Byte(pos, data);
+                TrgCharacterBehaviorSet(chara, name, ssTrigRead2Byte(pos, data));
+            } else {
+                *pos += 8;
+            }
+            break;
+        case TRIG_CMD_CHARA_SHAPE_SET:
+            if (skip == 0) {
+                char *name = (char *)data + *pos;
+                *pos += TRIG_CMD_NAME_LEN;
+                u_char chara = ssTrigRead1Byte(pos, data);
+                u_short shapeBank = ssTrigRead2Byte(pos, data);
+                u_char initA = ssTrigRead1Byte(pos, data);
+                TrgCharacterShapeSet(chara, name, shapeBank, initA, ssTrigRead2Byte(pos, data));
+            } else {
+                *pos += 11;
+            }
+            break;
+        case TRIG_CMD_CHARA_BEHAVIOR_LOAD:
+        case TRIG_CMD_CHARA_SHAPE_LOAD:
+            if (skip == 0) {
+                char *name = (char *)data + *pos;
+                *pos += TRIG_CMD_NAME_LEN;
+                u_char chara = ssTrigRead1Byte(pos, data);
+                u_short loadBank = ssTrigRead2Byte(pos, data);
+                u_short arg = ssTrigRead2Byte(pos, data);
+                if (id == TRIG_CMD_CHARA_BEHAVIOR_LOAD) {
+                    TrgCharacterBehaviorLoad(chara, name, loadBank, arg);
+                } else {
+                    TrgCharacterShapeLoad(chara, name, loadBank, arg);
+                }
+            } else {
+                *pos += 10;
+            }
+            break;
+        case TRIG_CMD_MOVIE_PLAY:
+            if (skip == 0) {
+                AA_PlayMovieReady();
+            }
+            break;
+        case TRIG_CMD_MOVIE_OPEN: {
+            u_char movieLen = ssTrigRead1Byte(pos, data);
+            u_char captionLen = ssTrigRead1Byte(pos, data);
+            if (skip == 0) {
+                const char *movie = (const char *)data + *pos;
+                *pos += movieLen;
+                const char *caption = (const char *)data + *pos;
+                *pos += captionLen;
+                PanicStopMovie(movie);
+                AA_OpenMovie(movie, caption, ssTrigRead2Byte(pos, data));
+            } else {
+                *pos += movieLen + captionLen + 2;
+            }
+            break;
+        }
+        case TRIG_CMD_NOP_1601:
+        case TRIG_CMD_NOP_1600:
+            break;
+        case TRIG_CMD_SHADOW_TRANS_MODE:
+            if (skip == 0) {
+                asShadowDrawing_SetTransMode((char)ssTrigRead1Byte(pos, data));
+            } else {
+                *pos += 1;
+            }
+            break;
+        case TRIG_CMD_SHADOW_DETACH:
+            if (skip == 0) {
+                asShadowDrawing_DetachLightPosition(TrigShadowBank(ssTrigRead1Byte(pos, data), bank));
+            } else {
+                *pos += 1;
+            }
+            break;
+        case TRIG_CMD_SHADOW_DISABLE:
+            if (skip == 0) {
+                asShadowDrawing_Disable(TrigShadowBank(ssTrigRead1Byte(pos, data), bank));
+            } else {
+                *pos += 1;
+            }
+            break;
+        case TRIG_CMD_SHADOW_ATTACH:
+            if (skip == 0) {
+                int shadowBank = TrigShadowBank(ssTrigRead1Byte(pos, data), bank);
+                asShadowDrawing_AttachLightPosition(shadowBank, All_table_TBL[bank], ssTrigRead2Byte(pos, data));
+                asShadowDrawing_SetShadowLevel(shadowBank, ssTrigRead1Byte(pos, data));
+                asShadowDrawing_SetShadowValue(shadowBank, (s_char)ssTrigRead1Byte(pos, data));
+                asShadowDrawing_SetShadowAngleLock(shadowBank, ssTrigRead1Byte(pos, data));
+                float lock64 = (float)ssTrigRead2Byte(pos, data);
+                float lock68 = (float)ssTrigRead2Byte(pos, data);
+                asShadowDrawing_SetShadowAngleLockParameter(shadowBank, lock64 / TRIG_ANGLE_SCALE,
+                                                            lock68 / TRIG_ANGLE_SCALE);
+            } else {
+                *pos += 10;
+            }
+            break;
+        case TRIG_CMD_TRANSLUCENT_OFF:
+            if (skip == 0) {
+                tiSet_CharaTranslucenceOFF(ssTrigRead1Byte(pos, data), 1);
+            } else {
+                *pos += 1;
+            }
+            break;
+        case TRIG_CMD_TRANSLUCENT_ON:
+            if (skip == 0) {
+                u_char chara = ssTrigRead1Byte(pos, data);
+                tiSet_CharaTranslucenceON(chara, ssTrigRead1Byte(pos, data), 1);
+            } else {
+                *pos += 2;
+            }
+            break;
+        case TRIG_CMD_FADE_OUT:
+            if (skip == 0) {
+                tiXFadeOut_Start((float)ssTrigRead1Byte(pos, data));
+            } else {
+                *pos += 1;
+            }
+            break;
+        case TRIG_CMD_HQDOF_END:
+            if (skip == 0) {
+                ssTrigHQDOFEnd();
+            }
+            break;
+        case TRIG_CMD_HQDOF_START:
+            if (skip == 0) {
+                u_char a = ssTrigRead1Byte(pos, data);
+                ssTrigHQDOFStart(a, ssTrigRead1Byte(pos, data));
+            } else {
+                *pos += 2;
+            }
+            break;
+        case TRIG_CMD_VASELINE_END:
+            if (skip == 0) {
+                ssTrigVaselineEnd();
+            }
+            break;
+        case TRIG_CMD_VASELINE_START:
+            if (skip == 0) {
+                u_short a = ssTrigRead2Byte(pos, data);
+                u_short b = ssTrigRead2Byte(pos, data);
+                u_short c = ssTrigRead2Byte(pos, data);
+                u_short d = ssTrigRead2Byte(pos, data);
+                u_char e = ssTrigRead1Byte(pos, data);
+                u_char f = ssTrigRead1Byte(pos, data);
+                u_char g = ssTrigRead1Byte(pos, data);
+                u_short h = ssTrigRead2Byte(pos, data);
+                u_char i = ssTrigRead1Byte(pos, data);
+                ssTrigVaselineStart(a, b, c, d, e, f, g, h, i);
+            } else {
+                *pos += 14;
+            }
+            break;
+        case TRIG_CMD_WAVE_END:
+            if (skip == 0) {
+                ssTrigWaveEnd();
+            }
+            break;
+        case TRIG_CMD_WAVE_START:
+            if (skip == 0) {
+                u_short a = ssTrigRead2Byte(pos, data);
+                u_short b = ssTrigRead2Byte(pos, data);
+                u_short c = ssTrigRead2Byte(pos, data);
+                u_short d = ssTrigRead2Byte(pos, data);
+                u_char e = ssTrigRead1Byte(pos, data);
+                u_char f = ssTrigRead1Byte(pos, data);
+                u_char g = ssTrigRead1Byte(pos, data);
+                u_char h = ssTrigRead1Byte(pos, data);
+                u_char i = ssTrigRead1Byte(pos, data);
+                u_short j = ssTrigRead2Byte(pos, data);
+                u_char k = ssTrigRead1Byte(pos, data);
+                ssTrigWaveStart(a, b, c, d, e, f, g, h, i, j, bank, k);
+            } else {
+                *pos += 16;
+            }
+            break;
+        case TRIG_CMD_HAZY_END:
+            if (skip == 0) {
+                ssTrigHazyScreenEnd();
+            }
+            break;
+        case TRIG_CMD_HAZY_START:
+            if (skip == 0) {
+                u_char level = ssTrigRead1Byte(pos, data);
+                ssTrigHazyScreenStart(level, ssTrigRead2Byte(pos, data));
+            } else {
+                *pos += 3;
+            }
+            break;
+        case TRIG_CMD_SCREEN_BLUR_END:
+            if (skip == 0) {
+                ssTrigScreenBlurEnd();
+            }
+            break;
+        case TRIG_CMD_SCREEN_BLUR_START:
+            if (skip == 0) {
+                ssTrigScreenBlurStart(ssTrigRead1Byte(pos, data));
+            } else {
+                *pos += 1;
+            }
+            break;
+        case TRIG_CMD_MOTION_BLUR_END:
+            if (skip == 0) {
+                ssPartMotionBlurEnd(ssTrigRead2Byte(pos, data), bank);
+            } else {
+                *pos += 2;
+            }
+            break;
+        case TRIG_CMD_MOTION_BLUR_START:
+            if (skip == 0) {
+                u_short part = ssTrigRead2Byte(pos, data);
+                u_char a = ssTrigRead1Byte(pos, data);
+                u_char b = ssTrigRead1Byte(pos, data);
+                u_char c = ssTrigRead1Byte(pos, data);
+                ssPartMotionBlurStart(part, a, bank, b, c);
+            } else {
+                *pos += 5;
+            }
+            break;
+        case TRIG_CMD_PARTICLE_STOP:
+            if (skip == 0) {
+                if (ssTrigRead1Byte(pos, data) == 0) {
+                    ssTrigParticleStop(ssTrigRead2Byte(pos, data), bank);
+                } else {
+                    ssTrigParticleAllOffImmediately(ssTrigRead2Byte(pos, data), bank);
+                }
+            } else {
+                *pos += 3;
+            }
+            break;
+        case TRIG_CMD_PARTICLE_START:
+            if (skip == 0) {
+                u_short particle = ssTrigRead2Byte(pos, data);
+                ssTrigParticleStart(particle, bank, ssTrigRead2Byte(pos, data));
+            } else {
+                *pos += 4;
+            }
+            break;
+        case TRIG_CMD_XCMD:
+            if (skip == 0) {
+                char *argv[TRIG_XCMD_COUNT];
+                u_short length = ssTrigRead2Byte(pos, data);
+                u_char index = ssTrigRead1Byte(pos, data);
+                u_char argc = ssTrigRead1Byte(pos, data);
+                for (int i = 0; i < argc; i++) {
+                    argv[i] = (char *)data + *pos;
+                    *pos += (u_short)(strlen(argv[i]) + 1);
+                }
+                answer = (s_char)ssXcmd_functions[index](argc, argv, bank);   // the ROM tests the low byte
+                if (answer == 0) {
+                    *pos -= (u_short)(length + 6);      // id, length, index, argc and the strings
+                }
+            } else {
+                *pos += (u_short)(ssTrigRead2Byte(pos, data) + 2);
+            }
+            break;
+        case TRIG_CMD_CANCEL_ACTOR:
+            if (skip == 0) {
+                u_short actor = ssTrigRead2Byte(pos, data);
+                ssTrigCancelActor(actor, ssTrigRead1Byte(pos, data), bank);
+            } else {
+                *pos += 3;
+            }
+            break;
+        case TRIG_CMD_RUN_ACTOR:
+            if (skip == 0) {
+                u_short actor = ssTrigRead2Byte(pos, data);
+                answer = (s_char)ssTrigExecuteActor(&cmds->wait, actor, ssTrigRead1Byte(pos, data), bank);
+                if (answer == 0) {
+                    *pos -= 5;
+                }
+            } else {
+                *pos += 3;
+            }
+            break;
+        case TRIG_CMD_IF_SCENE_DRAW:
+            if (skip == 0) {
+                u_char drawn = (u_char)ssTrigCheckSceneDraw((int)ssTrigRead4Byte(pos, data));
+                u_char expected = ssTrigRead1Byte(pos, data);
+                skip = drawn == (u_char)(expected - 1) ? 0 : cmds->step;
+            } else {
+                *pos += 5;
+            }
+            break;
+        case TRIG_CMD_IF_RANDOM:
+            if (skip == 0) {
+                skip = ssTrigCheckRandom(ssTrigRead1Byte(pos, data)) != 0 ? 0 : cmds->step;
+            } else {
+                *pos += 1;
+            }
+            break;
+        case TRIG_CMD_IF_VARIABLE:
+            if (skip == 0) {
+                u_short var = ssTrigRead2Byte(pos, data);
+                int value = (int)ssTrigRead4Byte(pos, data);
+                u_char global = ssTrigRead1Byte(pos, data);
+                u_char cmp = ssTrigRead1Byte(pos, data);
+                skip = ssTrigCheckVariable(var, value, global, cmp, bank) != 0 ? 0 : cmds->step;
+            } else {
+                *pos += 8;
+            }
+            break;
+        case TRIG_CMD_IF_EVENT:
+            if (skip == 0) {
+                u_short event = ssTrigRead2Byte(pos, data);
+                u_char global = ssTrigRead1Byte(pos, data);
+                u_char set = (u_char)ssTrigCheckEvent(event, global, bank);
+                u_char expected = ssTrigRead1Byte(pos, data);
+                skip = set == (u_char)(expected - 1) ? 0 : cmds->step;
+            } else {
+                *pos += 4;
+            }
+            break;
+        case TRIG_CMD_IF_ENABLE:
+            if (skip == 0) {
+                u_char on = (u_char)ssTrigCheckEnable(ssTrigRead2Byte(pos, data), bank);
+                u_char expected = ssTrigRead1Byte(pos, data);
+                skip = on == (u_char)(expected - 1) ? 0 : cmds->step;
+            } else {
+                *pos += 3;
+            }
+            break;
+        case TRIG_CMD_RETURN:
+            if (skip == 0) {
+                end = 1;
+            }
+            break;
+        case TRIG_CMD_ELSE:
+            if (skip == 0) {
+                skip = cmds->step;
+            } else if (skip == cmds->step) {
+                skip = 0;
+            }
+            break;
+        case TRIG_CMD_ENDIF:
+            if (skip != 0 && skip == cmds->step) {
+                skip = 0;
+            }
+            cmds->step--;
+            break;
+        case TRIG_CMD_IF:
+            cmds->step++;
+            break;
+        case TRIG_CMD_SET_VARIABLE:
+            if (skip == 0) {
+                u_short var = ssTrigRead2Byte(pos, data);
+                int value = (int)ssTrigRead4Byte(pos, data);
+                ssTrigSetVariable(var, value, ssTrigRead1Byte(pos, data), bank);
+            } else {
+                *pos += 7;
+            }
+            break;
+        case TRIG_CMD_SELF_DISCARD_LOAD:
+            if (skip == 0) {
+                char *name = (char *)data + *pos;
+                *pos += TRIG_CMD_NAME_LEN;
+                u_short loadBank = ssTrigRead2Byte(pos, data);
+                u_short loadArg = ssTrigRead2Byte(pos, data);
+                int draw = ssTrigRead1Byte(pos, data) - 1;
+                int byPos = ssTrigRead1Byte(pos, data) - 1;
+                SelfDiscardSceneLoad(name, loadBank, loadArg, draw, byPos, (short)ssTrigRead2Byte(pos, data), bank);
+            } else {
+                *pos += 13;
+            }
+            break;
+        case TRIG_CMD_SCENE_DRAW:
+            if (skip == 0) {
+                char *name = (char *)data + *pos;
+                *pos += TRIG_CMD_NAME_LEN;
+                int on = ssTrigRead1Byte(pos, data) - 1;
+                ssTrigRead1Byte(pos, data);                     // read and dropped by the ROM
+                u_short part = ssTrigRead2Byte(pos, data);
+                TrgSceneDraw(on, bank, part, name, ssTrigRead2Byte(pos, data));
+            } else {
+                *pos += 11;
+            }
+            break;
+        case TRIG_CMD_SCENE_LOAD:
+            if (skip == 0) {
+                char *name = (char *)data + *pos;
+                *pos += TRIG_CMD_NAME_LEN;
+                u_short loadBank = ssTrigRead2Byte(pos, data);
+                TrgSceneLoad(name, loadBank, ssTrigRead2Byte(pos, data));
+            } else {
+                *pos += 9;
+            }
+            break;
+        case TRIG_CMD_WAIT_ANIM:
+            if (skip == 0) {
+                u_long hash = ssTrigRead8Byte(pos, data);
+                u_short part = ssTrigRead2Byte(pos, data);
+                u_char pose = ssTrigRead1Byte(pos, data);
+                u_char other = ssTrigRead1Byte(pos, data);
+                u_char byPart = ssTrigRead1Byte(pos, data);
+                u_char target = ssTrigRead1Byte(pos, data);
+                u_char chara = ssTrigRead1Byte(pos, data);
+                answer = asCheckAnimationState_S(hash, All_table_TBL[bank], part, pose, other, byPart, target,
+                                                 chara) != 1;
+                if (answer == 0) {
+                    *pos -= 17;
+                }
+            } else {
+                *pos += 15;
+            }
+            break;
+        case TRIG_CMD_WAIT_FRAMES:
+            if (skip == 0) {
+                int ticks = (int)ssTrigRead4Byte(pos, data) * 100 / anim_play_slow;
+                if (BankInfo[bank].type == BANK_TYPE_0) {
+                    answer = (s_char)ssTrigWaitByAnimFrameForGlobal(&cmds->wait, ticks);
+                } else {
+                    answer = (s_char)ssTrigWaitByAnimFrame(&cmds->wait, ticks);
+                }
+                if (answer == 0) {
+                    *pos -= 6;
+                }
+            } else {
+                *pos += 4;
+            }
+            break;
+        case TRIG_CMD_TEX_SET_NEXT:
+            if (skip == 0) {
+                u_short part = ssTrigRead2Byte(pos, data);
+                tnTrigTexFileSetNext(part, ssTrigRead1Byte(pos, data) - 1, bank);
+            } else {
+                *pos += 3;
+            }
+            break;
+        case TRIG_CMD_TEX_SET_PAGE:
+            if (skip == 0) {
+                u_short part = ssTrigRead2Byte(pos, data);
+                int literal = ssTrigRead1Byte(pos, data) - 1;
+                u_char a2 = ssTrigRead1Byte(pos, data);
+                tnTrigTexFileSetPage(part, literal, a2, ssTrigRead2Byte(pos, data), bank);
+            } else {
+                *pos += 6;
+            }
+            break;
+        case TRIG_CMD_ANIM_PLAY:
+            if (skip == 0) {
+                TrigAnimStart(pos, data, 0, bank);
+            } else {
+                *pos += 32;
+            }
+            break;
+        case TRIG_CMD_ANIM_RANGE:
+            if (skip == 0) {
+                TrigAnimStart(pos, data, 1, bank);
+            } else {
+                *pos += 36;
+            }
+            break;
+        case TRIG_CMD_ANIM_STOP:
+            if (skip == 0) {
+                u_long hash = ssTrigRead8Byte(pos, data);
+                u_short part = ssTrigRead2Byte(pos, data);
+                u_char pose = ssTrigRead1Byte(pos, data);
+                u_char other = ssTrigRead1Byte(pos, data);
+                s_char byPart = (s_char)ssTrigRead1Byte(pos, data);
+                u_char target = ssTrigRead1Byte(pos, data);
+                u_char chara = ssTrigRead1Byte(pos, data);
+                asSceneAnimationStop_S(hash, All_table_TBL[bank], part, pose, other, byPart, target, chara);
+            } else {
+                *pos += 15;
+            }
+            break;
+        case TRIG_CMD_CAM_DOF:
+            if (skip == 0) {
+                CamSetNowDOFLevel(ssTrigRead1Byte(pos, data));
+            } else {
+                *pos += 1;
+            }
+            break;
+        case TRIG_CMD_CAM_FOV:
+            if (skip == 0) {
+                // The ROM passes (short)(degrees * 0x10000 / 360) and the time; CamChangeFOV_S ignores both.
+                ssTrigRead2Byte(pos, data);
+                ssTrigRead1Byte(pos, data);
+                CamChangeFOV_S();
+            } else {
+                *pos += 3;
+            }
+            break;
+        case TRIG_CMD_CAM_CHANGE: {
+            short scene = (short)ssTrigRead2Byte(pos, data);
+            if (scene == TRIG_CAM_THIS_SCENE) {
+                if (skip == 0) {
+                    if (BankInfo[bank].type == BANK_TYPE_SHADOW && idCameraScene != bank) {
+                        TrigSetCameraScene(bank);
+                    }
+                    u_char cut = ssTrigRead1Byte(pos, data);
+                    u_char mode = ssTrigRead1Byte(pos, data);
+                    CamChange_S(bank, cut, mode, TrigCamTime(ssTrigRead2Byte(pos, data)));
+                } else {
+                    *pos += 4;
+                }
+            } else if (skip == 0) {
+                *pos += TRIG_CMD_NAME_LEN;              // a name the ROM steps over
+                if (BankInfo[bank].type == BANK_TYPE_SHADOW && BankInfo[scene].type == BANK_TYPE_SHADOW) {
+                    TrigSetCameraScene(scene);
+                }
+                u_long hash = ssTrigRead8Byte(pos, data);
+                u_char mode = ssTrigRead1Byte(pos, data);
+                CamChange_Hash_S_Hash(scene, hash, mode, TrigCamTime(ssTrigRead2Byte(pos, data)));
+            } else {
+                *pos += 16;
+            }
+            break;
+        }
+        case TRIG_CMD_CAM_ZELCAM:
+            if (skip == 0) {
+                u_short maxDist = ssTrigRead2Byte(pos, data);
+                u_short minDist = ssTrigRead2Byte(pos, data);
+                u_short unused = ssTrigRead2Byte(pos, data);
+                u_short height = ssTrigRead2Byte(pos, data);
+                u_short angle = ssTrigRead2Byte(pos, data);
+                CamChangeZELCAM_S(maxDist, minDist, unused, height, angle, ssTrigRead1Byte(pos, data));
+            } else {
+                *pos += 11;
+            }
+            break;
+        case TRIG_CMD_EVENT:
+            if (skip == 0) {
+                u_char op = ssTrigRead1Byte(pos, data);
+                u_short event = ssTrigRead2Byte(pos, data);
+                u_char global = ssTrigRead1Byte(pos, data);
+                if (op == TRIG_EVENT_REMOVE) {
+                    ssTrigRemoveEvent(event, global, bank);
+                } else {
+                    ssTrigRegisterEvent(event, global, bank);
+                }
+            } else {
+                *pos += 4;
+            }
+            break;
+        case TRIG_CMD_SE_VOLUME:
+            if (skip == 0) {
+                u_short id2 = ssTrigRead2Byte(pos, data);
+                ssTrigRead1Byte(pos, data);                     // passed on by the ROM; SSActVolume is empty
+                ssTrigRead1Byte(pos, data);
+                SSActVolume(bank, id2);
+            } else {
+                *pos += 4;
+            }
+            break;
+        case TRIG_CMD_SE_LOAD_BANK:
+            if (skip == 0) {
+                const char *name = (const char *)data + *pos;
+                *pos += TRIG_CMD_SE_NAME_LEN;
+                ssTrigRead2Byte(pos, data);                     // passed on (with 1) by the ROM; unused there
+                SSActLoadBankSE(name);
+            } else {
+                *pos += 15;
+            }
+            break;
+        case TRIG_CMD_SE_STOP:
+            if (skip == 0) {
+                SSActStopSound(bank, ssTrigRead2Byte(pos, data));
+            } else {
+                *pos += 2;
+            }
+            break;
+        case TRIG_CMD_SE_PLAY:
+            if (skip == 0) {
+                u_short obj = ssTrigRead2Byte(pos, data);
+                ssTrigRead1Byte(pos, data);                     // passed on by the ROM; SSActPlaySound ignores it
+                SSActPlaySound(bank, obj);
+            } else {
+                *pos += 3;
+            }
+            break;
+        case TRIG_CMD_MENU:
+            if (skip == 0) {
+                ssMenuUpdate(ssTrigRead1Byte(pos, data) - 1);
+            } else {
+                *pos += 1;
+            }
+            break;
+        case TRIG_CMD_PAUSE:
+            if (skip == 0) {
+                answer = (s_char)PauseUpdate(ssTrigRead1Byte(pos, data) - 1);
+                if (answer == 0) {
+                    *pos -= 3;
+                }
+            } else {
+                *pos += 1;
+            }
+            break;
+        case TRIG_CMD_MONSTER_AI:
+            if (skip == 0) {
+                MonsterAIUpdate(ssTrigRead1Byte(pos, data) - 1);
+            } else {
+                *pos += 1;
+            }
+            break;
+        case TRIG_CMD_PLAYER_CONTROL:
+            if (skip == 0) {
+                PlayerControlUpdate(ssTrigRead1Byte(pos, data) - 1);
+            } else {
+                *pos += 1;
+            }
+            break;
+        case TRIG_CMD_WARP:
+            if (skip == 0) {
+                const char *room = (const char *)data + *pos;
+                *pos += TRIG_CMD_NAME_LEN;
+                int mode = ssTrigRead1Byte(pos, data) - 1;
+                u_short chara = ssTrigRead2Byte(pos, data);
+                WarpObject(room, mode, chara, ssTrigRead8Byte(pos, data), bank);
+            } else {
+                *pos += 16;
+            }
+            break;
+        case TRIG_CMD_SET_ENABLE:
+            if (skip == 0) {
+                u_short part = ssTrigRead2Byte(pos, data);
+                int op = (s_char)ssTrigRead1Byte(pos, data) - 1;
+                u_char delayed = ssTrigRead1Byte(pos, data);
+                ssTrigSetEnable(part, op, delayed, bank);
+            } else {
+                *pos += 4;
+            }
+            break;
+        default:
+            break;                              // the ROM steps over nothing for an unknown id
+        }
+    } while (answer != 0 && !end);
+    return answer;
+}
+
+// CT3 0x018d99c0
+// x command: set script variable argv[1] (bank-local) to the direction part argv[0]'s animation plays
+// (asCheckAnimationDirection_X, pose 1).
+int suXcmd_AnmDirection(int argc, char **argv, int bank)
+{
+    (void)argc;
+    int dir = asCheckAnimationDirection_X(All_table_TBL[bank], atoi(argv[0]) & 0xffff, 1, 0, 0);
+    ssTrigSetVariable(atoi(argv[1]) & 0xffff, dir, 0, bank);
+    return XCMD_DONE;
 }

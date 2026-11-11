@@ -954,6 +954,18 @@ rewinds the cursor to offset + 1; `ssTrigExecuteActCmd` (0x018d5450, 0x249c byte
 non-0 when it has finished. curActInfo (0x01943d60: mode, actor, bank) names the running actor. First smoke
 run with it: real bank data reaches ssTrigCheckConditions and ssTrigExecuteActCmd (both stubs).
 
+The command lists (slice 5, 2026-11-11): each command is a u16 id and fixed operands (TRIG_CMD_* in
+ssGrpPortalCheck.h has every id and size; ids 1..6 control and warps, 100s sound, 200 events, 300s
+camera, 500s animation and texture pages, 700s waits, 800s scene loads, 900 variables, 1000..1003
+if / endif / else / return, 1100s tests, 1200s actors, 1300 the x commands, 1400s screen effects, 1500s
+shadows, 1600s movies, 1700s characters; 0xfffe ends a list). Names inside a list are inline 5-byte
+strings (4 letters and a NUL). Blocks nest by TRIG_ACT_CMDS.step; a false test sets the skip depth and
+skipped commands step over their operands. A command that answers 0 (a wait, an x command, PauseUpdate,
+a running actor) steps the cursor back over itself and ends the frame's run. TRIG_CMD_XCMD (1300) is
+a strings' length u16, the table index, argc and argc C strings: ssXcmd_functions[index](argc, argv,
+bank) (0x0193a500, 256 distinct functions: wideXcmd_*, ssXcmd_*, tiXcmd_*, tkXcmd_*, tnXcmd_*, asXcmd_*,
+hhXcmd_*, aaXcmd_*, suXcmd_AnmDirection, RotateCamera / LockerCamera, PicPaz).
+
 ## The IOP side (2026-11-09)
 
 The EE loads `cdrom0:\IOP\IOPRP255.IMG;1` (an IOP reboot), then `SIO2MAN`, `PADMAN`, `MCMAN`, `MCSERV`,
