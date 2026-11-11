@@ -9,6 +9,7 @@
 #include "game/main.h"
 #include "game/QuatSlerp.h"
 #include "game/ahRelocateSunPs2ObjectArry.h"
+#include "game/ahalloc.h"
 #include "game/ssGrpPortalCheck.h"
 #include "game/ssHitCheckAttackToScn.h"
 #include "game/ssSetTexUVforCubeMap.h"
@@ -1131,6 +1132,227 @@ void tiHurikoReset_On(int bank, int id, int byChara)
     }
 }
 
+// A joint's vertex copy n: posRef[n] (or normalRef[n]) -> the EE word of the qword.
+static float *HurikoRef(int bank, u_int refEE, int n)
+{
+    return BANK_PTR(float *, bank, BANK_PTR(u_int *, bank, refEE)[n]);
+}
+
+// The joint at chain c, row k of a pendulum's joint table.
+static HURIKO_JOINT *HurikoJointAt(int bank, const HURIKO *h, int c, int k)
+{
+    return BANK_PTR(HURIKO_JOINT *, bank, BANK_PTR(u_int *, bank, h->jointTable)[k + c * h->joints]);
+}
+
+// CT3 0x01890c00: tiHurikoUpdate, on the first enabled frame after a pendulum was off -- hang every joint
+// back in its rest pose (below the joint above by its length, plus its rest offset, in the part's
+// matrix200 frame), keep the world positions in the joints, and leave the vertices part-local again.
+// The roots take back the local position tiHurikoInit kept.
+void tiHurikoReset(int bank, HURIKO *h)
+{
+    static const float down[4] = { 0.0f, HURIKO_REST_DOWN_Y, 0.0f, 0.0f }; /* @1109 (0x01938a20) */
+    MODEL_PARTS *part = HurikoPart(bank, HurikoWord0(h));
+    float (*m)[4] = part->matrix200;
+    int nc = h->chains;
+    int nj = h->joints;
+    float inv[4][4];
+    float t[4];
+    int c, k, n;
+
+    gaInversMatrix(inv, m);
+    // every master vertex into the part's frame (w too)
+    for (n = 0; n < nc * nj; n++) {
+        float *p = HurikoRef(bank, HurikoJointAt(bank, h, n / nj, n % nj)->posRef, 0);
+
+        PortApplyMatrix(t, m, p);
+        memcpy(p, t, sizeof t);
+    }
+    // the rest pose, from the root down (the joint above is already placed)
+    for (c = 0; c < nc; c++) {
+        for (k = 1; k < nj; k++) {
+            HURIKO_JOINT *j = HurikoJointAt(bank, h, c, k);
+            const float *up = BANK_PTR(const float *, bank, j->up);
+            float r[4];
+            float *p = HurikoRef(bank, j->posRef, 0);
+            int e;
+
+            PortApplyMatrix(r, m, j->restDir);
+            for (e = 0; e < 4; e++) {
+                p[e] = (down[e] * j->length + up[e]) + r[e];
+            }
+        }
+    }
+    // keep the world positions, put the vertices (and their copies) back into part space
+    for (c = 0; c < nc; c++) {
+        HURIKO_JOINT *root = HurikoJointAt(bank, h, c, 0);
+
+        memcpy(HurikoRef(bank, root->posRef, 0), root->pos, sizeof root->pos);
+        for (k = 1; k < nj; k++) {
+            HURIKO_JOINT *j = HurikoJointAt(bank, h, c, k);
+            float *p = HurikoRef(bank, j->posRef, 0);
+
+            memcpy(j->pos, p, sizeof j->pos);
+            PortApplyMatrix(t, inv, p);
+            memcpy(p, t, sizeof t);
+            for (n = 1; n < j->copies; n++) {
+                memcpy(HurikoRef(bank, j->posRef, n), p, sizeof t);
+            }
+            j->swing40[0] = j->swing40[1] = j->swing40[2] = 0.0f; // sqc2 vf0: (0, 0, 0, 1)
+            j->swing40[3] = 1.0f;
+            j->swing50[0] = j->swing50[1] = j->swing50[2] = 0.0f;
+            j->swing50[3] = 1.0f;
+        }
+    }
+}
+
+// One joint's normal: (a - p) x (b - p) through vopmula / vopmsub, normalised, w 0, copied to every copy
+// of the vertex.
+static void HurikoNormal(int bank, const HURIKO_JOINT *j, const float *a, const float *b)
+{
+    const float *p = HurikoRef(bank, j->posRef, 0);
+    float *nrm = HurikoRef(bank, j->normalRef, 0);
+    float u[3], v[3];
+    int n;
+
+    u[0] = a[0] - p[0];
+    u[1] = a[1] - p[1];
+    u[2] = a[2] - p[2];
+    v[0] = b[0] - p[0];
+    v[1] = b[1] - p[1];
+    v[2] = b[2] - p[2];
+    nrm[0] = u[1] * v[2] - v[1] * u[2];
+    nrm[1] = u[2] * v[0] - v[2] * u[0];
+    nrm[2] = u[0] * v[1] - v[0] * u[1];
+    nrm[3] = 0.0f; // PORT: the ROM normalises the register's stale w, then stores 0 over it
+    gaNormalizeVectorXYZ(nrm, nrm);
+    nrm[3] = 0.0f;
+    for (n = 1; n < j->copies; n++) {
+        memcpy(HurikoRef(bank, j->normalRef, n), nrm, 4 * sizeof(float));
+    }
+}
+
+// CT3 0x018912b0: tiHurikoUpdate, after each swing -- every non-root joint's vertex normal from its
+// neighbours: the joint above it (the chain's root first) and the next chain's joint one row up. The last
+// chain looks back instead: at chain nc - 2 (nc - 3 when CLOSED) and at its own joint above (chain 0's
+// when CLOSED), as the ROM indexes them.
+void tiGetNewNormalData(HURIKO *h)
+{
+    int bank = BankOfHostPtr(h); // PORT: the ROM's words are absolute EE addresses; the host asks the bank
+    int nc = h->chains;
+    int nj = h->joints;
+    int closed = (h->flags & HURIKO_FLAG_CLOSED) != 0;
+    int c, k;
+
+    for (c = 0; c < nc - 1; c++) {
+        const float *above = HurikoRef(bank, HurikoJointAt(bank, h, c, 0)->posRef, 0);
+
+        for (k = 1; k < nj; k++) {
+            HURIKO_JOINT *j = HurikoJointAt(bank, h, c, k);
+
+            HurikoNormal(bank, j, above, HurikoRef(bank, HurikoJointAt(bank, h, c + 1, k - 1)->posRef, 0));
+            above = HurikoRef(bank, j->posRef, 0);
+        }
+    }
+    for (k = 1; k < nj; k++) {
+        HURIKO_JOINT *j = HurikoJointAt(bank, h, nc - 1, k);
+
+        HurikoNormal(bank, j, HurikoRef(bank, HurikoJointAt(bank, h, (nc - 2) - closed, k - 1)->posRef, 0),
+                     HurikoRef(bank, HurikoJointAt(bank, h, (nc - 1) * (1 - closed), k - 1)->posRef, 0));
+    }
+    // callcheck: gaNormalizeVectorXYZ (HurikoNormal makes it)
+}
+
+// ---- characters ----
+
+// CT3 0x018948e0: a character's facing: its turn (CHARACTER.rot) applied to +z (@123 = (0, 0, 1, 0)).
+// The bosses' brains aim with it.
+void tiGetCharaDirection(float *dir, const CHARACTER *chr)
+{
+    static const float ahead[4] = { 0.0f, 0.0f, 1.0f, 0.0f }; /* @123 (0x019389e0) */
+    float m[4][4];
+
+    gaSetRotMatrixY(m, chr->rot);
+    PortApplyMatrix(dir, m, ahead);
+}
+
+// ---- boss data ----
+
+// The boss info's allocations (pBossInfo, from gHeapJunc; tiFreeBossData frees them). Two chain sets of
+// four blocks each (set A while BOSS_INFO_CHAIN_A_COUNT != 0, set B while its count at 0x91 != 0), one
+// block while the int at 0xc4 is set, and a sub-block at 0x140 holding two more.
+#define BOSS_INFO_CHAIN_A_E8 0xe8       /* set A: EE word of a block */
+#define BOSS_INFO_CHAIN_A_FC 0xfc
+#define BOSS_INFO_CHAIN_A_104 0x104
+#define BOSS_INFO_CHAIN_B_COUNT 0x91    /* u_char: set B's chains (= BOSS_INFO_CHAIN_COUNT) */
+#define BOSS_INFO_CHAIN_B_EC 0xec       /* set B: EE word of a block */
+#define BOSS_INFO_CHAIN_B_100 0x100     /* = BOSS_INFO_CHAIN_POS */
+#define BOSS_INFO_CHAIN_B_108 0x108
+#define BOSS_INFO_CHAIN_B_ON 0x110      /* = BOSS_INFO_CHAIN_ON */
+#define BOSS_INFO_C4 0xc4               /* int: != 0 -> the block at 0x13c is allocated */
+#define BOSS_INFO_13C 0x13c
+#define BOSS_INFO_SUB 0x140             /* EE word -> a block whose words 0x24 and 0x28 are blocks too */
+#define BOSS_SUB_24 0x24
+#define BOSS_SUB_28 0x28
+
+// The trigger variables a boss battle leaves set; tiFreeBossData puts each back to -1 (global), in the
+// ROM's order.
+static const int BossTrigVars[] = { 0x53, 0x54, 0x52, 0x56, 5 };
+
+// _SunFree on the boss info's pointer word at `off` (of `base`). PORT: pBossInfo's pointer words are EE
+// words with no host form until the boss TU that allocates them decides it (as BossInfoPtr in
+// wideXcmd_DebugPrint.c), so nothing is allocated through them yet and nothing is freed here.
+static void BossInfoFree(u_char *base, int off)
+{
+    (void)base;
+    (void)off;
+}
+
+// CT3 0x01889df0: system_end, tiXcmd_BOSS_BattleEnd -- free the boss info's blocks and the info itself
+// (gHeapJunc), then clear the battle's trigger variables.
+void tiFreeBossData(void)
+{
+    int i;
+
+    if (pBossInfo == NULL) {
+        return;
+    }
+    if (pBossInfo[BOSS_INFO_CHAIN_A_COUNT] != 0) {
+        BossInfoFree(pBossInfo, BOSS_INFO_CHAIN_A_E8);
+        BossInfoFree(pBossInfo, BOSS_INFO_CHAIN_A_FC);
+        BossInfoFree(pBossInfo, BOSS_INFO_CHAIN_A_104);
+        BossInfoFree(pBossInfo, BOSS_INFO_CHAIN_A_ON);
+    }
+    if (pBossInfo[BOSS_INFO_CHAIN_B_COUNT] != 0) {
+        BossInfoFree(pBossInfo, BOSS_INFO_CHAIN_B_EC);
+        BossInfoFree(pBossInfo, BOSS_INFO_CHAIN_B_100);
+        BossInfoFree(pBossInfo, BOSS_INFO_CHAIN_B_108);
+        BossInfoFree(pBossInfo, BOSS_INFO_CHAIN_B_ON);
+    }
+    {
+        int c4;
+
+        memcpy(&c4, pBossInfo + BOSS_INFO_C4, sizeof c4);
+        if (c4 != 0) {
+            BossInfoFree(pBossInfo, BOSS_INFO_13C);
+        }
+    }
+    {
+        u_int sub;
+
+        memcpy(&sub, pBossInfo + BOSS_INFO_SUB, sizeof sub);
+        if (sub != 0) {
+            // PORT: the ROM frees the sub-block's words 0x24 and 0x28 first (BOSS_SUB_24 / _28): no host
+            // form, as BossInfoFree
+            BossInfoFree(pBossInfo, BOSS_INFO_SUB);
+        }
+    }
+    _SunFree(&gHeapJunc, (void **)&pBossInfo);
+    for (i = 0; i < (int)(sizeof BossTrigVars / sizeof BossTrigVars[0]); i++) {
+        ssTrigSetVariable(BossTrigVars[i], -1, 1, 0);
+    }
+    // callcheck: _SunFree (BossInfoFree makes the rest)
+}
+
 // ---- translucence ----
 
 // CT3 0x0188ddc0: end a character's translucence (ssTrigExecuteActCmd, ssAI_BrainEndSpecialProc,
@@ -1716,12 +1938,6 @@ void ExportDrawToTex(void)
     ALYSSAPAN_STUB("ExportDrawToTex", 0x01893cf0);
 }
 
-// stub of CT3 0x01889df0
-void tiFreeBossData(void)
-{
-    ALYSSAPAN_STUB("tiFreeBossData", 0x01889df0);
-}
-
 // stub of CT3 0x0188dca0
 void tiChara_Translucence_End(float alpha, int fbuf)
 {
@@ -1762,14 +1978,6 @@ void tiGenerateParticle(int ticks, PARTICLE2_ENTRY *ent, int enabled, int bank)
     ALYSSAPAN_STUB("tiGenerateParticle", 0x0188fba0);
 }
 
-// stub of CT3 0x01890c00
-void tiHurikoReset(int bank, HURIKO *h)
-{
-    (void)bank;
-    (void)h;
-    ALYSSAPAN_STUB("tiHurikoReset", 0x01890c00);
-}
-
 // stub of CT3 0x01892310
 void tiCalc_HurikoOPEN(HURIKO *h, int bank, int ticks)
 {
@@ -1786,13 +1994,6 @@ void tiCalc_HurikoCLOSED(HURIKO *h, int bank, int ticks)
     (void)bank;
     (void)ticks;
     ALYSSAPAN_STUB("tiCalc_HurikoCLOSED", 0x018915a0);
-}
-
-// stub of CT3 0x018912b0
-void tiGetNewNormalData(HURIKO *h)
-{
-    (void)h;
-    ALYSSAPAN_STUB("tiGetNewNormalData", 0x018912b0);
 }
 
 // stub of CT3 0x0188ea90

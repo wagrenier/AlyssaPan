@@ -1344,8 +1344,20 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    UV outputs, type unread. Nothing on screen yet (no particle bank loads in the smoke run).
    Slice left: tiDrawShadingOff with CaptureDBuffer and tiVRAMViewer, ExportDrawToTex, tiDrawLensFlares
    (after the host sprite), tiBumpSTValueUpdate / tiRefractionMapUpdate / SetSTValueForRefraction (the
-   refraction trio), the translucence four (ka), tiFreeBossData (boss TU), tiCalc_Leaf / _Leaf_WIND /
-   _Trans_WIND / _Twist (the remaining motions), plus the six slice-3 helper stubs.
+   refraction trio), the translucence four (ka), tiCalc_Leaf / _Leaf_WIND / _Trans_WIND / _Twist (the
+   remaining motions), tiGenerateParticle with tiGetmatL2WFromMeshEmitter (the emitter record:
+   +4 matrix, +8 count, +0xc used, +0x10 used bytes, +0x14 vertices; host form still to decide), plus the
+   six slice-3 helper stubs.
+   Slice 9 (2026-11-11): tiHurikoReset, tiGetNewNormalData, tiGetCharaDirection, tiFreeBossData. (ke)
+   tiHurikoReset works in MODEL_PARTS.matrix200 (+0x200) while tiHurikoInit took the rest pose in
+   .matrix (+0x1c0): both as the ROM reads them -- the swing TU (tiCalc_HurikoOPEN / _CLOSED) says
+   which frame the joints live in; (kf) HURIKO_JOINT.swing40 / swing50 are only reset to (0, 0, 0, 1)
+   so far: the swing names them; (kg) tiGetNewNormalData's last chain looks at chain nc - 2 - closed
+   and (closed) chain 0, as the ROM indexes -- kept; it takes the bank by BankOfHostPtr (the ROM's words
+   are absolute); (kh) tiFreeBossData frees only pBossInfo itself: its pointer words (0xe8..0x110,
+   0x13c, 0x140 and the sub-block's 0x24 / 0x28) have no host form until the boss TU that allocates
+   them decides (BossInfoFree is a no-op, as wideXcmd_DebugPrint.c's BossInfoPtr); the five trigger
+   variables (0x53, 0x54, 0x52, 0x56, 5) it resets to -1 are unnamed.
 
 8. **(2026-11-11, the user: "queue the title blockers") The way to the title screen.** A probe run
    (16:25, reverted: every stubbed x command answering XCMD_DONE, AA_movie returning at once) showed the

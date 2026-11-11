@@ -93,8 +93,11 @@ static_assert(offsetof(HURIKO, flags) == 0x18, "HURIKO.flags");
 
 // One joint of a pendulum chain (tiHurikoInit, 2026-11-11 slice 4). layout: ee -- bank data.
 typedef struct HURIKO_JOINT {
-    u_int posRef;                       /* 0x00: EE word -> an EE word -> the joint's part-local position */
-    u_char pad04[8];
+    u_int posRef;                       /* 0x00: EE word -> u_int[copies]: EE words of the joint's vertex
+                                           position, [0] the master (part-local; world while swinging) */
+    u_int normalRef;                    /* 0x04: EE word -> u_int[copies]: EE words of its vertex normal
+                                           (tiGetNewNormalData writes [0], copies it to the rest) */
+    int copies;                         /* 0x08: the vertex's copies (posRef / normalRef entries) */
     float length;                       /* 0x0c: the rest offset from the joint above, straight down */
     u_char pad10[0x10];
     u_int up;                           /* 0x20: EE address of the joint above's position (k >= 1) */
@@ -103,11 +106,15 @@ typedef struct HURIKO_JOINT {
     u_int right;                        /* 0x2c: ... in the next chain (cyclic) */
     float restDir[4];                   /* 0x30: part-local: world pos - (up's world pos + (0,-1,0) * length),
                                            w 0 (k >= 1) */
-    u_char pad40[0x20];
+    float swing40[4];                   /* 0x40: tiHurikoReset sets (0, 0, 0, 1) (VU0 vf0); the swing's,
+                                           read by tiCalc_HurikoOPEN / _CLOSED (not yet) */
+    float swing50[4];                   /* 0x50: ... the same */
     float pos[4];                       /* 0x60: k >= 1: the world position's xyz; the root: its local
                                            position (all four words) */
 } HURIKO_JOINT;
+static_assert(offsetof(HURIKO_JOINT, copies) == 0x08, "HURIKO_JOINT.copies");
 static_assert(offsetof(HURIKO_JOINT, length) == 0x0c, "HURIKO_JOINT.length");
+static_assert(offsetof(HURIKO_JOINT, swing40) == 0x40, "HURIKO_JOINT.swing40");
 static_assert(offsetof(HURIKO_JOINT, up) == 0x20, "HURIKO_JOINT.up");
 static_assert(offsetof(HURIKO_JOINT, restDir) == 0x30, "HURIKO_JOINT.restDir");
 static_assert(offsetof(HURIKO_JOINT, pos) == 0x60, "HURIKO_JOINT.pos");
@@ -233,6 +240,7 @@ void tiHurikoReset(int bank, HURIKO *h);                                        
 void tiCalc_HurikoOPEN(HURIKO *h, int bank, int ticks);                                  // CT3 0x01892310
 void tiCalc_HurikoCLOSED(HURIKO *h, int bank, int ticks);                                // CT3 0x018915a0
 void tiGetNewNormalData(HURIKO *h);                                                      // CT3 0x018912b0
+void tiGetCharaDirection(float *dir, const struct CHARACTER *chr);                           // CT3 0x018948e0
 // dst.xyz = src.xyz / |src.xyz|; w scaled the same (VU0: the whole vector times rsqrt(x2+y2+z2)).
 void gaNormalizeVectorXYZ(float *dst, const float *src);                                 // CT3 0x01891570
 float gaNormalizeVector3XYZ(float *dst, const float *src);                              // CT3 0x018922c0

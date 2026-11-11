@@ -489,7 +489,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 105..105, 36 functions keyed by their statics, 13 unkeyed; file name from the names"
   },
   "game/Clipping_Portal.c": {
-   "notes": "Smoke run unchanged (flat grey; no particle bank loads, tiCalc_Orbit not reached). open-items 7 kb..kd: PARTICLE2.offset renamed color (VRGB + alpha), so partsPos / DRAW_OBJ_POS / PARTICLE2.pos are probably a colour; ROM integration kept; curve reader prototypes from call sites. Slice left: tiDrawShadingOff with CaptureDBuffer and tiVRAMViewer, ExportDrawToTex, tiDrawLensFlares, the refraction trio (tiBumpSTValueUpdate, tiRefractionMapUpdate, SetSTValueForRefraction), the translucence four, tiFreeBossData, tiCalc_Leaf / Leaf_WIND / Trans_WIND / Twist, the six slice-3 helper stubs.",
+   "notes": "Smoke run unchanged (flat grey; no pendulum or boss bank loads). open-items 7 ke..kh: reset uses matrix200 while init used matrix; swing40/50 named from the reset only; last-chain normal indexing kept as the ROM; boss info pointer words not freed (no host form). Slice left: tiDrawShadingOff with CaptureDBuffer and tiVRAMViewer, ExportDrawToTex, tiDrawLensFlares, the refraction trio, the translucence four, tiGenerateParticle with tiGetmatL2WFromMeshEmitter, tiCalc_Leaf / Leaf_WIND / Trans_WIND / Twist, the six slice-3 helper stubs.",
    "ranges": [
     [
      "01889cd0",
@@ -536,6 +536,11 @@
      "date": "2026-11-11 17:59",
      "status": "partial",
      "summary": "slice 8: tiCalc_Orbit and its motions (tiCalc_Trans, Goal_Disable, TransToGoal, TransToGoal_Stop, matL2V, Refraction) from the disassembly; PARTICLE2 laid out (vel, accel, color, scale, refrIndex, curve caches, mats), PARTICLE2_MATS, PARTICLE2_ENTRY orbit / leafArg / five curves, ORBIT_* kinds; curve readers declared in ssSetTexUVforCubeMap"
+    },
+    {
+     "date": "2026-11-11 18:08",
+     "status": "partial",
+     "summary": "slice 9: tiHurikoReset (rest pose back in the part frame), tiGetNewNormalData (pendulum vertex normals), tiGetCharaDirection, tiFreeBossData; HURIKO_JOINT normalRef / copies / swing40 / swing50"
     }
    ],
    "status": "partial",
