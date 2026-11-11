@@ -729,7 +729,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 67..67, 4 functions keyed by their statics, 3 unkeyed; source string ahalloc.c"
   },
   "game/asEyeForcusUP2CamMat.c": {
-   "notes": "asGetDestinationEYE (0x01884f50, 0x1740 bytes, seven eye kinds, VU-heavy) is next and alone: the eye stays camera_init0's (10, 10, 10) until it places it, so the shot is still black (first object at window 2804, 1884 with a real view now). Then camera_main (0x018881a0). Doubts in open-items.md Next up item 5 (g)..(j): the 0x40 parts-header offset question, the 0 quake period guard, the smoke run now at about 1800 frames a second.",
+   "notes": "camera_main (0x018881a0, 0x1aac bytes, the pad-driven camera with Camera ID %d) is the TU's last function: next, alone. The smoke run reaches asGetDestinationEYE only for global banks 0..5 (kind 0, no path); the shot is still black and the first object (light0) lands at window (2304, 2272) with z inf, which looks like a draw-side w problem rather than the camera. Doubts in open-items.md Next up item 5 (k)..(o).",
    "ranges": [
     [
      "01883db0",
@@ -746,6 +746,11 @@
      "date": "2026-11-10 22:17",
      "status": "partial",
      "summary": "camera slice 2: 7 functions -- camera_view and camera_view0 (the frame's camera: last frame's view kept, stocked cut retried, cut move blend, look-around stick, shakes, follow views), CamChange, CamChange_Hash_S_Hash, asFindCamera, asCopyCameraMatrix, asCameraPositionTranser, asCamModeChange; CAMERA fields named (moveTicks, moveTime, eyeMode, trgMode, focalMoving, moveSpeed)"
+    },
+    {
+     "date": "2026-11-10 22:35",
+     "status": "partial",
+     "summary": "camera slice 3: asGetDestinationEYE (the seven eye kinds: part, rail, orbit, stay, plane, ring, segment; the cut path from OBJ_CTRL), CamSetNowDOFLevel, CamChangeZELCAM_S; eye kinds and answers named"
     }
    ],
    "status": "partial",

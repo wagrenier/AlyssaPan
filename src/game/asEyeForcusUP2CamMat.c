@@ -500,7 +500,7 @@ int CamChangeSub(int cam)
     c->moveSpeed = rec[CAM_CUT_MOVE_SPEED];
     c->eyeKind = rec[CAM_CUT_EYE_KIND];
     if (rec[CAM_CUT_TRG_MODE] == CAM_TRG_MODE_NONE) {
-        if (c->eyeKind == CAM_EYE_KIND_1 || c->eyeKind == CAM_EYE_KIND_6)
+        if (c->eyeKind == CAM_EYE_KIND_RAIL || c->eyeKind == CAM_EYE_KIND_SEGMENT)
             return CAM_CHANGE_NEEDS_TARGETS;
         c->trgKind = CAM_TRG_KIND_NONE;
     } else {
@@ -531,6 +531,279 @@ u_char CamGetNowDOFLevel(void)
     return Cam[CAMERA_SHARED].dofLevel;
 }
 
+// CT3 0x01886730: a trigger command's DOF level for the shared camera; CAM_DOF_NONE ends the DOF pass.
+void CamSetNowDOFLevel(short level)
+{
+    Cam[CAMERA_SHARED].dofLevel = (u_char)level;
+    if (level == CAM_DOF_NONE) {
+        if (DrawMode == DRAW_MODE_DOF)
+            DrawMode = DRAW_MODE_NORMAL;
+    } else {
+        DrawMode = DRAW_MODE_DOF;
+    }
+}
+
+// CT3 0x01886780: a trigger command's orbit camera (CAM_EYE_KIND_ORBIT's ZelCam); the third argument is
+// unused, [2] is cleared. [4] / [5] keep the int words the ROM stores.
+int CamChangeZELCAM_S(int maxDist, int minDist, int unused, int height, int angle, int fixed)
+{
+    (void)unused;
+    memcpy(&ZelCam[ZELCAM_ANGLE], &angle, sizeof(int));
+    memcpy(&ZelCam[ZELCAM_FIXED], &fixed, sizeof(int));
+    ZelCam[2] = 0.0f;
+    ZelCam[1] = (float)minDist;
+    ZelCam[0] = (float)maxDist;
+    ZelCam[3] = (float)height;
+    return 0;
+}
+
+// ZelCam[4] / [5] as the int words CamChangeZELCAM_S stores there.
+static int ZelCamWord(int i)
+{
+    int w;
+    memcpy(&w, &ZelCam[i], sizeof(w));
+    return w;
+}
+
+// PORT: a cut's character part not found yet (lpCopyMP NULL) reads the ROM's address 0; the host reads
+// a zero record instead.
+alignas(16) static const u_char NoPartRec[PARTS_REC_SIZE];
+
+static const u_char *CamPartOrNone(const u_char *part)
+{
+    return part != NULL ? part : NoPartRec;
+}
+
+// CT3 0x01884f50
+// Where a cut puts the eye (kind = CAM_EYE_KIND_*), with the focus from the cut's target list first (all
+// kinds), the up from the eye part's z axis when the part has its own axes (else (0, 1, 0, 0)) and the
+// cut's focal length. The answer is CAM_EYE_* (KEPT only for STAY: the caller then runs _TRG; -1 for an
+// unknown kind). The path points (OBJ_CTRL of CAM_CUT_PATH) are in their part's space.
+int asGetDestinationEYE(int kind, float *eye, float *focus, float *up, float *focal, int id)
+{
+    CAMERA *c = &Cam[id];
+    u_char *cut = (u_char *)BankEePtr(c->bank, c->cuts) + c->cut * CAM_CUT_SIZE;
+    const OBJ_CTRL *path;
+    u_char *hdr = pModelPartsHeader[c->bank];   // ROM: All_table_TBL[bank] +0x2c
+    const u_char *part, *trgPart, *trg;
+    float (*world)[4], (*pts)[4];
+    alignas(16) float m[4][4], dir[4], a[4], b[4], out[4], foot[4], best[4], quad[4][4];
+    u_int partIdx;
+    int targets, count, ans = CAM_EYE_PLACED, i;
+    float bestDist, d, r, tol, h, horiz, diff, A, B, C, disc, s;
+
+    asCopyCharacterParameterEYE(id);
+    if (cut[CAM_CUT_ON_CHARA] == 0) {
+        partIdx = *(u_short *)(cut + CAM_CUT_PART);
+        part = PARTS_REC(hdr, partIdx);
+    } else {
+        partIdx = *(u_short *)(cut + CAM_CUT_CHARA);
+        part = CamPartOrNone(lpCopyMP[partIdx]);
+    }
+    targets = asGetDstinationFromTargetList(focus, hdr, cut, id);
+    trg = (const u_char *)BankEePtr(c->bank, c->targets) + cut[CAM_CUT_TARGETS] * CAM_TRG_SIZE;
+    if (trg[CAM_TRG_ON_CHARA] == 0)
+        trgPart = PARTS_REC(hdr, *(const u_short *)(trg + CAM_TRG_PART));
+    else
+        trgPart = CamPartOrNone(lpCopyMP[*(const u_short *)(trg + CAM_TRG_CHARA)]);
+    // The ROM reads the path record here for every kind; the host only for the kinds that use it (a cut
+    // without a path has CAM_CUT_PATH 0xff, past the list).
+    if (kind == CAM_EYE_KIND_RAIL || kind == CAM_EYE_KIND_PLANE || kind == CAM_EYE_KIND_RING ||
+        kind == CAM_EYE_KIND_SEGMENT) {
+        path = BANK_PTR(const OBJ_CTRL *, c->bank, c->ctrlList) + cut[CAM_CUT_PATH];
+        world = (float (*)[4])(PARTS_REC(hdr, path->part) + CAM_PART_WORLD);
+        pts = BANK_PTR(float (*)[4], c->bank, path->ends);
+        count = path->kind;
+    } else {
+        world = NULL, pts = NULL, count = 0;
+    }
+    memcpy(focal, cut + CAM_CUT_FOCAL, sizeof(float));
+
+    if (part[CAM_PART_TYPE] == CAM_PART_TYPE_AXES) {
+        memcpy(up, part + CAM_PART_AXIS_Z, 4 * sizeof(float));
+        NormalizeXYZ(up);
+    } else {
+        up[0] = 0.0f, up[1] = 1.0f, up[2] = 0.0f, up[3] = 0.0f;
+    }
+
+    switch (kind) {
+    case CAM_EYE_KIND_PART:
+        memcpy(eye, part + CAM_PART_POS, 4 * sizeof(float));
+        if (targets != CAM_TRG_MODE_NONE)
+            return CAM_EYE_PLACED;
+        if (part[CAM_PART_TYPE] == CAM_PART_TYPE_AXES) {
+            memcpy(dir, part + CAM_PART_AXIS_Y, sizeof(dir));
+            NormalizeXYZ(dir);
+        } else {
+            // ROM: Character[partIdx].rot even for a bank part (partIdx is then its record index).
+            gaSetRotMatrixY(m, partIdx < CHARACTER_MAX ? Character[partIdx].rot : 0);
+            memcpy(dir, m[2], sizeof(dir));
+        }
+        for (i = 0; i < 4; i++)
+            focus[i] = eye[i] + dir[i] * CAM_EYE_PART_REACH;
+        return CAM_EYE_PLACED;
+
+    case CAM_EYE_KIND_RAIL: {
+        int n = count < 0 ? -count : count;
+        bestDist = -1.0f;
+        if (targets != CAM_TRG_MODE_ONE && targets != CAM_TRG_MODE_AXES)
+            return CAM_EYE_NO_TARGET;
+        for (i = 0; i < n; i++) {
+            if (i == n - 1) {
+                if (count >= 0)         // an open path ends at its last point; a closed one wraps
+                    break;
+                ApplyMatrixXYZW(a, world, pts[i]);
+                ApplyMatrixXYZW(b, world, pts[0]);
+            } else {
+                ApplyMatrixXYZW(a, world, pts[i]);
+                ApplyMatrixXYZW(b, world, pts[i + 1]);
+            }
+            int r2 = asGetLineRadTargetPos(a, b, focus, out, foot, *(u_short *)(cut + CAM_CUT_ANGLE));
+            if (r2 != 1 && r2 != 2) {
+                d = asVectorDistance(out, focus);
+                if (bestDist < 0.0f || d < bestDist) {
+                    memcpy(best, out, sizeof(best));
+                    bestDist = d;
+                }
+            }
+        }
+        if (!(0.0f <= bestDist))
+            return CAM_EYE_RAIL_MISSED;
+        memcpy(eye, best, sizeof(best));
+        return CAM_EYE_PLACED;
+    }
+
+    case CAM_EYE_KIND_ORBIT:
+        if (targets != CAM_TRG_MODE_ONE)
+            return CAM_EYE_NO_TARGET;
+        if (ZelCamWord(ZELCAM_FIXED) == 1) {
+            // At ZelCam's angle around the target part's facing (its z row flattened), min distance back.
+            gaSetRotMatrixY(m, ZelCamWord(ZELCAM_ANGLE));
+            memcpy(dir, trgPart + CAM_PART_AXIS_Z, sizeof(dir));
+            dir[1] = 0.0f;
+            NormalizeXYZ(dir);
+            ApplyMatrixXYZW(dir, m, dir);
+            for (i = 0; i < 4; i++)
+                dir[i] *= -ZelCam[1];
+            dir[1] += ZelCam[3];
+            for (i = 0; i < 4; i++)
+                eye[i] = focus[i] + dir[i];
+        } else {
+            // On the line from the focus to the live eye, flattened, min distance out, raised.
+            for (i = 0; i < 4; i++)
+                dir[i] = c->eye[i] - focus[i];
+            dir[1] = 0.0f;
+            NormalizeXYZ(dir);
+            for (i = 0; i < 4; i++)
+                eye[i] = focus[i] + dir[i] * ZelCam[1];
+            eye[1] += ZelCam[3];
+        }
+        return CAM_EYE_PLACED;
+
+    case CAM_EYE_KIND_STAY:
+        memcpy(eye, c->eye, 4 * sizeof(float));
+        return CAM_EYE_KEPT;
+
+    case CAM_EYE_KIND_PLANE:
+        if (targets != CAM_TRG_MODE_ONE && targets != CAM_TRG_MODE_AXES)
+            return CAM_EYE_NO_TARGET;
+        if (count != CAM_PATH_CLOSED_QUAD)
+            return CAM_EYE_NOT_QUAD;
+        memcpy(dir, part + (part[CAM_PART_TYPE] == CAM_PART_TYPE_AXES ? CAM_PART_AXIS_Y : CAM_PART_AXIS_Z),
+               sizeof(dir));
+        NormalizeXYZ(dir);
+        for (i = 0; i < 4; i++)
+            dir[i] *= CAM_EYE_PART_REACH;
+        for (i = 0; i < 4; i++)         // the quad's corners in reverse order
+            ApplyMatrixXYZW(quad[3 - i], world, pts[i]);
+        asGetPlaneRadTargetPos(out, focus, dir, quad);
+        memcpy(eye, out, sizeof(out));
+        for (i = 0; i < 4; i++)
+            focus[i] = eye[i] + dir[i];
+        return ans;
+
+    case CAM_EYE_KIND_RING: {
+        const float *p;
+        if (targets != CAM_TRG_MODE_ONE && targets != CAM_TRG_MODE_AXES)
+            return CAM_EYE_NO_TARGET;
+        if (count < 1)
+            return CAM_EYE_NO_RING;
+        // ROM: the bank's record partIdx even for a character's part (then the character's slot).
+        p = (const float *)(PARTS_REC(hdr, partIdx) + CAM_PART_POS);
+        r = pts[0][0];
+        tol = pts[0][1];
+        h = p[1] - focus[1];
+        h = r * r - h * h;
+        d = 0.0f <= h ? asVectorLength1D(h) : 0.0f;
+        horiz = asVectorLength2D(p[0] - focus[0], p[2] - focus[2]);
+        diff = horiz - d;
+        if (tol < absf(diff))
+            d = 0.0f < diff ? horiz - tol : horiz + tol;
+        for (i = 0; i < 4; i++)
+            dir[i] = p[i] - focus[i];
+        dir[1] = 0.0f;
+        NormalizeXYZ(dir);
+        for (i = 0; i < 4; i++)
+            eye[i] = focus[i] + dir[i] * d;
+        eye[1] = p[1];
+        eye[3] = 1.0f;
+        return ans;
+    }
+
+    case CAM_EYE_KIND_SEGMENT:
+        if (targets != CAM_TRG_MODE_ONE && targets != CAM_TRG_MODE_AXES)
+            return CAM_EYE_NO_TARGET;
+        if (count < 2)
+            return CAM_EYE_NO_SEGMENT;
+        // The point of segment a-b at distance r from the focus: |a + t (b - a) - focus| = r.
+        ApplyMatrixXYZW(a, world, pts[0]);
+        ApplyMatrixXYZW(b, world, pts[1]);
+        r = (float)*(u_short *)(cut + CAM_CUT_ANGLE);
+        {
+            alignas(16) float ap[4], ab[4], other[4];
+            for (i = 0; i < 4; i++) {
+                ap[i] = a[i] - focus[i];
+                ab[i] = b[i] - a[i];
+            }
+            A = gaInnerProductXYZ(ab, ab);
+            B = gaInnerProductXYZ(ap, ab);
+            C = gaInnerProductXYZ(ap, ap);
+            disc = (B * B - A * (C - r * r)) * 4.0f;
+            if (disc < 0.0f) {
+                // No such point: the line's closest point to the focus, pushed out horizontally to r.
+                asGetCrossPointInPlaneWithLine(eye, a, b, ab, focus);
+                for (i = 0; i < 4; i++)
+                    eye[i] -= focus[i];
+                h = eye[1];
+                eye[1] = 0.0f;
+                NormalizeXYZ(eye);
+                s = asVectorLength1D(r * r - h * h);
+                for (i = 0; i < 4; i++)
+                    eye[i] *= s;
+                eye[1] = h;
+                for (i = 0; i < 4; i++)
+                    eye[i] += focus[i];
+            } else if (disc <= 0.0f) {
+                for (i = 0; i < 4; i++)
+                    eye[i] = ab[i] * (-B / A) + a[i];
+            } else {
+                // Two points: the one nearer b.
+                s = asVectorLength1D(disc);
+                for (i = 0; i < 4; i++) {
+                    eye[i] = ab[i] * (-(B * 2.0f - s) / (A * 2.0f)) + a[i];
+                    other[i] = ab[i] * (-(B * 2.0f + s) / (A * 2.0f)) + a[i];
+                }
+                if (asVectorDistance(b, other) < asVectorDistance(b, eye))
+                    memcpy(eye, other, sizeof(other));
+            }
+        }
+        eye[3] = 1.0f;
+        return ans;
+
+    default:
+        return -1;
+    }
+}
 // CT3 0x018867c0: a trigger command's FOV change; the ROM keeps only the answer.
 int CamChangeFOV_S(void)
 {
@@ -1047,14 +1320,4 @@ void camera_view(void)
 void camera_main(PAD_DATA *pad, int mode)
 {
     ALYSSAPAN_STUB("camera_main", 0x018881a0);
-}
-
-
-
-
-// stub of CT3 0x01884f50
-int asGetDestinationEYE(int kind, float *eye, float *focus, float *up, float *focal, int id)
-{
-    ALYSSAPAN_STUB("asGetDestinationEYE", 0x01884f50);
-    return {};
 }

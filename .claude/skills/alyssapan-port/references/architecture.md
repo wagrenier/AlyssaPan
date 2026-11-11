@@ -794,6 +794,23 @@ view * matrix (+0x180) and +0x300 = that * diag(record +0x2c0 xyz).
   the focus raised by ZelCam[3] within ZelCam[1]..[0]. The live set moves toward *To by
   asCameraPositionTranser at the cut's moveSpeed (+0x1b; 0 jumps, the step grows with the remaining
   distance up to 360 and with 20 / speed), then asEyeForcusUP2CamMat builds the view.
+- **Where a cut puts the eye** (asGetDestinationEYE, slice 3): the focus comes from the cut's target list
+  first (every kind), the up is the eye part's z row (part record +0x1a0) normalized when the part's type
+  byte (+2) is 3, else (0, 1, 0, 0), the focal length is the cut's float +8. The eye part is the bank's
+  record (+0xe) or the character's lpCopyMP (+0x10, +0x12 = 1). A part record's world matrix is at +0x180
+  (rows x, y, z, pos). The cut's **path** is the OBJ_CTRL record at cut +0x19 of the camera's ctrlList
+  (0xff = none): its ends word points at float[4] points in its part's space, its kind short is the point
+  count (< 0: closed). Kinds: 0 the eye part's position (no target: looks 300 along its y row, or along
+  Character[part].rot's z row); 1 RAIL: per path segment asGetLineRadTargetPos at the cut's angle (+0xc),
+  the answer nearest the focus; 2 ORBIT: ZelCam[1] from the focus raised by ZelCam[3], toward the live eye
+  or (ZelCam[5] == 1) at ZelCam[4]'s angle around the target part's flattened z row; 3 STAY: the live eye
+  (answer 1, then _TRG runs); 4 PLANE: a closed quad path (count -4), the eye on it along the part's axis
+  (y row for type 3, else z) * -300 and the focus that far in front; 5 RING: point 0's x = radius, y =
+  tolerance, the eye at the eye part's height, horizontally toward it; 6 SEGMENT: the point of the first
+  segment at the cut's +0xc distance from the focus (the root nearer the far end; none: the line's
+  closest point pushed out). Answers 0 placed, 2 no target (mode ONE / AXES needed; ORBIT: ONE), 3 / 4 /
+  5 / 6 the path does not fit, -1 an unknown kind. CamChangeZELCAM_S (a trigger command) sets ZelCam
+  ([4] / [5] are int words), CamSetNowDOFLevel Cam[6]'s DOF level (4 ends the DOF pass).
 
 ## Areas, rattles, warps, the slerp, game/QuatSlerp.c (2026-11-10, slice 2)
 

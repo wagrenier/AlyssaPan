@@ -117,8 +117,39 @@ void asCamModeChange(int cam);                                                  
 #define CAM_TRG_MODE_2 2                    /* leaves the focus */
 #define CAM_TRG_MODE_AXES 3                 /* x, y, z each from targets 0, 1, 2 */
 #define CAM_TRG_MODE_4 4                    /* leaves the focus */
-#define CAM_EYE_KIND_1 1                    /* CamChangeSub: kinds 1 and 6 need a target list */
-#define CAM_EYE_KIND_6 6
+// asGetDestinationEYE's kinds (CAM_CUT_EYE_KIND; names from what each does, 2026-11-10). CamChangeSub:
+// RAIL and SEGMENT need a target list.
+#define CAM_EYE_KIND_PART 0                 /* the eye part's position, looking 300 along its axis when no target */
+#define CAM_EYE_KIND_RAIL 1                 /* on the cut's path (CAM_CUT_PATH points), nearest the focus at its angle */
+/* 2 is CAM_EYE_KIND_ORBIT (ZelCam) */
+#define CAM_EYE_KIND_STAY 3                 /* the camera's live eye (answer 1: the focus comes from _TRG) */
+#define CAM_EYE_KIND_PLANE 4                /* on the cut's quad (4 points, count -4), along the eye part's axis */
+#define CAM_EYE_KIND_RING 5                 /* at a radius from the focus, at the eye part's height */
+#define CAM_EYE_KIND_SEGMENT 6              /* on the path's first segment, at a distance from the focus */
+// asGetDestinationEYE's answers.
+#define CAM_EYE_PLACED 0
+#define CAM_EYE_KEPT 1                      /* STAY: the caller runs asGetDestinationTRG */
+#define CAM_EYE_NO_TARGET 2                 /* the kind needs a target list of mode ONE or AXES */
+#define CAM_EYE_RAIL_MISSED 3               /* RAIL: no segment sees the focus */
+#define CAM_EYE_NOT_QUAD 4                  /* PLANE: the path is not a closed quad */
+#define CAM_EYE_NO_RING 5                   /* RING: no point */
+#define CAM_EYE_NO_SEGMENT 6                /* SEGMENT: fewer than 2 points */
+#define CAM_CUT_FOCAL 0x08                  /* float: the cut's focal length (LEICA mm; CAMERA.focal[2]) */
+#define CAM_CUT_ANGLE 0x0c                  /* u_short: RAIL's view angle (ahSin units); SEGMENT's distance */
+#define CAM_CUT_PATH 0x19                   /* u_char: the OBJ_CTRL record (CAMERA.ctrlList) of the eye's path */
+#define CAM_PATH_CLOSED_QUAD (-4)           /* OBJ_CTRL.kind as a camera path: the point count, < 0 = closed */
+#define CAM_PART_TYPE 0x02                  /* u_char: a part record's type */
+#define CAM_PART_TYPE_AXES 3                /* its own axes give the up and the look (name from this use only) */
+#define CAM_PART_WORLD 0x180                /* float[4][4]: a part record's world matrix (rows x, y, z, pos) */
+#define CAM_PART_AXIS_Y 0x190               /* its y row */
+#define CAM_PART_AXIS_Z 0x1a0               /* its z row */
+#define CAM_EYE_PART_REACH (-300.0f)        /* PART / PLANE: the look direction's length */
+// ZelCam (CamChangeZELCAM_S): [0] max distance, [1] min, [2] 0, [3] height, [4] an int angle, [5] int 1 =
+// fixed angle (ORBIT's eye at [4] around the target part's facing). [4] / [5] are int words in a float[].
+#define ZELCAM_ANGLE 4
+#define ZELCAM_FIXED 5
+void CamSetNowDOFLevel(short level);                                                     // CT3 0x01886730 written
+int CamChangeZELCAM_S(int maxDist, int minDist, int unused, int height, int angle, int fixed); // CT3 0x01886780 written
 #define CAM_TRG_KIND_LIST 0                 /* asGetDestinationTRG: look at the cut's target list */
 #define CAM_TRG_KIND_NONE 4
 #define CAM_DOF_NONE 4                      /* CAMERA.dofLevel: no DOF pass */
@@ -159,4 +190,4 @@ u_int asCheckThePositionInRectAngle(float (*quad)[4], float *p, float *n);      
 int asGetPlaneRadTargetPos(float *out, float *p, float *dir, float (*quad)[4]);          // CT3 0x018847f0 written
 int asGetLineRadTargetPos(float *a, float *b, float *p, float *out, float *foot, int angle); // CT3 0x01884c20 written
 int asGetDestinationTRG(int kind, float *focus, int id);                                 // CT3 0x01884eb0 written
-int asGetDestinationEYE(int kind, float *eye, float *focus, float *up, float *focal, int id); // CT3 0x01884f50
+int asGetDestinationEYE(int kind, float *eye, float *focus, float *up, float *focal, int id); // CT3 0x01884f50 written

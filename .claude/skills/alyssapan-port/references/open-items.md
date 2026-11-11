@@ -968,6 +968,21 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    nothing draws -- watch it once the picture shows; (j) the follow cameras (iCameraMode 0 / 1 / 2) add
    the turned translation to the turn's row 3 on xyz only, and asCameraPositionTranser's move writes w
    too (from.w + to.w * step): both as the ROM.
+   **Slice 3 (2026-11-10, scheduled run): asGetDestinationEYE** (0xdc8 bytes after all), CamSetNowDOFLevel,
+   CamChangeZELCAM_S (architecture.md "The camera"). The smoke run reaches it for the global banks 0..5
+   only (kind 0, cut 0, eye part 1, no path): the shot stays black; the first object (light0, identity
+   matrix) still lands at window (2304, 2272) with z inf -- that looks like the object's own w, not the
+   camera: look at it from the draw side. Left in the TU: **camera_main** (0x018881a0, 0x1aac bytes,
+   "Camera ID %d": the pad-driven camera; next, alone). Doubts: (k) the eye kind names (PART, RAIL,
+   STAY, PLANE, RING, SEGMENT) and answer names are from this one reader; CAM_PART_TYPE_AXES (part +2 ==
+   3) too; (l) ZelCam is a float[6] with int words at [4] / [5] (CamChangeZELCAM_S stores ints): a
+   struct would be truer once camera_main's use is read; (m) the ROM reads Character[part].rot for a bank
+   part (PART kind, type not 3) and the bank's part record at the character's slot (RING, a character's
+   eye part): kept, guarded (host: index past CHARACTER_MAX reads rot 0); (n) the ROM reads the path record
+   for every kind, also for 0xff (past the list): the host reads it only for the kinds that use it; a
+   character eye part not found (lpCopyMP NULL) reads a zero record on the host (address 0 in the ROM);
+   (o) OBJ_CTRL.kind is a point count for a camera path: the seek bars' CTRL_KIND_SEEKBAR (2) may be a
+   count too.
 
 ## Decisions
 
