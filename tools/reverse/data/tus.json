@@ -1,14 +1,17 @@
 {
  "queue": [
+  "alyssapan/iop/fsys_server.cpp",
+  "alyssapan/rendering/ui_canvas.cpp",
+  "game/ssGrpPortalCheck.c",
+  "game/asEyeForcusUP2CamMat.c",
+  "ga/gaBGT_DrawObject.c",
   "game/wideXcmd_DebugPrint.c",
   "game/tkXDTrg_GetSceneHash.c",
   "game/asUseArrow.c",
   "game/asMothRouteSearch.c",
   "game/asXcmd.c",
-  "game/asEyeForcusUP2CamMat.c",
   "game/ssHitCheckAttackToScn.c",
-  "game/ssSetTexUVforCubeMap.c",
-  "game/ssGrpPortalCheck.c"
+  "game/ssSetTexUVforCubeMap.c"
  ],
  "settings": {
   "data_dir": "C:/Users/willi/Documents/Decomp/Clocl Tower 3",
@@ -28,6 +31,12 @@
    ],
    "status": "done",
    "task": "Host task, the siblings' shims (a) (open-items.md Next up item 2, cpp-port.md To carry over 1-5): gamecontrollerdb.txt for unknown pads (RosePan rosepan_input.cpp 225-240, resources/gamecontrollerdb.txt), the window and exe icon (RosePan extern/icon.rc, MikuPan SDL_SetWindowIcon), pause and mute in the background (MioPan UpdateBackgroundState, [window] pause_in_background, [audio] mute_in_background), overlay DPI scale following the display with an override (MioPan UpdateUiScale), cursor auto-hide (MioPan miopan_ui.cpp 1429). Each as a class or a member of the existing classes (cpp-port.md rules), settings in alyssapan.ini, panels in ui/panels.cpp. Done when it builds, a run shows the icon and the overlay, and the ini round-trips."
+  },
+  "alyssapan/iop/fsys_server.cpp": {
+   "task": "Host FSYS_IOP file server on io::Disc: the RPC server the EE file code (fileio.c FSMltLoad, IOPGetFileSize.c) calls; sdk/sif.cpp answers zeros today, so no bank loads. Read the EE side's RPC numbers and request records, register the server in iop/rpc_servers, answer sizes and reads from the disc. Done when a smoke run's log shows CT3PACK banks read and main2 gets past BankReady with a real bank."
+  },
+  "alyssapan/rendering/ui_canvas.cpp": {
+   "task": "First picture, 2D: once banks load (the file server), find the first 2D thing the game draws (title, logo or a menu sprite, whichever the smoke run reaches first) and route its packet-writing step to UiCanvas; textures decoded at their source. Done when the screenshot shows it like the game's own asset at 4:3 and at a wide aspect (DisplayGeometry anchoring). If the first 2D draw is in a game TU, write that TU's slice here as the way in, and say so."
   },
   "ga/gaBGT_DrawObject.c": {
    "ranges": [

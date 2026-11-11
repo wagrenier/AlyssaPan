@@ -879,6 +879,13 @@ questions. Resolve items here when they are settled (move them to "Done" with th
 
 ## Decisions
 
+- 2026-11-10 (the user): **the queue works toward the first picture** before more player logic. Pinned
+  in this order: the host task `alyssapan/iop/fsys_server.cpp` (FSYS_IOP on io::Disc: `sdk/sif.cpp`
+  answers zeros, so no bank loads), the host task `alyssapan/rendering/ui_canvas.cpp` (the first 2D draw
+  through UiCanvas, at 4:3 and wide), then `game/ssGrpPortalCheck.c` (triggers), `game/asEyeForcusUP2CamMat.c`
+  (camera), `ga/gaBGT_DrawObject.c` (the 3D draw path, with CT3's own host draw module). `wideXcmd_DebugPrint.c`
+  (Alyssa's controls) waits behind them: none of it can change the screenshot until these exist.
+
 - 2026-11-10 (Claude, scheduled run, SdMasterVolumeSetSE.c slice 2, for the user to overrule):
   **`SD_SE_LD` is `layout: host`** (its +0xa0 buffer is SdAlloc's host pointer); the IOP-bound records
   inside it (`spuCom` +0xc0, `SD_SE_REGISTER` +0x100) keep EE layout, and IOP addresses stay `u_int`
