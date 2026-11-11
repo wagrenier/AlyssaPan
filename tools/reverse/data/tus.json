@@ -1,5 +1,6 @@
 {
  "queue": [
+  "game/tiXcmd_TransItem.c",
   "game/xcmd_tn.c",
   "alyssapan/rendering/ga_atld.cpp",
   "alyssapan/rendering/ui_canvas.cpp",
@@ -1208,7 +1209,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 136..136, 7 functions keyed by their statics, 36 unkeyed; file name from the names"
   },
   "game/xcmd_tn.c": {
-   "notes": "Dispatcher found: ssTrigExecuteActCmd command 0x514 calls ssXcmd_functions[index](argc, argv, bank) (0x0193a500, 256 words; slot 138 = the ambient command). It is a stub in game/ssGrpPortalCheck.c, so the smoke run reaches none of these and the shot is unchanged (black ATLD). game/ssGrpPortalCheck.c queued first for the dispatcher and the table. Left here: 18 slice functions (SetRoodersPts, SetAllControlDisableCamera, ScreenAdjust, TimeStop, Continue, EndPanic, AllOmniEffect, CharOmniEffect, OmniRange, StayRoom, ReadChengeMsg, Menu_MapLoad, Filter_Change, TimeSet, BankFree, CharFogAnimation, SceneFogAnimation, SetMovieWorkBuff) and 17 beyond. callcheck: strncpy for strcpy is deliberate; BRANCH_CLEAR / GAME_OVER_END are present (the checker skips ALL-CAPS names).",
+   "notes": "15 commands written. Picture: frame 120 shows ATLD memory-card text at 4:3 as before; black from frame 180 because the script waits on the stub tiXcmd_XFade_Break (answers 0), now queued first. callcheck gaps explained: static helpers XcmdValue / XcmdPanicOff, snprintf for sprintf, the dead WideErrorMsgDebug message. BankFree behaviour case: the ROM passes an unset register as the character, the port uses BankID_TO_CharID. Left: SetRoodersPts, SetAllControlDisableCamera, ScreenAdjust, omni commands, Filter_Change, TimeSet, SetMovieWorkBuff, 1P01_PazzleAnim and 10 beyond.",
    "ranges": [
     [
      "018ee5f0",
@@ -1220,6 +1221,11 @@
      "date": "2026-11-11 08:08",
      "status": "partial",
      "summary": "slice 1: tnXcmd_Scene_Ambient_Change and 21 small x commands (waits, variables, room-in icons, bank and flag commands), BankUseCheck; SS_XCMD slot type"
+    },
+    {
+     "date": "2026-11-11 09:33",
+     "status": "partial",
+     "summary": "slice 2: wideXcmd_PlayAnimeToFream2 (the reached stub), clips, panic, continue, time stop, shape / behaviour / bank free, stay room, message bank, menu map, fog animations"
     }
    ],
    "status": "partial",

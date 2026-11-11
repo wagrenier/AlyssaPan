@@ -22,6 +22,22 @@ typedef int (*SS_XCMD)(int argc, char **argv, int bank);
 // is set back to 0 / 1, the press itself passed on).
 #define XCMD_AUTOLOAD_PRESS 2
 
+// Slice 2 (2026-11-11).
+#define XCMD_MSG_BANK 2                 /* the message bank (wideXcmd_ReadChengeMsg) */
+#define XCMD_AREA_COUNT 53              /* RoomFileName_STR_Tbl's words (GetAreaNumber's areas, 0 none) */
+#define XCMD_VALUE_CONST 2              /* a number argument's source: the text itself (0 / 1: a variable,
+                                           local / global) */
+#define XCMD_FRAME_TIME 10              /* a script frame in asGetSceneAnimationCurrent's time / 100 units */
+#define TRIG_EVENT_CONTINUE 0x9d        /* registered while tnXcmd_Continue keeps the continue backup */
+// tnXcmd_EndPanic's argv[0]: only a running full panic ends (KEEP, ZERO, BEAT) or any (FORCE_*); the
+// gauge kept, set to 0, or set to Panicdef.beatFrom.
+#define XCMD_END_PANIC_KEEP 0
+#define XCMD_END_PANIC_ZERO 1
+#define XCMD_END_PANIC_BEAT 2
+#define XCMD_END_PANIC_FORCE_ZERO 3
+#define XCMD_END_PANIC_FORCE_BEAT 4
+extern int load_id;                     /* sbss 0x0194493c: the area tnXcmd_Menu_MapLoad loaded */
+
 int tnXcmd_AutoLoad(int argc, char **argv, int bank);                                   // CT3 0x018eebb0
 int tnXcmd_AutoLoadInit(int argc, char **argv, int bank);                               // CT3 0x018eecd0
 int wideXcmd_TitleStart(int argc, char **argv, int bank);                               // CT3 0x018eeb40

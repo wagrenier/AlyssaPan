@@ -2,9 +2,11 @@
 // the source string "xcmd_tn.c"). Each takes the command's argument strings (argv[0..argc-1]) and the
 // bank whose script runs it; ssTrigExecuteActCmd (ssGrpPortalCheck.c) calls them through ssXcmd_functions.
 // Slice 1 (2026-11-11): the ambient colour, the waits, the variables, the room-in icons and the small
-// bank / flag commands. The rest (rooders, camera, screen adjust, time stop, panic, omni lights, stay
-// room, message, map load, filter, time set, bank free, fog animations, movie buffers) is a later slice.
+// bank / flag commands. Slice 2 (2026-11-11): clips, panic, continue, time stop, the frees, stay room,
+// the message bank, the menu map, the fog animations, wideXcmd_PlayAnimeToFream2. Left: rooders, camera,
+// screen adjust, omni lights, filter, time set, movie buffers, the puzzle and the other anime commands.
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "common/alyssapan_stub.h"
@@ -16,6 +18,11 @@
 #include "game/main.h"
 #include "game/main2.h"
 #include "game/unassigned_data.h"
+#include "game/ahRelocateSunPs2ObjectArry.h"
+#include "game/asEyeForcusUP2CamMat.h"
+#include "game/asMothPause.h"
+#include "game/wideXcmd_DebugPrint.h"
+#include "ga/gaInit3dlib.h"
 
 // The bank's part i (the ROM: header + i * 0x380, the flags word at +0x50).
 static MODEL_PARTS *XcmdPart(int bank, int i)
@@ -317,6 +324,448 @@ int BankUseCheck(int first, int count)
     return 0;
 }
 
+// ---- slice 2 (2026-11-11): clips, panic, continue, time stop, frees, stay room, the message bank, the
+// menu map, the fog animations and the scene animation command ----
+
+// CT3 0x019394d0 (RoomFileName_STR_Tbl, 53 words): the menu map's file for each area number
+// (GetAreaNumber's answer; area 0 has none). PORT: read-only data, kept here beside its one reader.
+static const char *const RoomFileName_STR_Tbl[XCMD_AREA_COUNT] = {
+    NULL,   "M101", "M102", "M103", "M104", "M105", "M106", "M107", "M108", "M109", "M110",
+    "M203", "M204", "M205", "M206", "M207", "M208", "M101", "M102", "M301", "M302", "M303",
+    "M304", "M305", "M306", "M307", "M308", "M309", "M310", "M311", "M312", "M313", "M401",
+    "M402", "M403", "M404", "M405", "M407", "M406", "M408", "M409", "M410", "M411", "M412",
+    "M413", "M414", "M415", "M416", "M409", "M502", "M503", "M504", "M308",
+};
+
+// CT3 0x0194493c (load_id): the area whose map tnXcmd_Menu_MapLoad loaded last.
+int load_id;
+
+// layout: host (a port table, not ROM data). The script's track kinds by name (argv[4] of
+// wideXcmd_PlayAnimeToFream2) and the part selection each
+// takes (asSceneAnimationStart's pose / other / byPart, bits 0..2).
+typedef struct XCMD_ANIM_TYPE {
+    const char *name;
+    int kind;                           /* TRACK_KIND_* */
+    int select;                         /* XCMD_ANIM_SEL_* */
+} XCMD_ANIM_TYPE;
+#define XCMD_ANIM_SEL_POSE 0x1
+#define XCMD_ANIM_SEL_OTHER 0x2
+#define XCMD_ANIM_SEL_BY_PART 0x4
+static const XCMD_ANIM_TYPE XcmdAnimTypes[] = {
+    {"ANIM_TYPE_ROT", TRACK_KIND_ROT, XCMD_ANIM_SEL_POSE},
+    {"ANIM_TYPE_POS", TRACK_KIND_POS, XCMD_ANIM_SEL_POSE},
+    {"ANIM_TYPE_SCA", TRACK_KIND_VECTOR, XCMD_ANIM_SEL_POSE},
+    {"ANIM_TYPE_NODE_ROT", TRACK_KIND_BASE_ROT, XCMD_ANIM_SEL_POSE},
+    {"ANIM_TYPE_NODE_POS", TRACK_KIND_BASE_POS, XCMD_ANIM_SEL_POSE},
+    {"ANIM_TYPE_VERT", TRACK_KIND_VERTEX, XCMD_ANIM_SEL_POSE},
+    {"ANIM_TYPE_NORM", TRACK_KIND_NORMAL, XCMD_ANIM_SEL_POSE},
+    {"ANIM_TYPE_REFRACT", TRACK_KIND_FLOAT1_1_14, XCMD_ANIM_SEL_OTHER},
+    {"ANIM_TYPE_BUMPMAP", TRACK_KIND_NUMBER, XCMD_ANIM_SEL_OTHER},
+    {"ANIM_TYPE_LIGHT", TRACK_KIND_VECTOR_XYZ, XCMD_ANIM_SEL_OTHER},
+    {"ANIM_TYPE_FOCAL_LEN", TRACK_KIND_FLOAT0_7_9, XCMD_ANIM_SEL_OTHER},
+    {"ANIM_TYPE_ALPHA", TRACK_KIND_SUB_NUMBER, XCMD_ANIM_SEL_OTHER},
+    {"ANIM_TYPE_UV", TRACK_KIND_UV, XCMD_ANIM_SEL_BY_PART},
+    {"ANIM_TYPE_PARAPARA", TRACK_KIND_COPY, XCMD_ANIM_SEL_BY_PART},
+};
+
+// A number argument as the script gives it: argv[i + 1] XCMD_VALUE_CONST takes argv[i] itself, 0 / 1
+// read variable argv[i] (1: global). *ok is 0 for any other source (the ROM then uses a stale register).
+static int XcmdValue(char **argv, int i, int bank, int *ok)
+{
+    int source = atoi(argv[i + 1]);
+
+    *ok = 1;
+    if (source == XCMD_VALUE_CONST)
+        return atoi(argv[i]);
+    if (source == 1 || source == 0)
+        return ssTrigGetVariable(atoi(argv[i]) & 0xffff, source, bank);
+    *ok = 0;
+    return 0;
+}
+
+// CT3 0x018ef1c0: stops time (not while paused, a pause is booked or the menu is held by a trigger: the
+// command waits). argv[0] 0 sets the default stop (pause, player, menu) for argv[1] frames; otherwise
+// time_stop_flag as it stands. Each stopped system stays running when its panic "keep" event is set.
+int tnXcmd_TimeStop(int argc, char **argv, int bank)
+{
+    (void)argc;
+    (void)bank;
+    if (pause != 0 || pause_reservation != 0 || (TrgCharStopFlag & TRG_CHAR_STOP_MENU) != 0)
+        return XCMD_WAIT;
+    if (atoi(argv[0]) == 0) {
+        time_stop_flag = TIME_STOP_PAUSE_OFF | TIME_STOP_PLAYER | TIME_STOP_MENU;
+        time_stop_fream = atoi(argv[1]);
+    }
+    if ((time_stop_flag & TIME_STOP_PAUSE_OFF) != 0) {
+        pause_reservation = 1;
+        pause = 1;
+    }
+    if ((time_stop_flag & TIME_STOP_PLAYER) != 0 && ssTrigCheckEvent(TRIG_EVENT_PANIC_KEEP_PLAYER, 1, -1) == 0)
+        PlayerControlUpdate(1);
+    if ((time_stop_flag & TIME_STOP_MONSTER) != 0) {
+        if (ssTrigCheckEvent(TRIG_EVENT_PANIC_KEEP_MONSTERS, 1, -1) == 0)
+            MonsterAIUpdate(1);
+        if (ssTrigCheckEvent(TRIG_EVENT_PANIC_NO_RELOAD, 1, -1) == 0)
+            ssTrigRegisterEvent(TRIG_EVENT_MC_RELOADED, 1, -1);
+        asMothPause(1);
+    }
+    if ((time_stop_flag & TIME_STOP_MENU) != 0 && ssTrigCheckEvent(TRIG_EVENT_PANIC_KEEP_MENU, 1, -1) == 0)
+        ssMenuUpdate(1);
+    return XCMD_DONE;
+}
+
+// CT3 0x018ef320: argv[0] "LOAD" / "load" asks the continue screen to load; anything else keeps the
+// continue backup (ContinueBackupSet) with TRIG_EVENT_CONTINUE registered while it copies, as before
+// afterwards.
+int tnXcmd_Continue(int argc, char **argv, int bank)
+{
+    int had;
+
+    (void)argc;
+    (void)bank;
+    if (strcmp("LOAD", argv[0]) == 0 || strcmp("load", argv[0]) == 0) {
+        load_continue = 1;
+    } else {
+        had = ssTrigCheckEvent(TRIG_EVENT_CONTINUE, 1, 0);
+        ssTrigRegisterEvent(TRIG_EVENT_CONTINUE, 1, 0);
+        ContinueBackupSet();
+        if (had == 0)
+            ssTrigRemoveEvent(TRIG_EVENT_CONTINUE, 1, 0);
+    }
+    return XCMD_DONE;
+}
+
+// The end of a full panic: the mode bit and both panic events off.
+static void XcmdPanicOff(void)
+{
+    PanicInfoData.mode &= ~PANIC_MODE_FULL;
+    ssTrigRemoveEvent(TRIG_EVENT_PANIC_BEAT, 1, 0);
+    ssTrigRemoveEvent(TRIG_EVENT_PANIC_FULL, 1, 0);
+}
+
+// CT3 0x018ef3d0: ends a full panic. argv[0] (0 with no arguments): XCMD_END_PANIC_* -- whether only a
+// running one ends, and where the gauge goes (kept, 0, or Panicdef.beatFrom, where the heartbeat starts).
+int tnXcmd_EndPanic(int argc, char **argv, int bank)
+{
+    int mode = argc == 0 ? XCMD_END_PANIC_KEEP : atoi(argv[0]);
+    int full = (PanicInfoData.mode & PANIC_MODE_FULL) != 0;
+
+    (void)bank;
+    switch (mode) {
+    case XCMD_END_PANIC_FORCE_BEAT:
+        XcmdPanicOff();
+        PanicInfoData.gauge = Panicdef.beatFrom;
+        break;
+    case XCMD_END_PANIC_FORCE_ZERO:
+        PanicInfoData.gauge = 0.0f;
+        XcmdPanicOff();
+        break;
+    case XCMD_END_PANIC_BEAT:
+        if (full) {
+            XcmdPanicOff();
+            PanicInfoData.gauge = Panicdef.beatFrom;
+        }
+        break;
+    case XCMD_END_PANIC_ZERO:
+        if (full) {
+            PanicInfoData.gauge = 0.0f;
+            XcmdPanicOff();
+        }
+        break;
+    case XCMD_END_PANIC_KEEP:
+        if (full)
+            XcmdPanicOff();
+        break;
+    default:
+        break;
+    }
+    return XCMD_DONE;
+}
+
+// CT3 0x018efa90: registers event argv[2] (global argv[3]) while character argv[0]'s room is the room
+// argv[1] (4 characters, upper-cased), removes it otherwise.
+int tnXcmd_StayRoom(int argc, char **argv, int bank)
+{
+    char room[112];
+    char want[112];
+
+    (void)argc;
+    strcpy(room, asConvertHash2String(Character[atoi(argv[0])].roomHash));
+    strcpy(want, argv[1]);
+    UpperCase(want);
+    if (memcmp(room, want, XCMD_ROOM_NAME_LEN) == 0)
+        ssTrigRegisterEvent(atoi(argv[2]), atoi(argv[3]), bank);
+    else
+        ssTrigRemoveEvent(atoi(argv[2]), atoi(argv[3]), bank);
+    return XCMD_DONE;
+}
+
+// CT3 0x018efb80: the message bank (2) around a change of messages. argv[0] "set" loads back the file
+// kept in Backup_Filename (when the bank is not drawn); anything else waits for the bank's load, keeps
+// its name (4 characters) and ends it.
+int wideXcmd_ReadChengeMsg(int argc, char **argv, int bank)
+{
+    BANK_INFO *msg = &BankInfo[XCMD_MSG_BANK];
+
+    (void)argc;
+    (void)bank;
+    if (strcmp("set", argv[0]) == 0) {
+        if (Backup_Filename[0] == '\0') {
+            printf("Attention!! Not Free Msg processed!!\n");
+        } else if (msg->drawOn == 0) {
+            TrgGLBLSceneLoad(Backup_Filename, XCMD_MSG_BANK);
+            Backup_Filename[0] = '\0';
+        }
+    } else {
+        FSMltLoadEndWaitFile(XCMD_MSG_BANK, NULL);
+        if (msg->state == 0) {
+            printf("Attention!! Not Draw Msg processed!!\n");
+        } else {
+            strcpy(Backup_Filename, msg->name);
+            Backup_Filename[XCMD_ROOM_NAME_LEN] = '\0';
+            if (msg->drawOn != 0)
+                TrgGLBLSceneDraw(0, Backup_Filename, XCMD_MSG_BANK);
+            SceneEndBank(XCMD_MSG_BANK, 1);
+        }
+    }
+    return XCMD_DONE;
+}
+
+// CT3 0x018f1570: loads the menu map of the current area into bank 4 (the old one's drawing off first)
+// and cuts to its camera: argv[0] 0 "Camera02", else "Camera01".
+int tnXcmd_Menu_MapLoad(int argc, char **argv, int bank)
+{
+    char name[sizeof(BankInfo[0].name)];
+    char *file;
+
+    (void)argc;
+    (void)bank;
+    load_id = GetAreaNumber(0);
+    if (load_id < 0)
+        return XCMD_DONE;
+    if (BankInfo[XCMD_MAP_BANK].drawOn != 0) {
+        strcpy(name, BankInfo[XCMD_MAP_BANK].name);
+        name[XCMD_ROOM_NAME_LEN] = '\0';
+        TrgGLBLSceneDraw(0, name, XCMD_MAP_BANK);
+    }
+    file = (char *)RoomFileName_STR_Tbl[load_id];
+    if (file == NULL) // PORT: area 0 has no map (the ROM would pass a null name on)
+        return XCMD_DONE;
+    TrgGLBLSceneLoad(file, XCMD_MAP_BANK);
+    TrgGLBLSceneDraw(1, file, XCMD_MAP_BANK);
+    if (atoi(argv[0]) == 0)
+        CamChange_Hash_S_Hash(XCMD_MAP_BANK, ahGetHash("Camera02"), 1, 0);
+    else
+        CamChange_Hash_S_Hash(XCMD_MAP_BANK, ahGetHash("Camera01"), 1, 0);
+    return XCMD_DONE;
+}
+
+// CT3 0x018f1e20: frees bank argv[1], which should hold "<argv[0]>.BIN": its queued load cancelled, its
+// load waited for, its drawing ended by its kind (FS_LOAD_*) and the bank group ended.
+int tnXcmd_BankFree(int argc, char **argv, int bank)
+{
+    char file[16];
+    int b, chara;
+    BANK_INFO *info;
+
+    (void)argc;
+    (void)bank;
+    b = atoi(argv[1]);
+    info = &BankInfo[b];
+    snprintf(file, sizeof(file), "%s.BIN", argv[0]);
+    if (memcmp(info->name, file, XCMD_ROOM_NAME_LEN) != 0) {
+        // The ROM formats "tnXcmd_BankFree (Bank:%d) / Free Scene Name / Stay Scene Name" for
+        // WideErrorMsgDebug (xcmd_tn.c line 0x7c4), which the retail build leaves empty.
+        WideErrorMsgDebug();
+    }
+    FSMltLoadCancelQue(file);
+    FSMltLoadEndWaitFile(b, NULL);
+    if (info->drawOn != 0) {
+        switch (info->type) {
+        case FS_LOAD_BEHAVIOR:
+            // PORT: the ROM passes a register it never set as the character; the bank's owner is meant.
+            chara = BankID_TO_CharID((short)b);
+            if (chara >= 0)
+                TrgCharacterBehaviorFree(chara, b);
+            break;
+        case FS_LOAD_SHAPE:
+            chara = BankID_TO_CharID((short)b);
+            TrgCharacterDraw(0, chara);
+            TrgCharacterShapeFree(chara);
+            break;
+        case FS_LOAD_SCENE:
+            TrgSceneDraw(0, 0, 0, argv[0], b);
+            break;
+        case FS_LOAD_GLBL:
+            TrgGLBLSceneDraw(0, argv[0], b);
+            break;
+        default:
+            break;
+        }
+    }
+    SceneEndBank(b, info->groupCount);
+    return XCMD_DONE;
+}
+
+// CT3 0x018f20b0: the character fog of the bank eases over argv[10] frames; each of argv[0], [2], [4],
+// [6] non-zero animates charaFog[0..2] (to argv[1], [3], [5]) and charaFogArg (to argv[7..9]).
+int tnXcmd_CharFogAnimation(int argc, char **argv, int bank)
+{
+    FOG_ANIME *fa = &FogAnimeBuff[bank];
+    int i;
+
+    (void)argc;
+    fa->charaFlags = 0;
+    for (i = 0; i < 3; i++) {
+        if (atoi(argv[i * 2]) != 0) {
+            fa->charaFog[i] = (float)atoi(argv[i * 2 + 1]);
+            fa->charaFlags |= FOG_ANIME_FOG0 << i;
+        }
+    }
+    if (atoi(argv[6]) != 0) {
+        for (i = 0; i < 3; i++)
+            fa->charaFogArg[i] = atoi(argv[7 + i]);
+        fa->charaFlags |= FOG_ANIME_FOG_ARG;
+    }
+    fa->charaTime = (short)atoi(argv[10]);
+    return XCMD_DONE;
+}
+
+// CT3 0x018f2240: the bank's own fog eases over argv[14] frames: as tnXcmd_CharFogAnimation for fog[]
+// and fogArg[], and argv[10] non-zero animates the clear colour (to argv[11..13]).
+int tnXcmd_SceneFogAnimation(int argc, char **argv, int bank)
+{
+    FOG_ANIME *fa = &FogAnimeBuff[bank];
+    int i;
+
+    (void)argc;
+    fa->flags = 0;
+    for (i = 0; i < 3; i++) {
+        if (atoi(argv[i * 2]) != 0) {
+            fa->fog[i] = (float)atoi(argv[i * 2 + 1]);
+            fa->flags |= FOG_ANIME_FOG0 << i;
+        }
+    }
+    if (atoi(argv[6]) != 0) {
+        for (i = 0; i < 3; i++)
+            fa->fogArg[i] = atoi(argv[7 + i]);
+        fa->flags |= FOG_ANIME_FOG_ARG;
+    }
+    if (atoi(argv[10]) != 0) {
+        for (i = 0; i < 3; i++)
+            fa->clearColor[i] = atoi(argv[11 + i]);
+        fa->flags |= FOG_ANIME_CLEAR_COLOR;
+    }
+    fa->time = (short)atoi(argv[14]);
+    return XCMD_DONE;
+}
+
+// CT3 0x018f25c0: the panic gauge. The value is argv[0] by argv[1]'s source (XcmdValue). With four
+// arguments and argv[3] "DIRECT" the gauge takes it; with four and anything else, nothing; otherwise
+// PanicSet(value, source argv[2]) adds it as a rise.
+int tnXcmd_SetPanic(int argc, char **argv, int bank)
+{
+    int ok;
+    float value = (float)XcmdValue(argv, 0, bank, &ok);
+
+    if (argc == 4) {
+        if (strcmp("DIRECT", argv[3]) == 0)
+            PanicInfoData.gauge = value;
+    } else {
+        PanicSet(value, atoi(argv[2]));
+    }
+    return XCMD_DONE;
+}
+
+// CT3 0x018f26c0: the 3D library's near Z (screen_0[GA_SCREEN_NEAR]).
+int tnXcmd_SetNearClip(int argc, char **argv, int bank)
+{
+    (void)argc;
+    (void)bank;
+    screen_0[GA_SCREEN_NEAR] = (float)atoi(argv[0]);
+    return XCMD_DONE;
+}
+
+// CT3 0x018f26f0: the far Z (screen_0[GA_SCREEN_FAR]).
+int tnXcmd_SetFarClip(int argc, char **argv, int bank)
+{
+    (void)argc;
+    (void)bank;
+    screen_0[GA_SCREEN_FAR] = (float)atoi(argv[0]);
+    return XCMD_DONE;
+}
+
+// CT3 0x018f2720: frees character argv[0]'s behaviour bank argv[1]. With three arguments and argv[2]
+// "FREE" the bank group is ended as well -- only when the bank is one of the character's.
+int tnXcmd_BehaviorFree(int argc, char **argv, int bank)
+{
+    int chara = atoi(argv[0]);
+    int b = atoi(argv[1]);
+    int i;
+
+    (void)bank;
+    if (argc == 3 && strcmp(argv[2], "FREE") == 0) {
+        for (i = 0; i < CHARA_BEHAVIOR_MAX; i++) {
+            if (b == Character[chara].behaviorBank[i])
+                break;
+        }
+        if (i == CHARA_BEHAVIOR_MAX)
+            return XCMD_DONE;
+    }
+    TrgCharacterBehaviorFree(chara, b);
+    if (argc == 3)
+        SceneEndBank(b, BankInfo[b].groupCount);
+    return XCMD_DONE;
+}
+
+// CT3 0x018f2830: frees character argv[0]'s shape (when it has one); with two arguments and argv[1]
+// "FREE" its bank group is ended too.
+int tnXcmd_ShapeFree(int argc, char **argv, int bank)
+{
+    int chara = atoi(argv[0]);
+    short b = Character[chara].bank;
+
+    (void)bank;
+    if (b < 0)
+        return XCMD_DONE;
+    TrgCharacterShapeFree(chara);
+    if (argc == 2 && strcmp(argv[1], "FREE") == 0)
+        SceneEndBank(b, BankInfo[b].groupCount);
+    return XCMD_DONE;
+}
+
+// CT3 0x018f28f0: plays the bank's tracks of kind argv[4] (ANIM_TYPE_*) on part argv[0] to the frame
+// argv[1] (by argv[2]'s source, XcmdValue) at speed argv[3] -- backwards when the frame lies before the
+// current one; nothing when the track is there already.
+int wideXcmd_PlayAnimeToFream2(int argc, char **argv, int bank)
+{
+    const XCMD_ANIM_TYPE *type = NULL;
+    ALL_TABLE *tbl = All_table_TBL[bank];
+    int part, now, to, ok;
+    size_t i;
+
+    (void)argc;
+    for (i = 0; i < sizeof(XcmdAnimTypes) / sizeof(XcmdAnimTypes[0]); i++) {
+        if (strcmp(argv[4], XcmdAnimTypes[i].name) == 0)
+            type = &XcmdAnimTypes[i];
+    }
+    if (type == NULL) // PORT: the ROM goes on with stale registers for an unknown kind
+        return XCMD_DONE;
+    part = atoi(argv[0]) & 0xffff;
+    now = asGetSceneAnimationCurrent(0, tbl, part, type->kind) >> 1;
+    to = XcmdValue(argv, 1, bank, &ok) * XCMD_FRAME_TIME;
+    if (!ok) // PORT: likewise for an unknown source
+        return XCMD_DONE;
+    if (to != now) {
+        asSceneAnimationStart((float)atoi(argv[3]), 0, tbl, -1, to, part,
+                              (type->select & XCMD_ANIM_SEL_POSE) != 0,
+                              (type->select & XCMD_ANIM_SEL_OTHER) != 0,
+                              (type->select & XCMD_ANIM_SEL_BY_PART) != 0,
+                              0, 0, to < now, SCENE_ANIM_SCENE, 0);
+    }
+    return XCMD_DONE;
+}
+
 // ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x018f3ba0
@@ -347,27 +796,6 @@ int tnXcmd_AllOmniEffect(int argc, char **argv, int bank)
     return {};
 }
 
-// stub of CT3 0x018f1e20
-int tnXcmd_BankFree(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tnXcmd_BankFree", 0x018f1e20);
-    return {};
-}
-
-// stub of CT3 0x018f2720
-int tnXcmd_BehaviorFree(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tnXcmd_BehaviorFree", 0x018f2720);
-    return {};
-}
-
-// stub of CT3 0x018f20b0
-int tnXcmd_CharFogAnimation(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tnXcmd_CharFogAnimation", 0x018f20b0);
-    return {};
-}
-
 // stub of CT3 0x018ef670
 int tnXcmd_CharOmniEffect(int argc, char **argv, int bank)
 {
@@ -379,20 +807,6 @@ int tnXcmd_CharOmniEffect(int argc, char **argv, int bank)
 int tnXcmd_Character_Ambient_Change(int argc, char **argv, int bank)
 {
     ALYSSAPAN_STUB("tnXcmd_Character_Ambient_Change", 0x018f36b0);
-    return {};
-}
-
-// stub of CT3 0x018ef320
-int tnXcmd_Continue(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tnXcmd_Continue", 0x018ef320);
-    return {};
-}
-
-// stub of CT3 0x018ef3d0
-int tnXcmd_EndPanic(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tnXcmd_EndPanic", 0x018ef3d0);
     return {};
 }
 
@@ -410,24 +824,10 @@ int tnXcmd_Key_Lock(int argc, char **argv, int bank)
     return {};
 }
 
-// stub of CT3 0x018f1570
-int tnXcmd_Menu_MapLoad(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tnXcmd_Menu_MapLoad", 0x018f1570);
-    return {};
-}
-
 // stub of CT3 0x018ef810
 int tnXcmd_OmniRange(int argc, char **argv, int bank)
 {
     ALYSSAPAN_STUB("tnXcmd_OmniRange", 0x018ef810);
-    return {};
-}
-
-// stub of CT3 0x018f2240
-int tnXcmd_SceneFogAnimation(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tnXcmd_SceneFogAnimation", 0x018f2240);
     return {};
 }
 
@@ -438,13 +838,6 @@ int tnXcmd_SetAllControlDisableCamera(int argc, char **argv, int bank)
     return {};
 }
 
-// stub of CT3 0x018f26f0
-int tnXcmd_SetFarClip(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tnXcmd_SetFarClip", 0x018f26f0);
-    return {};
-}
-
 // stub of CT3 0x018f2430
 int tnXcmd_SetMovieWorkBuff(int argc, char **argv, int bank)
 {
@@ -452,38 +845,10 @@ int tnXcmd_SetMovieWorkBuff(int argc, char **argv, int bank)
     return {};
 }
 
-// stub of CT3 0x018f26c0
-int tnXcmd_SetNearClip(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tnXcmd_SetNearClip", 0x018f26c0);
-    return {};
-}
-
-// stub of CT3 0x018f25c0
-int tnXcmd_SetPanic(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tnXcmd_SetPanic", 0x018f25c0);
-    return {};
-}
-
 // stub of CT3 0x018ee5f0
 int tnXcmd_SetRoodersPts(int argc, char **argv, int bank)
 {
     ALYSSAPAN_STUB("tnXcmd_SetRoodersPts", 0x018ee5f0);
-    return {};
-}
-
-// stub of CT3 0x018f2830
-int tnXcmd_ShapeFree(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tnXcmd_ShapeFree", 0x018f2830);
-    return {};
-}
-
-// stub of CT3 0x018efa90
-int tnXcmd_StayRoom(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tnXcmd_StayRoom", 0x018efa90);
     return {};
 }
 
@@ -508,13 +873,6 @@ int tnXcmd_TimeSet(int argc, char **argv, int bank)
     return {};
 }
 
-// stub of CT3 0x018ef1c0
-int tnXcmd_TimeStop(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tnXcmd_TimeStop", 0x018ef1c0);
-    return {};
-}
-
 // stub of CT3 0x018f37e0
 int tnXcmd_VistaVision(int argc, char **argv, int bank)
 {
@@ -533,20 +891,6 @@ int wideXcmd_PlayAnimeRange(int argc, char **argv, int bank)
 int wideXcmd_PlayAnimeToFream(int argc, char **argv, int bank)
 {
     ALYSSAPAN_STUB("wideXcmd_PlayAnimeToFream", 0x018f30e0);
-    return {};
-}
-
-// stub of CT3 0x018f28f0
-int wideXcmd_PlayAnimeToFream2(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("wideXcmd_PlayAnimeToFream2", 0x018f28f0);
-    return {};
-}
-
-// stub of CT3 0x018efb80
-int wideXcmd_ReadChengeMsg(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("wideXcmd_ReadChengeMsg", 0x018efb80);
     return {};
 }
 

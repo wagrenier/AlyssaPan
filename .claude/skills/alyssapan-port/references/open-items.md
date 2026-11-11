@@ -1126,8 +1126,28 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    the "not drawn" bit the room-in icon commands clear / set: rename it (PARTS_FLAG_HIDDEN?) when the
    fog part's use is read again; (w) the strncpy in wideXcmd_GlobalFree / tnXcmd_Menu_MapOff (the ROM:
    strcpy) bounds the copy of a 16-byte name: callcheck lists it.
+   **game/xcmd_tn.c slice 2, partial (2026-11-11 09:22, scheduled run):** 15 commands written
+   (wideXcmd_PlayAnimeToFream2, the clips, SetPanic / EndPanic, Continue, TimeStop, ShapeFree /
+   BehaviorFree / BankFree, StayRoom, ReadChengeMsg, Menu_MapLoad, Char / SceneFogAnimation). **Picture:**
+   frame 120 shows ATLD's memory-card text ("Checking... Do not remove memory card...") at 4:3, centred,
+   as the reference; from frame 180 on the screen is black (so are the 09:05 and 09:21 runs' last.png:
+   the progress pictures since the dispatcher landed take the last frame). **Next blocker: the script
+   reaches the stub `tiXcmd_XFade_Break` (0x018e4390, game/tiXcmd_TransItem.c), which answers 0 =
+   XCMD_WAIT, so the script waits on it every frame** -- queue it (or the x-fade commands with it) before
+   the rest of xcmd_tn.c. Open from slice 2: (x) tnXcmd_BankFree's behaviour case passes a register the
+   ROM never set as the character (s1): the port asks BankID_TO_CharID for the bank's owner -- check
+   BankID_TO_CharID answers behaviour banks; (y) RoomFileName_STR_Tbl (0x019394d0) and load_id
+   (0x0194493c) are defined in xcmd_tn.c (one reader each); the data's owning TU (beside QuatSlerp.c's
+   RoomNameID_STR_Tbl) may claim the table; (z) XCMD_FRAME_TIME (10) is the ROM's frame * 10 against
+   asGetSceneAnimationCurrent's time / 100: the units are taken as given, not checked against a run.
+   Left: SetRoodersPts, SetAllControlDisableCamera, ScreenAdjust, the omni commands, Filter_Change,
+   TimeSet, SetMovieWorkBuff, 1P01_PazzleAnim, and 10 beyond the slice.
 
 ## Decisions
+
+- 2026-11-11 (Claude, scheduled run 09:22, for the user to overrule): **game/tiXcmd_TransItem.c queued
+  ahead of the rest of xcmd_tn.c.** The smoke run's script waits on the stub tiXcmd_XFade_Break every
+  frame after the memory-card text; its TU (the slice with the x-fade commands) comes first.
 
 - 2026-11-11 (Claude, scheduled run, for the user to overrule): **game/ssGrpPortalCheck.c (the
   dispatcher ssTrigExecuteActCmd) queued ahead of the rest of xcmd_tn.c.** The ambient command is
