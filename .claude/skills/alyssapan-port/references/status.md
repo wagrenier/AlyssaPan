@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-11 17:49 at commit `7266ce6` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-11 17:59 at commit `bea45ef` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1140**; stubs: **254**
+- reconstructed CT3 functions: **1147**; stubs: **264**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -57,7 +57,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/AlignedNum.c` | 4 | 0 |
 | `src/game/ArtoolDebugOpen.c` | 15 | 0 |
 | `src/game/Character_Init.c` | 48 | 1 |
-| `src/game/Clipping_Portal.c` | 31 | 20 |
+| `src/game/Clipping_Portal.c` | 38 | 24 |
 | `src/game/Convert.c` | 0 | 2 |
 | `src/game/CpDivideEECom.c` | 0 | 10 |
 | `src/game/IOPGetFileSize.c` | 4 | 0 |
@@ -85,7 +85,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/ssCalcInversMatrix2.c` | 0 | 1 |
 | `src/game/ssGrpPortalCheck.c` | 74 | 0 |
 | `src/game/ssHitCheckAttackToScn.c` | 0 | 6 |
-| `src/game/ssSetTexUVforCubeMap.c` | 1 | 44 |
+| `src/game/ssSetTexUVforCubeMap.c` | 1 | 50 |
 | `src/game/tiAvoidObject.c` | 0 | 7 |
 | `src/game/tiXcmd_TransItem.c` | 85 | 8 |
 | `src/game/tkXDTrg_GetSceneHash.c` | 0 | 8 |
@@ -100,7 +100,7 @@ Least-named game-code regions (64 KB blocks):
 - 64 TUs: todo 31, partial 4, verify 30, done 7, blocked 1
 - next: **game/Clipping_Portal.c** (pinned in the queue)
 - pinned queue: game/Clipping_Portal.c, alyssapan/rendering/ui_canvas.cpp, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
-- partial: `game/Clipping_Portal.c` 31/73 -- Smoke run unchanged: frame 120 memory-card text, then the known flat grey; no scene draw is reached, so nothing here shows. open-items 7 jx..ka: MODEL_PARTS off
+- partial: `game/Clipping_Portal.c` 38/73 -- Smoke run unchanged (flat grey; no particle bank loads, tiCalc_Orbit not reached). open-items 7 kb..kd: PARTICLE2.offset renamed color (VRGB + alpha), so partsP
 - partial: `game/tiXcmd_TransItem.c` 85/93 -- Slice 10. Written: tiXcmd_UseItem (ITEM_USE_* modes from argv[4], ITEM_KIND_* from the row byte +0: give-take, signal, heal Character[0].hp up to hpMax, calm vi
 - partial: `game/wideXcmd_DebugPrint.c` 107/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed) -- the last function of the TU. New stubs
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
@@ -137,6 +137,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-11 17:59 `game/Clipping_Portal.c` partial: slice 8: tiCalc_Orbit and its motions (tiCalc_Trans, Goal_Disable, TransToGoal, TransToGoal_Stop, matL2V, Refraction) from the disassembly; PARTICLE2 laid out (
 - 2026-11-11 17:49 `ga/pad_button_read.c` verify: reconstruct gaPadRead (libpad detection walk, key repeat, stick d-pad, vibration), pad_button_read, gaPadSetVibration; merge gaPadInit into this object (018a088
 - 2026-11-11 17:33 `alyssapan/core/title_trace.cpp` done: frames no longer stop; after the title movies the ATLD script cycles the attract demos d01-d04 and never loads TITL: the press-start wait needs gaPadRead (stub)
 - 2026-11-11 17:11 `game/PicPaz.c` verify: all 9 functions: the aa x commands (movie fades, memory-card file list, cursor and details, work buffer, SceneEndBank by name), aa_search, aa_to_big
@@ -144,22 +145,21 @@ Recent sessions:
 - 2026-11-11 16:41 `game/hhXcmd_DressUp.c` verify: all 22 sound x commands: LoadSE, PlaySE, the SE changes, ADS, SQ, Sp1, DressUp, FootSEConversion
 - 2026-11-11 16:29 `game/Clipping_Portal.c` partial: slice 7: tiParticleInit and tiLensFlaresInit (scene_init set-up: parts matrix200 / pos words, emit rate, draw controls and textures, ring draw objects; flare sp
 - 2026-11-11 16:13 `game/Clipping_Portal.c` partial: slice 6: tiLightBelt2Update (light-belt ribbons: trail or Bezier points, screen-space edge rows, back into the part's draw space) and tiXFadeOut_Start2 with ini
-- 2026-11-11 15:53 `game/Clipping_Portal.c` partial: slice 5: tiPipeJointInit and tiPipeJointUpdate (Character 3 tube: two-bone IK plus a damped spring), gaNormalizeVector3XYZ, tiXFadeOut_Start; XfadeEndTicks decl
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `game/ssSetTexUVforCubeMap.c` | partial | 1/44/96 | 35.3 | 107 | 10 |
+| `game/ssSetTexUVforCubeMap.c` | partial | 1/50/96 | 35.3 | 117 | 10 |
 | `game/CpDivideEECom.c` | todo | 0/10/18 | 3.3 | 80 | 10 |
-| `game/Clipping_Portal.c` | partial | 31/20/73 | 44.8 | 73 | 5 |
+| `game/Clipping_Portal.c` | partial | 38/24/73 | 44.8 | 74 | 5 |
 | `ga/gaDrawObject.c` | todo | 0/11/11 | 6.9 | 39 | 0 |
 | `game/tiAvoidObject.c` | todo | 0/7/82 | 30.5 | 27 | 4 |
 | `game/ssHitCheckAttackToScn.c` | todo | 0/6/37 | 32.0 | 25 | 3 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/AA_GetDataWord.c` | todo | 0/8/15 | 4.9 | 21 | 2 |
 | `game/AA_SoundMonoSoart.c` | todo | 0/8/20 | 4.0 | 18 | 2 |
-| `game/asUseArrow.c` | todo | 0/7/11 | 6.4 | 17 | 1 |
-| `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
+| `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
+| `game/asUseArrow.c` | todo | 0/7/11 | 6.4 | 17 | 1 |
 
 ## Frontier (called by reconstructed code, not written yet)
 
@@ -177,9 +177,9 @@ Recent sessions:
 | `018518d0` | ConvertMatrix2Quat | 6 | sym | stub | game/Convert.c |
 | `018d1fa0` | CpSifDmaTransEEToIOP | 6 | sym | stub | game/CpDivideEECom.c |
 | `01866c10` | asShootArrowSetting | 5 | sym | stub | game/asUseArrow.c |
+| `01899070` | ssParticleCashClear | 5 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `01896920` | ssGetNumBlurDrawObjForScene | 5 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `0188fba0` | tiGenerateParticle | 4 | sym | stub | game/Clipping_Portal.c |
-| `0188f2b0` | tiCalc_Orbit | 4 | sym | stub | game/Clipping_Portal.c |
 | `018bd830` | AA_clearGsMem | 4 | sym | stub | game/AA_GetDataWord.c |
 | `018a7538` | gaSearchNearLight4 | 4 | sym | stub | ga/gaSearchNearLight4.c |
 | `018962a0` | tnChangeCharAmbientColorSet | 4 | sym | stub | game/ssSetTexUVforCubeMap.c |

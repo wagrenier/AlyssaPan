@@ -1064,10 +1064,10 @@ void main_rtn_Particle2(int bank, int fog, int after, void **lastTex)
             if ((s_char)obj[DRAW_OBJ_CLIP] >= 0) {
                 float *pos = (float *)BankEePtr(bank, *(u_int *)(obj + DRAW_OBJ_POS));
 
-                pos[0] = base[0] + rec->offset[0];
-                pos[1] = base[1] + rec->offset[1];
-                pos[2] = base[2] + rec->offset[2];
-                pos[3] = (base[3] + PARTS_POS_W_CENTER) * rec->offset[3] - PARTS_POS_W_CENTER;
+                pos[0] = base[0] + rec->color[0];
+                pos[1] = base[1] + rec->color[1];
+                pos[2] = base[2] + rec->color[2];
+                pos[3] = (base[3] + PARTS_POS_W_CENTER) * rec->color[3] - PARTS_POS_W_CENTER;
                 gaBGT_DrawObject(obj, 0);
             }
         }

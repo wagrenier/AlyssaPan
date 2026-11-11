@@ -1328,9 +1328,24 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    End2 wobbles six sprite corners with ahCos -- a host task (AlyssaPan capture to a texture, drawn
    through DisplayGeometry) before them. Nothing on screen: the smoke run never reaches a scene's
    draw (frame 120 memory-card text, then the flat grey of (ia)).
+   Slice 8 (2026-11-11): tiCalc_Orbit and its motions (tiCalc_Trans, _Goal_Disable, _TransToGoal,
+   _TransToGoal_Stop, _matL2V, _Refraction), from the disassembly; PARTICLE2 laid out (vel, accel, color,
+   scale, refrIndex, five curve caches, mats -> PARTICLE2_MATS local / localView / rotView) and
+   PARTICLE2_ENTRY's orbit kind, leafArg and five curve words. Open from it: (kb) **PARTICLE2.offset was
+   renamed color**: tiCalc_Orbit writes the VRGB curve's signed bytes to +0x20..0x28 and alpha / 100 to
+   +0x2c, and main_rtn_Particle2 adds them to ALL_TABLE.partsPos and writes the sum through DRAW_OBJ_POS
+   into PARTICLE2.pos -- so partsPos, DRAW_OBJ_POS and PARTICLE2.pos are probably a part's colour (rgb,
+   a around 128), not a position: rename them when the ga draw reads the word (gaBGT_DrawObject);
+   ORBIT_GOAL_PART_OFF is PARTS_FLAG_FOG's bit (both read as "the part is hidden" so far); (kc) the
+   motions integrate as the ROM does (step v dt + a dt^2, then v += a 2dt): kept, not a bug to fix; (kd)
+   the curve readers (ssSetTexUVforCubeMap.c: ssParticleCashClear, tiParticleGetSizeValue, ..._Refractive_
+   IndexValue, ssParticleGetVRGBValue / AlphaValue / UVValue) are declared with host curve pointers and
+   short caches from the call sites -- their TU confirms; DRAW_OBJ_UV_U / _V (+0x78 / +0x7c) are their
+   UV outputs, type unread. Nothing on screen yet (no particle bank loads in the smoke run).
    Slice left: tiDrawShadingOff with CaptureDBuffer and tiVRAMViewer, ExportDrawToTex, tiDrawLensFlares
-   (after the host sprite), the translucence four (ka), tiFreeBossData (boss TU), plus the six slice-3
-   helper stubs.
+   (after the host sprite), tiBumpSTValueUpdate / tiRefractionMapUpdate / SetSTValueForRefraction (the
+   refraction trio), the translucence four (ka), tiFreeBossData (boss TU), tiCalc_Leaf / _Leaf_WIND /
+   _Trans_WIND / _Twist (the remaining motions), plus the six slice-3 helper stubs.
 
 8. **(2026-11-11, the user: "queue the title blockers") The way to the title screen.** A probe run
    (16:25, reverted: every stubbed x command answering XCMD_DONE, AA_movie returning at once) showed the

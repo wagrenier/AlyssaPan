@@ -489,7 +489,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 105..105, 36 functions keyed by their statics, 13 unkeyed; file name from the names"
   },
   "game/Clipping_Portal.c": {
-   "notes": "Smoke run unchanged: frame 120 memory-card text, then the known flat grey; no scene draw is reached, so nothing here shows. open-items 7 jx..ka: MODEL_PARTS offsets count from the parts header (corrects js), flare UV rectangle from TEX_INFO maxu/minu/maxv/minv, DRAW_OBJ_W58/W5C unread, the translucence four need a host frame-buffer capture task first. Slice left: tiDrawShadingOff with CaptureDBuffer and tiVRAMViewer, ExportDrawToTex, tiDrawLensFlares after a host sprite, the translucence four, tiFreeBossData (boss TU), the six slice-3 helper stubs.",
+   "notes": "Smoke run unchanged (flat grey; no particle bank loads, tiCalc_Orbit not reached). open-items 7 kb..kd: PARTICLE2.offset renamed color (VRGB + alpha), so partsPos / DRAW_OBJ_POS / PARTICLE2.pos are probably a colour; ROM integration kept; curve reader prototypes from call sites. Slice left: tiDrawShadingOff with CaptureDBuffer and tiVRAMViewer, ExportDrawToTex, tiDrawLensFlares, the refraction trio (tiBumpSTValueUpdate, tiRefractionMapUpdate, SetSTValueForRefraction), the translucence four, tiFreeBossData, tiCalc_Leaf / Leaf_WIND / Trans_WIND / Twist, the six slice-3 helper stubs.",
    "ranges": [
     [
      "01889cd0",
@@ -531,6 +531,11 @@
      "date": "2026-11-11 16:29",
      "status": "partial",
      "summary": "slice 7: tiParticleInit and tiLensFlaresInit (scene_init set-up: parts matrix200 / pos words, emit rate, draw controls and textures, ring draw objects; flare sprite packets and drawctrl_flare); PARTICLE2_ENTRY / PARTICLE2_EMITTER / LENS_FLARE / LENS_FLARE_ELEM, ALL_TABLE.lensFlares"
+    },
+    {
+     "date": "2026-11-11 17:59",
+     "status": "partial",
+     "summary": "slice 8: tiCalc_Orbit and its motions (tiCalc_Trans, Goal_Disable, TransToGoal, TransToGoal_Stop, matL2V, Refraction) from the disassembly; PARTICLE2 laid out (vel, accel, color, scale, refrIndex, curve caches, mats), PARTICLE2_MATS, PARTICLE2_ENTRY orbit / leafArg / five curves, ORBIT_* kinds; curve readers declared in ssSetTexUVforCubeMap"
     }
    ],
    "status": "partial",

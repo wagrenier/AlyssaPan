@@ -191,6 +191,44 @@ void tiCalc_LifeSpan(struct PARTICLE2_ENTRY *ent, int bank);                    
 void tiGenerateParticle(int ticks, struct PARTICLE2_ENTRY *ent, int enabled, int bank);  // CT3 0x0188fba0
 // after: 0 for ALL_TABLE.particles2, 1 for particles2After; cam: Cam[0] for the scene banks, else Cam[6].
 void tiCalc_Orbit(int ticks, struct PARTICLE2_ENTRY *ent, int after, struct CAMERA *cam, int bank); // CT3 0x0188f2b0
+
+// ---- the records' motions (tiCalc_Orbit, 2026-11-11 slice 8) ----
+// PARTICLE2_ENTRY.orbit: which motion tiCalc_Orbit runs on every live record.
+enum {
+    ORBIT_TRANS = 0,                    /* tiCalc_Trans: velocity and acceleration */
+    ORBIT_TO_GOAL = 1,                  /* tiCalc_TransToGoal: accelerate toward part2's position */
+    ORBIT_TO_GOAL_STOP = 2,             /* tiCalc_TransToGoal_Stop: the same, until within the stop distance */
+    ORBIT_LEAF = 3,                     /* tiCalc_Leaf */
+    ORBIT_TRANS_WIND = 4,               /* tiCalc_Trans_WIND */
+    ORBIT_LEAF_WIND = 5,                /* tiCalc_Leaf_WIND */
+    ORBIT_TWIST = 6                     /* tiCalc_Twist */
+};
+#define ORBIT_TICKS_PER_SEC 300.0f      /* the motions' dt = ticks / 300 */
+#define ORBIT_ALPHA_SCALE 100.0f        /* the alpha curve's percent -> PARTICLE2.color[3] */
+// The goal part's MODEL_PARTS.flags bit that turns the goal motions into tiCalc_Goal_Disable (coasting).
+// It is PARTS_FLAG_FOG's bit (main_rtn: never drawn): a hidden part, probably (open-items 7 kb).
+#define ORBIT_GOAL_PART_OFF 0x1
+
+// The motions take (ticks, record); PORT: the bank is added last (the record's mats is a bank EE word).
+// Each adds ticks to the record's age and moves PARTICLE2_MATS.local's row 3.
+struct PARTICLE2;
+void tiCalc_Trans(int ticks, struct PARTICLE2 *rec, int bank);                           // CT3 0x0188f1c0
+void tiCalc_Goal_Disable(int ticks, struct PARTICLE2 *rec, int bank);                    // CT3 0x0188eeb0
+// goal: the goal part's MODEL_PARTS.pos (host pointer; the ROM passes the entry's partPos word).
+void tiCalc_TransToGoal(int ticks, struct PARTICLE2 *rec, float *goal, int bank);        // CT3 0x0188f090
+void tiCalc_TransToGoal_Stop(int ticks, struct PARTICLE2 *rec, float *goal, int bank);   // CT3 0x0188ef30
+void tiCalc_Leaf(int ticks, struct PARTICLE2 *rec, int arg, int bank);                   // CT3 0x0188ea90
+void tiCalc_Trans_WIND(int ticks, struct PARTICLE2 *rec, int bank);                      // CT3 0x0188c6e0
+void tiCalc_Leaf_WIND(int ticks, struct PARTICLE2 *rec, int arg, int bank);              // CT3 0x0188c210
+void tiCalc_Twist(int ticks, struct PARTICLE2 *rec, struct PARTICLE2_ENTRY *ent, int bank); // CT3 0x0188e8c0
+// view: the camera's view matrix. Rebuilds PARTICLE2_MATS.localView and rotView from local.
+void tiCalc_matL2V(struct PARTICLE2 *rec, float (*view)[4], int bank);                   // CT3 0x0188e7c0
+// eye: the camera position (asViewMatrix2PosRUF). Hands the eye in the record's frame to
+// SetSTValueForRefraction.
+void tiCalc_Refraction(struct PARTICLE2 *rec, float *eye, int bank);                     // CT3 0x0188e740
+// obj: the record's ga draw object (host); eye: the eye in the record's frame; localView: its
+// PARTICLE2_MATS.localView; index: PARTICLE2.refrIndex. Argument order from the disassembly (a0..a2, f12).
+void SetSTValueForRefraction(u_char *obj, float *eye, float (*localView)[4], float index); // CT3 0x01893f90
 void tiHurikoReset(int bank, HURIKO *h);                                                 // CT3 0x01890c00
 void tiCalc_HurikoOPEN(HURIKO *h, int bank, int ticks);                                  // CT3 0x01892310
 void tiCalc_HurikoCLOSED(HURIKO *h, int bank, int ticks);                                // CT3 0x018915a0

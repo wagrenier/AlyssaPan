@@ -645,9 +645,11 @@ static_assert(sizeof(DRAW_OBJ_ENTRY) == 0x1c, "DRAW_OBJ_ENTRY");
 #define DRAW_OBJ_POS 0x38               /* u_int: EE address of the part's ALL_TABLE.partsPos qword (BankEePtr): the
                                            ambient RGB the VU1 light0 program adds (vf20), alpha in w */
 #define DRAW_OBJ_PACKET_QWC 0x48        /* u_int: the object's packet is this + 1 qwords (tiXcmd_CopySunPs2Object) */
-#define DRAW_OBJ_W58 0x58               /* u_int: a particle record's obj6c + 0x40 (tiParticleInit; unread) */
-#define DRAW_OBJ_W5C 0x5c               /* u_int: a particle record's obj6c + 0x80 (tiParticleInit; unread) */
+#define DRAW_OBJ_W58 0x58               /* u_int: a particle record's PARTICLE2_MATS.localView (tiParticleInit; unread) */
+#define DRAW_OBJ_W5C 0x5c               /* u_int: a particle record's PARTICLE2_MATS.rotView (tiParticleInit; unread) */
 #define DRAW_OBJ_PACKET 0x68            /* u_int: EE address of the object's packet (relocated) */
+#define DRAW_OBJ_UV_U 0x78              /* a particle record's UV curve output (ssParticleGetUVValue; type unread) */
+#define DRAW_OBJ_UV_V 0x7c
 #define DRAW_OBJ_ATTR 0x3c              /* int: MODEL_PARTS.attr */
 #define DRAW_OBJ_FLAG_CLIP 0x20         /* always drawn through the clipping path */
 
@@ -678,25 +680,44 @@ static_assert(offsetof(PARTICLE_ENTRY, drawCtrl) == 0x24, "PARTICLE_ENTRY.drawCt
 
 // One entry of a bank's second particle list (ALL_TABLE.particles2 / particles2After, NULL-terminated;
 // main_rtn_Particle2). A ring of PARTICLE2 records, each drawn as one ga draw object placed at the
-// entry's model part (ALL_TABLE.partsPos[parts]) plus the record's offset. layout: ee (2026-11-10).
+// entry's model part (ALL_TABLE.partsPos[parts]) plus the record's colour (see color). layout: ee (2026-11-10).
 typedef struct PARTICLE2 {
-    u_char pad00[0x20];
-    float offset[4];                    /* 0x20: added to the part's position; w scales its w
-                                           around PARTS_POS_W_CENTER */
-    u_char pad30[0x10];
+    float vel[4];                       /* 0x00: velocity, xyz (tiCalc_Orbit's motions) */
+    float accel[4];                     /* 0x10: acceleration, xyz; the goal motions read x as the
+                                           acceleration toward the goal and y as the stop distance */
+    float color[4];                     /* 0x20: r, g, b from the VRGB curve, a = the alpha curve / 100
+                                           (tiCalc_Orbit); main_rtn_Particle2 adds rgb to the part's
+                                           partsPos and scales its w around PARTS_POS_W_CENTER by a */
+    float scale[4];                     /* 0x30: the size curve's answer; xyz scale the record's matrix */
     float pos[4];                       /* 0x40: the record's position: its draw object's DRAW_OBJ_POS (tiParticleInit) */
     int life;                           /* 0x50: tiCalc_LifeSpan: the record expires once life - age < 1 */
-    int age;                            /* 0x54 (both named from that one use) */
-    u_char pad58[0x10];
+    int age;                            /* 0x54: in ticks (the motions add the frame's ticks) */
+    float refrIndex;                    /* 0x58: the refractive-index curve's answer (tiCalc_Refraction) */
+    short sizeCache;                    /* 0x5c: the curve readers' cache words (one per curve) */
+    short refrCache;                    /* 0x5e */
+    short alphaCache;                   /* 0x60 */
+    short uvCache;                      /* 0x62 */
+    short vrgbCache;                    /* 0x64 */
+    u_char pad66[2];
     u_int obj;                          /* 0x68: the ga draw object (DRAW_OBJ_* offsets) */
-    u_int obj6c;                        /* 0x6c: relocated; not read yet */
+    u_int mats;                         /* 0x6c: EE address of PARTICLE2_MATS (relocated) */
     u_char pad70[0x10];
 } PARTICLE2;
 static_assert(sizeof(PARTICLE2) == 0x80, "PARTICLE2");
-static_assert(offsetof(PARTICLE2, offset) == 0x20, "PARTICLE2.offset");
+static_assert(offsetof(PARTICLE2, color) == 0x20, "PARTICLE2.color");
 static_assert(offsetof(PARTICLE2, obj) == 0x68, "PARTICLE2.obj");
 static_assert(offsetof(PARTICLE2, life) == 0x50, "PARTICLE2.life");
 static_assert(offsetof(PARTICLE2, pos) == 0x40, "PARTICLE2.pos");
+static_assert(offsetof(PARTICLE2, vrgbCache) == 0x64, "PARTICLE2.vrgbCache");
+
+// A ring record's three matrices (PARTICLE2.mats; tiCalc_matL2V). layout: ee.
+typedef struct PARTICLE2_MATS {
+    float local[4][4];                  /* 0x00: the record's frame; the motions move its row 3 */
+    float localView[4][4];              /* 0x40: scale, then local's rotation and position, then the view
+                                           (DRAW_OBJ_W58 points here) */
+    float rotView[4][4];                /* 0x80: local's rotation, then the view (DRAW_OBJ_W5C) */
+} PARTICLE2_MATS;
+static_assert(sizeof(PARTICLE2_MATS) == 0xc0, "PARTICLE2_MATS");
 
 // The emitter a PARTICLE2_ENTRY may carry (+0x30). layout: ee -- named from tiParticleInit's writes only.
 typedef struct PARTICLE2_EMITTER {
@@ -708,7 +729,10 @@ typedef struct PARTICLE2_EMITTER {
 static_assert(offsetof(PARTICLE2_EMITTER, state) == 0x0c, "PARTICLE2_EMITTER.state");
 
 typedef struct PARTICLE2_ENTRY {
-    u_char pad00[0x30];
+    u_char orbit;                       /* 0x00: ORBIT_*: the records' motion (tiCalc_Orbit) */
+    u_char pad01[3];
+    u_char leafArg;                     /* 0x04: tiCalc_Leaf / _Leaf_WIND's third argument */
+    u_char pad05[0x2b];
     u_int emitter;                      /* 0x30: PARTICLE2_EMITTER, 0 = none */
     int lifeTenths;                     /* 0x34: a record's life in 1/10 s (the emit rate's divisor) */
     int w38;                            /* 0x38: <- -1 at init (its reader, tiGenerateParticle, is unread) */
@@ -726,7 +750,11 @@ typedef struct PARTICLE2_ENTRY {
                                            only for particles2 (not ...After) */
     u_int partMatrix;                   /* 0x58: <- EE address of parts' MODEL_PARTS.matrix200 (tiParticleInit) */
     u_int ring;                         /* 0x5c: PARTICLE2[ringSize] */
-    u_char pad60[0x14];
+    u_int sizeCurve;                    /* 0x60: the records' curves over their age (relocated; 0 = none): */
+    u_int refrCurve;                    /* 0x64: refractive index */
+    u_int alphaCurve;                   /* 0x68: alpha */
+    u_int uvCurve;                      /* 0x6c: UV */
+    u_int vrgbCurve;                    /* 0x70: colour */
     u_int tbuffer;                      /* 0x74: the texture's upload packet */
     u_int drawCtrl;                     /* 0x78: GA_DRAWCTRL_DATA */
     u_int partPos;                      /* 0x7c: <- EE address of part2's MODEL_PARTS.pos (tiParticleInit) */
@@ -736,6 +764,8 @@ static_assert(offsetof(PARTICLE2_ENTRY, drawCtrlId) == 0x50, "PARTICLE2_ENTRY.dr
 static_assert(offsetof(PARTICLE2_ENTRY, drawCtrl) == 0x78, "PARTICLE2_ENTRY.drawCtrl");
 static_assert(offsetof(PARTICLE2_ENTRY, emitter) == 0x30, "PARTICLE2_ENTRY.emitter");
 static_assert(offsetof(PARTICLE2_ENTRY, partMatrix) == 0x58, "PARTICLE2_ENTRY.partMatrix");
+static_assert(offsetof(PARTICLE2_ENTRY, vrgbCurve) == 0x70, "PARTICLE2_ENTRY.vrgbCurve");
+static_assert(offsetof(PARTICLE2_ENTRY, leafArg) == 0x04, "PARTICLE2_ENTRY.leafArg");
 static_assert(sizeof(PARTICLE2_ENTRY) == 0x80, "PARTICLE2_ENTRY");
 
 #define PARTS_POS_W_CENTER 128.0f       /* main_rtn_Particle2: w' = (w + 128) * scale - 128 */

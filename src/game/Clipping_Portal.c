@@ -11,6 +11,7 @@
 #include "game/ahRelocateSunPs2ObjectArry.h"
 #include "game/ssGrpPortalCheck.h"
 #include "game/ssHitCheckAttackToScn.h"
+#include "game/ssSetTexUVforCubeMap.h"
 #include "game/tiXcmd_TransItem.h"
 #include "game/unassigned_data.h"
 #include "ga/gaInit3dlib.h"
@@ -604,6 +605,286 @@ void tiParticleUpdate(void)
     }
     // callcheck: ssTrigCheckEnable, tiCalc_LifeSpan, tiCalc_Orbit, tiGenerateParticle (ParticleList makes them)
 }
+
+// ---- the records' motions (slice 8, 2026-11-11) ----
+// Written from the disassembly (VU0 macro code: every vector operation is .xyz, so a velocity's and a
+// matrix row's w stay as they are). dt = ticks / 300. The integration is the ROM's: the step is
+// v * dt + a * dt^2 and the velocity then gains a * 2dt (not a * dt) -- kept.
+
+static PARTICLE2_MATS *RecMats(PARTICLE2 *rec, int bank)
+{
+    return BANK_PTR(PARTICLE2_MATS *, bank, rec->mats);
+}
+
+// The step every accelerating motion shares: local's row 3 moves by vel * dt + accel * dt^2 and the
+// velocity gains accel * 2dt.
+static void OrbitStep(PARTICLE2 *rec, PARTICLE2_MATS *m, const float *accel, float dt)
+{
+    float step[3];
+    int i;
+
+    for (i = 0; i < 3; i++) {
+        step[i] = rec->vel[i] * dt + accel[i] * (dt * dt);
+        rec->vel[i] = rec->vel[i] + accel[i] * (dt * 2.0f);
+    }
+    for (i = 0; i < 3; i++) {
+        m->local[3][i] += step[i];
+    }
+}
+
+// The unit vector from local's position toward goal, and the distance (VRSQRT; the distance is 1 / Q
+// through VDIV, as the ROM takes it).
+static float OrbitGoalDir(const PARTICLE2_MATS *m, const float *goal, float *dir)
+{
+    float d[3], q;
+    int i;
+
+    for (i = 0; i < 3; i++) {
+        d[i] = goal[i] - m->local[3][i];
+    }
+    q = 1.0f / sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+    for (i = 0; i < 3; i++) {
+        dir[i] = d[i] * q;
+    }
+    return 1.0f / q;
+}
+
+// CT3 0x0188f1c0: ORBIT_TRANS: velocity plus the record's own acceleration.
+void tiCalc_Trans(int ticks, PARTICLE2 *rec, int bank)
+{
+    PARTICLE2_MATS *m = RecMats(rec, bank);
+    float dt = (float)ticks / ORBIT_TICKS_PER_SEC;
+
+    rec->age += ticks;
+    OrbitStep(rec, m, rec->accel, dt);
+}
+
+// CT3 0x0188eeb0: the goal motions while the goal part is off: coast at the current velocity.
+void tiCalc_Goal_Disable(int ticks, PARTICLE2 *rec, int bank)
+{
+    PARTICLE2_MATS *m = RecMats(rec, bank);
+    float dt;
+    int i;
+
+    rec->age += ticks;
+    dt = (float)ticks / ORBIT_TICKS_PER_SEC;
+    for (i = 0; i < 3; i++) {
+        m->local[3][i] += rec->vel[i] * dt;
+    }
+}
+
+// CT3 0x0188f090: ORBIT_TO_GOAL: accelerate toward the goal at accel[0], whatever the distance.
+void tiCalc_TransToGoal(int ticks, PARTICLE2 *rec, float *goal, int bank)
+{
+    PARTICLE2_MATS *m = RecMats(rec, bank);
+    float dt, dir[3], accel[3];
+    int i;
+
+    rec->age += ticks;
+    dt = (float)ticks / ORBIT_TICKS_PER_SEC;
+    OrbitGoalDir(m, goal, dir);
+    for (i = 0; i < 3; i++) {
+        accel[i] = dir[i] * rec->accel[0];
+    }
+    OrbitStep(rec, m, accel, dt);
+}
+
+// CT3 0x0188ef30: ORBIT_TO_GOAL_STOP: the same, but only while farther than accel[1] from the goal;
+// within it the record stands still (its age still counts).
+void tiCalc_TransToGoal_Stop(int ticks, PARTICLE2 *rec, float *goal, int bank)
+{
+    PARTICLE2_MATS *m = RecMats(rec, bank);
+    float dt, dir[3], accel[3], dist;
+    int i;
+
+    rec->age += ticks;
+    dt = (float)ticks / ORBIT_TICKS_PER_SEC;
+    dist = OrbitGoalDir(m, goal, dir);
+    if (dist <= rec->accel[1]) {
+        return;
+    }
+    for (i = 0; i < 3; i++) {
+        accel[i] = dir[i] * rec->accel[0];
+    }
+    OrbitStep(rec, m, accel, dt);
+}
+
+// CT3 0x0188e7c0: rebuild the record's view matrices from local: rotView = local's rotation (row 3 cut
+// to (0, 0, 0, 1)) then the view; localView = the scale (PARTICLE2.scale xyz on the diagonal), then
+// that rotation, local's position, then the view.
+void tiCalc_matL2V(PARTICLE2 *rec, float (*view)[4], int bank)
+{
+    PARTICLE2_MATS *m = RecMats(rec, bank);
+    float rot[4][4];
+    float sc[4][4] = {
+        {1.0f, 0.0f, 0.0f, 0.0f},
+        {0.0f, 1.0f, 0.0f, 0.0f},
+        {0.0f, 0.0f, 1.0f, 0.0f},
+        {0.0f, 0.0f, 0.0f, 1.0f},
+    };
+    int i;
+
+    memcpy(rot, m->local, sizeof(rot));
+    rot[3][0] = 0.0f;
+    rot[3][1] = 0.0f;
+    rot[3][2] = 0.0f;
+    rot[3][3] = 1.0f;
+    gaMulMatrix(m->rotView, view, rot);
+    sc[0][0] = rec->scale[0];
+    sc[1][1] = rec->scale[1];
+    sc[2][2] = rec->scale[2];
+    gaMulMatrix(sc, sc, rot);
+    for (i = 0; i < 3; i++) {
+        sc[3][i] += m->local[3][i];
+    }
+    gaMulMatrix(m->localView, view, sc);
+}
+
+// CT3 0x0188e740: the eye in the record's frame (eye * local^-1, all four lanes) for the refraction's
+// texture coordinates.
+void tiCalc_Refraction(PARTICLE2 *rec, float *eye, int bank)
+{
+    PARTICLE2_MATS *m = RecMats(rec, bank);
+    float inv[4][4];
+    float local[4];
+    int i;
+
+    gaInversMatrix(inv, m->local);
+    for (i = 0; i < 4; i++) {
+        local[i] = inv[0][i] * eye[0] + inv[1][i] * eye[1] + inv[2][i] * eye[2] + inv[3][i] * eye[3];
+    }
+    SetSTValueForRefraction(BANK_PTR(u_char *, bank, rec->obj), local, m->localView, rec->refrIndex);
+}
+
+// The ring's live records in order from the head (tiCalc_Orbit's loops).
+#define FOR_EACH_LIVE(i, rec, ent, ring)                                                            \
+    for ((i) = 0; (i) < (int)(ent)->count                                                           \
+                  && ((rec) = &(ring)[(int)((ent)->head + (i)) % (int)(ent)->ringSize], 1); (i)++)
+
+// CT3 0x0188f2b0: a particle entry's frame: read each curve the entry has for every live record (size,
+// refractive index, colour, alpha, UV, each pass after ssParticleCashClear), move the records by the
+// entry's motion and rebuild their view matrices; the after-list (after != 0) also takes the eye for
+// the refraction.
+void tiCalc_Orbit(int ticks, PARTICLE2_ENTRY *ent, int after, CAMERA *cam, int bank)
+{
+    PARTICLE2 *ring = BANK_PTR(PARTICLE2 *, bank, ent->ring);
+    void *sizeCurve = BANK_PTR(void *, bank, ent->sizeCurve);
+    void *refrCurve = BANK_PTR(void *, bank, ent->refrCurve);
+    void *vrgbCurve = BANK_PTR(void *, bank, ent->vrgbCurve);
+    void *alphaCurve = BANK_PTR(void *, bank, ent->alphaCurve);
+    void *uvCurve = BANK_PTR(void *, bank, ent->uvCurve);
+    MODEL_PARTS *parts = (MODEL_PARTS *)pModelPartsHeader[bank];
+    PARTICLE2 *rec;
+    int i;
+
+    if (sizeCurve != NULL) {
+        ssParticleCashClear();
+        FOR_EACH_LIVE(i, rec, ent, ring) {
+            tiParticleGetSizeValue(rec->age, rec->scale, sizeCurve, &rec->sizeCache);
+        }
+    }
+    if (refrCurve != NULL) {
+        ssParticleCashClear();
+        FOR_EACH_LIVE(i, rec, ent, ring) {
+            tiParticleGetRefractive_IndexValue(rec->age, &rec->refrIndex, refrCurve, &rec->refrCache);
+        }
+    }
+    if (vrgbCurve != NULL) {
+        ssParticleCashClear();
+        FOR_EACH_LIVE(i, rec, ent, ring) {
+            s_char r, g, b;
+
+            ssParticleGetVRGBValue(rec->age, &r, &g, &b, vrgbCurve, &rec->vrgbCache);
+            rec->color[0] = (float)r;
+            rec->color[1] = (float)g;
+            rec->color[2] = (float)b;
+        }
+    }
+    if (alphaCurve != NULL) {
+        ssParticleCashClear();
+        FOR_EACH_LIVE(i, rec, ent, ring) {
+            short alpha;
+
+            ssParticleGetAlphaValue(rec->age, &alpha, alphaCurve, &rec->alphaCache);
+            rec->color[3] = (float)alpha / ORBIT_ALPHA_SCALE;
+        }
+    }
+    if (uvCurve != NULL) {
+        ssParticleCashClear();
+        FOR_EACH_LIVE(i, rec, ent, ring) {
+            u_char *obj = BANK_PTR(u_char *, bank, rec->obj);
+
+            ssParticleGetUVValue(rec->age, obj + DRAW_OBJ_UV_U, obj + DRAW_OBJ_UV_V, uvCurve, &rec->uvCache);
+        }
+    }
+
+    switch (ent->orbit) {
+    case ORBIT_TRANS:
+        FOR_EACH_LIVE(i, rec, ent, ring) {
+            tiCalc_Trans(ticks, rec, bank);
+            tiCalc_matL2V(rec, cam->view, bank);
+        }
+        break;
+    case ORBIT_TO_GOAL:
+    case ORBIT_TO_GOAL_STOP:
+        // The goal part's flags are read once per frame (the ROM has the two cases apart, alike but
+        // for the motion).
+        if ((parts[ent->part2].flags & ORBIT_GOAL_PART_OFF) == 0) {
+            float *goal = BANK_PTR(float *, bank, ent->partPos);
+
+            FOR_EACH_LIVE(i, rec, ent, ring) {
+                if (ent->orbit == ORBIT_TO_GOAL) {
+                    tiCalc_TransToGoal(ticks, rec, goal, bank);
+                } else {
+                    tiCalc_TransToGoal_Stop(ticks, rec, goal, bank);
+                }
+                tiCalc_matL2V(rec, cam->view, bank);
+            }
+        } else {
+            FOR_EACH_LIVE(i, rec, ent, ring) {
+                tiCalc_Goal_Disable(ticks, rec, bank);
+                tiCalc_matL2V(rec, cam->view, bank);
+            }
+        }
+        break;
+    case ORBIT_LEAF:
+        FOR_EACH_LIVE(i, rec, ent, ring) {
+            tiCalc_Leaf(ticks, rec, ent->leafArg, bank);
+            tiCalc_matL2V(rec, cam->view, bank);
+        }
+        break;
+    case ORBIT_TRANS_WIND:
+        FOR_EACH_LIVE(i, rec, ent, ring) {
+            tiCalc_Trans_WIND(ticks, rec, bank);
+            tiCalc_matL2V(rec, cam->view, bank);
+        }
+        break;
+    case ORBIT_LEAF_WIND:
+        FOR_EACH_LIVE(i, rec, ent, ring) {
+            tiCalc_Leaf_WIND(ticks, rec, ent->leafArg, bank);
+            tiCalc_matL2V(rec, cam->view, bank);
+        }
+        break;
+    case ORBIT_TWIST:
+        FOR_EACH_LIVE(i, rec, ent, ring) {
+            tiCalc_Twist(ticks, rec, ent, bank);
+            tiCalc_matL2V(rec, cam->view, bank);
+        }
+        break;
+    }
+
+    if (after != 0) {
+        float eye[4];
+
+        // The ROM hands one buffer for all four answers; the position is written last, so it is the
+        // eye (kept as the ROM passes it).
+        asViewMatrix2PosRUF(&cam->view[0][0], eye, eye, eye, eye);
+        FOR_EACH_LIVE(i, rec, ent, ring) {
+            tiCalc_Refraction(rec, eye, bank);
+        }
+    }
+}
+#undef FOR_EACH_LIVE
 
 // One bank's pendulums. A pendulum whose trigger is off only marks itself DISABLED; once on again it
 // becomes RESET (a scene bank's still swings that frame, the others wait a frame), and on the next
@@ -1308,8 +1589,8 @@ static void ParticleInitList(int scene, u_int listEE)
         for (k = 0; k < n; k++) { // the ROM unrolls this by 8
             u_char *obj = BANK_PTR(u_char *, scene, ring[k].obj);
             u_int pos = BankEeAddr(scene, ring[k].pos);
-            u_int w58 = ring[k].obj6c + 0x40;
-            u_int w5c = ring[k].obj6c + 0x80;
+            u_int w58 = ring[k].mats + offsetof(PARTICLE2_MATS, localView);
+            u_int w5c = ring[k].mats + offsetof(PARTICLE2_MATS, rotView);
 
             memcpy(obj + DRAW_OBJ_POS, &pos, sizeof(pos));
             memcpy(obj + DRAW_OBJ_W58, &w58, sizeof(w58));
@@ -1481,17 +1762,6 @@ void tiGenerateParticle(int ticks, PARTICLE2_ENTRY *ent, int enabled, int bank)
     ALYSSAPAN_STUB("tiGenerateParticle", 0x0188fba0);
 }
 
-// stub of CT3 0x0188f2b0
-void tiCalc_Orbit(int ticks, PARTICLE2_ENTRY *ent, int after, CAMERA *cam, int bank)
-{
-    (void)ticks;
-    (void)ent;
-    (void)after;
-    (void)cam;
-    (void)bank;
-    ALYSSAPAN_STUB("tiCalc_Orbit", 0x0188f2b0);
-}
-
 // stub of CT3 0x01890c00
 void tiHurikoReset(int bank, HURIKO *h)
 {
@@ -1523,4 +1793,53 @@ void tiGetNewNormalData(HURIKO *h)
 {
     (void)h;
     ALYSSAPAN_STUB("tiGetNewNormalData", 0x018912b0);
+}
+
+// stub of CT3 0x0188ea90
+void tiCalc_Leaf(int ticks, PARTICLE2 *rec, int arg, int bank)
+{
+    (void)ticks;
+    (void)rec;
+    (void)arg;
+    (void)bank;
+    ALYSSAPAN_STUB("tiCalc_Leaf", 0x0188ea90);
+}
+
+// stub of CT3 0x0188c6e0
+void tiCalc_Trans_WIND(int ticks, PARTICLE2 *rec, int bank)
+{
+    (void)ticks;
+    (void)rec;
+    (void)bank;
+    ALYSSAPAN_STUB("tiCalc_Trans_WIND", 0x0188c6e0);
+}
+
+// stub of CT3 0x0188c210
+void tiCalc_Leaf_WIND(int ticks, PARTICLE2 *rec, int arg, int bank)
+{
+    (void)ticks;
+    (void)rec;
+    (void)arg;
+    (void)bank;
+    ALYSSAPAN_STUB("tiCalc_Leaf_WIND", 0x0188c210);
+}
+
+// stub of CT3 0x0188e8c0
+void tiCalc_Twist(int ticks, PARTICLE2 *rec, PARTICLE2_ENTRY *ent, int bank)
+{
+    (void)ticks;
+    (void)rec;
+    (void)ent;
+    (void)bank;
+    ALYSSAPAN_STUB("tiCalc_Twist", 0x0188e8c0);
+}
+
+// stub of CT3 0x01893f90
+void SetSTValueForRefraction(u_char *obj, float *eye, float (*localView)[4], float index)
+{
+    (void)obj;
+    (void)eye;
+    (void)localView;
+    (void)index;
+    ALYSSAPAN_STUB("SetSTValueForRefraction", 0x01893f90);
 }

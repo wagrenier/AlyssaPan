@@ -316,3 +316,64 @@ void ssTrigWaveStart(int a, int b, int c, int d, int e, int f, int g, int h, int
 {
     ALYSSAPAN_STUB("ssTrigWaveStart", 0x0189ce60);
 }
+
+// ---- the particle curve readers (declared from tiCalc_Orbit, 2026-11-11) ----
+
+// stub of CT3 0x01899070
+void ssParticleCashClear(void)
+{
+    ALYSSAPAN_STUB("ssParticleCashClear", 0x01899070);
+}
+
+// stub of CT3 0x01898a60
+void tiParticleGetSizeValue(int age, float *scale, void *curve, short *cache)
+{
+    (void)age;
+    (void)scale;
+    (void)curve;
+    (void)cache;
+    ALYSSAPAN_STUB("tiParticleGetSizeValue", 0x01898a60);
+}
+
+// stub of CT3 0x01898980
+void tiParticleGetRefractive_IndexValue(int age, float *index, void *curve, short *cache)
+{
+    (void)age;
+    (void)index;
+    (void)curve;
+    (void)cache;
+    ALYSSAPAN_STUB("tiParticleGetRefractive_IndexValue", 0x01898980);
+}
+
+// stub of CT3 0x01898bc0
+void ssParticleGetVRGBValue(int age, s_char *r, s_char *g, s_char *b, void *curve, short *cache)
+{
+    (void)age;
+    (void)r;
+    (void)g;
+    (void)b;
+    (void)curve;
+    (void)cache;
+    ALYSSAPAN_STUB("ssParticleGetVRGBValue", 0x01898bc0);
+}
+
+// stub of CT3 0x01898e60
+void ssParticleGetAlphaValue(int age, short *alpha, void *curve, short *cache)
+{
+    (void)age;
+    (void)alpha;
+    (void)curve;
+    (void)cache;
+    ALYSSAPAN_STUB("ssParticleGetAlphaValue", 0x01898e60);
+}
+
+// stub of CT3 0x01898d20
+void ssParticleGetUVValue(int age, void *u, void *v, void *curve, short *cache)
+{
+    (void)age;
+    (void)u;
+    (void)v;
+    (void)curve;
+    (void)cache;
+    ALYSSAPAN_STUB("ssParticleGetUVValue", 0x01898d20);
+}

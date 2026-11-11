@@ -54,3 +54,16 @@ void ssTrigVaselineStart(int a, int b, int c, int d, int e, int f, int g, int h,
 void ssTrigVaselineEnd(void);                                                            // CT3 0x0189b920
 void ssTrigHQDOFStart(int a, int b);                                                     // CT3 0x0189b5a0
 void ssTrigHQDOFEnd(void);                                                               // CT3 0x0189b580
+
+// The particle curve readers (from tiCalc_Orbit, 2026-11-11; argument order from the disassembly). age: the
+// record's PARTICLE2.age; curve: the entry's curve (host pointer: the ROM passes the bank's EE word);
+// cache: the record's cache word for that curve. ssParticleCashClear runs before each pass over a ring.
+void ssParticleCashClear(void);                                                          // CT3 0x01899070
+void tiParticleGetSizeValue(int age, float *scale, void *curve, short *cache);           // CT3 0x01898a60
+void tiParticleGetRefractive_IndexValue(int age, float *index, void *curve, short *cache); // CT3 0x01898980
+// r, g, b: signed bytes (the ROM reads them back with lb).
+void ssParticleGetVRGBValue(int age, s_char *r, s_char *g, s_char *b, void *curve, short *cache); // CT3 0x01898bc0
+// alpha: percent (lh; tiCalc_Orbit divides by 100).
+void ssParticleGetAlphaValue(int age, short *alpha, void *curve, short *cache);          // CT3 0x01898e60
+// u, v: the draw object's +0x78 / +0x7c (DRAW_OBJ_UV_U / _V).
+void ssParticleGetUVValue(int age, void *u, void *v, void *curve, short *cache);         // CT3 0x01898d20
