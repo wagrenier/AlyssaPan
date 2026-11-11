@@ -51,3 +51,10 @@ int tkXcmd_WaitUntil(int argc, char **argv, int bank)
     ALYSSAPAN_STUB("tkXcmd_WaitUntil", 0x018ee5a0);
     return {};
 }
+
+// stub of CT3 0x018ede90
+short tkBri_DoorDraw_GetBnkId(u_long roomHash)
+{
+    ALYSSAPAN_STUB("tkBri_DoorDraw_GetBnkId", 0x018ede90);
+    return {};
+}

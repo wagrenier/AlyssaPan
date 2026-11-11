@@ -7,6 +7,7 @@
 // key map, the letter list. Left: Balows2th, and the boss commands whose pointer words wait for the boss
 // TU's host layout (SetWarp, the SCISSORS_MAN attack, SetChain*, GetBloodAttackObject), and the rest.
 // Slice 3 (2026-11-11): the key-config commands, life and status bar, item slots, memory-card ids, stereo.
+// Slice 8 (2026-11-11): scale, rotation, the scene animation skip, the caption flag, the character's room.
 
 #include <math.h>
 #include <stdlib.h>
@@ -23,6 +24,7 @@
 #include "game/LinkMatrixTree.h"
 #include "game/main.h"
 #include "game/ssGrpPortalCheck.h"
+#include "game/tkXDTrg_GetSceneHash.h"
 #include "game/unassigned_data.h"
 #include "game/wideXcmd_DebugPrint.h"
 #include "ga/gaInit3dlib.h"
@@ -1746,25 +1748,71 @@ int tiXcmd_SPAttack_SCISSORS_MAN(int argc, char **argv, int bank)
     return {};
 }
 
-// stub of CT3 0x018e86d0
+// CT3 0x018e86d0: the bank's scene animation argv[0] jumps to the frame the variable argv[1] (global
+// argv[2]) holds, in script frames (x XCMD_FRAME_TIME); argv[3] picks the tracks as the seek bar's
+// SEEKBAR_ANIM_* do (0: pose and vertex, 1: the other tracks, 2: by part). The same call as
+// asSeekBarInitializeForX's, from -1 (the current frame) instead of 0.
 int tiXcmd_SceneAnimationSkipToVariable(int argc, char **argv, int bank)
 {
-    ALYSSAPAN_STUB("tiXcmd_SceneAnimationSkipToVariable", 0x018e86d0);
-    return {};
+    int var = atoi(argv[1]) & 0xffff;
+    int frame = ssTrigGetVariable(var, atoi(argv[2]), bank);
+    int mode = atoi(argv[3]);
+
+    (void)argc;
+    if (mode == SEEKBAR_ANIM_2)
+        asSceneAnimationStart(1.0f, 0, All_table_TBL[bank], -1, frame * XCMD_FRAME_TIME, atoi(argv[0]) & 0xffff,
+                              0, 0, 1, 0, 1, 0, SCENE_ANIM_SCENE, 0);
+    else if (mode == SEEKBAR_ANIM_1)
+        asSceneAnimationStart(1.0f, 0, All_table_TBL[bank], -1, frame * XCMD_FRAME_TIME, atoi(argv[0]) & 0xffff,
+                              0, 1, 0, 0, 1, 0, SCENE_ANIM_SCENE, 0);
+    else if (mode == SEEKBAR_ANIM_0)
+        asSceneAnimationStart(1.0f, 0, All_table_TBL[bank], -1, frame * XCMD_FRAME_TIME, atoi(argv[0]) & 0xffff,
+                              1, 0, 0, 0, 1, 0, SCENE_ANIM_SCENE, 0);
+    return XCMD_DONE;
 }
 
-// stub of CT3 0x018e89d0
+// CT3 0x018e89d0: part argv[0] of the bank turns by argv[2] degrees about the axis argv[1]
+// (ROTATION_AXIS_*): placeRot = placeRot * R (gaMulMatrix's order), and the part is marked as placed.
+// An unknown axis multiplies by the unit matrix. A PARTS_KIND_ITEM_LOCKED part is left alone.
 int tiXcmd_SetRotation(int argc, char **argv, int bank)
 {
-    ALYSSAPAN_STUB("tiXcmd_SetRotation", 0x018e89d0);
-    return {};
+    MODEL_PARTS *part = TiPart(bank, atoi(argv[0]));
+    float deg = atoff(argv[2]);
+    alignas(16) float rot[4][4];
+    int axis;
+
+    (void)argc;
+    if (part->kind == PARTS_KIND_ITEM_LOCKED)
+        return XCMD_DONE;
+    part->flags43 |= PARTS_FLAG43_WARPED;
+    // The unit matrix: vf0 (0, 0, 0, 1) turned by VMR32 three times, stored row 3 up to row 0.
+    memset(rot, 0, sizeof(rot));
+    rot[0][0] = rot[1][1] = rot[2][2] = rot[3][3] = 1.0f;
+    axis = atoi(argv[1]);
+    if (axis == ROTATION_AXIS_Z)
+        gaSetRotMatrixZ(rot, DEGREES_TO_GA_ANGLE(deg));
+    else if (axis == ROTATION_AXIS_Y)
+        gaSetRotMatrixY(rot, DEGREES_TO_GA_ANGLE(deg));
+    else if (axis == ROTATION_AXIS_X)
+        gaSetRotMatrixX(rot, DEGREES_TO_GA_ANGLE(deg));
+    gaMulMatrix(part->placeRot, rot, part->placeRot);
+    return XCMD_DONE;
 }
 
-// stub of CT3 0x018e8930
+// CT3 0x018e8930: part argv[0] of the bank scales by argv[1] (scale.xyz *= the factor: VMULx.xyz, w kept).
+// A PARTS_KIND_ITEM_LOCKED part is left alone.
 int tiXcmd_SetScale(int argc, char **argv, int bank)
 {
-    ALYSSAPAN_STUB("tiXcmd_SetScale", 0x018e8930);
-    return {};
+    MODEL_PARTS *part = TiPart(bank, atoi(argv[0]));
+    float factor = atoff(argv[1]);
+
+    (void)argc;
+    if (part->kind != PARTS_KIND_ITEM_LOCKED) {
+        part->scale[0] *= factor;
+        part->scale[1] *= factor;
+        part->scale[2] *= factor;
+    }
+    return XCMD_DONE;
 }
 
 // stub of CT3 0x018e6330
@@ -1774,18 +1822,78 @@ int tiXcmd_UseItem(int argc, char **argv, int bank)
     return {};
 }
 
-// stub of CT3 0x018e8bc0
-int tkXcmd_CaptionFlag(int argc, char **argv, int bank)
+// CT3 0x018e8e70: a scope argument's first character -> XCMD_SCOPE_*: a digit '0'..'2' is itself, "t" the
+// bank, "g" global, "n" a literal number (either case).
+// PORT: any other character returns XCMD_SCOPE_BANK; the ROM returns v0 as it came in (at both callers
+// the atoi of argv[0] just before).
+int tkXcmd_GetValueType(const char *arg)
 {
-    ALYSSAPAN_STUB("tkXcmd_CaptionFlag", 0x018e8bc0);
-    return {};
+    char c = arg[0];
+
+    if (c >= '0' && c <= '2')
+        return c - '0';
+    if (c == 'n' || c == 'N')
+        return XCMD_SCOPE_LITERAL;
+    if (c == 'g' || c == 'G')
+        return XCMD_SCOPE_GLOBAL;
+    return XCMD_SCOPE_BANK;             /* 't' / 'T', and the PORT case */
 }
 
-// stub of CT3 0x018e8d20
+// CT3 0x018e8bc0: ties the event argv[0] (scope argv[1], a letter) to OMAKE_FLAG's OMAKE_2 (the caption
+// extra). With no third argument or "g", the event is registered while OMAKE_2 is set and removed while
+// not; with "s", OMAKE_2 takes the event's state; any other third argument (or a count other than 2 / 3)
+// does nothing.
+int tkXcmd_CaptionFlag(int argc, char **argv, int bank)
+{
+    int dir = CAPTION_FLAG_TO_EVENT;
+    int event, scope;
+
+    if (argc == 3) {
+        char c = argv[2][0];
+
+        if (c == 's' || c == 'S' || c == '1')
+            dir = CAPTION_FLAG_FROM_EVENT;
+        else if (c != 'g' && c != 'G' && c != '0')
+            dir = CAPTION_FLAG_IGNORED;
+        if (dir == CAPTION_FLAG_IGNORED)
+            return XCMD_DONE;
+    } else if (argc != 2) {
+        return XCMD_DONE;
+    }
+    event = atoi(argv[0]);
+    scope = tkXcmd_GetValueType(argv[1]);
+    if (dir == CAPTION_FLAG_TO_EVENT) {
+        if (OMAKE_FLAG & OMAKE_2)
+            ssTrigRegisterEvent(event, scope, bank);
+        else
+            ssTrigRemoveEvent(event, scope, bank);
+    } else if (ssTrigCheckEvent(event, scope, bank)) {
+        OMAKE_FLAG |= OMAKE_2;
+    } else {
+        OMAKE_FLAG &= ~(u_int)OMAKE_2;
+    }
+    return XCMD_DONE;
+}
+
+// CT3 0x018e8d20: moves Character[argv[0]] to another room. Three arguments: roomHash = the hash of the
+// name argv[1], lightBank = argv[2]; two: lightBank = the bank that draws that room
+// (tkBri_DoorDraw_GetBnkId); one: no room, no light bank.
 int tkXcmd_CharSceneChange(int argc, char **argv, int bank)
 {
-    ALYSSAPAN_STUB("tkXcmd_CharSceneChange", 0x018e8d20);
-    return {};
+    CHARACTER *ch = &Character[(short)atoi(argv[0])];
+
+    (void)bank;
+    if (argc == 3) {
+        ch->roomHash = ahGetHash(argv[1]);
+        ch->lightBank = (short)atoi(argv[2]);
+    } else if (argc == 2) {
+        ch->roomHash = ahGetHash(argv[1]);
+        ch->lightBank = tkBri_DoorDraw_GetBnkId(ch->roomHash);
+    } else if (argc == 1) {
+        ch->roomHash = 0;
+        ch->lightBank = -1;
+    }
+    return XCMD_DONE;
 }
 
 // stub of CT3 0x018e8f00

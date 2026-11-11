@@ -7,6 +7,11 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-11) **Ghidra decompiles a function to an empty `void f(void) { return; }` when its only output is
+  v0 set on some paths.** tkXcmd_GetValueType (0x018e8e70) reads `a0[0]` and answers 0 / 1 / 2 or leaves
+  v0 untouched; Ghidra showed nothing. When a "todo" body is empty but the function is 0x80 bytes, read
+  `mipsdis.py lo hi`. Likewise "void" x commands: check v0 at `jr ra` (tiXcmd_SetScale sets v0 = 1 before
+  its branch, so it returns XCMD_DONE).
 - (2026-11-11) **A black picture with the right ambient in partsPos: the object's +0x38 word was 0.** The
   ambient lives in ALL_TABLE.partsPos, but the draw reads it through the ga object's +0x38 EE word, which
   only `ssSetAmbColorToAllObj` (scene_init) writes -- a silent stub (it returns nothing, nothing checks).

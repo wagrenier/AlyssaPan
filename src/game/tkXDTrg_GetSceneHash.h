@@ -8,6 +8,9 @@ void tkXcmd_DoorTrigger_Init(void);                                             
 // From data_save_set / data_load_set (Character_Init.c, 2026-11-10).
 void tkXcmd_DoorFlagClear(u_char *eventFlags);                                           // CT3 0x018ed320
 void SceneDoorFlagClear(u_long roomHash);                                                // CT3 0x018eda60
+// From tkXcmd_CharSceneChange (tiXcmd_TransItem.c, 2026-11-11): a room's hash -> the bank that draws it
+// (stored as CHARACTER.lightBank, a short).
+short tkBri_DoorDraw_GetBnkId(u_long roomHash);                                          // CT3 0x018ede90
 
 // The x commands (ssXcmd_functions slots, ssTrigExecuteActCmd's command 0x514): declared with the
 // table's SS_XCMD shape (xcmd_tn.h) until this TU's session reads each one (2026-11-11).

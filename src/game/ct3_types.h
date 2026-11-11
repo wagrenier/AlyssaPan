@@ -482,7 +482,8 @@ typedef struct MODEL_PARTS {
                                            row 3 (asObjectRotate sets or turns them) */
     float drawOnPos[4];                 /* 0x2f0: part 0's: where the bank was placed (a save keeps it;
                                            TrgSceneDraw(.., -2, ..) places it at DrawOnPosSetVectorTemp) */
-    u_char pad300[0x10];
+    float scale[4];                     /* 0x300: the part's scale (LinkMatrixTree's REC_SCALE); tiXcmd_SetScale
+                                           multiplies x, y, z by a factor, w kept */
     float lightColor[4];              /* 0x310: as a light source (SceneLightSet, CharLightSet) */
     float lightPos[4];                  /* 0x320: as a light source; w: falloff (1 = Omni0/1_num) */
     u_char pad330[0x50];
@@ -493,6 +494,7 @@ static_assert(offsetof(MODEL_PARTS, warpH54) == 0x54, "MODEL_PARTS.warpH54");
 static_assert(offsetof(MODEL_PARTS, losAlpha) == 0x124, "MODEL_PARTS.losAlpha");
 static_assert(offsetof(MODEL_PARTS, distAlpha) == 0x128, "MODEL_PARTS.distAlpha");
 static_assert(offsetof(MODEL_PARTS, angleAlpha) == 0x12c, "MODEL_PARTS.angleAlpha");
+static_assert(offsetof(MODEL_PARTS, scale) == 0x300, "MODEL_PARTS.scale");
 static_assert(offsetof(MODEL_PARTS, pos) == 0x130, "MODEL_PARTS.pos");
 static_assert(offsetof(MODEL_PARTS, lightColor) == 0x310, "MODEL_PARTS.lightColor");
 static_assert(offsetof(MODEL_PARTS, lightPos) == 0x320, "MODEL_PARTS.lightPos");

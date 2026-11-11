@@ -110,7 +110,25 @@ enum {
 
 // tiXcmd_CompareVariable: an operand whose global argument is XCMD_SCOPE_LITERAL is the number itself
 // (tkXcmd_GetValueType answers 2 for the same); the answer goes to a variable as COMPARE_*.
-#define XCMD_SCOPE_LITERAL 2
+// Slice 8 (2026-11-11): the scope argument of ssTrigRegisterEvent / ssTrigGetVariable and the rest, as
+// tkXcmd_GetValueType reads it from a letter or a digit.
+#define XCMD_SCOPE_BANK 0               /* "t" / "T" / "0": the running bank's own events and variables */
+#define XCMD_SCOPE_GLOBAL 1             /* "g" / "G" / "1" */
+#define XCMD_SCOPE_LITERAL 2            /* "n" / "N" / "2": the argument is the number itself */
+int tkXcmd_GetValueType(const char *arg);                                                // CT3 0x018e8e70
+// tkXcmd_CaptionFlag's optional third argument: which way OMAKE_2 and the event go.
+enum {
+    CAPTION_FLAG_TO_EVENT = 0,          /* no third argument, "g" / "G" / "0": the event follows OMAKE_2 */
+    CAPTION_FLAG_FROM_EVENT = 1,        /* "s" / "S" / "1": OMAKE_2 follows the event */
+    CAPTION_FLAG_IGNORED = 2,           /* any other third argument: the command does nothing */
+};
+// tiXcmd_SetRotation's axis argument.
+enum {
+    ROTATION_AXIS_X = 0,
+    ROTATION_AXIS_Y = 1,
+    ROTATION_AXIS_Z = 2,
+};
+#define DEGREES_TO_GA_ANGLE(deg) ((int)(((deg) * 65536.0f) / 360.0f) & 0xffff) /* gaSin's 16-bit turn */
 // tiXcmd_CopySunPs2Object copies this much of a texture upload packet (SUN_TBUFFER_DATA is 0xd8; the ROM
 // copies 0x100, as tex_A$2748 holds).
 #define TI_TBUFFER_COPY_SIZE 0x100
