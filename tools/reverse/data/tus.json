@@ -56,7 +56,7 @@
    "task": "First picture, 2D: once banks load (the file server), find the first 2D thing the game draws (title, logo or a menu sprite, whichever the smoke run reaches first) and route its packet-writing step to UiCanvas; textures decoded at their source. Done when the screenshot shows it like the game's own asset at 4:3 and at a wide aspect (DisplayGeometry anchoring). If the first 2D draw is in a game TU, write that TU's slice here as the way in, and say so."
   },
   "ga/gaBGT_DrawObject.c": {
-   "notes": "VU1 maths in GaMeshRecorder::project / cull (architecture.md The VU1 object program). obj +0x70 / +0x78 are floats (Z offset + fog base, ST offset), not GS registers. Smoke run: obj +0x58 matrix all zeros (asChangeViewMatrix_forTheBank stub), view z 0, nothing drawn. Left: texture from the tbuffer upload, depth and fog in the draw, CT3 window origin in UiCanvas (centre 2304, 2272), light1 lighting (0x296 / 0x40b), billboard / clipped paths. vudis misprints iaddiu imm, mtir and div fields (hazards.md). open-items.md item 4.",
+   "notes": "Game code complete (nc2_light2 dead). Not reached by the smoke run: gaObjectClippingCheck is a stub, ATLD draws through nc2; shot still black (object matrix zero until the camera TU). Host left: texture, depth and fog, frame end, CT3 window origin in UiCanvas, light1 lighting, billboards not handed over (local view unread), light2 lit as light1, shadow-volume objects with EE words outside a bank (open-items item 4 slice 3).",
    "ranges": [
     [
      "018a3148",
@@ -73,6 +73,11 @@
      "date": "2026-11-10 20:57",
      "status": "partial",
      "summary": "slice 2: the light0 VU1 object program read (transform 0x04d, projection 0x0f5, cull 0x1fe / 0x22c) and run on the host per object; each frame's triangles go to UiCanvas, squeezed at wide aspects; still black: ATLD's object matrix is zero until the camera TU"
+    },
+    {
+     "date": "2026-11-10 21:15",
+     "status": "partial",
+     "summary": "slice 3: the clipped path (gaBGT_DrawObject), NoClippingCheck and the billboard jump into it, SetupDma_light0/1/2 build the ROM packet and hand the object to the host module; every function of the TU written; gaDrawObject.c and Redraw_Polygon stubbed"
     }
    ],
    "status": "partial",

@@ -903,6 +903,21 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    ui_canvas.cpp check must set CT3's; (e) light1's lighting (0x296 / 0x40b; light1 meshes are grey);
    (c) as before. Doubt: GA_OBJ_REG70 / REG78 are floats (Z offset + fog base, ST offset), so their names
    in gaBGT_DrawObject.h and the AlyssaPanGaObject fields are kept for now but mislead.
+   **Slice 3 (2026-11-10):** (c) done for the game code -- gaBGT_DrawObject (the clipped path),
+   gaBGT_DrawObject_NoClippingCheck (and NoClippingCheck2's billboard jump into it), SetupDma_light0 / 1 / 2
+   (architecture.md "The ga draw object's clipped path"): **every function of the TU is written** (nc2_light2
+   read, dead). Their callees are new stub TUs: ga/gaDrawObject.c (11: the local view on VU0, the index
+   passes, the reference tables, SetBig / SetNear) and ga/gaDrawObject_Redraw_Polygon.c (1); no smoke run
+   reaches them yet (gaObjectClippingCheck is a stub). Left for the host module, as before: (b') the
+   texture, depth and fog, the frame end, CT3's window origin in UiCanvas; (e) light1's lighting; new:
+   (f) billboards are not handed to the host (their local view, gaDrawObject_VertexLocalView*_Billboard, is
+   not read: the host's full-matrix transform would turn them); (g) light2 (VU1 MSCAL 0xa) is lit as light1;
+   (h) the shadow volume's objects (ahRelocateSunPs2ObjectArry.c slice 13) carry EE words outside any bank
+   (the template's light work 0x01937820 / 0x01937830, 0x01941840): ObjEePtr resolves through the object's
+   bank, so those objects need another resolver when they reach a draw call. Doubts: the light0 set-up's
+   index-qword stores (+0x10 CNT, +0x14 MSCNT) and lit's (+0x10 MSCNT) are written as the ROM writes them,
+   unexplained until gaDrawObject_RemakeIndex* is read; GA_OBJ_FLAG2_NEAR (byte +2 & 0x04) is named from
+   this one use.
 
 ## Decisions
 

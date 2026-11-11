@@ -215,7 +215,13 @@ static_assert(sizeof(GA_LOADENV) == 0x70, "GA_LOADENV");
 typedef struct GA_SPR_WORK {
     u_char pad000[0x14];
     u_int divRedrawPacketEE;            /* 0x014: ga_div_redraw_gspacket_work (0x01957e40), uncached-accelerated */
-    u_char pad018[0x18];
+    u_char pad018[0x8];
+    u_int divRedrawIndexEE;             /* 0x020: gaBGT_DrawObject: ga_div_redraw_index_work (0x01a2be40) */
+    u_int divRedrawVertexEE;            /* 0x024: gaBGT_DrawObject: ga_div_redraw_vertex_work (0x01a2c640) */
+    u_int bigDivIndexEE;                /* 0x028: gaBGT_DrawObject: the big-polygon cursor, from
+                                           ga_bigdiv_index_work (0x0193e6c0); moved = gaDrawObject_SetBig */
+    u_int nearDivIndexEE;               /* 0x02c: gaBGT_DrawObject: the near-polygon cursor, from
+                                           ga_neardiv_index_work (0x0193e8c0); moved = gaDrawObject_SetNear */
     float viewScaleX;                   /* 0x030: work[2] / work[0] */
     float viewScaleY;                   /* 0x034: work[3] / work[1] */
     float zScale;                       /* 0x038: 1 / (work[11] - work[10]) */
@@ -231,7 +237,7 @@ typedef struct GA_SPR_WORK {
     float work26;                       /* 0x070: work[26] */
     float work27;                       /* 0x074: work[27] */
     u_long objReg70;                    /* 0x078: the draw object's +0x70 GS register value (gaBGT_DrawObject's set-ups) */
-    u_int zero080;                      /* 0x080: 0 (the set-ups) */
+    u_int vertexSkip;                   /* 0x080: 0 (the nc2 set-ups); vertexCount - drawVertexCount (the clipped) */
     u_int vertexCount;                  /* 0x084: the object's vertex count (the set-ups) */
     u_int primCount;                    /* 0x088: the object's primitive count (the set-ups) */
     float work6b;                      /* 0x08c: work[6] again */
@@ -250,7 +256,14 @@ typedef struct GA_SPR_WORK {
     u_int pad0e8;
     u_int work3dlibEE;                 /* 0x0ec: the 3dlib work gaInit3dlibWork was given (EE 0x70000400) */
     u_int bgtPacketEE;                  /* 0x0f0: the BGT packet area (EE 0x70000a00), set by gaBGT_Start */
-    u_char pad0f4[0x1c];
+    u_int vertexPacketEE;               /* 0x0f4: the clipped path: the vertex block in the packet (packet + 0xd0
+                                           light0, + 0xc0 light1 / light2) */
+    u_int stPacketEE;                   /* 0x0f8: gaDrawObject_VertexLocalView*: the end of the vertex block */
+    u_int indexPacketEE;                /* 0x0fc: the clipped path: the index block (0xf8 + 0x10 light0, + 0x170
+                                           light1 / light2) */
+    u_int tailPacketEE;                 /* 0x100: after the index block (gaDrawObject_RemakeIndex*) */
+    u_int packetEndEE;                  /* 0x104: the set-ups: the packet's end (the D8 copy's length) */
+    u_char pad108[0x8];
     u_int vifMscal6[4];                 /* 0x110: NOP NOP NOP MSCAL 6 */
     u_int vifFlushMscntFlushe[4];       /* 0x120: FLUSH MSCNT FLUSHE NOP */
     u_int vifFlusheMscntFlushe[4];      /* 0x130: FLUSHE MSCNT FLUSHE NOP */
@@ -259,7 +272,9 @@ typedef struct GA_SPR_WORK {
     u_int vifMscal8[4];                 /* 0x160: NOP NOP NOP MSCAL 8 */
     u_int vifMscnt[4];                  /* 0x170: NOP NOP NOP MSCNT */
     u_int vifMscalA[4];                 /* 0x180: NOP NOP NOP MSCAL 0xa */
-    u_char pad190[0xa0];
+    u_char pad190[0x90];
+    u_int drawAttr;                     /* 0x220: gaBGT_DrawObject*: the attr argument (a GS upload or 0) */
+    u_char pad224[0xc];                 /* 0x224: the caller's ra; 0x240.. s0..s7 */
     float minusHalf230;                 /* 0x230: -0.5 */
     float half234;                      /* 0x234: 0.5 */
     u_int pad238;
@@ -280,6 +295,9 @@ static_assert(offsetof(GA_SPR_WORK, objLight) == 0xcc, "GA_SPR_WORK.objLight");
 static_assert(offsetof(GA_SPR_WORK, drawPrimCount) == 0xe0, "GA_SPR_WORK.drawPrimCount");
 static_assert(offsetof(GA_SPR_WORK, vifMscal6) == 0x110, "GA_SPR_WORK.vifMscal6");
 static_assert(offsetof(GA_SPR_WORK, minusHalf230) == 0x230, "GA_SPR_WORK.minusHalf230");
+static_assert(offsetof(GA_SPR_WORK, nearDivIndexEE) == 0x2c, "GA_SPR_WORK.nearDivIndexEE");
+static_assert(offsetof(GA_SPR_WORK, packetEndEE) == 0x104, "GA_SPR_WORK.packetEndEE");
+static_assert(offsetof(GA_SPR_WORK, drawAttr) == 0x220, "GA_SPR_WORK.drawAttr");
 static_assert(sizeof(GA_SPR_WORK) == 0x240, "GA_SPR_WORK");
 
 #define GA_SPR_WORK_OFFSET 0x000

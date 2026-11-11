@@ -469,6 +469,35 @@ Read with `vudis.py 18ff430 335 --all` (mind hazards.md's vudis misprints). Micr
   ATLD's object matrix (obj +0x58) is all zeros (asChangeViewMatrix_forTheBank and the camera are stubs),
   so v'.z = 0 and nothing is drawn.
 
+## The ga draw object's clipped path, ga/gaBGT_DrawObject.c (2026-11-10, slice 3)
+
+- **gaBGT_DrawObject** (0x018a3150, the clipped path) points GA_SPR_WORK 0x20..0x2c at the division
+  buffers (ga_div_redraw_index_work 0x01a2be40, ga_div_redraw_vertex_work 0x01a2c640, the cursors
+  ga_bigdiv_index_work 0x0193e6c0 / ga_neardiv_index_work 0x0193e8c0), then per light kind (flags & 0x1c:
+  0 / 8 / 0x10 = light0 / 1 / 2, anything else a `break`): vertex block at packet + 0xd0 (light0) or + 0xc0
+  (lit) -> 0xf4; gaDrawObject_VertexLocalViewWithClippingFlagSet (or _Billboard when flags & 0x20), which
+  leaves the vertex block's end in 0xf8; index block at 0xf8 + 0x10 (light0) / + 0x170 (lit) -> 0xfc;
+  RemakeIndexWithClippingCheck (or _WithNear when the object's byte +2 & 0x04); if primitives remain
+  (0xe0): MakeVertexReferenceTable, the set-up, the D8 copy, the packet flip. The end: SetNear if the near
+  cursor moved (near pass only), SetBig if the big cursor moved, then gaDrawObject_Redraw_Polygon always.
+  ROM slip: near pass + light2 + not a billboard jumps into light1's chain (0x018a385c `j 0x018a3754`).
+- **gaBGT_DrawObject_NoClippingCheck** (0x018a3958) is the same chain with VertexLocalView(_Billboard),
+  RemakeIndex, MakeVertexReferenceTableNoClip and no end; light2 goes to light1's chain (its own at
+  0x018a3c08 is dead). NoClippingCheck2's billboard objects jump into its body at 0x018a3984.
+- **The set-ups** (SetupDma_light0 / 1 / 2; light1 and light2 differ only in the MSCAL REF: scratchpad
+  0x110 MSCAL 6 vs 0x180 MSCAL 0xa): 0x80 = vertexCount - 0xe4, 0x84 = vertexCount, 0x88 = 0xe0 (the
+  remade prim count); the header is CNT 11 + UNPACK V4-32 10 qwords to VU1 0x1a0 (the 3dlib 0x60..0x90, the
+  position, light matrix for lit, scratchpad 0xb0 / 0xc0; no object matrix: the vertices arrive in the local
+  view). light0: colours REF at packet + 0xc0, MSCAL 2 in the vertex block's VIF qword, ST REF at 0xf8,
+  index qword +0x10 = CNT / MSCNT. Lit: at 0xf8 REF normals (n + 1), REF MSCAL, REF colours, CNT 17 + the
+  light work copied in, REF FLUSHE MSCNT FLUSHE, REF ST; index qword +0x10 = MSCNT. The tail at 0x100 (left
+  by RemakeIndex): with attr, CNT 1 + FLUSH, REF the upload (halfword qwc at attr, data at attr + 0x10,
+  SPR bit if in the scratchpad), then REF FLUSH MSCNT FLUSHE; 0x104 = the end.
+- Host: the set-ups build that packet in the scratchpad and hand the object, whole, to the draw module
+  (the GPU clips; the EE's big / near division is the GS's workaround); billboards are not handed over yet
+  (their local view is not read), light2 is lit as light1. The 15 s smoke run of 2026-11-10 reaches neither
+  gaBGT_DrawObject nor the gaDrawObject stubs (gaObjectClippingCheck is a stub; ATLD draws through nc2).
+
 ## The file layer, game/ArtoolDebugOpen.c (2026-11-10)
 
 `IopLoadModules` reboots the IOP with `cdrom0:\IOP\IOPRP255.IMG;1` and loads the ten modules from

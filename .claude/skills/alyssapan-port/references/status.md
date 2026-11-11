@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-10 20:57 at commit `4592d7a` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-10 21:15 at commit `7335e76` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,13 +30,15 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **816**; stubs: **177**
+- reconstructed CT3 functions: **821**; stubs: **189**
 
 | file | reconstructed | stubs |
 |---|---|---|
-| `src/ga/gaBGT_DrawObject.c` | 3 | 1 |
+| `src/ga/gaBGT_DrawObject.c` | 8 | 0 |
 | `src/ga/gaDma.c` | 16 | 0 |
 | `src/ga/gaDmaSync_VIF1.c` | 6 | 0 |
+| `src/ga/gaDrawObject.c` | 0 | 11 |
+| `src/ga/gaDrawObject_Redraw_Polygon.c` | 0 | 1 |
 | `src/ga/gaInit3dlib.c` | 25 | 0 |
 | `src/ga/gaInitDrawObject.c` | 24 | 0 |
 | `src/ga/gaInitInterrupt.c` | 3 | 0 |
@@ -93,7 +95,7 @@ Least-named game-code regions (64 KB blocks):
 - 65 TUs: todo 40, partial 2, verify 23, done 4, blocked 1
 - next: **ga/gaBGT_DrawObject.c** (pinned in the queue)
 - pinned queue: ga/gaBGT_DrawObject.c, game/asEyeForcusUP2CamMat.c, alyssapan/rendering/ui_canvas.cpp, game/ssGrpPortalCheck.c, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
-- partial: `ga/gaBGT_DrawObject.c` 3/9 -- VU1 maths in GaMeshRecorder::project / cull (architecture.md The VU1 object program). obj +0x70 / +0x78 are floats (Z offset + fog base, ST offset), not GS regi
+- partial: `ga/gaBGT_DrawObject.c` 8/9 -- Game code complete (nc2_light2 dead). Not reached by the smoke run: gaObjectClippingCheck is a stub, ATLD draws through nc2; shot still black (object matrix zer
 - partial: `game/wideXcmd_DebugPrint.c` 107/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed) -- the last function of the TU. New stubs
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaDmaSync_VIF1.c` 5/5 -- Host: kicks leave CHCR.STR clear (the transfer is over), so the syncs return at once; the BGT send keeps the copy and the flip, the packet goes nowhere (draw mo
@@ -122,6 +124,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-10 21:15 `ga/gaBGT_DrawObject.c` partial: slice 3: the clipped path (gaBGT_DrawObject), NoClippingCheck and the billboard jump into it, SetupDma_light0/1/2 build the ROM packet and hand the object to th
 - 2026-11-10 20:57 `ga/gaBGT_DrawObject.c` partial: slice 2: the light0 VU1 object program read (transform 0x04d, projection 0x0f5, cull 0x1fe / 0x22c) and run on the host per object; each frame's triangles go to
 - 2026-11-10 20:45 `ga/gaBGT_DrawObject.c` partial: slice 1: the no-clip path (NoClippingCheck2, nc2 light0 and light1) hands each ga draw object to the new host module AlyssaPan_DrawGaObject (GaMeshRecorder); AT
 - 2026-11-10 20:29 `alyssapan/rendering/ui_canvas.cpp` blocked: First screen found: ATLD, the memory-card check, drawn as world-space quads through gaBGT_DrawObject_NoClippingCheck2 (no 2D packet step); ct3pack.py reads CT3P
@@ -129,7 +132,6 @@ Recent sessions:
 - 2026-11-10 19:50 `game/wideXcmd_DebugPrint.c` partial: slice 9: the ground key-table entries -- standing, walking, running and the run stop (iRunCount), the move end, crouching and crawling (KEY_MAP_HIDE is the crou
 - 2026-11-10 19:35 `game/wideXcmd_DebugPrint.c` partial: slice 8: the cat walk (fall, hidden feet part, death drop), the lever-mash locks (asPIA1_KEY_TBL_LOCK), panic run / stand (confirms the panic event answers), hi
 - 2026-11-10 19:18 `game/wideXcmd_DebugPrint.c` partial: slice 7: the pad move (asCharacterMoveByPad: tank and camera-relative steering, the turn-around flag PIA_KEY.h0c; asCharacterMoveByPadUD), the panic events (asP
-- 2026-11-10 18:56 `game/wideXcmd_DebugPrint.c` partial: slice 6: the player key dispatch (asPlayerInputAnalyze with its typed tables asPIA0 / asPIA1 / asPIAK, every key-table entry now (CHARACTER *, PIA_KEY *)), 19 s
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
@@ -138,13 +140,13 @@ Recent sessions:
 | `game/ssSetTexUVforCubeMap.c` | todo | 0/31/96 | 35.3 | 86 | 9 |
 | `game/CpDivideEECom.c` | todo | 0/10/18 | 3.3 | 80 | 10 |
 | `game/asEyeForcusUP2CamMat.c` | todo | 0/9/30 | 23.6 | 57 | 6 |
+| `ga/gaDrawObject.c` | todo | 0/11/11 | 6.9 | 39 | 0 |
 | `game/tiAvoidObject.c` | todo | 0/7/82 | 30.5 | 27 | 4 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/ssHitCheckAttackToScn.c` | todo | 0/5/37 | 32.0 | 22 | 3 |
-| `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
 | `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
+| `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
 | `game/asUseArrow.c` | todo | 0/6/11 | 6.4 | 16 | 1 |
-| `game/tkXDTrg_GetSceneHash.c` | todo | 0/3/50 | 21.0 | 14 | 2 |
 
 ## Frontier (called by reconstructed code, not written yet)
 
@@ -159,10 +161,12 @@ Recent sessions:
 | `018d1e70` | CpGetEEIOPStatus | 14 | sym | stub | game/CpDivideEECom.c |
 | `01886690` | asChangeViewMatrix_forTheBank | 12 | sym | stub | game/asEyeForcusUP2CamMat.c |
 | `0188ced0` | tiDrawShadingOff | 9 | sym | stub | game/Clipping_Portal.c |
-| `018a3150` | gaBGT_DrawObject | 8 | sym | stub | ga/gaBGT_DrawObject.c |
 | `01893cf0` | ExportDrawToTex | 8 | sym | stub | game/Clipping_Portal.c |
 | `018a3078` | gaObjectClippingCheck | 7 | sym | stub | ga/gaObjectClippingCheck.c |
 | `0188d3c0` | tiFade_Start | 6 | sym | stub | game/Clipping_Portal.c |
+| `018a4fe0` | gaDrawObject_VertexLocalViewWithClippingFlagSet | 6 | sym | stub | ga/gaDrawObject.c |
+| `018a51e8` | gaDrawObject_VertexLocalViewWithClippingFlagSet_Billboard | 6 | sym | stub | ga/gaDrawObject.c |
+| `018a5fe0` | gaDrawObject_MakeVertexReferenceTable | 6 | sym | stub | ga/gaDrawObject.c |
 | `018518d0` | ConvertMatrix2Quat | 6 | sym | stub | game/Convert.c |
 | `0188cdc0` | tiVibrationOff | 6 | sym | stub | game/Clipping_Portal.c |
 | `018d1fa0` | CpSifDmaTransEEToIOP | 6 | sym | stub | game/CpDivideEECom.c |
@@ -176,18 +180,16 @@ Recent sessions:
 | `01889cd0` | Clipping_Portal | 4 | sym | stub | game/Clipping_Portal.c |
 | `018a0b40` | gaPadRead | 4 | sym | stub | ga/pad_button_read.c |
 | `018db340` | asXcmd_AddForLockToTargChara | 3 | sym | stub | game/asXcmd.c |
+| `018a53c8` | gaDrawObject_RemakeIndexWithClippingCheck | 3 | sym | stub | ga/gaDrawObject.c |
+| `018a5730` | gaDrawObject_RemakeIndexWithClippingCheck_WithNear | 3 | sym | stub | ga/gaDrawObject.c |
+| `018a5100` | gaDrawObject_VertexLocalView | 3 | sym | stub | ga/gaDrawObject.c |
+| `018a52f0` | gaDrawObject_VertexLocalView_Billboard | 3 | sym | stub | ga/gaDrawObject.c |
+| `018a5b88` | gaDrawObject_RemakeIndex | 3 | sym | stub | ga/gaDrawObject.c |
+| `018a6038` | gaDrawObject_MakeVertexReferenceTableNoClip | 3 | sym | stub | ga/gaDrawObject.c |
 | `018870c0` | camera_init0 | 3 | sym | stub | game/asEyeForcusUP2CamMat.c |
 | `01886dc0` | CamChange_S | 3 | sym | stub | game/asEyeForcusUP2CamMat.c |
 | `018881a0` | camera_main | 3 | sym | stub | game/asEyeForcusUP2CamMat.c |
 | `0188df70` | tiDrawLensFlares | 3 | sym | stub | game/Clipping_Portal.c |
 | `0188cd70` | tiVibrationTimer | 3 | sym | stub | game/Clipping_Portal.c |
 | `018a8690` | gaDMAStopMessage_VIF1 | 3 | sym | stub | ga/wait.c |
-| `018c1ce0` | AA_videoDecAbort | 3 | sym | stub | game/AA_mpegTS.c |
-| `018666c0` | asInitArrowInfo | 2 | sym | stub | game/asUseArrow.c |
-| `01882c10` | asInitMothInfo | 2 | sym | stub | game/asMothRouteSearch.c |
-| `0189dec0` | ssBGT_ZBufferClear | 2 | sym | stub | game/ssSetTexUVforCubeMap.c |
-| `018eda60` | SceneDoorFlagClear | 2 | sym | stub | game/tkXDTrg_GetSceneHash.c |
-| `018aa950` | CheckLOS_Multi | 2 | sym | stub | game/ssHitCheckAttackToScn.c |
-| `018ab180` | CheckLOS | 2 | sym | stub | game/ssHitCheckAttackToScn.c |
-| `0189da90` | ssDOF_ClipObjectFromZRange | 2 | sym | stub | game/ssSetTexUVforCubeMap.c |
 

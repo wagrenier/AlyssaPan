@@ -20,10 +20,21 @@
 //
 // Read, not reconstructed (dead): gaBGT_DrawObject_nc2_SetupDma_light2 (0x018a4c78) -- the call at
 // 0x018a3f44 is never branched to (any light kind other than 0 goes to light1).
+//
+// Slice 3 (2026-11-10): the clipped path (gaBGT_DrawObject) and the shared local-view path
+// (gaBGT_DrawObject_NoClippingCheck, which NoClippingCheck2's billboard objects jump into at 0x018a3984),
+// with their set-ups SetupDma_light0 / 1 / 2, from the disassembly. There the EE puts the vertices in the
+// local view (gaDrawObject.c, VU0), remakes the index record with the clipping flags, and the packet's
+// vertex block holds the result; polygons too big or too near for the GS are divided and redrawn
+// (gaDrawObject_SetBig / SetNear, gaDrawObject_Redraw_Polygon). The set-ups build the packet in the
+// scratchpad as the ROM does; the host draw module gets the object read in place, as the nc2 set-ups give
+// it (PORT: the GPU clips, so the whole object goes; the EE's division is the GS's workaround).
 
 #include "common/alyssapan_stub.h"
 #include "ga/gaBGT_DrawObject.h"
 #include "ga/gaDmaSync_VIF1.h"
+#include "ga/gaDrawObject.h"
+#include "ga/gaDrawObject_Redraw_Polygon.h"
 #include "ga/gaInitDrawObject.h"
 #include "game/ahRelocateSunPs2ObjectArry.h"
 #include "game/ct3_types.h"
@@ -47,7 +58,7 @@ static const void *ObjEePtr(int bank, const u_char *obj, int offset)
 static void SetupHeader(GA_SPR_WORK *spr, const u_char *obj)
 {
     spr->objReg70 = *(const u_long *)(obj + GA_OBJ_REG70);
-    spr->zero080 = 0;
+    spr->vertexSkip = 0;
     spr->vertexCount = spr->drawVertexCount;
     spr->primCount = spr->drawPrimCount;
     *(u_short *)&spr->giftagTri[0] = (u_short)(spr->drawPrimCount | GIFTAG_EOP);
@@ -117,18 +128,251 @@ static void FlipPacketArea(GA_SPR_WORK *spr)
                            : SCRATCHPAD_EE_BASE + GA_SPR_BGT_PACKET;
 }
 
+// ---- the local-view set-ups (slice 3) ----
+
+// DMAtag / VIF code words the set-ups write.
+#define DMA_CNT 0x10000000u                     /* DMAtag id 1 (CNT); | qwc */
+#define DMA_REF 0x30000000u                     /* DMAtag id 3 (REF); | qwc */
+#define DMA_ADDR_SPR 0x80000000u                /* a DMAtag address in the scratchpad */
+#define VIF_FLUSH_CODE 0x11000000u
+#define VIF_MSCAL_CODE(addr) (0x14000000u | (addr))
+#define VIF_MSCNT_CODE 0x17000000u
+#define VIF_UNPACK_V4_32_CODE(num, addr) (0x6c000000u | ((u_int)(num) << 16) | (addr))
+
+#define GA_VU1_HEADER_ADDR 0x1a0                /* where the header qwords go in VU1 memory */
+#define GA_CLIP_HEADER_QWC 0x0b                 /* the clipped header: the VIF qword + 10 qwords */
+#define GA_CLIP_HEADER_UNPACK 10
+#define GA_LIGHT_WORK_QWC 0x11                  /* GA_LIGHT_WORK: 17 qwords */
+
+// Where each block sits in the packet (GA_SPR_WORK.bgtPacketEE): the header is 0xc0 bytes; light0 puts its
+// colours' REF after it, light1 / light2 send theirs after the vertices.
+#define GA_PKT_VERTEX_LIGHT0 0xd0
+#define GA_PKT_VERTEX_LIGHT1 0xc0
+#define GA_PKT_COLOUR_LIGHT0 0xc0
+// The index block after the vertex block's end (stPacketEE): light0 one REF (the ST), light1 / light2 the
+// normals, MSCAL, colours, the light work (CNT + 17 qwords), FLUSHE MSCNT FLUSHE and the ST.
+#define GA_PKT_INDEX_LIGHT0 0x10
+#define GA_PKT_INDEX_LIGHT1 0x170
+
+// A scratchpad EE address as a host pointer.
+static u_char *SprPtr(u_int ee)
+{
+    return (u_char *)SCRATCHPAD(ee - SCRATCHPAD_EE_BASE);
+}
+
+// A DMAtag's two low words.
+static void PutTag(u_char *p, u_int idQwc, u_int addr)
+{
+    ((u_int *)p)[0] = idQwc;
+    ((u_int *)p)[1] = addr;
+}
+
+// The qword counts of the object's blocks behind their VIF head qword.
+static u_int ColourQwc(u_int n) { return ((n + 3) >> 2) + 1; }  /* RGBA bytes, 4 to a qword */
+static u_int StQwc(u_int n) { return ((n + 1) >> 1) + 1; }      /* ST pairs, 2 to a qword */
+
+// The header stores the local-view set-ups share, and the header block at the packet's start: CNT, the
+// VIF qword (UNPACK V4-32 10 qwords to VU1 0x1a0), the 3dlib constants 0x60..0x90, the object's position,
+// [light1 / light2: the light matrix], the scratchpad's 0xb0 and 0xc0.
+static u_char *SetupClipHeader(GA_SPR_WORK *spr, const u_char *obj, int lit)
+{
+    u_char *pkt = SprPtr(spr->bgtPacketEE);
+    int bank = BankOfHostPtr(obj);
+    u_int n = *(const u_int *)(obj + GA_OBJ_VERTEX_COUNT);
+
+    if (lit)
+        spr->objLight = *(const float *)(obj + GA_OBJ_LIGHT_SCALE);
+    spr->objReg70 = *(const u_long *)(obj + GA_OBJ_REG70);
+    spr->vertexSkip = n - spr->drawVertexCount;
+    spr->vertexCount = n;
+    spr->primCount = spr->drawPrimCount;
+    *(u_short *)&spr->giftagTri[0] = (u_short)(spr->drawPrimCount | GIFTAG_EOP);
+    spr->objReg78 = *(const u_long *)(obj + GA_OBJ_REG78);
+
+    *(u_long *)(pkt + 0x08) = 0;
+    *(u_long *)(pkt + 0x00) = DMA_CNT | GA_CLIP_HEADER_QWC;
+    memset(pkt + 0x10, 0, 0x10);
+    ((u_int *)(pkt + 0x10))[3] = VIF_UNPACK_V4_32_CODE(GA_CLIP_HEADER_UNPACK, GA_VU1_HEADER_ADDR);
+    memcpy(pkt + 0x20, &spr->work21, 0x40);                       /* scratchpad 0x60..0x90 */
+    memcpy(pkt + 0x60, ObjEePtr(bank, obj, GA_OBJ_POSITION), 0x10);
+    if (lit)
+        memcpy(pkt + 0x70, ObjEePtr(bank, obj, GA_OBJ_LIGHT_MATRIX), 0x30);
+    memcpy(pkt + 0xa0, &spr->work9, 0x10);                         /* scratchpad 0xb0 */
+    memcpy(pkt + 0xb0, &spr->objReg78, 0x10);                      /* scratchpad 0xc0 */
+    return pkt;
+}
+
+// The tail both set-ups end with at tailPacketEE: the optional GS upload (attr: a halfword qwc, then the
+// data, sent as a REF behind a FLUSH), then a REF to the scratchpad's FLUSH MSCNT FLUSHE; the packet's end
+// goes to packetEndEE.
+static void SetupClipTail(GA_SPR_WORK *spr)
+{
+    u_char *t = SprPtr(spr->tailPacketEE);
+    u_int attr = spr->drawAttr;
+
+    if (attr != 0) {
+        u_int addr = attr + 0x10;
+        // PORT: the host reaches only a scratchpad upload; main_rtn and its kin pass 0.
+        u_int qwc = (int)(attr - SCRATCHPAD_EE_BASE) >= 0 ? *(const u_short *)SprPtr(attr) : 0;
+
+        memset(t + 0x10, 0, 0x10);
+        ((u_int *)t)[0] = DMA_CNT | 1;
+        ((u_int *)t)[4] = VIF_FLUSH_CODE;
+        if ((int)(attr - SCRATCHPAD_EE_BASE) >= 0)
+            addr += DMA_ADDR_SPR - SCRATCHPAD_EE_BASE;
+        PutTag(t + 0x20, DMA_REF | qwc, addr);
+        PutTag(t + 0x30, DMA_REF | 1, DMA_ADDR_SPR | offsetof(GA_SPR_WORK, vifFlushMscntFlushe));
+        spr->packetEndEE = spr->tailPacketEE + 0x40;
+    } else {
+        PutTag(t, DMA_REF | 1, DMA_ADDR_SPR | offsetof(GA_SPR_WORK, vifFlushMscntFlushe));
+        spr->packetEndEE = spr->tailPacketEE + 0x10;
+    }
+}
+
+// The host hand-off of a local-view set-up: the object read in place, whole (the GPU clips).
+static void DrawClipped(const GA_SPR_WORK *spr, const u_char *obj, int light)
+{
+    AlyssaPanGaObject o;
+    int bank = BankOfHostPtr(obj);
+
+    // PORT: the billboard local view (gaDrawObject_VertexLocalView*_Billboard) is not on the host yet: the
+    // module's transform is the full matrix's, which would turn a billboard; none is handed over.
+    if (obj[GA_OBJ_FLAGS] & GA_OBJ_FLAG_BILLBOARD)
+        return;
+    FillObject(&o, spr, obj, (int)spr->drawAttr);
+    o.vertexCount = (int)*(const u_int *)(obj + GA_OBJ_VERTEX_COUNT);
+    o.primCount = (int)*(const u_int *)(obj + GA_OBJ_PRIM_COUNT);
+    o.light = light;
+    if (light == ALYSSAPAN_GA_LIGHT1) {
+        o.normalBlock = ObjEePtr(bank, obj, GA_OBJ_NORMALS);
+        o.lightMatrix = (const float *)ObjEePtr(bank, obj, GA_OBJ_LIGHT_MATRIX);
+        o.lightWork = ObjEePtr(bank, obj, GA_OBJ_LIGHT_WORK);
+        o.lightScale = spr->objLight;
+    }
+    AlyssaPan_DrawGaObject(&o);
+}
+
+// CT3 0x018a400c
+static void gaBGT_DrawObject_SetupDma_light0(u_char *obj)
+{
+    GA_SPR_WORK *spr = SPR_WORK;
+    u_char *pkt = SetupClipHeader(spr, obj, 0);
+    u_int n = *(const u_int *)(obj + GA_OBJ_VERTEX_COUNT);
+
+    PutTag(pkt + GA_PKT_COLOUR_LIGHT0, DMA_REF | ColourQwc(n), *(const u_int *)(obj + GA_OBJ_COLOURS));
+    ((u_int *)(SprPtr(spr->vertexPacketEE) + 0x10))[0] = VIF_MSCAL_CODE(GA_VU1_PROG_CLIP_LIGHT0);
+    PutTag(SprPtr(spr->stPacketEE), DMA_REF | StQwc(n), *(const u_int *)(obj + GA_OBJ_ST));
+    // The index block's VIF qword, as the ROM writes it.
+    ((u_int *)(SprPtr(spr->indexPacketEE) + 0x10))[0] = DMA_CNT;
+    ((u_int *)(SprPtr(spr->indexPacketEE) + 0x10))[1] = VIF_MSCNT_CODE;
+    SetupClipTail(spr);
+    DrawClipped(spr, obj, ALYSSAPAN_GA_LIGHT0);
+}
+
+// The body of SetupDma_light1 (mscal = GA_SPR_WORK.vifMscal6) and SetupDma_light2 (vifMscalA): the ROM has
+// the same code twice but for that one REF.
+static void SetupDmaLit(u_char *obj, u_int mscal)
+{
+    GA_SPR_WORK *spr = SPR_WORK;
+    u_char *st;
+    u_int n = *(const u_int *)(obj + GA_OBJ_VERTEX_COUNT);
+    int bank = BankOfHostPtr(obj);
+
+    SetupClipHeader(spr, obj, 1);
+    st = SprPtr(spr->stPacketEE);
+    PutTag(st + 0x00, DMA_REF | (n + 1), *(const u_int *)(obj + GA_OBJ_NORMALS));
+    PutTag(st + 0x10, DMA_REF | 1, DMA_ADDR_SPR | mscal);
+    PutTag(st + 0x20, DMA_REF | ColourQwc(n), *(const u_int *)(obj + GA_OBJ_COLOURS));
+    ((u_int *)st)[12] = DMA_CNT | GA_LIGHT_WORK_QWC;                /* +0x30, the low word only */
+    memcpy(st + 0x40, ObjEePtr(bank, obj, GA_OBJ_LIGHT_WORK), GA_LIGHT_WORK_QWC * 0x10);
+    PutTag(st + 0x150, DMA_REF | 1, DMA_ADDR_SPR | offsetof(GA_SPR_WORK, vifFlusheMscntFlushe));
+    PutTag(st + 0x160, DMA_REF | StQwc(n), *(const u_int *)(obj + GA_OBJ_ST));
+    ((u_int *)(SprPtr(spr->indexPacketEE) + 0x10))[0] = VIF_MSCNT_CODE;
+    SetupClipTail(spr);
+    // PORT: light2's VU1 program (MSCAL 0xa) is not read; the host lights it as light1.
+    DrawClipped(spr, obj, ALYSSAPAN_GA_LIGHT1);
+}
+
+// CT3 0x018a4404
+static void gaBGT_DrawObject_SetupDma_light1(u_char *obj)
+{
+    SetupDmaLit(obj, offsetof(GA_SPR_WORK, vifMscal6));
+}
+
+// CT3 0x018a49ec
+static void gaBGT_DrawObject_SetupDma_light2(u_char *obj)
+{
+    SetupDmaLit(obj, offsetof(GA_SPR_WORK, vifMscalA));
+}
+
+// One light kind's local-view chain, as the ROM spells it out per kind: the vertex block's place, the
+// local view (billboard or not), the index pass at the index block, then -- with primitives left -- the
+// reference table, the set-up, the D8 copy and the flip.
+typedef void (*LOCAL_VIEW_FN)(u_char *obj, u_int packetEE);
+typedef void (*SETUP_FN)(u_char *obj);
+
+static void LocalViewPass(u_char *obj, u_int vertexOffset, u_int indexOffset, LOCAL_VIEW_FN view,
+                          LOCAL_VIEW_FN viewBillboard, LOCAL_VIEW_FN remakeIndex, SETUP_FN refTable, SETUP_FN setup)
+{
+    GA_SPR_WORK *spr = SPR_WORK;
+
+    spr->vertexPacketEE = spr->bgtPacketEE + vertexOffset;
+    if (obj[GA_OBJ_FLAGS] & GA_OBJ_FLAG_BILLBOARD)
+        viewBillboard(obj, spr->vertexPacketEE);
+    else
+        view(obj, spr->vertexPacketEE);
+    spr->indexPacketEE = spr->stPacketEE + indexOffset;
+    remakeIndex(obj, spr->indexPacketEE);
+    if (spr->drawPrimCount == 0)
+        return;
+    refTable(obj);
+    setup(obj);
+    FlipPacketArea(spr);
+}
+
+// The local-view path's body (0x018a3984): NoClippingCheck2 jumps here for a billboard object.
+static void NoClipBody(u_char *obj)
+{
+    switch (obj[GA_OBJ_FLAGS] & GA_OBJ_FLAG_LIGHT) {
+    case GA_LIGHT_KIND_0:
+        LocalViewPass(obj, GA_PKT_VERTEX_LIGHT0, GA_PKT_INDEX_LIGHT0, gaDrawObject_VertexLocalView,
+                      gaDrawObject_VertexLocalView_Billboard, gaDrawObject_RemakeIndex,
+                      gaDrawObject_MakeVertexReferenceTableNoClip, gaBGT_DrawObject_SetupDma_light0);
+        break;
+    case GA_LIGHT_KIND_1:
+    case GA_LIGHT_KIND_2:
+        // light2's own chain (0x018a3c08, SetupDma_light2) is never branched to: both go to light1's.
+        LocalViewPass(obj, GA_PKT_VERTEX_LIGHT1, GA_PKT_INDEX_LIGHT1, gaDrawObject_VertexLocalView,
+                      gaDrawObject_VertexLocalView_Billboard, gaDrawObject_RemakeIndex,
+                      gaDrawObject_MakeVertexReferenceTableNoClip, gaBGT_DrawObject_SetupDma_light1);
+        break;
+    default:
+        // the ROM's break instruction
+        ALYSSAPAN_STUB("gaBGT_DrawObject_NoClippingCheck: unknown light kind (the ROM breaks)", 0x018a39ac);
+        break;
+    }
+}
+
+// CT3 0x018a3958
+// callcheck: gaBGT_DrawObject_SetupDma_light0, gaBGT_DrawObject_SetupDma_light1, gaBGT_DrawObject_SetupDma_light2, gaDrawObject_MakeVertexReferenceTableNoClip, gaDrawObject_RemakeIndex, gaDrawObject_VertexLocalView, gaDrawObject_VertexLocalView_Billboard
+// (made by NoClipBody / LocalViewPass; light2's chain, 0x018a3c08, is dead)
+void gaBGT_DrawObject_NoClippingCheck(u_char *obj, int attr)
+{
+    SPR_WORK->drawAttr = (u_int)attr;
+    NoClipBody(obj);
+}
+
 // CT3 0x018a3d20
+// callcheck: gaBGT_DrawObject_nc2_SetupDma_light2 is the ROM's dead call (0x018a3f44, see the file head).
 void gaBGT_DrawObject_NoClippingCheck2(u_char *obj, int attr)
 {
     GA_SPR_WORK *spr = SPR_WORK;
 
+    spr->drawAttr = (u_int)attr;
     spr->drawVertexCount = *(u_int *)(obj + GA_OBJ_VERTEX_COUNT);
     spr->drawPrimCount = *(u_int *)(obj + GA_OBJ_PRIM_COUNT);
     if (obj[GA_OBJ_FLAGS] & GA_OBJ_FLAG_BILLBOARD) {
-        // 0x018a3984: the billboard / clipped vertex path, shared with gaBGT_DrawObject_NoClippingCheck
-        // (gaDrawObject_VertexLocalView*, RemakeIndex, MakeVertexReferenceTableNoClip, then the non-nc2
-        // set-ups): the next slice.
-        ALYSSAPAN_STUB("gaBGT_DrawObject_NoClippingCheck2 (billboard path, 0x018a3984)", 0x018a3984);
+        NoClipBody(obj);    /* the ROM jumps to 0x018a3984 */
         return;
     }
     if ((obj[GA_OBJ_FLAGS] & GA_OBJ_FLAG_LIGHT) == 0)
@@ -138,10 +382,59 @@ void gaBGT_DrawObject_NoClippingCheck2(u_char *obj, int attr)
     FlipPacketArea(spr);
 }
 
-// ---- stubs (tools/reverse/stubgen.py) ----
+// The clipped path's end (0x018a31e8, and 0x018a35a8 with the near pass first): polygons the index pass
+// moved to the near / big lists are set up, then every divided polygon is redrawn.
+static void ClippedEnd(u_char *obj, int nearPass)
+{
+    GA_SPR_WORK *spr = SPR_WORK;
 
-// stub of CT3 0x018a3150
+    if (nearPass && spr->nearDivIndexEE != GA_NEARDIV_INDEX_WORK_EE)
+        gaDrawObject_SetNear(obj);
+    if (spr->bigDivIndexEE != GA_BIGDIV_INDEX_WORK_EE)
+        gaDrawObject_SetBig(obj);
+    gaDrawObject_Redraw_Polygon(obj);
+}
+
+// CT3 0x018a3150
 void gaBGT_DrawObject(u_char *obj, int attr)
 {
-    ALYSSAPAN_STUB("gaBGT_DrawObject", 0x018a3150);
+    GA_SPR_WORK *spr = SPR_WORK;
+    LOCAL_VIEW_FN remakeIndex;
+    int nearPass;
+
+    spr->drawAttr = (u_int)attr;
+    spr->divRedrawVertexEE = GA_DIV_REDRAW_VERTEX_WORK_EE;
+    spr->divRedrawIndexEE = GA_DIV_REDRAW_INDEX_WORK_EE;
+    spr->nearDivIndexEE = GA_NEARDIV_INDEX_WORK_EE;
+    spr->bigDivIndexEE = GA_BIGDIV_INDEX_WORK_EE;
+    nearPass = (obj[GA_OBJ_FLAGS2] & GA_OBJ_FLAG2_NEAR) != 0;
+    remakeIndex = nearPass ? gaDrawObject_RemakeIndexWithClippingCheck_WithNear
+                           : gaDrawObject_RemakeIndexWithClippingCheck;
+
+    switch (obj[GA_OBJ_FLAGS] & GA_OBJ_FLAG_LIGHT) {
+    case GA_LIGHT_KIND_0:
+        LocalViewPass(obj, GA_PKT_VERTEX_LIGHT0, GA_PKT_INDEX_LIGHT0, gaDrawObject_VertexLocalViewWithClippingFlagSet,
+                      gaDrawObject_VertexLocalViewWithClippingFlagSet_Billboard, remakeIndex,
+                      gaDrawObject_MakeVertexReferenceTable, gaBGT_DrawObject_SetupDma_light0);
+        break;
+    case GA_LIGHT_KIND_1:
+        LocalViewPass(obj, GA_PKT_VERTEX_LIGHT1, GA_PKT_INDEX_LIGHT1, gaDrawObject_VertexLocalViewWithClippingFlagSet,
+                      gaDrawObject_VertexLocalViewWithClippingFlagSet_Billboard, remakeIndex,
+                      gaDrawObject_MakeVertexReferenceTable, gaBGT_DrawObject_SetupDma_light1);
+        break;
+    case GA_LIGHT_KIND_2:
+        // The ROM's slip, kept: with the near pass, a light2 object that is not a billboard jumps back into
+        // light1's chain after its local view (0x018a385c: j 0x018a3754), so it is set up as light1.
+        LocalViewPass(obj, GA_PKT_VERTEX_LIGHT1, GA_PKT_INDEX_LIGHT1, gaDrawObject_VertexLocalViewWithClippingFlagSet,
+                      gaDrawObject_VertexLocalViewWithClippingFlagSet_Billboard, remakeIndex,
+                      gaDrawObject_MakeVertexReferenceTable,
+                      nearPass && !(obj[GA_OBJ_FLAGS] & GA_OBJ_FLAG_BILLBOARD) ? gaBGT_DrawObject_SetupDma_light1
+                                                                              : gaBGT_DrawObject_SetupDma_light2);
+        break;
+    default:
+        // the ROM's break instruction; it then falls into the end
+        ALYSSAPAN_STUB("gaBGT_DrawObject: unknown light kind (the ROM breaks)", 0x018a31e4);
+        break;
+    }
+    ClippedEnd(obj, nearPass);
 }

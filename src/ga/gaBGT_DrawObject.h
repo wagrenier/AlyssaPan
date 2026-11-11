@@ -26,13 +26,34 @@
 #define GA_OBJ_REG78 0x78               /* 2 floats (to the scratchpad's 0xc0): the ST offset (vf30.xy) */
 
 #define GA_OBJ_FLAG_VARIANT 0x03        /* picks the VU1 program: MSCAL 0x1a / 0x22 + 2 x this */
-#define GA_OBJ_FLAG_LIGHT 0x1c          /* the light kind: 0 light0; 8, 0x10 light1 (the clipped path traps
-                                           on anything else) */
-#define GA_OBJ_FLAG_BILLBOARD 0x20      /* = DRAW_OBJ_FLAG_CLIP: the clipped / billboard vertex path */
+#define GA_OBJ_FLAG_LIGHT 0x1c          /* the light kind (GA_LIGHT_KIND_*); anything else hits a break */
+#define GA_OBJ_FLAG_BILLBOARD 0x20      /* = DRAW_OBJ_FLAG_CLIP: the vertices go to the local view as a
+                                           billboard (gaDrawObject_VertexLocalView*_Billboard) */
+#define GA_OBJ_FLAGS2 0x02              /* u_char: GA_OBJ_FLAG2_* */
+#define GA_OBJ_FLAG2_NEAR 0x04          /* gaBGT_DrawObject: the near-clipping index pass (_WithNear) */
+
+// flags & GA_OBJ_FLAG_LIGHT. gaBGT_DrawObject gives each its own set-up; the no-clip paths send light2 to
+// light1's (their light2 calls are never reached).
+#define GA_LIGHT_KIND_0 0x00
+#define GA_LIGHT_KIND_1 0x08
+#define GA_LIGHT_KIND_2 0x10
 
 // The VU1 programs the set-ups start (MSCAL addresses, before + 2 x the variant).
 #define GA_VU1_PROG_LIGHT0 0x1a
 #define GA_VU1_PROG_LIGHT1 0x22
+// The clipped set-ups' programs (the vertices arrive in the local view): light0 puts MSCAL 2 in the vertex
+// block's VIF qword; light1 / light2 REF the scratchpad's NOP NOP NOP MSCAL 6 / MSCAL 0xa (GA_SPR_WORK
+// vifMscal6 / vifMscalA).
+#define GA_VU1_PROG_CLIP_LIGHT0 0x02
+
+// The division buffers gaBGT_DrawObject points GA_SPR_WORK 0x20..0x2c at (symtab objects, EE addresses:
+// gaDrawObject.c and gaDrawObject_Redraw_Polygon.c own them; a cursor that moved means polygons were put
+// on that list).
+#define GA_DIV_REDRAW_INDEX_WORK_EE 0x01a2be40u  /* ga_div_redraw_index_work, 0x800 bytes */
+#define GA_DIV_REDRAW_VERTEX_WORK_EE 0x01a2c640u /* ga_div_redraw_vertex_work, 0x4000 bytes */
+#define GA_BIGDIV_INDEX_WORK_EE 0x0193e6c0u      /* ga_bigdiv_index_work, 0x200 bytes */
+#define GA_NEARDIV_INDEX_WORK_EE 0x0193e8c0u     /* ga_neardiv_index_work, 0x200 bytes */
 
 void gaBGT_DrawObject(u_char *obj, int attr);                                            // CT3 0x018a3150
+void gaBGT_DrawObject_NoClippingCheck(u_char *obj, int attr);                            // CT3 0x018a3958
 void gaBGT_DrawObject_NoClippingCheck2(u_char *obj, int attr);                           // CT3 0x018a3d20
