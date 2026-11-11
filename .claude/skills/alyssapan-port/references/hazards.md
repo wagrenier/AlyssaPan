@@ -7,6 +7,13 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-11, movie_skip.cpp) **A stubbed x command waits for good, and the log looks like the next
+  step hangs.** stubgen's stubs `return {}`, which is XCMD_WAIT (0) for an x command: the script runs it
+  again every frame. The log printed AA_OpenMovie's "Open Mpeg File" and then the stub
+  aaXcmd_MovieFedeOutCancel, which read as a hang in the movie decoder; the script was in fact parked on
+  the stub, and the movie never started (no " ** Movie Play Start!! ** "). When a run stops right after an
+  x command's stub line, suspect the stub first; a probe that makes it return XCMD_DONE (reverted) shows
+  what lies behind it.
 - (2026-11-11, hhXcmd_DressUp.c) **Ghidra drops a callee's stack arguments and their defaults.**
   hhXcmd_PlaySESp1 passes SSPlaySESp1 a ninth argument on the stack (`sd s2,0(sp)` in the jal's delay
   slot; s2 = 10 at entry, atoi(argv[7]) when given); the decompiler showed neither the argument nor a use

@@ -12,6 +12,7 @@ python build.py [--config relwithdebinfo|debug|release] [--run SECONDS [--shot-e
   goes to work/run_<config>.log (tus.py ranks reached stubs first). The platform layer saves a screenshot
   every --shot-every presented frames (default 60) to work/shots/shot_<frame>.png + last.png
   (ALYSSAPAN_SHOT_DIR / ALYSSAPAN_SHOT_EVERY); alyssapan.GAME_DATA is passed on as ALYSSAPAN_DATA_DIR.
+  Movies are skipped (ALYSSAPAN_SKIP_INTRO=1 unless set; `--env ALYSSAPAN_SKIP_INTRO=0` plays them).
 - --pad SCRIPT scripts pad 0 for the run ("<read>:<BUTTON>[*<reads>],...": hold BUTTON 3 pad reads, or
   <reads>, from the given pad read, about one per game frame; LSUP/LSDOWN/LSLEFT/LSRIGHT push the left
   stick) and masks the host's pads and keyboard (ALYSSAPAN_AUTOPAD, src/sdk/libpad.cpp). Without --pad,
@@ -102,6 +103,8 @@ if '--run' in sys.argv:
     run_env.setdefault('ALYSSAPAN_DATA_DIR', str(alyssapan.GAME_DATA))
     # Smoke runs save to a card of their own (work/memcard/mc<port>-<slot>/), never the user's.
     run_env.setdefault('ALYSSAPAN_MEMCARD_DIR', str(alyssapan.WORK / 'memcard'))
+    # Smoke runs skip the movies (RosePan's rule; src/alyssapan/core/movie_skip.h): --env ALYSSAPAN_SKIP_INTRO=0 plays them.
+    run_env.setdefault('ALYSSAPAN_SKIP_INTRO', '1')
     if '--pad' in sys.argv:
         pad = sys.argv[sys.argv.index('--pad') + 1]
         if pad == 'none':

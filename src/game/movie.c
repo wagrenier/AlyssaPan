@@ -34,6 +34,7 @@
 #include "game/ssGrpPortalCheck.h"
 #include "game/unassigned_data.h"
 #include "ga/pad_button_read.h"
+#include "alyssapan/core/movie_skip.h"
 #include "sdk/eekernel.h"
 #include "sdk/libdma.h"
 #include "sdk/eeregs.h"
@@ -555,6 +556,36 @@ static int readMpeg(VideoDec *vd, ReadBuf *rb, StrFile *file)
     return 1;
 }
 
+// PORT (no ROM counterpart): the movie skip switch (alyssapan/core/movie_skip.h, [game] skip_intro, on in
+// smoke runs). AA_movie's ending for a movie skipped before its first frame, with nothing decoded: the
+// skip event registered where readMpeg's pad check would allow a skip (a movie the pad cannot skip ends
+// as played through), the GS cleared to the fade's colour, the fade handed on to tiFade as the ROM's
+// fade-out does, the memory map freed and the banks reloaded. No decoder thread, no 60-frame fade.
+static int AA_movieSkipped(const char *name)
+{
+    int skippable;
+
+    printf("[movie] skip_intro: %s skipped\n", name);
+    if (ssTrigCheckEvent(TRIG_EVENT_MOVIE_END_62, 1, 0) == 0)
+        skippable = AA_MovieStopOkFlag == AA_MOVIE_SKIP_OK || DEMO_SKIP_SET != 0;
+    else
+        skippable = DEMO_SKIP_FLAG == 0;
+    if (skippable)
+        ssTrigRegisterEvent(TRIG_EVENT_MOVIE_SKIPPED, 1, 0);
+
+    if (AA_MvFedeOutCut == 0 && AA_MvFedeOut2Md == AA_MV_FADE2_TI_FADE)
+        tiFade_Start(0.0f, AA_MvOutWhite == AA_MV_BLACK ? AA_TI_FADE_FROM_BLACK : AA_TI_FADE_FROM_WHITE);
+    if (AA_MvOutWhite == AA_MV_WHITE)
+        AA_clearGsMem(0xff, 0xff, 0xff, AA_RESET_WIDTH, AA_RESET_HEIGHT);
+    else
+        AA_clearGsMem(0, 0, 0, AA_RESET_WIDTH, AA_RESET_HEIGHT);
+    AA_MvFedeOutCut = 0;
+
+    AA_MemoryMapFree();
+    PlayMovieReturnLoad();
+    return controller_val;
+}
+
 // CT3 0x018beba0: play `name`. Waits for the file system, takes the decoder's memory (0 when it cannot),
 // logs the movie banks, plays the stream; then puts up a tag block of 0xff words (AA_ReTagSet), fades the
 // last picture out over 60 frames (unless AA_MvFedeOutCut) to black or white (AA_MvOutWhite), clears
@@ -572,6 +603,9 @@ static int AA_movie(const char *name)
     AA_SOUND_MODE = SOUND_STEREO_MONAURAL_BUFF;
     if (AA_MemoryMapSet() != 0)
         return 0;
+
+    if (AlyssaPan_SkipMovies() != 0)
+        return AA_movieSkipped(name);
 
     printf(s_useMovieMemoryBank);
     for (row = 0; row < AA_MOVIE_WORKS; row++) {

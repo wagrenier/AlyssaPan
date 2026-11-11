@@ -1363,12 +1363,29 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    StopADS / VolumeADS pass 0 for argv[0] (SSStopADS / SSVolumeADS drop a0) and VolumeADS drops argv[2]
    (SdVolumeStream takes one argument); StopMIDI copies at most 15 bytes of gSQLd[0].name (the ROM's
    strcpy into 16).
+   **alyssapan/core/movie_skip.cpp (verify, 2026-11-11):** [game] skip_intro (ALYSSAPAN_SKIP_INTRO; off for
+   players, build.py --run sets it) makes AA_movie end each movie at once through the PORT branch
+   AA_movieSkipped (movie.c): nothing decoded, TRIG_EVENT_MOVIE_SKIPPED registered where readMpeg's pad
+   check would allow a skip, the GS cleared to the fade colour, tiFade handed on, memory map freed, banks
+   reloaded. **Correction to the DressUp note above:** the run did not hang in the decode loop; the script
+   waited on the stub **aaXcmd_MovieFedeOutCancel** (game/PicPaz.c, CT3 0x018da0a0: sets AA_MvInWhite /
+   AA_MvOutWhite / AA_MvFedeOut2Md / AA_MvFedeOutCut from its arguments, answers XCMD_DONE), so the movie
+   never started. A reverted probe (that stub answering XCMD_DONE) showed both m_capcom.mov and m_title.mov
+   skipped (Movie Play Start / skipped / End for each) and frames running on past 900 (the old run stopped
+   at 420), still flat grey: TITL does not draw yet. game/PicPaz.c is queued first (Claude, scheduled run
+   16:42): its slice should start with aaXcmd_MovieFedeOutCancel. Open: (kf2) the skip leaves out the
+   ROM's 60-frame fade after a skip (no picture to fade); (kg2) whether hhXcmd_PlayADS runs after the
+   movies is not yet seen in the log (it prints nothing): title_trace.cpp's session checks it.
    **For 3D after it** (not queued yet): a ga pass of its own with depth and fog, widened from
    DisplayGeometry (UiCanvas has neither and squeezes), gaObjectClippingCheck and ga/gaDrawObject.c (the
    clipped path most scene objects take), light1 / light2 lighting and billboards (item 4 (e) (f) (g)),
    then characters (skinned parts) once a room loads.
 
 ## Decisions
+
+- 2026-11-11 (Claude, scheduled run 16:42, for the user to overrule): **game/PicPaz.c queued first.** Its
+  stub aaXcmd_MovieFedeOutCancel is the real wait before the title movies (item 8); the movie skip
+  (skip_intro, reused from the config rather than a new key) is in place behind it.
 
 - 2026-11-11 (the user): **the title blockers go first.** Queue: game/hhXcmd_DressUp.c, host tasks
   alyssapan/core/movie_skip.cpp and alyssapan/core/title_trace.cpp, ga/pad_button_read.c, then the rest

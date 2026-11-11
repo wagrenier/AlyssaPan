@@ -1,6 +1,6 @@
 {
  "queue": [
-  "alyssapan/core/movie_skip.cpp",
+  "game/PicPaz.c",
   "alyssapan/core/title_trace.cpp",
   "ga/pad_button_read.c",
   "game/Clipping_Portal.c",
@@ -21,6 +21,15 @@
  },
  "tus": {
   "alyssapan/core/movie_skip.cpp": {
+   "notes": "AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT branch AA_movieSkipped: nothing decoded, the skip event where the pad could skip, GS cleared, tiFade handed on, memory map freed, banks reloaded. build.py --run sets ALYSSAPAN_SKIP_INTRO=1 by default. The real wait before the movies is the stub aaXcmd_MovieFedeOutCancel (game/PicPaz.c, queued first); a reverted probe making it answer XCMD_DONE showed m_capcom.mov and m_title.mov skipped and frames past 900, still flat grey (TITL not drawn yet).",
+   "sessions": [
+    {
+     "date": "2026-11-11 16:48",
+     "status": "verify",
+     "summary": "movie skip: [game] skip_intro ends each movie at once, smoke runs turn it on"
+    }
+   ],
+   "status": "verify",
    "task": "Host task (the user, 2026-11-11: reach the title; the user's rule: skip cinematics in smoke runs). Add a switch smoke runs set (a config flag beside the window / display options, the way RosePan's rosepan_config holds START through the opening film) that makes the movie player end each movie at once as a skipped one: AA_movie (src/game/movie.c) answers as the ROM does when the player skips, with nothing decoded, so m_capcom.mov and m_title.mov pass without the decoder (AA_videoDecMain and the AA_mpegTS.c / AA_videoCallback.c / AA_GetDataWord.c stubs). The PORT branch is marked and off by default for players; build.py --run and tus.py check --run turn it on. Picture: after the memory-card text the run reaches the title music (hhXcmd_PlayADS) instead of hanging in the decode loop."
   },
   "alyssapan/core/title_trace.cpp": {
