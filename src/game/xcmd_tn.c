@@ -25,6 +25,7 @@
 #include "game/asMothPause.h"
 #include "game/wideXcmd_DebugPrint.h"
 #include "game/movie.h"
+#include "game/ssSetTexUVforCubeMap.h"
 #include "ga/gaInit3dlib.h"
 
 // The bank's part i (the ROM: header + i * 0x380, the flags word at +0x50).
@@ -1047,21 +1048,285 @@ int tnXcmd_TexFileSetNext(int argc, char **argv, int bank)
     return XCMD_DONE;
 }
 
-// ---- stubs (tools/reverse/stubgen.py) ----
+// ---- slice 4 (2026-11-11): the play-time clock, the clock puzzle, the scene animation commands, the
+// variable arithmetic, a character's ambient colour, the texture page ----
 
-// stub of CT3 0x018f2c50
+// TimeSet_Backup (sbss 0x0193b90c, static): the play time tnXcmd_TimeSet read last.
+static u_int TimeSet_Backup;
+
+// pazzle1P01_Main (sbss 0x01944938, static): the frames tnXcmd_1P01_PazzleAnim still waits.
+static int pazzle1P01_Main;
+
+// One digit variable (local, ssTrigSetVariable's global 0) named by argv[i].
+static void XcmdSetDigit(char **argv, int i, int value, int bank)
+{
+    ssTrigSetVariable(atoi(argv[i]) & 0xffff, value, 0, bank);
+}
+
+// CT3 0x018f1a10: registers event argv[0] (local) and writes the play time as digits into local
+// variables argv[1..7]: seconds (units, tens), minutes (units, tens), hours (units, tens of hours % 100,
+// hundreds). From XCMD_TIME_MAX on the digits read 9, 5, 9, 5, 9, 9, 9.
+int tnXcmd_TimeSet(int argc, char **argv, int bank)
+{
+    u_int t, hours, minutes, seconds;
+
+    (void)argc;
+    ssTrigRegisterEvent(atoi(argv[0]), 0, bank);
+    TimeSet_Backup = (u_int)progress_time;
+    t = (u_int)progress_time;
+    if (t < XCMD_TIME_MAX) {
+        hours = t / XCMD_FRAMES_PER_HOUR;
+        minutes = t % XCMD_FRAMES_PER_HOUR / XCMD_FRAMES_PER_MINUTE;
+        seconds = (t % XCMD_FRAMES_PER_HOUR - minutes * XCMD_FRAMES_PER_MINUTE) / XCMD_ROODERS_FPS % 60;
+        XcmdSetDigit(argv, 1, seconds % 10, bank);
+        XcmdSetDigit(argv, 2, seconds / 10, bank);
+        XcmdSetDigit(argv, 3, minutes % 10, bank);
+        XcmdSetDigit(argv, 4, minutes / 10, bank);
+        XcmdSetDigit(argv, 5, hours % 100 % 10, bank);
+        XcmdSetDigit(argv, 6, hours % 100 / 10, bank);
+        XcmdSetDigit(argv, 7, hours / 100, bank);
+    } else {
+        XcmdSetDigit(argv, 1, 9, bank);
+        XcmdSetDigit(argv, 2, 5, bank);
+        XcmdSetDigit(argv, 3, 9, bank);
+        XcmdSetDigit(argv, 4, 5, bank);
+        XcmdSetDigit(argv, 5, 9, bank);
+        XcmdSetDigit(argv, 6, 9, bank);
+        XcmdSetDigit(argv, 7, 9, bank);
+    }
+    return XCMD_DONE;
+}
+
+// Both hands' tracks (argv[0], argv[1]) of the clock puzzle play to frame `to` at a quarter speed,
+// backwards when `back`.
+static void XcmdPuzzleTurn(char **argv, int bank, int to, int back)
+{
+    asSceneAnimationStart(XCMD_PUZZLE_SPEED, 0, All_table_TBL[bank], -1, to * XCMD_FRAME_TIME,
+                          atoi(argv[0]) & 0xffff, 1, 0, 0, 0, 0, back, SCENE_ANIM_SCENE, 0);
+    asSceneAnimationStart(XCMD_PUZZLE_SPEED, 0, All_table_TBL[bank], -1, to * XCMD_FRAME_TIME,
+                          atoi(argv[1]) & 0xffff, 1, 0, 0, 0, 0, back, SCENE_ANIM_SCENE, 0);
+}
+
+// CT3 0x018f2c50: puzzle 1P01 (the clock) turns its hands. argv[2] 0 turns back 40 minutes, anything
+// else forward 25: the global hour / minute variables step (the hour wrapping 0..11), both tracks play
+// from the current frame to the new one, and the command waits out the turn (XCMD_PUZZLE_*_WAIT frames)
+// before the script goes on. Wraps as the ROM has them: back from frame f < 16 lands on f + 272; forward
+// past 288 on f - 278; an hour 0 going back reads 11, an hour 11 going forward 12 - 12 = 0.
 int tnXcmd_1P01_PazzleAnim(int argc, char **argv, int bank)
 {
-    ALYSSAPAN_STUB("tnXcmd_1P01_PazzleAnim", 0x018f2c50);
-    return {};
+    int now, to, hour, minute;
+
+    (void)argc;
+    if (pazzle1P01_Main != 0) {
+        pazzle1P01_Main--;
+        return pazzle1P01_Main == 0 ? XCMD_DONE : XCMD_WAIT;
+    }
+    minute = ssTrigGetVariable(TRIG_VAR_PUZZLE_COL, 1, 0);
+    hour = ssTrigGetVariable(TRIG_VAR_PUZZLE_ROW, 1, 0);
+    now = hour * XCMD_PUZZLE_ROW_FRAMES + minute * XCMD_PUZZLE_COL_FRAMES / 100;
+    if (atoi(argv[2]) == 0) {
+        to = now - XCMD_PUZZLE_BACK_FRAMES;
+        if (to < 0)
+            to = now + XCMD_PUZZLE_TRACK_FRAMES - XCMD_PUZZLE_BACK_FRAMES;
+        hour = ssTrigGetVariable(TRIG_VAR_PUZZLE_ROW, 1, 0);
+        minute = ssTrigGetVariable(TRIG_VAR_PUZZLE_COL, 1, 0) - XCMD_PUZZLE_BACK_MINUTES;
+        if (minute < 0) {
+            minute += XCMD_PUZZLE_MINUTES;
+            if (--hour < 0)
+                hour += XCMD_PUZZLE_HOURS;
+        }
+        ssTrigSetVariable(TRIG_VAR_PUZZLE_ROW, hour, 1, 0);
+        ssTrigSetVariable(TRIG_VAR_PUZZLE_COL, minute, 1, 0);
+        XcmdPuzzleTurn(argv, bank, to, 1);
+        pazzle1P01_Main = XCMD_PUZZLE_BACK_WAIT;
+    } else {
+        to = now + XCMD_PUZZLE_FWD_FRAMES;
+        if (to > XCMD_PUZZLE_TRACK_FRAMES)
+            to = now + XCMD_PUZZLE_FWD_FRAMES - XCMD_PUZZLE_TRACK_FRAMES;
+        hour = ssTrigGetVariable(TRIG_VAR_PUZZLE_ROW, 1, 0);
+        minute = ssTrigGetVariable(TRIG_VAR_PUZZLE_COL, 1, 0) + XCMD_PUZZLE_FWD_MINUTES;
+        if (minute >= XCMD_PUZZLE_MINUTES) {
+            minute -= XCMD_PUZZLE_MINUTES;
+            if (++hour >= XCMD_PUZZLE_HOURS)
+                hour = XCMD_PUZZLE_HOURS - hour;
+        }
+        ssTrigSetVariable(TRIG_VAR_PUZZLE_ROW, hour, 1, 0);
+        ssTrigSetVariable(TRIG_VAR_PUZZLE_COL, minute, 1, 0);
+        XcmdPuzzleTurn(argv, bank, to, 0);
+        pazzle1P01_Main = XCMD_PUZZLE_FWD_WAIT;
+    }
+    return XCMD_WAIT;
 }
 
-// stub of CT3 0x018f36b0
+// asSceneAnimationStart's pose / other / byPart bits for a selection argument (XCMD_ANIM_SELECT_*); *ok 0
+// for any other value (the ROM then uses a stale register).
+static int XcmdAnimSelect(const char *arg, int *ok)
+{
+    *ok = 1;
+    switch (atoi(arg)) {
+    case XCMD_ANIM_SELECT_BY_PART:
+        return XCMD_ANIM_SEL_BY_PART;
+    case XCMD_ANIM_SELECT_OTHER:
+        return XCMD_ANIM_SEL_OTHER;
+    case XCMD_ANIM_SELECT_POSE:
+        return XCMD_ANIM_SEL_POSE;
+    default:
+        *ok = 0;
+        return 0;
+    }
+}
+
+// CT3 0x018f30e0: plays part argv[0]'s scene tracks of selection argv[5] (XCMD_ANIM_SELECT_*) from where
+// they are to frame argv[1] (by argv[2]'s source, XcmdValue) at speed argv[4]; argv[3] the "to end"
+// flag, argv[6] backwards (asSceneAnimationStart's 11th / 12th arguments, as bytes).
+int wideXcmd_PlayAnimeToFream(int argc, char **argv, int bank)
+{
+    int to, select, ok;
+
+    (void)argc;
+    to = XcmdValue(argv, 1, bank, &ok) * XCMD_FRAME_TIME;
+    if (!ok) // PORT: the ROM goes on with a stale frame for an unknown source
+        return XCMD_DONE;
+    select = XcmdAnimSelect(argv[5], &ok);
+    if (!ok) // PORT: likewise for an unknown selection
+        return XCMD_DONE;
+    asSceneAnimationStart((float)atoi(argv[4]), 0, All_table_TBL[bank], -1, to, atoi(argv[0]) & 0xffff,
+                          (select & XCMD_ANIM_SEL_POSE) != 0, (select & XCMD_ANIM_SEL_OTHER) != 0,
+                          (select & XCMD_ANIM_SEL_BY_PART) != 0, 0, (signed char)atoi(argv[3]),
+                          (signed char)atoi(argv[6]), SCENE_ANIM_SCENE, 0);
+    return XCMD_DONE;
+}
+
+// CT3 0x018f3280: as wideXcmd_PlayAnimeToFream between two frames: from argv[1] (source argv[2]) to
+// argv[3] (source argv[4]), selection argv[7], speed argv[6]; argv[5] the "started" flag and argv[8]
+// backwards (the 10th / 12th arguments, as bytes).
+int wideXcmd_PlayAnimeRange(int argc, char **argv, int bank)
+{
+    int from, to, select, ok;
+
+    (void)argc;
+    from = XcmdValue(argv, 1, bank, &ok) * XCMD_FRAME_TIME;
+    if (!ok) // PORT: the ROM goes on with stale frames for an unknown source
+        return XCMD_DONE;
+    to = XcmdValue(argv, 3, bank, &ok) * XCMD_FRAME_TIME;
+    if (!ok)
+        return XCMD_DONE;
+    select = XcmdAnimSelect(argv[7], &ok);
+    if (!ok)
+        return XCMD_DONE;
+    asSceneAnimationStart((float)atoi(argv[6]), 0, All_table_TBL[bank], from, to, atoi(argv[0]) & 0xffff,
+                          (select & XCMD_ANIM_SEL_POSE) != 0, (select & XCMD_ANIM_SEL_OTHER) != 0,
+                          (select & XCMD_ANIM_SEL_BY_PART) != 0, (signed char)atoi(argv[5]), 0,
+                          (signed char)atoi(argv[8]), SCENE_ANIM_SCENE, 0);
+    return XCMD_DONE;
+}
+
+// CT3 0x018f34a0: variable argv[0] (global argv[1]) = argv[2] (source argv[3]) <op argv[6][0]> argv[4]
+// (source argv[5]); the operators + - * / % & | and < > (shifts by the low 5 bits, > arithmetic).
+int wideXcmd_VariableCal(int argc, char **argv, int bank)
+{
+    int a, b, ok;
+    u_int r;
+
+    (void)argc;
+    a = XcmdValue(argv, 2, bank, &ok);
+    if (!ok) // PORT: the ROM goes on with stale operands for an unknown source
+        return XCMD_DONE;
+    b = XcmdValue(argv, 4, bank, &ok);
+    if (!ok)
+        return XCMD_DONE;
+    switch (argv[6][0]) {
+    case '<':
+        r = (u_int)a << (b & 0x1f);
+        break;
+    case '>':
+        r = (u_int)(a >> (b & 0x1f));
+        break;
+    case '|':
+        r = (u_int)(a | b);
+        break;
+    case '&':
+        r = (u_int)(a & b);
+        break;
+    case '%':
+        if (b == 0) // PORT: the R5900 leaves LO / HI undefined on a zero divisor; the host would trap
+            return XCMD_DONE;
+        r = (u_int)(a % b);
+        break;
+    case '/':
+        if (b == 0) // PORT: as for %
+            return XCMD_DONE;
+        r = (u_int)(a / b);
+        break;
+    case '*':
+        r = (u_int)a * (u_int)b;
+        break;
+    case '-':
+        r = (u_int)a - (u_int)b;
+        break;
+    case '+':
+        r = (u_int)a + (u_int)b;
+        break;
+    default: // PORT: the ROM stores a stale register for an unknown operator
+        return XCMD_DONE;
+    }
+    ssTrigSetVariable(atoi(argv[0]) & 0xffff, (int)r, atoi(argv[1]), bank);
+    return XCMD_DONE;
+}
+
+// layout: EE (tnChangeCharAmbientColorSet's request, built on the stack; ssScnPortalCheck and
+// WarpEnterRoom pass only its first four shorts). Fields named from tnXcmd_Character_Ambient_Change.
+typedef struct CHAR_AMB_SET {
+    short chara;                        /* 0x00 */
+    short bank;                         /* 0x02: the scene bank asking */
+    short time;                         /* 0x04: frames of the fade (ssScnPortalCheck: PORTAL_AMBIENT_FADE) */
+    short mode;                         /* 0x06: CHAR_AMB_SET_* (0 from the portal / warp callers) */
+    float color[4];                     /* 0x08: r g b a */
+    u_char flag;                        /* 0x18: argv[6] for CHAR_AMB_SET_RGBA_FLAG */
+    u_char pad19[3];
+} CHAR_AMB_SET;
+static_assert(offsetof(CHAR_AMB_SET, mode) == 0x06, "CHAR_AMB_SET.mode");
+static_assert(offsetof(CHAR_AMB_SET, color) == 0x08, "CHAR_AMB_SET.color");
+static_assert(offsetof(CHAR_AMB_SET, flag) == 0x18, "CHAR_AMB_SET.flag");
+#define CHAR_AMB_SET_RGBA 1             /* six arguments: the colour alone */
+#define CHAR_AMB_SET_RGBA_FLAG 3        /* seven: the colour and argv[6]'s byte */
+
+// CT3 0x018f36b0: character argv[0]'s ambient colour fades to argv[2..5] (r g b a) over argv[1] frames,
+// when the character has a bank; seven arguments add argv[6]'s flag byte (mode 3, else 1).
 int tnXcmd_Character_Ambient_Change(int argc, char **argv, int bank)
 {
-    ALYSSAPAN_STUB("tnXcmd_Character_Ambient_Change", 0x018f36b0);
-    return {};
+    CHAR_AMB_SET set;
+    int i;
+
+    memset(&set, 0, sizeof(set)); // PORT: the ROM leaves the pad bytes as the stack has them
+    set.chara = (short)atoi(argv[0]);
+    if (Character[(u_short)set.chara].bank < 0)
+        return XCMD_DONE;
+    set.bank = (short)bank;
+    set.time = (short)atoi(argv[1]);
+    for (i = 0; i < 4; i++)
+        set.color[i] = (float)atoi(argv[2 + i]);
+    if (argc == 6) {
+        set.flag = 0;
+        set.mode = CHAR_AMB_SET_RGBA;
+    } else {
+        set.mode = CHAR_AMB_SET_RGBA_FLAG;
+        set.flag = (u_char)atoi(argv[6]);
+    }
+    tnChangeCharAmbientColorSet(&set.chara);
+    return XCMD_DONE;
 }
+
+// CT3 0x018f3c30: the bank's texture file goes to the page in variable argv[1] (global argv[2]), part
+// argv[0].
+int tnXcmd_TexFileSetPage(int argc, char **argv, int bank)
+{
+    (void)argc;
+    TexFileSetPage(bank, atoi(argv[0]), ssTrigGetVariable(atoi(argv[1]) & 0xffff, atoi(argv[2]), bank));
+    return XCMD_DONE;
+}
+
+// ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x018efc50
 int tnXcmd_Key_Lock(int argc, char **argv, int bank)
@@ -1070,44 +1335,9 @@ int tnXcmd_Key_Lock(int argc, char **argv, int bank)
     return {};
 }
 
-// stub of CT3 0x018f3c30
-int tnXcmd_TexFileSetPage(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tnXcmd_TexFileSetPage", 0x018f3c30);
-    return {};
-}
-
-// stub of CT3 0x018f1a10
-int tnXcmd_TimeSet(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tnXcmd_TimeSet", 0x018f1a10);
-    return {};
-}
-
 // stub of CT3 0x018f37e0
 int tnXcmd_VistaVision(int argc, char **argv, int bank)
 {
     ALYSSAPAN_STUB("tnXcmd_VistaVision", 0x018f37e0);
-    return {};
-}
-
-// stub of CT3 0x018f3280
-int wideXcmd_PlayAnimeRange(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("wideXcmd_PlayAnimeRange", 0x018f3280);
-    return {};
-}
-
-// stub of CT3 0x018f30e0
-int wideXcmd_PlayAnimeToFream(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("wideXcmd_PlayAnimeToFream", 0x018f30e0);
-    return {};
-}
-
-// stub of CT3 0x018f34a0
-int wideXcmd_VariableCal(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("wideXcmd_VariableCal", 0x018f34a0);
     return {};
 }

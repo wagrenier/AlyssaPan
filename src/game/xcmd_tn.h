@@ -52,6 +52,28 @@ typedef int (*SS_XCMD)(int argc, char **argv, int bank);
 #define XCMD_ROODERS_ITEM_POINTS 10000
 #define XCMD_ROODERS_TOP_DIGIT 1000000000
 #define ITEM_ROW_HELD 1                 /* ItemData row byte +1: held count */
+// Slice 4 (2026-11-11). The play-time clock (progress_time counts frames at 30 a second).
+#define XCMD_FRAMES_PER_MINUTE 1800
+#define XCMD_FRAMES_PER_HOUR 108000
+#define XCMD_TIME_MAX 10799970          /* tnXcmd_TimeSet: 99:59:59; at or past it the digits read 9 / 5 */
+// tnXcmd_1P01_PazzleAnim: the clock puzzle's hands (TRIG_VAR_PUZZLE_ROW the hour 0..11, _COL the
+// minute 0..59). A turn back moves 40 minutes (16 frames), forward 25 (10 frames); the scene's track
+// is XCMD_PUZZLE_TRACK_FRAMES (12 hours) long; the command then waits out the turn's frames.
+#define XCMD_PUZZLE_HOURS 12
+#define XCMD_PUZZLE_MINUTES 60
+#define XCMD_PUZZLE_TRACK_FRAMES 288
+#define XCMD_PUZZLE_BACK_MINUTES 40
+#define XCMD_PUZZLE_BACK_FRAMES 16
+#define XCMD_PUZZLE_BACK_WAIT 0x40
+#define XCMD_PUZZLE_FWD_MINUTES 25
+#define XCMD_PUZZLE_FWD_FRAMES 10
+#define XCMD_PUZZLE_FWD_WAIT 0x28
+#define XCMD_PUZZLE_SPEED 0.25f
+// The scene animation commands' selection argument (wideXcmd_PlayAnimeToFream / _Range): 0 the pose
+// tracks, 1 the other tracks, 2 by part (asSceneAnimationStart's pose / other / byPart).
+#define XCMD_ANIM_SELECT_POSE 0
+#define XCMD_ANIM_SELECT_OTHER 1
+#define XCMD_ANIM_SELECT_BY_PART 2
 extern int load_id;                    /* sbss 0x0194493c: the area tnXcmd_Menu_MapLoad loaded */
 
 int tnXcmd_AutoLoad(int argc, char **argv, int bank);                                   // CT3 0x018eebb0

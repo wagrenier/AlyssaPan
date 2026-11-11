@@ -1262,7 +1262,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 136..136, 7 functions keyed by their statics, 36 unkeyed; file name from the names"
   },
   "game/xcmd_tn.c": {
-   "notes": "11 commands written (SetRoodersPts, SetAllControlDisableCamera, ScreenAdjust, All and CharOmniEffect, OmniRange, Filter_Change, SetMovieWorkBuff, 1P01_PazzleInit, tnCurrentSceneSet, TexFileSetNext); MODEL_PARTS 0x70..0x7c named (the omni range ease). Picture unchanged: frame 120 the memory-card text at 4:3, then flat grey (the script waits at tiFade_Start and hhXcmd_LoadSE, stubs); none of the new commands is reached. callcheck gaps are static helpers (XcmdIsOn, XcmdControlLock, XcmdValue, XcmdOmniFalloff) and the dropped retail-empty sprintf message. Left: Key_Lock (0x16f0 bytes, its own session), TimeSet, 1P01_PazzleAnim, VariableCal, PlayAnimeToFream, PlayAnimeRange, Character_Ambient_Change, VistaVision, TexFileSetPage. open-items.md (aa)..(ad) list the doubts. tiXcmd_TransItem.c left the pinned queue this run (boss stubs wait for pBossInfo's host form).",
+   "notes": "7 commands written (TimeSet, 1P01_PazzleAnim, PlayAnimeToFream, PlayAnimeRange, VariableCal, Character_Ambient_Change, TexFileSetPage); statics TimeSet_Backup and pazzle1P01_Main defined; CHAR_AMB_SET (layout EE) is tnChangeCharAmbientColorSet's request. Picture unchanged: frame 120 the memory-card text at 4:3, then flat grey (the script waits at the stubs tiFade_Start and hhXcmd_LoadSE); none of the new commands is reached. callcheck gaps are static helpers (XcmdSetDigit, XcmdPuzzleTurn, XcmdAnimSelect, XcmdValue, XcmdIsOn, XcmdControlLock, XcmdOmniFalloff) and the dropped retail-empty sprintf messages. Left: Key_Lock (0x16f0 bytes, its own session) and VistaVision (0x3c0). open-items.md slice 4 (ae)..(ah) lists the doubts: asSceneAnimationStart 12th argument is backwards at every x-command call.",
    "ranges": [
     [
      "018ee5f0",
@@ -1284,6 +1284,11 @@
      "date": "2026-11-11 12:55",
      "status": "partial",
      "summary": "slice 3: 11 x commands: the clear's points, control lock, screen adjust, omni lights and range, screen filter, movie buffers, puzzle start, current scene, texture page"
+    },
+    {
+     "date": "2026-11-11 13:11",
+     "status": "partial",
+     "summary": "slice 4: 7 x commands: the play-time clock digits, the clock puzzle turn, scene animation to a frame and over a range, variable arithmetic, a character ambient fade, the texture page"
     }
    ],
    "status": "partial",

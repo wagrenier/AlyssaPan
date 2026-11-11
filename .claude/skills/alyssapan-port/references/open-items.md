@@ -1158,6 +1158,23 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    boss stubs left, waiting for pBossInfo's host form); it stays partial and comes back after the queue.
    Left in xcmd_tn.c: Key_Lock (0x16f0 bytes), TimeSet, 1P01_PazzleAnim, VariableCal, PlayAnimeToFream,
    PlayAnimeRange, Character_Ambient_Change, VistaVision, TexFileSetPage.
+   **game/xcmd_tn.c slice 4, partial (2026-11-11 13:10, scheduled run):** 7 commands written (TimeSet,
+   1P01_PazzleAnim, PlayAnimeToFream, PlayAnimeRange, VariableCal, Character_Ambient_Change,
+   TexFileSetPage); statics TimeSet_Backup (0x0193b90c) and pazzle1P01_Main (0x01944938) defined. Picture
+   unchanged (frame 120 the memory-card text, then flat grey: none of them is reached). Open from slice 4:
+   (ae) ~~(ac)'s puzzle names~~ settled: 1P01 is a clock, ROW the hour (0..11), COL the minute (0..59),
+   24 track frames an hour (XCMD_PUZZLE_*); (af) asSceneAnimationStart's 12th argument (named
+   stepFromRuns) is "backwards" at every x-command call (PlayAnimeToFream2's to < now, PazzleAnim's turn
+   back, PlayAnimeToFream's argv[6], PlayAnimeRange's argv[8]): rename it when its TU reads it; the 10th
+   (started) / 11th (toEnd) names stand unconfirmed (PlayAnimeRange passes argv[5] as the 10th,
+   PlayAnimeToFream argv[3] as the 11th); (ag) CHAR_AMB_SET (xcmd_tn.c, layout EE) is
+   tnChangeCharAmbientColorSet's request: mode 1 (six arguments) / 3 (seven, + flag byte +0x18) named from
+   this one use; the portal and warp callers pass mode 0 with only 4 shorts -- the callee's TU
+   (ssSetTexUVforCubeMap.c) confirms the fields and may move the struct to its header; (ah) VariableCal
+   with a zero divisor (/ or %) and the anim commands with an unknown source or selection leave the
+   variable / animation alone on the host (the ROM uses stale registers). callcheck gaps of this slice are
+   the static helpers (XcmdSetDigit, XcmdPuzzleTurn, XcmdAnimSelect, XcmdValue). Left in xcmd_tn.c:
+   Key_Lock (0x16f0 bytes, its own session) and VistaVision (0x3c0).
 
 ## Decisions
 
