@@ -7,6 +7,9 @@
 #include "game/LinkMatrixTree.h"
 #include "game/ct3_types.h"
 #include "game/main.h"
+#include "game/QuatSlerp.h"
+#include "game/ahRelocateSunPs2ObjectArry.h"
+#include "game/ssHitCheckAttackToScn.h"
 #include "game/unassigned_data.h"
 #include "ga/gaInit3dlib.h"
 #include "ga/gaInitDrawObject.h"
@@ -14,6 +17,7 @@
 #include "ga/pad_button_read.h"
 #include "alyssapan/rendering/alyssapan_drawga.h"
 
+#include <math.h>
 #include <string.h>
 
 WIND *WindList[WIND_MAX];                       /* sbss 0x0193d290 */
@@ -283,6 +287,7 @@ void tiFade_Draw(void)
         }
         FadeStartTicks += gGlobalNextTicksInterval;
     }
+    // callcheck: gaBGT_ExecDrawCommandData_VIF1 (PORT: the sprite packet's send; AlyssaPan_DrawGaFill draws it)
 }
 
 // ---- maths ----
@@ -299,18 +304,234 @@ int tiFactorial(int base, u_int n)
     return result;
 }
 
+// ---- portal clipping ----
+
+// CT3 0x01889cd0: main_rtn and its variants, while Clipping_System is 1: narrow the 3dlib work's side
+// planes to the portal rectangle (Clipping_X1..Y2_pos, screen pixels). Only the tangents follow the
+// rectangle; the secants keep the screen's own spans, and the left and bottom secants use the centre
+// alone (CX / sx, CY / sy) -- all as the ROM computes them.
+void Clipping_Portal(void *work, float *screen)
+{
+    GA_3DLIB_WORK *w = (GA_3DLIB_WORK *)work;
+    float cx = screen[GA_SCREEN_CX];
+    float cy = screen[GA_SCREEN_CY];
+    float sx = screen[GA_SCREEN_SCALE_X];
+    float sy = screen[GA_SCREEN_SCALE_Y];
+    float p = screen[GA_SCREEN_PROJ];
+    float t;
+
+    t = cx / sx;
+    w->planeSec[GA_PLANE_LEFT] = sqrtf(t * t + p * p) / p;
+    w->planeTan[GA_PLANE_LEFT] = -((cx - Clipping_X1_pos) / sx) / p;
+    t = (screen[GA_SCREEN_W] - cx) / sx;
+    w->planeSec[GA_PLANE_RIGHT] = sqrtf(t * t + p * p) / p;
+    w->planeTan[GA_PLANE_RIGHT] = ((Clipping_X2_pos - cx) / sx) / p;
+    t = (screen[GA_SCREEN_H] - cy) / sy;
+    w->planeSec[GA_PLANE_TOP] = sqrtf(t * t + p * p) / p;
+    w->planeTan[GA_PLANE_TOP] = -((Clipping_Y2_pos - cy) / sy) / p;
+    t = cy / sy;
+    w->planeSec[GA_PLANE_BOTTOM] = sqrtf(t * t + p * p) / p;
+    w->planeTan[GA_PLANE_BOTTOM] = ((cy - Clipping_Y1_pos) / sy) / p;
+}
+
+// ---- feet ----
+//
+// The leg parts are matrix-tree records (CHARACTER.legParts: part + CHARA_LEG_PART_OFFSET), so these are
+// LinkMatrixTree.c's record offsets.
+#define LEG_REC_BITS 0x3                /* u_char: LEG_REC_BIT_DIRTY makes BuildMatrixTree rebuild the part */
+#define LEG_REC_BIT_DIRTY 0x1
+#define LEG_REC_PIVOT 0x20              /* float[4]: the joint's point in its own world frame (MODEL_PARTS +0x60;
+                                           named from this use) */
+#define LEG_REC_PARENT 0x8c             /* u_int: EE address of the parent's matrix */
+#define LEG_REC_POS 0xf0                /* float[4]: MODEL_PARTS.pos */
+#define LEG_REC_MATRIX 0x180            /* float[4][4]: the world matrix (MODEL_PARTS.matrix) */
+#define LEG_REC_MATRIX_Y 0x190          /* its row 1: the thigh's bend axis */
+#define LEG_REC_OFFSET 0x240            /* float[4][4]: applied after the local matrix */
+#define LEG_REC_BASE 0x280              /* float[4][4]: the part's own transform (MODEL_PARTS.placeRot) */
+#define LEG_F(rec, off) ((float *)((rec) + (off)))
+#define LEG_M(rec, off) ((float (*)[4])((rec) + (off)))
+
+#define FOOT_LOS_ABOVE 50.0f            /* the floor probe starts this far above the foot ... */
+#define FOOT_LOS_BELOW 1.0f             /* ... and ends this far below it */
+
+// PORT: the record's REC_PARENT word as a host matrix (BuildMatrixTree's PartsParentMatrix).
+static float (*FootParentMatrix(int bank, const u_char *rec))[4]
+{
+    u_int ee = *(const u_int *)(rec + LEG_REC_PARENT);
+
+    if (ee == MATUNIT_EE)
+        return matUnit;
+    return BANK_PTR(float (*)[4], bank, ee);
+}
+
+// out.xyz = (a - b).xyz / |(a - b).xyz| (VU0 vrsqrt), out.w = (a - b).w; answers the length (1 / rsqrt).
+static float FootDirLen(float out[4], const float *a, const float *b)
+{
+    float d[4], q;
+    int k;
+
+    for (k = 0; k < 4; k++)
+        d[k] = a[k] - b[k];
+    q = 1.0f / sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+    for (k = 0; k < 3; k++)
+        out[k] = d[k] * q;
+    out[3] = d[3];
+    return 1.0f / q;
+}
+
+// The turn that brings the joint's direction to `cur` onto `want` (both seen from its pivot in the
+// inverse frame `inv`): the axis want x cur (VU0 vopmula / vopmsub, not normalised: the ROM's), the angle
+// acos(cur . want); `axis` keeps its w (the ROM reuses the vector).
+static void FootTurn(float (*m)[4], float (*inv)[4], const float *pivot, const float *cur, const float *want,
+                     float axis[4])
+{
+    float a[4], b[4], u1[4], u2[4];
+
+    PortApplyMatrix(a, inv, cur);
+    PortApplyMatrix(b, inv, want);
+    FootDirLen(u1, a, pivot);
+    FootDirLen(u2, b, pivot);
+    u1[3] = a[3]; // vsub.xyz: w stays the transformed point's
+    u2[3] = b[3];
+    axis[0] = u2[1] * u1[2] - u1[1] * u2[2];
+    axis[1] = u2[2] * u1[0] - u1[2] * u2[0];
+    axis[2] = u2[0] * u1[1] - u1[0] * u2[1];
+    asMakeRotMatrixByQuartanion(m, axis, ahAcos(gaInnerProductXYZ(u1, u2)));
+}
+
+// CT3 0x0188b240: two-bone IK for one leg: bend thigh and calf (their LEG_REC_BASE) so the foot's IK point
+// reaches `target`. Out of reach (thigh-to-target longer than the two bones): nothing turns, *footY = the
+// IK point's height, answers 0. Else the knee goes where the law of cosines puts it (turned about the
+// thigh's Y row), the thigh turns to it, the chain is rebuilt down to the IK point, the calf turns that
+// point onto the target, *footY = target's height, answers 1.
+// PORT: the bank is added in front (the records' EE words resolve in it).
+int tiCalc_FootPos(int bank, u_char *thigh, u_char *calf, u_char *foot, u_char *ik, float *target, float *footY)
+{
+    alignas(16) float pivot[4] = {0}, axis[4] = {0}, m[4][4], chain[4][4], tip[4][4];
+    float thighPos[4], knee[4], ikPos[4], dir[4], unused[4], ikAt[4];
+    float reach, thighLen, calfLen;
+    int k;
+
+    memcpy(thighPos, LEG_F(thigh, LEG_REC_POS), sizeof(thighPos));
+    memcpy(knee, LEG_F(calf, LEG_REC_POS), sizeof(knee));
+    memcpy(ikPos, LEG_F(ik, LEG_REC_POS), sizeof(ikPos));
+    reach = FootDirLen(dir, target, thighPos);
+    thighLen = FootDirLen(unused, knee, thighPos);
+    calfLen = FootDirLen(unused, ikPos, knee);
+    if (thighLen + calfLen < reach) {
+        *footY = ikPos[1];
+        return 0;
+    }
+
+    // the knee: the thigh-to-target direction turned about the thigh's Y row, thighLen out
+    asMakeRotMatrixByQuartanion(m, LEG_F(thigh, LEG_REC_MATRIX_Y),
+                                ahAcos((reach * reach + thighLen * thighLen - calfLen * calfLen) /
+                                       (reach * 2.0f * thighLen)));
+    PortApplyMatrix(axis, m, dir);
+    for (k = 0; k < 4; k++)
+        knee[k] = thighPos[k] + axis[k] * thighLen;
+
+    // the thigh: turn the calf's position onto the knee
+    gaInversMatrix(chain, LEG_M(thigh, LEG_REC_MATRIX));
+    memcpy(pivot, LEG_F(thigh, LEG_REC_PIVOT), sizeof(pivot));
+    FootTurn(m, chain, pivot, LEG_F(calf, LEG_REC_POS), knee, axis);
+    gaMulMatrix(LEG_M(thigh, LEG_REC_BASE), LEG_M(thigh, LEG_REC_BASE), m);
+
+    // the chain down to the IK point, with the thigh's new base
+    gaMulMatrix(chain, FootParentMatrix(bank, thigh), LEG_M(thigh, LEG_REC_BASE));
+    gaMulMatrix(chain, chain, LEG_M(calf, LEG_REC_BASE));
+    gaMulMatrix(tip, chain, LEG_M(foot, LEG_REC_BASE));
+    gaMulMatrix(tip, tip, LEG_M(ik, LEG_REC_BASE));
+    gaMulMatrix(tip, tip, LEG_M(ik, LEG_REC_OFFSET));
+    PortApplyMatrix(ikAt, tip, LEG_F(ik, LEG_REC_PIVOT));
+
+    // the calf: turn the IK point onto the target
+    gaMulMatrix(chain, chain, LEG_M(calf, LEG_REC_OFFSET));
+    gaInversMatrix(chain, chain);
+    memcpy(pivot, LEG_F(calf, LEG_REC_PIVOT), sizeof(pivot));
+    FootTurn(m, chain, pivot, ikAt, target, axis);
+    gaMulMatrix(LEG_M(calf, LEG_REC_BASE), LEG_M(calf, LEG_REC_BASE), m);
+    *footY = target[1];
+    return 1;
+    // callcheck: gaInnerProductXYZ (FootTurn makes it)
+}
+
+// One leg of tiCharaFootAdjust (leg[0..3]: thigh, calf, foot, IK point): probe the floor under the IK
+// point (FOOT_LOS_ABOVE over it to FOOT_LOS_BELOW under it, in the character's lightBank: the scene bank
+// it stands in) and, on a floor hit, keep the thigh's and calf's bases in saved[] and bend the leg onto
+// the hit point.
+static int FootAdjustLeg(CHARACTER *chr, u_char **leg, float (*saved)[4][4], LOS_HIT *hit, float *footY)
+{
+    float *foot = LEG_F(leg[CHARA_LEG_IK_R - CHARA_LEG_R_THIGH], LEG_REC_POS);
+
+    memcpy(hit->seg.from, foot, sizeof(hit->seg.from));
+    memcpy(hit->seg.to, foot, sizeof(hit->seg.to));
+    hit->seg.from[1] += FOOT_LOS_ABOVE;
+    hit->seg.to[1] -= FOOT_LOS_BELOW;
+    if (CheckLOS(chr->lightBank, &hit->seg) == 0)
+        return 0;
+    if (hit->record == NULL || // PORT: the stub CheckLOS leaves none
+        (*(u_int *)((u_char *)hit->record + LOS_HIT_FLAGS) & LOS_HIT_FLAG_FLOOR) == 0)
+        return 0;
+    memcpy(saved[0], LEG_M(leg[0], LEG_REC_BASE), sizeof(saved[0]));
+    memcpy(saved[1], LEG_M(leg[1], LEG_REC_BASE), sizeof(saved[1]));
+    return (u_char)tiCalc_FootPos(chr->bank, leg[0], leg[1], leg[2], leg[3], hit->point, footY);
+}
+
+// CT3 0x0188b790: once a frame (main): plant the feet of every live character (CHARACTER_FLAG_REFRACTION
+// and _SHADOW) that asks for it (CHARACTER.footAdjust) on the floor under them: bend the legs, rebuild
+// the bank's matrix tree once with the bent legs (BuildMatrixTree mode 2), then put the thigh and calf
+// bases back, so the bend lasts this frame's matrices only.
+void tiCharaFootAdjust(void)
+{
+    alignas(16) float savedR[2][4][4], savedL[2][4][4];
+    LOS_HIT hit;
+    float footYR, footYL;
+    int i, k;
+
+    memset(&hit, 0, sizeof(hit));
+    for (i = 0; i < CHARACTER_MAX; i++) {
+        CHARACTER *chr = &Character[i];
+        u_char *legs[8];
+        int right = 0, left = 0;
+
+        if ((chr->flags & CHARACTER_FLAG_REFRACTION) == 0 || (chr->flags & CHARACTER_FLAG_SHADOW) == 0)
+            continue;
+        for (k = 0; k < 8; k++)
+            legs[k] = BANK_PTR(u_char *, chr->bank, chr->legParts[k]);
+        if (chr->footAdjust & CHARA_FOOT_ADJUST_R)
+            right = FootAdjustLeg(chr, &legs[CHARA_LEG_R_THIGH], savedR, &hit, &footYR);
+        if (chr->footAdjust & CHARA_FOOT_ADJUST_L)
+            left = FootAdjustLeg(chr, &legs[CHARA_LEG_L_THIGH], savedL, &hit, &footYL);
+        if (!right && !left)
+            continue;
+        if (right) {
+            legs[CHARA_LEG_R_THIGH][LEG_REC_BITS] = LEG_REC_BIT_DIRTY;
+            legs[CHARA_LEG_R_CALF][LEG_REC_BITS] = LEG_REC_BIT_DIRTY;
+        }
+        if (left) {
+            legs[CHARA_LEG_L_THIGH][LEG_REC_BITS] = LEG_REC_BIT_DIRTY;
+            legs[CHARA_LEG_L_CALF][LEG_REC_BITS] = LEG_REC_BIT_DIRTY;
+        }
+        BuildMatrixTree(chr->bank, 2, 0);
+        if (right) {
+            memcpy(LEG_M(legs[CHARA_LEG_R_THIGH], LEG_REC_BASE), savedR[0], sizeof(savedR[0]));
+            memcpy(LEG_M(legs[CHARA_LEG_R_CALF], LEG_REC_BASE), savedR[1], sizeof(savedR[1]));
+        }
+        if (left) {
+            memcpy(LEG_M(legs[CHARA_LEG_L_THIGH], LEG_REC_BASE), savedL[0], sizeof(savedL[0]));
+            memcpy(LEG_M(legs[CHARA_LEG_L_CALF], LEG_REC_BASE), savedL[1], sizeof(savedL[1]));
+        }
+    }
+    // callcheck: CheckLOS, tiCalc_FootPos (FootAdjustLeg makes them)
+}
+
 // ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x01893850
 void tiBumpSTValueUpdate(void)
 {
     ALYSSAPAN_STUB("tiBumpSTValueUpdate", 0x01893850);
-}
-
-// stub of CT3 0x0188b790
-void tiCharaFootAdjust(void)
-{
-    ALYSSAPAN_STUB("tiCharaFootAdjust", 0x0188b790);
 }
 
 // stub of CT3 0x0188df70
@@ -389,12 +610,6 @@ void ExportDrawToTex(void)
 void tiFreeBossData(void)
 {
     ALYSSAPAN_STUB("tiFreeBossData", 0x01889df0);
-}
-
-// stub of CT3 0x01889cd0
-void Clipping_Portal(void *work, void *screen)
-{
-    ALYSSAPAN_STUB("Clipping_Portal", 0x01889cd0);
 }
 
 // stub of CT3 0x0188dca0

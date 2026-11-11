@@ -474,7 +474,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 105..105, 36 functions keyed by their statics, 13 unkeyed; file name from the names"
   },
   "game/Clipping_Portal.c": {
-   "notes": "Fade after ATLD is type 4 (OUT2_BLACK) reaching f 1; tiFade_Draw sends the ROM's GIF sprite packet, which the host drops, so the shot stays flat grey: host task alyssapan/rendering/ga_fill.cpp queued first. Slice left: tiDrawShadingOff, CaptureDBuffer, tiVRAMViewer, ExportDrawToTex, tiDrawLensFlares, tiLightBelt2Update, tiCharaFootAdjust, tiCalc_FootPos (draw path and feet). open-items.md item 7 update (ha..he).",
+   "notes": "Smoke run unchanged: frame 120 ATLD text, then black after the fade; none of the new code runs yet (Clipping_System 0, no character, CheckLOS a stub). Slice left: tiPipeJointUpdate together with tiPipeJointInit (shared pipe globals), tiDrawShadingOff with CaptureDBuffer and tiVRAMViewer (frame-buffer capture needs a host call), ExportDrawToTex, tiDrawLensFlares, tiLightBelt2Update. open-items.md item 7 update (ja..jf).",
    "ranges": [
     [
      "01889cd0",
@@ -486,6 +486,11 @@
      "date": "2026-11-11 14:19",
      "status": "partial",
      "summary": "slice 1: vibration (tiVibrationOn / Off / Timer), wind (tiWindInit / Update / End / End_All), tiLightBelt2Init, tiFade_Start, tiFade_Draw, tiFactorial; WIND, LIGHT_BELT2, ALL_TABLE.winds / lightBelts, MODEL_PARTS.matrix200, gaPadSetVibration declared"
+    },
+    {
+     "date": "2026-11-11 14:54",
+     "status": "partial",
+     "summary": "slice 2: Clipping_Portal (portal side planes), tiCharaFootAdjust and tiCalc_FootPos (two-bone leg IK onto the floor); LOS_HIT, CHARACTER.footAdjust, CHARA_LEG moved to ct3_types.h"
     }
    ],
    "status": "partial",

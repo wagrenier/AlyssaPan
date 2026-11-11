@@ -100,7 +100,12 @@ void tiRefractionMapUpdate(void);                                               
 void tiFreeBossData(void);                                                               // CT3 0x01889df0
 void tiWindEnd_All(void);                                                                // CT3 0x0188cb60
 void ExportDrawToTex(void);                                                              // CT3 0x01893cf0
-void Clipping_Portal(void *work, void *screen);                                         // CT3 0x01889cd0
+// work: the 3dlib work (GA_3DLIB_WORK, ga3dlibwork); screen: screen_0's twelve floats (GA_SCREEN_*).
+void Clipping_Portal(void *work, float *screen);                                        // CT3 0x01889cd0
+// thigh..ik: CHARACTER.legParts' records (host pointers); target: the floor point; footY: out.
+// PORT: the bank is added in front. Answers 1 when the leg was bent.
+int tiCalc_FootPos(int bank, u_char *thigh, u_char *calf, u_char *foot, u_char *ik, float *target,
+                   float *footY);                                                       // CT3 0x0188b240
 void tiChara_Translucence_End2(int fbuf, int chara);                                     // CT3 0x0188d720
 void tiChara_Translucence_Start2(void);                                                  // CT3 0x0188dbd0
 void tiChara_Translucence_End(float alpha, int fbuf);                                    // CT3 0x0188dca0

@@ -1234,6 +1234,23 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    tears the scene down (ssParticleDeInit, ssPartMotionBlurAllEnd stubs) and stops at the stub hhXcmd_LoadSE
    with nothing more drawn: the next screen's load (the queue's game/Clipping_Portal.c rest, then the SE / load
    x commands) comes next.
+   **Update 2026-11-11 (Clipping_Portal.c slice 2, scheduled run):** Clipping_Portal (the portal's side
+   planes), tiCharaFootAdjust and tiCalc_FootPos (two-bone leg IK onto the floor) are written; the smoke run
+   is unchanged (frame 120 ATLD's text, then black): none of them runs in it (Clipping_System 0, no
+   character yet). Open from slice 2: (ja) LOS_HIT (ssHitCheckAttackToScn.h): CheckLOS's caller buffer runs
+   on past LOS_SEG -- hit point at +0x20, hit record at +0x30 (flags +0x194, LOS_HIT_FLAG_FLOOR 0x100000)
+   -- read from tiCharaFootAdjust's stack use only; CheckLOS's TU confirms and fills them (until then the
+   stub leaves no record and no foot bends); (jb) CheckLOS's bank for the feet is CHARACTER.lightBank
+   (+0xa0): the scene bank the character stands in -- the field may want a better name; (jc)
+   CHARACTER.footAdjust (+0x56c, bits CHARA_FOOT_ADJUST_R / _L) has no writer read yet; (jd) the record's
+   +0x20 (MODEL_PARTS +0x60) is named LEG_REC_PIVOT from this use only (the point the joint turns about,
+   in its own frame); (je) the IK's turn axes are cross products of unit vectors, not normalised, passed
+   to asMakeRotMatrixByQuartanion as the ROM does; whether it normalises is that TU's to say; (jf)
+   Clipping_Portal's left and bottom secants use the centre alone (CX / sx, CY / sy) while the right and
+   top use the span to the edge: the ROM's, kept. Slice left: tiPipeJointUpdate with tiPipeJointInit (its
+   globals pPipe_Joint / _Base / _Target, length1 / 2, matParent, prevMatrix, Pipe_Vel: do them together),
+   tiDrawShadingOff with CaptureDBuffer and tiVRAMViewer (a frame-buffer capture: needs a host call),
+   ExportDrawToTex, tiDrawLensFlares, tiLightBelt2Update.
 
 ## Decisions
 

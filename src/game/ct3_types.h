@@ -68,8 +68,9 @@ typedef struct CHARACTER {
     u_char pad542[0x54c - 0x542];
     u_int legParts[8];                  /* 0x54c: CHARA_LEG_*: EE addresses (BankEeAddr) of the shape bank's
                                            leg parts + CHARA_LEG_PART_OFFSET (TrgCharacterShapeSet) */
-    u_char pad56c[4];
-    struct CHARA_JUNC *junc;            /* 0x570: a block of gHeapJunc, freed with its buffer by
+    u_char footAdjust;                  /* 0x56c: CHARA_FOOT_ADJUST_*: which feet tiCharaFootAdjust plants */
+    u_char pad56d[3];
+    struct CHARA_JUNC *junc;           /* 0x570: a block of gHeapJunc, freed with its buffer by
                                            Character_All_Init. layout: host (an EE word there) */
     u_char pad578[0x580 - 0x570 - sizeof(void *)];
 } CHARACTER;
@@ -94,6 +95,20 @@ static_assert(offsetof(CHARACTER, roomHash) == 0x090, "CHARACTER.roomHash");
 static_assert(offsetof(CHARACTER, brain) == 0x0fc, "CHARACTER.brain");
 static_assert(offsetof(CHARACTER, shapeName) == 0x018, "CHARACTER.shapeName");
 static_assert(offsetof(CHARACTER, legParts) == 0x54c, "CHARACTER.legParts");
+static_assert(offsetof(CHARACTER, footAdjust) == 0x56c, "CHARACTER.footAdjust");
+#define CHARA_FOOT_ADJUST_R 0x1         /* legParts CHARA_LEG_R_THIGH..IK_R (tiCharaFootAdjust) */
+#define CHARA_FOOT_ADJUST_L 0x2         /* legParts CHARA_LEG_L_THIGH..IK_L */
+#define CHARA_LEG_PART_OFFSET 0x40      /* CHARACTER.legParts: part address + 0x40 (the matrix-tree record) */
+enum CHARA_LEG {                        /* CHARACTER.legParts[], in the ROM's order (main2.c's names) */
+    CHARA_LEG_R_THIGH,
+    CHARA_LEG_R_CALF,
+    CHARA_LEG_R_FOOT,
+    CHARA_LEG_IK_R,
+    CHARA_LEG_L_THIGH,
+    CHARA_LEG_L_CALF,
+    CHARA_LEG_L_FOOT,
+    CHARA_LEG_IK_L,
+};
 static_assert(offsetof(CHARACTER, b2f1) == 0x2f1, "CHARACTER.b2f1");
 static_assert(offsetof(CHARACTER, w300) == 0x300, "CHARACTER.w300");
 static_assert(offsetof(CHARACTER, hp) == 0x524, "CHARACTER.hp");

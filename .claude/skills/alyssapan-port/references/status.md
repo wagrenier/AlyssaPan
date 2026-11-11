@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-11 14:32 at commit `32c291d` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-11 14:54 at commit `ba6ce4a` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1082**; stubs: **294**
+- reconstructed CT3 functions: **1085**; stubs: **292**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -58,7 +58,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/AlignedNum.c` | 4 | 0 |
 | `src/game/ArtoolDebugOpen.c` | 15 | 0 |
 | `src/game/Character_Init.c` | 48 | 1 |
-| `src/game/Clipping_Portal.c` | 11 | 30 |
+| `src/game/Clipping_Portal.c` | 14 | 28 |
 | `src/game/Convert.c` | 0 | 2 |
 | `src/game/CpDivideEECom.c` | 0 | 10 |
 | `src/game/IOPGetFileSize.c` | 4 | 0 |
@@ -101,7 +101,7 @@ Least-named game-code regions (64 KB blocks):
 - 65 TUs: todo 34, partial 4, verify 27, done 6, blocked 1
 - next: **game/Clipping_Portal.c** (pinned in the queue)
 - pinned queue: game/Clipping_Portal.c, alyssapan/rendering/ui_canvas.cpp, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
-- partial: `game/Clipping_Portal.c` 11/73 -- Fade after ATLD is type 4 (OUT2_BLACK) reaching f 1; tiFade_Draw sends the ROM's GIF sprite packet, which the host drops, so the shot stays flat grey: host task
+- partial: `game/Clipping_Portal.c` 14/73 -- Smoke run unchanged: frame 120 ATLD text, then black after the fade; none of the new code runs yet (Clipping_System 0, no character, CheckLOS a stub). Slice lef
 - partial: `game/tiXcmd_TransItem.c` 85/93 -- Slice 10. Written: tiXcmd_UseItem (ITEM_USE_* modes from argv[4], ITEM_KIND_* from the row byte +0: give-take, signal, heal Character[0].hp up to hpMax, calm vi
 - partial: `game/wideXcmd_DebugPrint.c` 107/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed) -- the last function of the TU. New stubs
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
@@ -135,6 +135,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-11 14:54 `game/Clipping_Portal.c` partial: slice 2: Clipping_Portal (portal side planes), tiCharaFootAdjust and tiCalc_FootPos (two-bone leg IK onto the floor); LOS_HIT, CHARACTER.footAdjust, CHARA_LEG m
 - 2026-11-11 14:32 `alyssapan/rendering/ga_fill.cpp` done: the fade draws: tiFade_Draw covers the whole window through AlyssaPan_DrawGaFill, black at 4:3 and wide where the shot was flat grey
 - 2026-11-11 14:19 `game/Clipping_Portal.c` partial: slice 1: vibration (tiVibrationOn / Off / Timer), wind (tiWindInit / Update / End / End_All), tiLightBelt2Init, tiFade_Start, tiFade_Draw, tiFactorial; WIND, LI
 - 2026-11-11 13:54 `alyssapan/rendering/ga_atld.cpp` done: ATLD draws as the game picks it: the memory-card text textured, centred, same size at 4:3 and 1280x540; the slot 2 wording is page 1 of a 10-page slide texture,
@@ -142,20 +143,19 @@ Recent sessions:
 - 2026-11-11 13:11 `game/xcmd_tn.c` partial: slice 4: 7 x commands: the play-time clock digits, the clock puzzle turn, scene animation to a frame and over a range, variable arithmetic, a character ambient 
 - 2026-11-11 12:55 `game/xcmd_tn.c` partial: slice 3: 11 x commands: the clear's points, control lock, screen adjust, omni lights and range, screen filter, movie buffers, puzzle start, current scene, textu
 - 2026-11-11 12:30 `game/tiXcmd_TransItem.c` partial: the item use command (UseItem)
-- 2026-11-11 12:08 `game/tiXcmd_TransItem.c` partial: reconstruct 2 functions: the script delay command and the boss second phase (Balows2th)
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `game/Clipping_Portal.c` | partial | 11/30/73 | 44.8 | 124 | 14 |
+| `game/Clipping_Portal.c` | partial | 14/28/73 | 44.8 | 114 | 13 |
 | `game/ssSetTexUVforCubeMap.c` | partial | 1/44/96 | 35.3 | 107 | 10 |
 | `game/CpDivideEECom.c` | todo | 0/10/18 | 3.3 | 80 | 10 |
 | `ga/gaDrawObject.c` | todo | 0/11/11 | 6.9 | 39 | 0 |
 | `game/tiAvoidObject.c` | todo | 0/7/82 | 30.5 | 27 | 4 |
+| `game/ssHitCheckAttackToScn.c` | todo | 0/6/37 | 32.0 | 25 | 3 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
-| `game/ssHitCheckAttackToScn.c` | todo | 0/6/37 | 32.0 | 23 | 3 |
 | `game/asUseArrow.c` | todo | 0/7/11 | 6.4 | 17 | 1 |
-| `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
+| `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `ga/pad_button_read.c` | todo | 0/2/3 | 2.1 | 16 | 2 |
 | `game/tkXDTrg_GetSceneHash.c` | todo | 0/8/50 | 21.0 | 15 | 2 |
 
@@ -179,8 +179,8 @@ Recent sessions:
 | `018bd830` | AA_clearGsMem | 4 | sym | stub | game/AA_GetDataWord.c |
 | `018a7538` | gaSearchNearLight4 | 4 | sym | stub | ga/gaSearchNearLight4.c |
 | `018962a0` | tnChangeCharAmbientColorSet | 4 | sym | stub | game/ssSetTexUVforCubeMap.c |
+| `018ab180` | CheckLOS | 4 | sym | stub | game/ssHitCheckAttackToScn.c |
 | `01896a90` | ssPartMotionBlurInsertObjToDrawTable | 4 | sym | stub | game/ssSetTexUVforCubeMap.c |
-| `01889cd0` | Clipping_Portal | 4 | sym | stub | game/Clipping_Portal.c |
 | `018a8690` | gaDMAStopMessage_VIF1 | 4 | sym | stub | ga/wait.c |
 | `018a0b40` | gaPadRead | 4 | sym | stub | ga/pad_button_read.c |
 | `018db340` | asXcmd_AddForLockToTargChara | 3 | sym | stub | game/asXcmd.c |

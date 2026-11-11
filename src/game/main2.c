@@ -39,17 +39,7 @@
 #define CHARA_E05B 6
 #define E00_BANK 0x2e                   /* "E_00": drawn with Alyssa (TrgCharacterDraw) */
 
-#define CHARA_LEG_PART_OFFSET 0x40      /* CHARACTER.legParts: part address + 0x40 */
-enum CHARA_LEG {                        /* CHARACTER.legParts[], in the ROM's order */
-    CHARA_LEG_R_THIGH,
-    CHARA_LEG_R_CALF,
-    CHARA_LEG_R_FOOT,
-    CHARA_LEG_IK_R,
-    CHARA_LEG_L_THIGH,
-    CHARA_LEG_L_CALF,
-    CHARA_LEG_L_FOOT,
-    CHARA_LEG_IK_L,
-};
+// CHARA_LEG_* and CHARA_LEG_PART_OFFSET: ct3_types.h (tiCharaFootAdjust reads the legs too).
 static const char *const sLegPartNames[8] = {   /* 0x01934fd0.. */
     "Bip01 R Thigh", "Bip01 R Calf", "Bip01 R Foot", "ik_R",
     "Bip01 L Thigh", "Bip01 L Calf", "Bip01 L Foot", "ik_L",

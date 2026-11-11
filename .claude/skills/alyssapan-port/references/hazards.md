@@ -7,6 +7,12 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-11, Clipping_Portal.c slice 2) **Ghidra hides what a callee writes into the caller's stack
+  buffer past the struct the prototype names.** tiCharaFootAdjust's CheckLOS(bank, &seg) showed the hit
+  record as an uninitialised local (iStack_20) and the hit point as an unrelated array: both are the
+  buffer CheckLOS was given, at +0x30 and +0x20. Map every sp offset the listing (mipsdis.py) uses back to
+  the frame before naming locals; and VU0 lane masks (vsub.xyz, vmulq.xyz, vopmsub.xyz) leave w as it was
+  -- the decompiler shows whole-vector operations.
 - (2026-11-11, Clipping_Portal.c slice 1) **A GIF packet sent with gaBGT_ExecDrawCommandData_VIF1 draws
   nothing on the host.** Only ga draw objects (AlyssaPan_DrawGaObject) and the texture binding reach the
   renderer; raw A+D packets (the frame clear, tiFade_Draw's init_black / init_white sprites) are dropped.
