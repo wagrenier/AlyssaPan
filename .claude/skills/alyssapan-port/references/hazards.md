@@ -15,7 +15,9 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
   **Not fully understood:** YamiPan's renderer.cpp has the identical cycled upload and renders perfectly
   (the user, 2026-11-10), so cycling alone is not the cause; something in how AlyssaPan drives the renderer
   (timing, frames per field) makes it lose the data. With the fix, present and game rates fell from ~32 / 30
-  to ~10.6 in the probe runs: the uncycled upload may be serialising frames. Find the real difference.
+  to ~10.6 in the probe runs: the uncycled upload may be serialising frames. The user (2026-11-10): stick
+  to CT3 -- no renderer comparison with YamiPan; keep the workaround, and if CT3's frame rate suffers once
+  real draws land, look at how CT3's own frame end feeds the renderer.
 - (2026-11-10, gaBGT_DrawObject.c slice 2) **vudis.py misprints three lower-op fields**: `iaddiu`'s
   imm15 (`iaddiu vi1, vi1, 0x801` is +1, `0x804` +4, `0x1007` +7: high bits leak in), `mtir`'s component
   (it prints the dest mask, not fsf: the kick routines' `mtir.` / `.w` / `.z` are x / y / z, as the
