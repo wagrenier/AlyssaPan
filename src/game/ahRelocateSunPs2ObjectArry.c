@@ -762,8 +762,8 @@ void ExecuteAnimationHistory_init(void)
 // CT3 0x0184ec20
 // Plays back the animations recorded since the last frame (lpEAS, iEASidx records), each at its
 // recorded sign and step (the parts header's PARTS_HDR_ANIM_*, cleared after), then, for a record
-// whose animation's first doubleword is all ones, copies each attached part's parent word into the
-// scene's attach list (ALL_TABLE.ctrl +0); frees the records. FrameCounter counts every call.
+// whose animation's first doubleword is all ones (a camera animation), copies each cut's eye part's
+// animated focal length into the cut (ALL_TABLE.ctrl +0's records); frees the records. FrameCounter counts every call.
 // iEASidx is left as it is (the ROM's: the history adder sets it).
 void Execute_ExecuteAnimationHistory(void)
 {
@@ -787,14 +787,17 @@ void Execute_ExecuteAnimationHistory(void)
             continue;
         memcpy(&animWord, BANK_PTR(u_char *, bank, rec->anim), sizeof(animWord));
         if (animWord == ~(u_long)0) {
-            u_char *list = BANK_PTR(u_char *, bank, *(u_int *)(ctrl + OBJ_CTRL_ATTACH_LIST));
-            int count = ctrl[OBJ_CTRL_ATTACH_COUNT];
+            u_char *cuts = BANK_PTR(u_char *, bank, *(u_int *)(ctrl + EAS_CTRL_CUTS));
+            int count = ctrl[EAS_CTRL_CUT_COUNT];
             int i;
             for (i = 0; i < count; i++) {
-                u_char *e = list + i * OBJ_CTRL_ATTACH_SIZE;
-                u_int parent = *(u_int *)(PARTS_REC(hdr, *(u_short *)(e + OBJ_CTRL_ATTACH_PART)) + EAS_REC_PARENT);
-                if (parent != 0)
-                    *(u_int *)(e + OBJ_CTRL_ATTACH_PARENT) = parent;
+                u_char *cut = cuts + i * EAS_CUT_SIZE;
+                // MODEL_PARTS indexing (lhu 0xe; x 0x380; + header; lwc1 0x8c), not PARTS_REC: hazards.md
+                const u_char *part = hdr + *(const u_short *)(cut + EAS_CUT_PART) * PARTS_REC_SIZE;
+                u_int focal;
+                memcpy(&focal, part + EAS_PART_FOCAL, sizeof(focal));
+                if (focal != 0)
+                    memcpy(cut + EAS_CUT_FOCAL, &focal, sizeof(focal));
             }
         }
     }

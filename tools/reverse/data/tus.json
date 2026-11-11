@@ -1,5 +1,6 @@
 {
  "queue": [
+  "alyssapan/rendering/ga_atld.cpp",
   "alyssapan/rendering/ui_canvas.cpp",
   "game/ssGrpPortalCheck.c",
   "game/wideXcmd_DebugPrint.c",
@@ -40,6 +41,9 @@
    ],
    "status": "done",
    "task": "Host FSYS_IOP file server on io::Disc: the RPC server the EE file code (fileio.c FSMltLoad, IOPGetFileSize.c) calls; sdk/sif.cpp answers zeros today, so no bank loads. Read the EE side's RPC numbers and request records, register the server in iop/rpc_servers, answer sizes and reads from the disc. Done when a smoke run's log shows CT3PACK banks read and main2 gets past BankReady with a real bank."
+  },
+  "alyssapan/rendering/ga_atld.cpp": {
+   "task": "The first picture, ATLD (the memory-card check screen): its quads now land on screen (grey, untextured, right of centre). Make the ga host draw module draw them as work/ref/ATLD shows (white outlined text and arrow marks, centred), at 4:3 and wide: the object texture from the bank TIM2 via TextureStore keyed by the GS registers, the light0 colour, CT3 window origin, then depth and fog. open-items.md Next up item 7."
   },
   "alyssapan/rendering/ui_canvas.cpp": {
    "notes": "Blocked on ga/gaBGT_DrawObject.c (host draw module for ga draw objects) and the camera (asEyeForcusUP2CamMat.c camera_init0 / camera_view stubs); triggers are not needed for ATLD. Reference: ct3pack.py tex ATLD.BIN writes work/ref/ATLD. Suggested reorder in open-items.md, not applied (the user's order).",

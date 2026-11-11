@@ -60,13 +60,16 @@ typedef struct EAS_RECORD {             /* layout: host */
 int asGetBehaviorPlayableTicks(int bank, u_int anim);                                     // CT3 0x0184a520
 // PORT: the bank in front; the ROM's (anim, tbl, a, b, step) store sign = a * b.
 void SetExecuteAnimationHistory(int bank, u_int anim, ALL_TABLE *tbl, int a, int b, u_int step); // CT3 0x0184ed90
-#define EAS_REC_PARENT 0x8c             /* a part record's parent word (REC_PARENT) */
-// ALL_TABLE.ctrl's first list: the attached parts (0x20-byte entries; names from this use only).
-#define OBJ_CTRL_ATTACH_LIST 0x0        /* u_int: the entries */
-#define OBJ_CTRL_ATTACH_COUNT 0xc       /* u_char: their count */
-#define OBJ_CTRL_ATTACH_SIZE 0x20
-#define OBJ_CTRL_ATTACH_PARENT 0x8      /* u_int: the part's parent word, refreshed by an all-ones animation */
-#define OBJ_CTRL_ATTACH_PART 0xe        /* u_short: the part (record index of the bank) */
+// A camera animation (its first doubleword all ones) moves the focal length of each cut's eye part: the
+// ROM copies the part's word at MODEL_PARTS +0x8c (header + part * 0x380 + 0x8c -- MODEL_PARTS indexing,
+// not PARTS_REC's: 0x40 lower than LinkMatrixTree's parent word) into the cut's focal (CAM_CUT_FOCAL)
+// when it is non-zero. The cuts are the camera control table's (ALL_TABLE.ctrl +0, asEyeForcusUP2CamMat.h).
+#define EAS_PART_FOCAL 0x8c             /* float: MODEL_PARTS +0x8c, the eye part's animated focal (LEICA mm) */
+#define EAS_CTRL_CUTS 0x0               /* u_int: the camera's cut records (CAM_CTRL_CUTS) */
+#define EAS_CTRL_CUT_COUNT 0xc          /* u_char: their count */
+#define EAS_CUT_SIZE 0x20               /* CAM_CUT_SIZE */
+#define EAS_CUT_FOCAL 0x8               /* float: CAM_CUT_FOCAL */
+#define EAS_CUT_PART 0xe                /* u_short: CAM_CUT_PART, the eye's part in the bank */
 extern int FrameCounter;                /* 0x0194494c: Execute_ExecuteAnimationHistory's calls */
 extern int iEASnum;                     /* 0x0193f780 */
 extern void *lpEAS;                     /* 0x0193f77c */

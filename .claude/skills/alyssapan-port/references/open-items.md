@@ -1037,6 +1037,19 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    box / plane-volume fields are named from their starts and the shape readers only: ssTrigExecuteActCmd
    confirms them; (j) the shape kind > 5 answers 0 (the ROM's switch has no default).
 
+7. **(2026-11-11, the user: "2D is still not showing up") The first picture.** Fixed: the black screen was
+   Execute_ExecuteAnimationHistory writing an EE address into every camera cut's focal length (hazards.md
+   "Two part indexings"). Now ATLD's quads land on screen (2 of 2 triangles kept, 15 s smoke run) as grey
+   untextured shapes right of centre; the reference (work/ref/ATLD/trans_04: "Checking... Do not remove
+   memory card...", trans_00 / _02: the arrow marks) is white text with a black outline, centred. Left,
+   in the ga host draw module (ga/gaBGT_DrawObject.c's open list (b'), alyssapan/rendering/ga_mesh.cpp and
+   seams.cpp DrawGaFrame): (a) **the texture** (TEX_INFO / the object's GS registers +0x70 / +0x78 to a
+   TextureStore texture decoded from the bank's TIM2), (b) the colour: light0's RGBA comes out 0 0 0 127
+   (vertex colour + the object's +0x38 qword) and the shot shows grey -- check what DrawGaFrame does with
+   it, (c) the window origin (UiCanvas's FS2 origin 1792 vs CT3's 2048, open-items 4 Correction), (d)
+   depth / fog / light1. **Queued first** (the user's ask): the host task
+   `alyssapan/rendering/ga_atld.cpp` -- ATLD at 4:3 and wide as the reference shows it.
+
 ## Decisions
 
 - 2026-11-10 (the user, after the ui_canvas.cpp run): **the draw path and the camera go ahead of the

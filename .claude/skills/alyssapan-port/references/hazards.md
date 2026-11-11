@@ -7,6 +7,18 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-11, the user: "2D is still not showing up") **Two part indexings: MODEL_PARTS vs PARTS_REC.**
+  A parts header is indexed two ways in the ROM: `header + i * 0x380` (MODEL_PARTS, as pModelPartsHeader is
+  cast everywhere: kind +0x42, flags +0x50) and `header + 0x40 + i * 0x380` (PARTS_REC / LinkMatrixTree's
+  REC). The same "+0x8c" means different words: Execute_ExecuteAnimationHistory reads MODEL_PARTS +0x8c (a
+  camera part's animated focal length), LinkMatrixTree writes PARTS_REC +0x8c (the parent matrix's EE
+  address). The port read PARTS_REC +0x8c there and wrote that EE address into every cut's focal length
+  (CAM_CUT_FOCAL) once a frame, so screen_0's projection distance became ~1e-36, the 3dlib work's Z scale
+  inf, and every ga vertex landed on the screen centre (0 triangles kept): **this was the black screen**
+  once the camera and the ga draw path were written. Read a parts offset off the ROM's own base register
+  (`addu v0, header, i * 0x380` or `addiu t2, header, 0x40`) before choosing the macro. How it was found:
+  a probe at the ga recorder (the header's projection distance), then a watch on the cut word called
+  after each step of main's loop (bisects to the writer in one run).
 - (2026-11-10, the user's catch) **A black shot can be the renderer, not the game.** Every 2D draw was
   lost: `Renderer::uploadVertices` passed cycle=true to SDL_UploadToGPUBuffer and the scene pass drew
   nothing from the buffer (D3D12 and Vulkan alike), while stats showed the draws arriving. Fixed (upload
