@@ -389,6 +389,29 @@ the TU map's evidence.
   the EE kernel runs the thread and the vblank handler, sdk/libmpeg decodes with FFmpeg.
 - `game_end.dat` (0x01935308): a file the game opens by name.
 
+## The boot screen and the ga draw object's data (2026-11-10, host task `alyssapan/rendering/ui_canvas.cpp`)
+
+- **CT3 has no TIM2.** A bank's textures are `SUN_TEX_ATTR` records (QuatSlerp.h) reached from each draw
+  list entry (`DRAW_OBJ_ENTRY.tex` -> `TEX_INFO.tim`), raw GS pixels with 32-bit CLUTs (8-bit CLUTs in
+  CSM1 order); `tools/reverse/ct3pack.py tex <BANK>.BIN` decodes them to `work/ref/<bank>/`.
+- **The first screen is ATLD** (the global title bank at power-on, main2.c): the memory-card check, "Checking...
+  Do not remove memory card (8MB) (for PlayStation(R)2) in MEMORY CARD slot 1 or analog controller
+  (DUALSHOCK(R)2)." -- a 512x256 PSMT4 texture (white text, dark outline), plus a 128x32 PSMT8 sheet of
+  two icons (an arrow and a triangle) drawn with CLUTs 0 and 2. ATLD's ALL_TABLE has only an objTrans
+  list (5 entries; objOpaque / objAfter empty), so main_rtn mode 1 draws it, every entry through
+  **gaBGT_DrawObject_NoClippingCheck2** -- the ga mesh path, not a sprite path: **CT3 has no 2D packet step
+  before the triggers' screens** (the text is a textured quad in world space under the scene camera).
+- **The ga draw object** (read from ATLD's data, the drawing TU confirms): +0x00 flags byte (0x20 the
+  clipped / billboard path, & 0x1c the light kind: 0 light0, 8 / 0x10 light1), +0x10 a centre (xyzw),
+  +0x20 a bounding radius (twice), +0x44 the primitive count (2 for a quad: a strip), +0x48 the vertex
+  count (4), +0x50 an index record ({0x00100000, 0x20, 0x00200030, 0x00300010} for the quad), then **four
+  VIF unpack blocks the renderer sends as they are**: +0x60 positions (V4-32 floats; the text quad: x
+  -845..-525, y -80..80, z 0, w 1), +0x68 STMASK 0x10101010 + UNPACK V2-32 at VU 0x80 (ST, 0.001..0.999), +0x6c
+  UNPACK V4-8 at VU 0x100 (colours: (0, 0, 0, 0x7f) for the text, 0x4e alpha for the icons -- the light
+  pass makes the final colour), +0x64 UNPACK V4-32 at VU 0x80.. normals (0, 0, -1). The icons sit at x
+  -558..-524, y -73..-53. The view comes from camera_init0 / camera_view (stubs): the quads' place on
+  screen is the camera's.
+
 ## The file layer, game/ArtoolDebugOpen.c (2026-11-10)
 
 `IopLoadModules` reboots the IOP with `cdrom0:\IOP\IOPRP255.IMG;1` and loads the ten modules from

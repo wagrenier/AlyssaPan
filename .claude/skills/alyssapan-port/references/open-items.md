@@ -962,6 +962,21 @@ apply here):
 
 ## Open questions
 
+- (2026-11-10, host task `alyssapan/rendering/ui_canvas.cpp`, **blocked**) **The first screen has no 2D
+  packet step to route to UiCanvas.** It is ATLD, the memory-card check ("Checking... Do not remove memory
+  card..."; reference `ct3pack.py tex ATLD.BIN` -> `work/ref/ATLD/`), and its five objTrans entries are
+  textured quads in world space (z 0, x -845..-525) that main_rtn sends to
+  gaBGT_DrawObject_NoClippingCheck2 under the scene camera (architecture.md "The boot screen and the ga
+  draw object's data"). The first picture therefore needs **ga/gaBGT_DrawObject.c** (a native host draw
+  module for ga draw objects: positions, ST, colours from the object's unpack blocks, the light pass,
+  the texture from TEX_INFO) and **the camera** (camera_init0 / camera_view / camera_main in
+  game/asEyeForcusUP2CamMat.c, stubs), not the triggers: none of ATLD's draw goes through Trigger_main.
+  **Suggested (Claude, for the user to decide): pin ga/gaBGT_DrawObject.c and game/asEyeForcusUP2CamMat.c
+  ahead of game/ssGrpPortalCheck.c** -- the queue was not reordered, since its order is the user's.
+  UiCanvas stays the module for the true 2D draws (tiFade_Draw, the ssBGT_* screen sprites) when their
+  TUs come. Also seen: the 15 s smoke run now makes ~420 frames (60 a second; earlier runs made ~26,000),
+  and the ActressMP read in main.c no longer logs a crash in this run.
+
 - (2026-11-10, host task `alyssapan/iop/fsys_server.cpp`) **The queue's premise "no bank loads" was
   stale**: banks never go through the file server (every `*.BIN` is in CT3PACK.DAT, found by FlFindPacked
   and read with sceCdRead), and a probe showed INFO, E_GL, 0MH0 and ATLD loaded and set up at boot, with

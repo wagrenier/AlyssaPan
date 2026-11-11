@@ -44,6 +44,15 @@
    "task": "Host FSYS_IOP file server on io::Disc: the RPC server the EE file code (fileio.c FSMltLoad, IOPGetFileSize.c) calls; sdk/sif.cpp answers zeros today, so no bank loads. Read the EE side's RPC numbers and request records, register the server in iop/rpc_servers, answer sizes and reads from the disc. Done when a smoke run's log shows CT3PACK banks read and main2 gets past BankReady with a real bank."
   },
   "alyssapan/rendering/ui_canvas.cpp": {
+   "notes": "Blocked on ga/gaBGT_DrawObject.c (host draw module for ga draw objects) and the camera (asEyeForcusUP2CamMat.c camera_init0 / camera_view stubs); triggers are not needed for ATLD. Reference: ct3pack.py tex ATLD.BIN writes work/ref/ATLD. Suggested reorder in open-items.md, not applied (the user's order).",
+   "sessions": [
+    {
+     "date": "2026-11-10 20:29",
+     "status": "blocked",
+     "summary": "First screen found: ATLD, the memory-card check, drawn as world-space quads through gaBGT_DrawObject_NoClippingCheck2 (no 2D packet step); ct3pack.py reads CT3PACK.DAT and decodes bank textures to references"
+    }
+   ],
+   "status": "blocked",
    "task": "First picture, 2D: once banks load (the file server), find the first 2D thing the game draws (title, logo or a menu sprite, whichever the smoke run reaches first) and route its packet-writing step to UiCanvas; textures decoded at their source. Done when the screenshot shows it like the game's own asset at 4:3 and at a wide aspect (DisplayGeometry anchoring). If the first 2D draw is in a game TU, write that TU's slice here as the way in, and say so."
   },
   "ga/gaBGT_DrawObject.c": {
