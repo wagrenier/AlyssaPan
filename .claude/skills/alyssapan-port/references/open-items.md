@@ -1332,7 +1332,28 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    (after the host sprite), the translucence four (ka), tiFreeBossData (boss TU), plus the six slice-3
    helper stubs.
 
+8. **(2026-11-11, the user: "queue the title blockers") The way to the title screen.** A probe run
+   (16:25, reverted: every stubbed x command answering XCMD_DONE, AA_movie returning at once) showed the
+   path after ATLD: the script's **hhXcmd_LoadSE** (a stub answers XCMD_WAIT, so the script waits on it
+   for good), then two movies, **m_capcom.mov** and **m_title.mov** (data/movie2; the decode loop hangs on
+   the stub decoder thread AA_videoDecMain), then **hhXcmd_PlayADS** (the title music stream); after that
+   the run stopped presenting frames near frame 1860 and **TITL.BIN** (bank 0, the title: the clock logo,
+   "CLOCK TOWER 3", New Game / Load Game / Options / Cinema Theater, cloud textures, the content warning;
+   `ct3pack.py tex TITL.BIN` -> work/ref/TITL/) never loaded. Queued in this order: game/hhXcmd_DressUp.c
+   (LoadSE and PlayADS), the host task alyssapan/core/movie_skip.cpp (the smoke runs' cinematic skip), the
+   host task alyssapan/core/title_trace.cpp (why frames stop after PlayADS), ga/pad_button_read.c (gaPadRead:
+   the title menu needs the pad). TITL draws through the same ga path as ATLD; the real movie decoder
+   (AA_mpegTS.c, AA_videoCallback.c, AA_GetDataWord.c) comes after the title.
+   **For 3D after it** (not queued yet): a ga pass of its own with depth and fog, widened from
+   DisplayGeometry (UiCanvas has neither and squeezes), gaObjectClippingCheck and ga/gaDrawObject.c (the
+   clipped path most scene objects take), light1 / light2 lighting and billboards (item 4 (e) (f) (g)),
+   then characters (skinned parts) once a room loads.
+
 ## Decisions
+
+- 2026-11-11 (the user): **the title blockers go first.** Queue: game/hhXcmd_DressUp.c, host tasks
+  alyssapan/core/movie_skip.cpp and alyssapan/core/title_trace.cpp, ga/pad_button_read.c, then the rest
+  (Clipping_Portal.c's remaining slice after them). Item 8 has the path and the evidence.
 
 - 2026-11-11 (Claude, scheduled run 09:22, for the user to overrule): **game/tiXcmd_TransItem.c queued
   ahead of the rest of xcmd_tn.c.** The smoke run's script waits on the stub tiXcmd_XFade_Break every
