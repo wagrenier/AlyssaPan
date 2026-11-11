@@ -129,10 +129,16 @@ typedef struct CAMERA {
     float view2[4][4];                  /* 0x040: asBuildMirrorMatrixTree multiplies Cam[6]'s onto the
                                            reflected part matrix where the DOF tree has matrix_global_view
                                            (name from that one use) */
-    u_char pad080[0x70];
+    float viewPrev[4][4];               /* 0x080: asCharacterMoveByPad steers by Cam[6]'s rows 0 / 2 of this
+                                           one instead of view2 while iCamChangeFlag is set (the cut just
+                                           changed): the previous cut's view, a guess from that one use */
+    u_char pad0c0[0x30];
     float focus[4];                    /* 0x0f0: the point looked at (ssHQDOF_DrawAllObject's focusPos) */
-    u_char pad100[0x78];
-    short cut;                          /* 0x178: the camera's cut, CamChange_S's second argument (a save
+    u_char pad100[0x68];
+    short bank;                         /* 0x168: the cut's bank; asCharacterMoveByPad stocks it with cut
+                                           (iCameraBank_Stock / iCameraID_Stock) to see a cut change */
+    u_char pad16a[0xe];
+    short cut;                        /* 0x178: the camera's cut, CamChange_S's second argument (a save
                                            keeps the live bank's; name from data_save_set) */
     u_char pad17a[0x46];
 } CAMERA;
@@ -140,6 +146,8 @@ static_assert(offsetof(CAMERA, cut) == 0x178, "CAMERA.cut");
 static_assert(sizeof(CAMERA) == 0x1c0, "CAMERA");
 static_assert(offsetof(CAMERA, focus) == 0x0f0, "CAMERA.focus");
 static_assert(offsetof(CAMERA, view2) == 0x040, "CAMERA.view2");
+static_assert(offsetof(CAMERA, viewPrev) == 0x080, "CAMERA.viewPrev");
+static_assert(offsetof(CAMERA, bank) == 0x168, "CAMERA.bank");
 
 #define CAMERA_MAX 7                    /* Cam[]: 3136 bytes in the symtab */
 

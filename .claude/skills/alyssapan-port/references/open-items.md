@@ -141,7 +141,22 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    (at) motion names from one use each: MOTION_PULLED 0x41, MOTION_CHAINED 3, MOTION_PULLED_FREE 8,
    MOTION_WATER 0x51, MOTION_DOWN 0xd9, the hold motions 0x0c / 0xc6 / 0xc7, SITNOUP's 0xb5 / 0xc1; trigger
    variables 7 (WATER_READY 6), 0x34, 0x3e and event 0x91 (TRIG_EVENT_NO_PAD_MOVE) too; (au) the smoke run
-   wrote an empty last.png once (shot_27180.png was fine): if it recurs, look at the shot writer's last frame. **Next:**
+   wrote an empty last.png once (shot_27180.png was fine): if it recurs, look at the shot writer's last frame.
+   Open from wideXcmd_DebugPrint.c slice 7 (2026-11-10, the pad move, panic events, face motions): (av) the
+   pad move reads pad[0]'s bytes +0x1e / +0x1f (PAD_DATA.stick[2..3]) as the left stick's x / y and KEY_MAP[34]
+   as the stick dead zone: gaPadRead's TU confirms which stick; asCharacterMoveByPad's length test reads
+   an uninitialised z (sp+0x168) in the ROM: the port uses 0; (aw) CAMERA.viewPrev (+0x80) and
+   CAMERA.bank (+0x168) are named from this one use (the camera TU confirms them); controller_type 0 / 1 / 2
+   named CONTROLLER_CAMERA / _TANK / _CAMERA_HOLD from how the move reads them; PIA_KEY.h0c = the stick
+   points behind her (> 150 degrees; > 90 with event 0x6f): probably the turn-around motion's cue, its
+   reader (asPIA1 STAND / WALK / RUN) confirms; (ax) asPanicEventOperation's modes (PANIC_EV_*) and answers
+   (scream 1, tumble 2, freeze 3) are named from the function alone -- the callers (asPIA1 PRUN / PSTAND,
+   asCharacterMortionFunctionOperation) confirm them; group 0x0e = running (MOTION_GROUP_RUN) likewise;
+   event 0x8b TRIG_EVENT_NO_PANIC_EVENT; (ay) asMotionAdderByNowMotion's second pAM list compares slot 3's
+   *time* (0x464) where the first compares slot 2's motion: a ROM slip, kept; AM / pAM / AME / pAME are
+   host tables generated from the ELF (EE records, host pointers); MOTION_TABLE_H12 is pAM's arg (name
+   still open); the blink pairs (ALYS 0x42 / 0x43, CALH 0x103 / 0x104, CALJ 3 / 4) and character ids
+   0x1c / 0x0d named from this use. **Next:**
    ~~`ga/gaInitInterrupt.c`~~ (verify, 2026-11-09: main's frame loops now), then in the order a smoke
    run reaches the stubs: `main2` (game/main2.c: title and scene set-up), `IOPInit` / `Character_All_Init`
    (Character_Init.c), `FS_work_init` / `FileSoundServer` (fileio.c), `SunAllocInit` (ahalloc.c), the ga

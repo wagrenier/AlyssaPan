@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-10 18:56 at commit `7c7f13f` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-10 19:18 at commit `5777858` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **786**; stubs: **197**
+- reconstructed CT3 functions: **791**; stubs: **194**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -84,7 +84,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/ssSetTexUVforCubeMap.c` | 0 | 31 |
 | `src/game/tiAvoidObject.c` | 0 | 7 |
 | `src/game/tkXDTrg_GetSceneHash.c` | 0 | 3 |
-| `src/game/wideXcmd_DebugPrint.c` | 80 | 25 |
+| `src/game/wideXcmd_DebugPrint.c` | 85 | 22 |
 | `src/lib/unassigned_stubs.cpp` | 0 | 1 |
 
 ## Translation units (one session each: `tus.py`)
@@ -92,7 +92,7 @@ Least-named game-code regions (64 KB blocks):
 - 65 TUs: todo 41, partial 1, verify 23, done 3
 - next: **game/wideXcmd_DebugPrint.c** (pinned in the queue)
 - pinned queue: game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/asEyeForcusUP2CamMat.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c, game/ssGrpPortalCheck.c
-- partial: `game/wideXcmd_DebugPrint.c` 80/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, alone or split), asMotionAdderByNowMotion (needs pAM / pAME nested .data tables: datadump them), asPani
+- partial: `game/wideXcmd_DebugPrint.c` 85/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, alone or split), then the stubbed key-table entries (asPIA1 STAND / SIT / SITGO / WALK / RUN / MOVEEND 
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaDmaSync_VIF1.c` 5/5 -- Host: kicks leave CHCR.STR clear (the transfer is over), so the syncs return at once; the BGT send keeps the copy and the flip, the packet goes nowhere (draw mo
 - verify: `ga/gaInit3dlib.c` 25/25 -- 15 s smoke run: no fault, shot black (no host draw module). gaMulMatrix is dst = b * a (hazards.md). gaSetZRollMatrix now reaches gaSinCos: ga/gaSinCos.c is que
@@ -119,6 +119,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-10 19:18 `game/wideXcmd_DebugPrint.c` partial: slice 7: the pad move (asCharacterMoveByPad: tank and camera-relative steering, the turn-around flag PIA_KEY.h0c; asCharacterMoveByPadUD), the panic events (asP
 - 2026-11-10 18:56 `game/wideXcmd_DebugPrint.c` partial: slice 6: the player key dispatch (asPlayerInputAnalyze with its typed tables asPIA0 / asPIA1 / asPIAK, every key-table entry now (CHARACTER *, PIA_KEY *)), 19 s
 - 2026-11-10 18:34 `game/wideXcmd_DebugPrint.c` partial: slice 5: asCheckCharacterHited (the boss battle invulnerability vsBossMuteki / AfterPanicStartMuteki, the stage bosses scripted strikes, then Alyssa's hit table
 - 2026-11-10 18:13 `game/wideXcmd_DebugPrint.c` partial: slice 4: asCharacterAnimationExecute (the per-frame motion play, what follows a motion's end, root motion), asChangeAlyssaMortionByDamaging, asPIA1_KEY_TBL_HAIH
@@ -126,11 +127,10 @@ Recent sessions:
 - 2026-11-10 17:38 `game/wideXcmd_DebugPrint.c` partial: slice 2: positioning (asCharacterPositioning, as1CharacterPositioning, OnlyDeltaPos, the pause review, asResetCharacterRotation), the panic / barrier / lock sta
 - 2026-11-10 17:17 `game/wideXcmd_DebugPrint.c` partial: slice 1: asCharacterOperate, the vibration helpers, Alyssa's hit reactions (Hiting, Hirumi), the key enable, the motion request queue, asClearBehaviorChangeFlag
 - 2026-11-10 16:54 `game/movie.c` verify: slice 2: the playback (AA_movie, initAll, readMpeg, termAll); all 20 functions written
-- 2026-11-10 16:41 `game/movie.c` partial: slice 1: the movie front end, bank choice and memory map (16 of 20 functions); AA_movie, initAll, readMpeg, termAll left
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `game/ssGrpPortalCheck.c` | todo | 0/11/59 | 26.4 | 452 | 10 |
+| `game/ssGrpPortalCheck.c` | todo | 0/11/59 | 26.4 | 454 | 10 |
 | `game/Clipping_Portal.c` | todo | 0/34/73 | 44.8 | 160 | 18 |
 | `game/ssSetTexUVforCubeMap.c` | todo | 0/31/96 | 35.3 | 86 | 9 |
 | `game/CpDivideEECom.c` | todo | 0/10/18 | 3.3 | 80 | 10 |
@@ -139,15 +139,15 @@ Recent sessions:
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/ssHitCheckAttackToScn.c` | todo | 0/5/37 | 32.0 | 22 | 3 |
 | `ga/gaBGT_DrawObject.c` | todo | 0/2/9 | 7.6 | 18 | 1 |
-| `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
 | `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
+| `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
 | `game/tkXDTrg_GetSceneHash.c` | todo | 0/3/50 | 21.0 | 14 | 2 |
 
 ## Frontier (called by reconstructed code, not written yet)
 
 | CT3 addr | name | call sites | provenance | state | inferred file |
 |---|---|---|---|---|---|
-| `018d9100` | ssTrigCheckEvent | 147 | sym | stub | game/ssGrpPortalCheck.c |
+| `018d9100` | ssTrigCheckEvent | 149 | sym | stub | game/ssGrpPortalCheck.c |
 | `018d9560` | ssTrigRemoveEvent | 110 | sym | stub | game/ssGrpPortalCheck.c |
 | `018d95e0` | ssTrigRegisterEvent | 62 | sym | stub | game/ssGrpPortalCheck.c |
 | `018d9470` | ssTrigSetVariable | 43 | sym | stub | game/ssGrpPortalCheck.c |
@@ -173,7 +173,6 @@ Recent sessions:
 | `01889cd0` | Clipping_Portal | 4 | sym | stub | game/Clipping_Portal.c |
 | `018a0b40` | gaPadRead | 4 | sym | stub | ga/pad_button_read.c |
 | `018db340` | asXcmd_AddForLockToTargChara | 3 | sym | stub | game/asXcmd.c |
-| `018faa80` | asCharacterMoveByPad | 3 | sym | stub | game/wideXcmd_DebugPrint.c |
 | `018870c0` | camera_init0 | 3 | sym | stub | game/asEyeForcusUP2CamMat.c |
 | `01886dc0` | CamChange_S | 3 | sym | stub | game/asEyeForcusUP2CamMat.c |
 | `018881a0` | camera_main | 3 | sym | stub | game/asEyeForcusUP2CamMat.c |
@@ -187,4 +186,5 @@ Recent sessions:
 | `018eda60` | SceneDoorFlagClear | 2 | sym | stub | game/tkXDTrg_GetSceneHash.c |
 | `018aa950` | CheckLOS_Multi | 2 | sym | stub | game/ssHitCheckAttackToScn.c |
 | `018ab180` | CheckLOS | 2 | sym | stub | game/ssHitCheckAttackToScn.c |
+| `0189da90` | ssDOF_ClipObjectFromZRange | 2 | sym | stub | game/ssSetTexUVforCubeMap.c |
 

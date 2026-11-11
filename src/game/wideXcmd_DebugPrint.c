@@ -21,6 +21,9 @@
 // Slice 6 (2026-11-10): the player's key dispatch (asPlayerInputAnalyze and its tables asPIA0 / asPIA1 /
 // asPIAK: every entry now takes (CHARACTER *, PIA_KEY *)), the small key-table entries, the boss's chains
 // (asChainLengthCheck, asPIA0_KEY_TBL_PULLED) and the holy water check (asWater_Run_Check).
+// Slice 7 (2026-11-10): the pad move (asCharacterMoveByPad: tank and camera-relative steering, the
+// turn-around flag; asCharacterMoveByPadUD), the panic events (asPanicEventOperation), the face motions
+// and blinks (asMotionAdderByNowMotion with the AM / pAM / AME / pAME tables) and the play-rate setter.
 //
 // PORT: CHARACTER.w300[0] (CHARA_TARGET) is an EE address no written TU sets yet (Character_All_Init
 // clears it): CharaTarget answers none until its writer decides the host form (open-items.md 1 h).
@@ -693,6 +696,129 @@ int asRapidLeverChangeOperate(int mode, int time, int decay, int w08, int goal)
     return state;
 }
 
+// asPanicEventOperation's state (shorts: the ROM counts ticks in 16 bits).
+static short iRunCount;                 /* iRunCount$577, sbss 0x019449f4: ticks run in panic */
+static short iLastRunCount;             /* iLastRunCount$578, sbss 0x019449f0 */
+static short iNoMoveCount;              /* iNoMoveCount$579, sbss 0x019449ec: ticks in panic */
+static short iLastNoMoveCount;          /* iLastNoMoveCount$580, sbss 0x019449e8 */
+static short iScreamCount;              /* iScreamCount$581, sbss 0x019449e4 */
+static short iWaitCount;                /* iWaitCount$582, sbss 0x019449e0: PANIC_WAIT after an event */
+static short ExecTumble;                /* ExecTumble$583, sbss 0x019449dc: armed */
+static short ExecNoMove;                /* ExecNoMove$584, sbss 0x019449d8: armed */
+static short ExecScream;                /* ExecScream$585, sbss 0x019449d4: armed */
+// The run times a tumble may arm at (@586) and the panic times a freeze may arm at (@587), in ticks;
+// time i arms only when the frame's draw (0..15) is <= i, so the later times are likelier. The 17th
+// entries are never read.
+static const u_short kTumbleTimes[PANIC_TIMES] = { /* @586, sdata 0x0193ba80 */
+    0x258, 0x2ee, 0x384, 0x384, 0x41a, 0x4b0, 0x546, 0x5dc, 0x672,
+    0x708, 0x79e, 0x834, 0x8ca, 0x960, 0x9f6, 0xa8c, 0xb22,
+};
+static const u_short kFreezeTimes[PANIC_TIMES] = { /* @587, sdata 0x0193bab0 */
+    0x384, 0x41a, 0x4b0, 0x4b0, 0x546, 0x5dc, 0x672, 0x708, 0x79e,
+    0x834, 0x8ca, 0x960, 0x9f6, 0xa8c, 0xb22, 0xbb8, 0xc4e,
+};
+
+// 1 when one of the times falls in [last, now) at the frame's draw (the ROM's two loops).
+static int PanicTimePassed(const u_short *times, short last, short now, int draw)
+{
+    int i, hit = 0;
+    for (i = 0; i < PANIC_TIMES_READ; i++)
+        if (last <= (int)times[i] && (int)times[i] < now && draw <= i)
+            hit = 1;
+    return hit;
+}
+
+// CT3 0x018fb560
+// Alyssa's random panic events: PANIC_EV_TICK counts the ticks and arms a scream (every
+// PANIC_SCREAM_PERIOD ticks, likelier the nearer the closest monster), a freeze (at kFreezeTimes) and,
+// while she runs, a tumble (at kTumbleTimes); the PANIC_EV_TAKE_* modes hand one armed event out (then
+// PANIC_WAIT ticks before the next can arm).
+int asPanicEventOperation(int mode, int group)
+{
+    short ticks = (short)gGlobalNextTicksInterval;
+    int draw = (int)(rndf() * 16.0f);   // drawn on every call, as the ROM does
+    int ev = PANIC_EVENT_NONE;
+
+    if (ssTrigCheckEvent(TRIG_EVENT_NO_PANIC_EVENT, 1, 0) != 0)
+        return PANIC_EVENT_NONE;
+    if (mode == PANIC_EV_TAKE_RUN) {
+        if (iWaitCount < 1) {
+            if (ExecScream != 0) {
+                ExecScream = 0;
+                iWaitCount = PANIC_WAIT;
+                ev = PANIC_EVENT_SCREAM;
+            } else if (ExecTumble != 0) {
+                ExecTumble = 0;
+                iRunCount = 0;
+                iWaitCount = PANIC_WAIT;
+                ev = PANIC_EVENT_TUMBLE;
+            } else if (ExecNoMove != 0) {
+                ExecNoMove = 0;
+                iNoMoveCount = 0;
+                iWaitCount = PANIC_WAIT;
+                ev = PANIC_EVENT_FREEZE;
+            }
+        }
+    } else if (mode == PANIC_EV_TAKE_STOP2 || mode == PANIC_EV_TAKE_STOP) {
+        if (iWaitCount < 1) {
+            if (ExecScream != 0) {
+                ExecScream = 0;
+                iWaitCount = PANIC_WAIT;
+                ev = PANIC_EVENT_SCREAM;
+            } else if (ExecNoMove != 0) {
+                ExecNoMove = 0;
+                iNoMoveCount = 0;
+                iWaitCount = PANIC_WAIT;
+                ev = PANIC_EVENT_FREEZE;
+            }
+        }
+    } else if (mode == PANIC_EV_RESET) {
+        ExecTumble = 0;
+        ExecNoMove = 0;
+        ExecScream = 0;
+        iRunCount = 0;
+        iNoMoveCount = 0;
+        iWaitCount = 0;
+    } else if (mode == PANIC_EV_TICK) {
+        iWaitCount = (short)(iWaitCount - ticks);
+        if (iWaitCount < 0) {
+            iWaitCount = 0;
+            if (ExecScream == 0) {
+                iScreamCount = (short)(iScreamCount + ticks);
+                if (iScreamCount > PANIC_SCREAM_PERIOD) {
+                    int id;
+                    float d;
+                    iScreamCount = 0;
+                    if (asMonsterDistanceStack_inPanic(MDS_NEAREST, &id, &d) > -1) {
+                        // the nearer the monster, the likelier: always under 1, then 8 / 3 / 2 / 1
+                        // chances in 16 under 2 / 3 / 4 / 5
+                        if (d < 1.0f || (d < 2.0f && draw <= 7) || (d < 3.0f && draw <= 2) ||
+                            (d < 4.0f && draw <= 1) || (d < 5.0f && draw < 1))
+                            ExecScream = 1;
+                    }
+                }
+            }
+            if (ExecNoMove == 0) {
+                short now = (short)(iNoMoveCount + ticks);
+                iLastNoMoveCount = iNoMoveCount;
+                if (PanicTimePassed(kFreezeTimes, iNoMoveCount, now, draw))
+                    ExecNoMove = 1;
+                iNoMoveCount = now;
+            }
+            if (ExecTumble == 0 && group == MOTION_GROUP_RUN) {
+                short now = (short)(iRunCount + ticks);
+                iLastRunCount = iRunCount;
+                if (PanicTimePassed(kTumbleTimes, iRunCount, now, draw))
+                    ExecTumble = 1;
+                iRunCount = now;
+            }
+        }
+    } else {
+        return PANIC_EVENT_NONE;
+    }
+    return ev;
+}
+
 // CT3 0x018fb940
 int asMonsterDistanceStack_inPanic(int mode, int *id, float *dist)
 {
@@ -772,6 +898,14 @@ int asAlyssaLockedByAnything(int mode)
 void asClearBehaviorChangeFlag(CHARACTER *ch)
 {
     memset((u_char *)ch + CHARA_BEHAVIOR_CHANGE, 0, CHARA_BEHAVIOR_CHANGE_COUNT);
+}
+
+// CT3 0x018fe0e0
+void asChangeCharacterMotionSettingPlayRate(int chara, int index, u_char rate)
+{
+    u_char *rec = MotionRecord(&Character[chara], index);
+    if (rec != NULL)                    // PORT: no motion table on the host yet: nothing to set
+        rec[MOTION_REC_PLAY_RATE] = rate;
 }
 
 // CT3 0x018fe1f0
@@ -1997,10 +2131,621 @@ void asCharacterMortionFunctionOperation(CHARACTER *ch)
     ALYSSAPAN_STUB("asCharacterMortionFunctionOperation", 0x018f55d0);
 }
 
-// stub of CT3 0x018f6b50
+// ---- asMotionAdderByNowMotion (slice 7, 2026-11-10): the face motions and the blinks ------------------
+static const char kAlysShape[] = "ALYS.BIN"; /* @3756, sdata 0x01937400 */
+static const char kCaljShape[] = "CALJ.BIN"; /* @3758, sdata 0x01937420 */
+static int EyeType;                     /* EyeType$1998, sbss 0x019449bc: pAME's list */
+static int EyeTicks;                    /* EyeTicks$1999, sbss 0x019449c0 */
+
+// AM (sdata 0x0192ffb0, 263 records): the lists pAM points into; records { time, h12, motion }, each list descending, ended by time -1.
+const MOTION_ADD AM[263] = { /* sdata 0x0192ffb0 */
+    { -1, -1, -1 }, /* 0x0192ffb0 */
+    { 0, 0, 200 }, /* 0x0192ffb8 */
+    { -1, -1, -1 }, /* 0x0192ffc0 */
+    { 0, 0, 201 }, /* 0x0192ffc8 */
+    { -1, -1, -1 }, /* 0x0192ffd0 */
+    { 0, 0, 202 }, /* 0x0192ffd8 */
+    { -1, -1, -1 }, /* 0x0192ffe0 */
+    { 0, 0, 203 }, /* 0x0192ffe8 */
+    { -1, -1, -1 }, /* 0x0192fff0 */
+    { 0, 0, 204 }, /* 0x0192fff8 */
+    { -1, -1, -1 }, /* 0x01930000 */
+    { 0, 0, 205 }, /* 0x01930008 */
+    { -1, -1, -1 }, /* 0x01930010 */
+    { 0, 0, 206 }, /* 0x01930018 */
+    { -1, -1, -1 }, /* 0x01930020 */
+    { 0, 0, 207 }, /* 0x01930028 */
+    { -1, -1, -1 }, /* 0x01930030 */
+    { 0, 0, 208 }, /* 0x01930038 */
+    { -1, -1, -1 }, /* 0x01930040 */
+    { 0, 0, 209 }, /* 0x01930048 */
+    { -1, -1, -1 }, /* 0x01930050 */
+    { 0, 0, 210 }, /* 0x01930058 */
+    { -1, -1, -1 }, /* 0x01930060 */
+    { 210, 60, 204 }, /* 0x01930068 */
+    { 60, 60, 202 }, /* 0x01930070 */
+    { 0, 0, 204 }, /* 0x01930078 */
+    { -1, -1, -1 }, /* 0x01930080 */
+    { 240, 60, 208 }, /* 0x01930088 */
+    { 30, 60, 210 }, /* 0x01930090 */
+    { 0, 0, 208 }, /* 0x01930098 */
+    { -1, -1, -1 }, /* 0x019300a0 */
+    { 270, 60, 202 }, /* 0x019300a8 */
+    { 60, 90, 204 }, /* 0x019300b0 */
+    { 0, 0, 202 }, /* 0x019300b8 */
+    { -1, -1, -1 }, /* 0x019300c0 */
+    { 240, 70, 210 }, /* 0x019300c8 */
+    { 90, 60, 208 }, /* 0x019300d0 */
+    { 0, 0, 210 }, /* 0x019300d8 */
+    { -1, -1, -1 }, /* 0x019300e0 */
+    { 180, 60, 200 }, /* 0x019300e8 */
+    { 60, 60, 201 }, /* 0x019300f0 */
+    { 0, 0, 200 }, /* 0x019300f8 */
+    { -1, -1, -1 }, /* 0x01930100 */
+    { 150, 90, 206 }, /* 0x01930108 */
+    { 60, 30, 210 }, /* 0x01930110 */
+    { 0, 0, 206 }, /* 0x01930118 */
+    { -1, -1, -1 }, /* 0x01930120 */
+    { 90, 90, 205 }, /* 0x01930128 */
+    { 0, 0, 200 }, /* 0x01930130 */
+    { -1, -1, -1 }, /* 0x01930138 */
+    { 0, 0, 209 }, /* 0x01930140 */
+    { -1, -1, -1 }, /* 0x01930148 */
+    { 30, 60, 205 }, /* 0x01930150 */
+    { 0, 0, 200 }, /* 0x01930158 */
+    { -1, -1, -1 }, /* 0x01930160 */
+    { 0, 0, 209 }, /* 0x01930168 */
+    { -1, -1, -1 }, /* 0x01930170 */
+    { 0, 60, 200 }, /* 0x01930178 */
+    { -1, -1, -1 }, /* 0x01930180 */
+    { 0, 0, 209 }, /* 0x01930188 */
+    { -1, -1, -1 }, /* 0x01930190 */
+    { 90, 90, 203 }, /* 0x01930198 */
+    { 0, 0, 200 }, /* 0x019301a0 */
+    { -1, -1, -1 }, /* 0x019301a8 */
+    { 90, 90, 209 }, /* 0x019301b0 */
+    { 0, 0, 206 }, /* 0x019301b8 */
+    { -1, -1, -1 }, /* 0x019301c0 */
+    { 60, 60, 200 }, /* 0x019301c8 */
+    { 0, 0, 203 }, /* 0x019301d0 */
+    { -1, -1, -1 }, /* 0x019301d8 */
+    { 60, 60, 206 }, /* 0x019301e0 */
+    { 0, 0, 209 }, /* 0x019301e8 */
+    { -1, -1, -1 }, /* 0x019301f0 */
+    { 450, 30, 200 }, /* 0x019301f8 */
+    { 390, 30, 201 }, /* 0x01930200 */
+    { 330, 30, 200 }, /* 0x01930208 */
+    { 30, 60, 201 }, /* 0x01930210 */
+    { 0, 0, 200 }, /* 0x01930218 */
+    { -1, -1, -1 }, /* 0x01930220 */
+    { 330, 90, 206 }, /* 0x01930228 */
+    { 30, 90, 207 }, /* 0x01930230 */
+    { 0, 0, 206 }, /* 0x01930238 */
+    { -1, -1, -1 }, /* 0x01930240 */
+    { 0, 0, 200 }, /* 0x01930248 */
+    { -1, -1, -1 }, /* 0x01930250 */
+    { 120, 90, 209 }, /* 0x01930258 */
+    { 0, 0, 206 }, /* 0x01930260 */
+    { -1, -1, -1 }, /* 0x01930268 */
+    { 210, 30, 204 }, /* 0x01930270 */
+    { 150, 30, 202 }, /* 0x01930278 */
+    { 0, 0, 200 }, /* 0x01930280 */
+    { -1, -1, -1 }, /* 0x01930288 */
+    { 240, 60, 208 }, /* 0x01930290 */
+    { 150, 60, 210 }, /* 0x01930298 */
+    { 90, 30, 208 }, /* 0x019302a0 */
+    { 0, 0, 206 }, /* 0x019302a8 */
+    { -1, -1, -1 }, /* 0x019302b0 */
+    { 240, 60, 200 }, /* 0x019302b8 */
+    { 180, 60, 202 }, /* 0x019302c0 */
+    { 0, 0, 204 }, /* 0x019302c8 */
+    { -1, -1, -1 }, /* 0x019302d0 */
+    { 180, 60, 206 }, /* 0x019302d8 */
+    { 30, 30, 210 }, /* 0x019302e0 */
+    { 0, 0, 208 }, /* 0x019302e8 */
+    { -1, -1, -1 }, /* 0x019302f0 */
+    { 270, 30, 200 }, /* 0x019302f8 */
+    { 30, 120, 204 }, /* 0x01930300 */
+    { 0, 0, 202 }, /* 0x01930308 */
+    { -1, -1, -1 }, /* 0x01930310 */
+    { 0, 0, 206 }, /* 0x01930318 */
+    { -1, -1, -1 }, /* 0x01930320 */
+    { 390, 120, 201 }, /* 0x01930328 */
+    { 270, 60, 200 }, /* 0x01930330 */
+    { 120, 60, 201 }, /* 0x01930338 */
+    { 30, 60, 200 }, /* 0x01930340 */
+    { 0, 0, 201 }, /* 0x01930348 */
+    { -1, -1, -1 }, /* 0x01930350 */
+    { 270, 150, 206 }, /* 0x01930358 */
+    { 60, 90, 207 }, /* 0x01930360 */
+    { 0, 0, 206 }, /* 0x01930368 */
+    { -1, -1, -1 }, /* 0x01930370 */
+    { 750, 270, 200 }, /* 0x01930378 */
+    { 600, 80, 201 }, /* 0x01930380 */
+    { 480, 90, 200 }, /* 0x01930388 */
+    { 360, 90, 201 }, /* 0x01930390 */
+    { 180, 150, 200 }, /* 0x01930398 */
+    { 30, 120, 201 }, /* 0x019303a0 */
+    { 0, 0, 200 }, /* 0x019303a8 */
+    { -1, -1, -1 }, /* 0x019303b0 */
+    { 810, 240, 206 }, /* 0x019303b8 */
+    { 630, 50, 207 }, /* 0x019303c0 */
+    { 480, 120, 206 }, /* 0x019303c8 */
+    { 330, 120, 207 }, /* 0x019303d0 */
+    { 180, 120, 206 }, /* 0x019303d8 */
+    { 30, 120, 207 }, /* 0x019303e0 */
+    { 0, 0, 206 }, /* 0x019303e8 */
+    { -1, -1, -1 }, /* 0x019303f0 */
+    { 30, 90, 201 }, /* 0x019303f8 */
+    { 0, 0, 200 }, /* 0x01930400 */
+    { -1, -1, -1 }, /* 0x01930408 */
+    { 30, 90, 207 }, /* 0x01930410 */
+    { 0, 0, 206 }, /* 0x01930418 */
+    { -1, -1, -1 }, /* 0x01930420 */
+    { 780, 30, 200 }, /* 0x01930428 */
+    { 120, 90, 201 }, /* 0x01930430 */
+    { 0, 0, 200 }, /* 0x01930438 */
+    { -1, -1, -1 }, /* 0x01930440 */
+    { 780, 30, 206 }, /* 0x01930448 */
+    { 120, 90, 207 }, /* 0x01930450 */
+    { 0, 0, 206 }, /* 0x01930458 */
+    { -1, -1, -1 }, /* 0x01930460 */
+    { 90, 60, 201 }, /* 0x01930468 */
+    { 30, 30, 200 }, /* 0x01930470 */
+    { 0, 0, 201 }, /* 0x01930478 */
+    { -1, -1, -1 }, /* 0x01930480 */
+    { 90, 30, 206 }, /* 0x01930488 */
+    { 30, 30, 207 }, /* 0x01930490 */
+    { 0, 0, 206 }, /* 0x01930498 */
+    { -1, -1, -1 }, /* 0x019304a0 */
+    { 270, 30, 200 }, /* 0x019304a8 */
+    { 150, 60, 202 }, /* 0x019304b0 */
+    { 30, 90, 204 }, /* 0x019304b8 */
+    { 0, 0, 202 }, /* 0x019304c0 */
+    { -1, -1, -1 }, /* 0x019304c8 */
+    { 150, 60, 206 }, /* 0x019304d0 */
+    { 90, 30, 210 }, /* 0x019304d8 */
+    { 30, 30, 208 }, /* 0x019304e0 */
+    { 0, 0, 210 }, /* 0x019304e8 */
+    { -1, -1, -1 }, /* 0x019304f0 */
+    { 240, 60, 202 }, /* 0x019304f8 */
+    { 60, 60, 204 }, /* 0x01930500 */
+    { 0, 0, 200 }, /* 0x01930508 */
+    { -1, -1, -1 }, /* 0x01930510 */
+    { 120, 60, 210 }, /* 0x01930518 */
+    { 30, 30, 208 }, /* 0x01930520 */
+    { 0, 0, 206 }, /* 0x01930528 */
+    { -1, -1, -1 }, /* 0x01930530 */
+    { 0, 0, 200 }, /* 0x01930538 */
+    { -1, -1, -1 }, /* 0x01930540 */
+    { 300, 90, 206 }, /* 0x01930548 */
+    { 180, 90, 210 }, /* 0x01930550 */
+    { 60, 90, 207 }, /* 0x01930558 */
+    { 0, 0, 206 }, /* 0x01930560 */
+    { -1, -1, -1 }, /* 0x01930568 */
+    { 540, 60, 200 }, /* 0x01930570 */
+    { 360, 190, 201 }, /* 0x01930578 */
+    { 0, 0, 200 }, /* 0x01930580 */
+    { -1, -1, -1 }, /* 0x01930588 */
+    { 510, 90, 206 }, /* 0x01930590 */
+    { 240, 30, 207 }, /* 0x01930598 */
+    { 150, 60, 206 }, /* 0x019305a0 */
+    { 60, 90, 207 }, /* 0x019305a8 */
+    { 0, 0, 206 }, /* 0x019305b0 */
+    { -1, -1, -1 }, /* 0x019305b8 */
+    { 300, 90, 200 }, /* 0x019305c0 */
+    { 210, 60, 201 }, /* 0x019305c8 */
+    { 120, 30, 204 }, /* 0x019305d0 */
+    { 60, 30, 201 }, /* 0x019305d8 */
+    { 0, 0, 200 }, /* 0x019305e0 */
+    { -1, -1, -1 }, /* 0x019305e8 */
+    { 330, 60, 206 }, /* 0x019305f0 */
+    { 240, 60, 210 }, /* 0x019305f8 */
+    { 30, 30, 207 }, /* 0x01930600 */
+    { 0, 0, 206 }, /* 0x01930608 */
+    { -1, -1, -1 }, /* 0x01930610 */
+    { 30, 30, 200 }, /* 0x01930618 */
+    { 0, 0, 201 }, /* 0x01930620 */
+    { -1, -1, -1 }, /* 0x01930628 */
+    { 30, 30, 206 }, /* 0x01930630 */
+    { 0, 0, 207 }, /* 0x01930638 */
+    { -1, -1, -1 }, /* 0x01930640 */
+    { 90, 30, 200 }, /* 0x01930648 */
+    { 30, 30, 201 }, /* 0x01930650 */
+    { 0, 0, 200 }, /* 0x01930658 */
+    { -1, -1, -1 }, /* 0x01930660 */
+    { 90, 30, 206 }, /* 0x01930668 */
+    { 30, 30, 207 }, /* 0x01930670 */
+    { 0, 0, 206 }, /* 0x01930678 */
+    { -1, -1, -1 }, /* 0x01930680 */
+    { 210, 60, 200 }, /* 0x01930688 */
+    { 0, 0, 201 }, /* 0x01930690 */
+    { -1, -1, -1 }, /* 0x01930698 */
+    { 210, 60, 206 }, /* 0x019306a0 */
+    { 0, 0, 207 }, /* 0x019306a8 */
+    { -1, -1, -1 }, /* 0x019306b0 */
+    { 60, 60, 201 }, /* 0x019306b8 */
+    { 0, 0, 200 }, /* 0x019306c0 */
+    { -1, -1, -1 }, /* 0x019306c8 */
+    { 60, 60, 207 }, /* 0x019306d0 */
+    { 0, 0, 206 }, /* 0x019306d8 */
+    { -1, -1, -1 }, /* 0x019306e0 */
+    { 0, 0, 200 }, /* 0x019306e8 */
+    { -1, -1, -1 }, /* 0x019306f0 */
+    { 90, 60, 206 }, /* 0x019306f8 */
+    { 30, 30, 207 }, /* 0x01930700 */
+    { 0, 0, 206 }, /* 0x01930708 */
+    { -1, -1, -1 }, /* 0x01930710 */
+    { 210, 90, 200 }, /* 0x01930718 */
+    { 120, 60, 201 }, /* 0x01930720 */
+    { 0, 0, 200 }, /* 0x01930728 */
+    { -1, -1, -1 }, /* 0x01930730 */
+    { 180, 60, 206 }, /* 0x01930738 */
+    { 120, 30, 207 }, /* 0x01930740 */
+    { 0, 0, 206 }, /* 0x01930748 */
+    { -1, -1, -1 }, /* 0x01930750 */
+    { 240, 90, 200 }, /* 0x01930758 */
+    { 120, 60, 201 }, /* 0x01930760 */
+    { 0, 0, 200 }, /* 0x01930768 */
+    { -1, -1, -1 }, /* 0x01930770 */
+    { 240, 60, 206 }, /* 0x01930778 */
+    { 120, 60, 207 }, /* 0x01930780 */
+    { 0, 0, 206 }, /* 0x01930788 */
+    { -1, -1, -1 }, /* 0x01930790 */
+    { 180, 60, 200 }, /* 0x01930798 */
+    { 90, 60, 201 }, /* 0x019307a0 */
+    { 30, 30, 203 }, /* 0x019307a8 */
+    { 0, 0, 202 }, /* 0x019307b0 */
+    { -1, -1, -1 }, /* 0x019307b8 */
+    { 180, 60, 206 }, /* 0x019307c0 */
+    { 90, 60, 207 }, /* 0x019307c8 */
+    { 30, 30, 209 }, /* 0x019307d0 */
+    { 0, 0, 208 }, /* 0x019307d8 */
+    { -1, -1, -1 }, /* 0x019307e0 */
+};
+// pAM (sdata 0x019307f0, 233 pairs): per body motion, the face lists of slots 2 and 3.
+const MOTION_ADD *const pAM[PAM_COUNT][2] = {
+    { AM + 1, AM + 13 }, /* 0 */
+    { AM + 1, AM + 13 }, /* 1 */
+    { AM + 1, AM + 13 }, /* 2 */
+    { AM + 5, AM + 17 }, /* 3 */
+    { AM + 61, AM + 64 }, /* 4 */
+    { AM + 7, AM + 19 }, /* 5 */
+    { AM + 67, AM + 70 }, /* 6 */
+    { AM + 0, AM + 0 }, /* 7 */
+    { AM + 253, AM + 258 }, /* 8 */
+    { AM + 0, AM + 0 }, /* 9 */
+    { AM + 0, AM + 0 }, /* 10 */
+    { AM + 0, AM + 0 }, /* 11 */
+    { AM + 7, AM + 19 }, /* 12 */
+    { AM + 1, AM + 13 }, /* 13 */
+    { AM + 0, AM + 0 }, /* 14 */
+    { AM + 0, AM + 0 }, /* 15 */
+    { AM + 23, AM + 27 }, /* 16 */
+    { AM + 31, AM + 35 }, /* 17 */
+    { AM + 0, AM + 0 }, /* 18 */
+    { AM + 5, AM + 17 }, /* 19 */
+    { AM + 0, AM + 0 }, /* 20 */
+    { AM + 0, AM + 0 }, /* 21 */
+    { AM + 1, AM + 13 }, /* 22 */
+    { AM + 0, AM + 0 }, /* 23 */
+    { AM + 0, AM + 0 }, /* 24 */
+    { AM + 0, AM + 0 }, /* 25 */
+    { AM + 0, AM + 0 }, /* 26 */
+    { AM + 1, AM + 13 }, /* 27 */
+    { AM + 231, AM + 233 }, /* 28 */
+    { AM + 0, AM + 0 }, /* 29 */
+    { AM + 0, AM + 0 }, /* 30 */
+    { AM + 0, AM + 0 }, /* 31 */
+    { AM + 1, AM + 13 }, /* 32 */
+    { AM + 0, AM + 0 }, /* 33 */
+    { AM + 0, AM + 0 }, /* 34 */
+    { AM + 1, AM + 13 }, /* 35 */
+    { AM + 0, AM + 0 }, /* 36 */
+    { AM + 0, AM + 0 }, /* 37 */
+    { AM + 0, AM + 0 }, /* 38 */
+    { AM + 0, AM + 0 }, /* 39 */
+    { AM + 0, AM + 0 }, /* 40 */
+    { AM + 0, AM + 0 }, /* 41 */
+    { AM + 0, AM + 0 }, /* 42 */
+    { AM + 151, AM + 155 }, /* 43 */
+    { AM + 0, AM + 0 }, /* 44 */
+    { AM + 0, AM + 0 }, /* 45 */
+    { AM + 0, AM + 0 }, /* 46 */
+    { AM + 3, AM + 15 }, /* 47 */
+    { AM + 3, AM + 15 }, /* 48 */
+    { AM + 23, AM + 27 }, /* 49 */
+    { AM + 31, AM + 35 }, /* 50 */
+    { AM + 0, AM + 0 }, /* 51 */
+    { AM + 0, AM + 0 }, /* 52 */
+    { AM + 0, AM + 0 }, /* 53 */
+    { AM + 0, AM + 0 }, /* 54 */
+    { AM + 0, AM + 0 }, /* 55 */
+    { AM + 0, AM + 0 }, /* 56 */
+    { AM + 0, AM + 0 }, /* 57 */
+    { AM + 0, AM + 0 }, /* 58 */
+    { AM + 0, AM + 0 }, /* 59 */
+    { AM + 3, AM + 17 }, /* 60 */
+    { AM + 0, AM + 0 }, /* 61 */
+    { AM + 0, AM + 0 }, /* 62 */
+    { AM + 5, AM + 13 }, /* 63 */
+    { AM + 0, AM + 0 }, /* 64 */
+    { AM + 0, AM + 0 }, /* 65 */
+    { AM + 0, AM + 0 }, /* 66 */
+    { AM + 0, AM + 0 }, /* 67 */
+    { AM + 0, AM + 0 }, /* 68 */
+    { AM + 0, AM + 0 }, /* 69 */
+    { AM + 0, AM + 0 }, /* 70 */
+    { AM + 0, AM + 0 }, /* 71 */
+    { AM + 0, AM + 0 }, /* 72 */
+    { AM + 0, AM + 0 }, /* 73 */
+    { AM + 0, AM + 0 }, /* 74 */
+    { AM + 0, AM + 0 }, /* 75 */
+    { AM + 0, AM + 0 }, /* 76 */
+    { AM + 0, AM + 0 }, /* 77 */
+    { AM + 0, AM + 0 }, /* 78 */
+    { AM + 0, AM + 0 }, /* 79 */
+    { AM + 0, AM + 0 }, /* 80 */
+    { AM + 5, AM + 13 }, /* 81 */
+    { AM + 0, AM + 0 }, /* 82 */
+    { AM + 61, AM + 19 }, /* 83 */
+    { AM + 0, AM + 0 }, /* 84 */
+    { AM + 67, AM + 19 }, /* 85 */
+    { AM + 47, AM + 50 }, /* 86 */
+    { AM + 0, AM + 0 }, /* 87 */
+    { AM + 52, AM + 55 }, /* 88 */
+    { AM + 0, AM + 19 }, /* 89 */
+    { AM + 0, AM + 19 }, /* 90 */
+    { AM + 0, AM + 19 }, /* 91 */
+    { AM + 0, AM + 0 }, /* 92 */
+    { AM + 57, AM + 59 }, /* 93 */
+    { AM + 0, AM + 0 }, /* 94 */
+    { AM + 1, AM + 13 }, /* 95 */
+    { AM + 1, AM + 13 }, /* 96 */
+    { AM + 0, AM + 0 }, /* 97 */
+    { AM + 0, AM + 0 }, /* 98 */
+    { AM + 0, AM + 0 }, /* 99 */
+    { AM + 5, AM + 17 }, /* 100 */
+    { AM + 0, AM + 0 }, /* 101 */
+    { AM + 1, AM + 13 }, /* 102 */
+    { AM + 1, AM + 13 }, /* 103 */
+    { AM + 1, AM + 13 }, /* 104 */
+    { AM + 39, AM + 43 }, /* 105 */
+    { AM + 0, AM + 0 }, /* 106 */
+    { AM + 0, AM + 0 }, /* 107 */
+    { AM + 0, AM + 0 }, /* 108 */
+    { AM + 0, AM + 0 }, /* 109 */
+    { AM + 1, AM + 13 }, /* 110 */
+    { AM + 0, AM + 0 }, /* 111 */
+    { AM + 0, AM + 0 }, /* 112 */
+    { AM + 0, AM + 0 }, /* 113 */
+    { AM + 0, AM + 0 }, /* 114 */
+    { AM + 0, AM + 0 }, /* 115 */
+    { AM + 0, AM + 0 }, /* 116 */
+    { AM + 0, AM + 0 }, /* 117 */
+    { AM + 0, AM + 0 }, /* 118 */
+    { AM + 0, AM + 0 }, /* 119 */
+    { AM + 0, AM + 0 }, /* 120 */
+    { AM + 0, AM + 0 }, /* 121 */
+    { AM + 0, AM + 0 }, /* 122 */
+    { AM + 1, AM + 13 }, /* 123 */
+    { AM + 0, AM + 0 }, /* 124 */
+    { AM + 0, AM + 0 }, /* 125 */
+    { AM + 0, AM + 0 }, /* 126 */
+    { AM + 0, AM + 0 }, /* 127 */
+    { AM + 0, AM + 0 }, /* 128 */
+    { AM + 0, AM + 0 }, /* 129 */
+    { AM + 0, AM + 0 }, /* 130 */
+    { AM + 0, AM + 0 }, /* 131 */
+    { AM + 0, AM + 0 }, /* 132 */
+    { AM + 0, AM + 0 }, /* 133 */
+    { AM + 0, AM + 0 }, /* 134 */
+    { AM + 0, AM + 0 }, /* 135 */
+    { AM + 0, AM + 0 }, /* 136 */
+    { AM + 1, AM + 13 }, /* 137 */
+    { AM + 1, AM + 13 }, /* 138 */
+    { AM + 0, AM + 0 }, /* 139 */
+    { AM + 0, AM + 0 }, /* 140 */
+    { AM + 0, AM + 0 }, /* 141 */
+    { AM + 0, AM + 0 }, /* 142 */
+    { AM + 1, AM + 19 }, /* 143 */
+    { AM + 1, AM + 13 }, /* 144 */
+    { AM + 97, AM + 101 }, /* 145 */
+    { AM + 88, AM + 92 }, /* 146 */
+    { AM + 0, AM + 0 }, /* 147 */
+    { AM + 0, AM + 0 }, /* 148 */
+    { AM + 0, AM + 0 }, /* 149 */
+    { AM + 5, AM + 17 }, /* 150 */
+    { AM + 3, AM + 15 }, /* 151 */
+    { AM + 3, AM + 15 }, /* 152 */
+    { AM + 3, AM + 15 }, /* 153 */
+    { AM + 1, AM + 13 }, /* 154 */
+    { AM + 0, AM + 0 }, /* 155 */
+    { AM + 105, AM + 109 }, /* 156 */
+    { AM + 1, AM + 13 }, /* 157 */
+    { AM + 3, AM + 13 }, /* 158 */
+    { AM + 1, AM + 15 }, /* 159 */
+    { AM + 1, AM + 13 }, /* 160 */
+    { AM + 0, AM + 0 }, /* 161 */
+    { AM + 5, AM + 17 }, /* 162 */
+    { AM + 0, AM + 0 }, /* 163 */
+    { AM + 151, AM + 155 }, /* 164 */
+    { AM + 0, AM + 0 }, /* 165 */
+    { AM + 111, AM + 117 }, /* 166 */
+    { AM + 0, AM + 0 }, /* 167 */
+    { AM + 0, AM + 0 }, /* 168 */
+    { AM + 0, AM + 0 }, /* 169 */
+    { AM + 0, AM + 0 }, /* 170 */
+    { AM + 0, AM + 0 }, /* 171 */
+    { AM + 0, AM + 0 }, /* 172 */
+    { AM + 0, AM + 0 }, /* 173 */
+    { AM + 0, AM + 0 }, /* 174 */
+    { AM + 1, AM + 13 }, /* 175 */
+    { AM + 0, AM + 0 }, /* 176 */
+    { AM + 1, AM + 13 }, /* 177 */
+    { AM + 0, AM + 0 }, /* 178 */
+    { AM + 5, AM + 17 }, /* 179 */
+    { AM + 1, AM + 13 }, /* 180 */
+    { AM + 88, AM + 92 }, /* 181 */
+    { AM + 23, AM + 27 }, /* 182 */
+    { AM + 97, AM + 101 }, /* 183 */
+    { AM + 1, AM + 13 }, /* 184 */
+    { AM + 1, AM + 13 }, /* 185 */
+    { AM + 1, AM + 13 }, /* 186 */
+    { AM + 1, AM + 13 }, /* 187 */
+    { AM + 121, AM + 129 }, /* 188 */
+    { AM + 137, AM + 140 }, /* 189 */
+    { AM + 88, AM + 92 }, /* 190 */
+    { AM + 159, AM + 164 }, /* 191 */
+    { AM + 31, AM + 35 }, /* 192 */
+    { AM + 88, AM + 92 }, /* 193 */
+    { AM + 159, AM + 164 }, /* 194 */
+    { AM + 7, AM + 19 }, /* 195 */
+    { AM + 151, AM + 155 }, /* 196 */
+    { AM + 0, AM + 0 }, /* 197 */
+    { AM + 7, AM + 19 }, /* 198 */
+    { AM + 7, AM + 19 }, /* 199 */
+    { AM + 0, AM + 0 }, /* 200 */
+    { AM + 0, AM + 0 }, /* 201 */
+    { AM + 0, AM + 0 }, /* 202 */
+    { AM + 0, AM + 0 }, /* 203 */
+    { AM + 0, AM + 0 }, /* 204 */
+    { AM + 0, AM + 0 }, /* 205 */
+    { AM + 0, AM + 0 }, /* 206 */
+    { AM + 0, AM + 0 }, /* 207 */
+    { AM + 0, AM + 0 }, /* 208 */
+    { AM + 0, AM + 0 }, /* 209 */
+    { AM + 0, AM + 0 }, /* 210 */
+    { AM + 0, AM + 0 }, /* 211 */
+    { AM + 0, AM + 0 }, /* 212 */
+    { AM + 1, AM + 13 }, /* 213 */
+    { AM + 1, AM + 13 }, /* 214 */
+    { AM + 1, AM + 13 }, /* 215 */
+    { AM + 177, AM + 179 }, /* 216 */
+    { AM + 1, AM + 13 }, /* 217 */
+    { AM + 1, AM + 13 }, /* 218 */
+    { AM + 1, AM + 13 }, /* 219 */
+    { AM + 184, AM + 188 }, /* 220 */
+    { AM + 194, AM + 200 }, /* 221 */
+    { AM + 205, AM + 208 }, /* 222 */
+    { AM + 211, AM + 215 }, /* 223 */
+    { AM + 219, AM + 222 }, /* 224 */
+    { AM + 225, AM + 228 }, /* 225 */
+    { AM + 1, AM + 13 }, /* 226 */
+    { AM + 245, AM + 249 }, /* 227 */
+    { AM + 245, AM + 249 }, /* 228 */
+    { AM + 5, AM + 17 }, /* 229 */
+    { AM + 5, AM + 17 }, /* 230 */
+    { AM + 5, AM + 17 }, /* 231 */
+    { AM + 7, AM + 19 }, /* 232 */
+};
+// AME (sdata 0x0193b910, 16 records): the blink lists pAME points at: { from, to, which (an index into the pair, -1 none) }.
+const MOTION_ADD AME[16] = { /* sdata 0x0193b910 */
+    { 0, 700, -1 }, /* 0x0193b910 */
+    { 700, 730, 1 }, /* 0x0193b918 */
+    { 730, 760, 0 }, /* 0x0193b920 */
+    { -1, -1, -1 }, /* 0x0193b928 */
+    { 0, 400, -1 }, /* 0x0193b930 */
+    { 400, 430, 1 }, /* 0x0193b938 */
+    { 430, 460, 0 }, /* 0x0193b940 */
+    { -1, -1, -1 }, /* 0x0193b948 */
+    { 0, 400, -1 }, /* 0x0193b950 */
+    { 400, 430, 1 }, /* 0x0193b958 */
+    { 430, 600, 0 }, /* 0x0193b960 */
+    { 600, 630, 1 }, /* 0x0193b968 */
+    { 630, 660, 0 }, /* 0x0193b970 */
+    { 660, 690, 1 }, /* 0x0193b978 */
+    { 690, 710, 0 }, /* 0x0193b980 */
+    { -1, -1, -1 }, /* 0x0193b988 */
+};
+const MOTION_ADD *const pAME[PAME_COUNT] = { /* sdata 0x0193b990 */
+    AME + 0, AME + 4, AME + 8,
+};
+// One of pAM's lists for Alyssa: the first entry the slot's time has reached starts its motion (unless
+// the slot plays it, or plays none and played it last) and sets the record's MOTION_TABLE_H12.
+// cmpMotion is what the ROM compares the entry's motion with: slot 2's motion for the first list, but
+// slot 3's *time* for the second (the ROM reloads 0x464, not the slot's motion 0x39e: kept).
+static void MotionAddList(CHARACTER *ch, const MOTION_ADD *e, int time, int cmpMotion, int slot)
+{
+    for (; e->time >= 0; e++) {
+        if (e->time <= time) {
+            if (cmpMotion != e->motion &&
+                (cmpMotion != -1 || CharaShort(ch, CHARA_SLOT_PREV + slot * 2) != e->motion)) {
+                u_char *rec;
+                short arg = e->arg;
+                asCharacterMortionChangeRequest(CHARA_ID_ALYSSA, CHARA_MOTION_REQ_PLAY, e->motion);
+                rec = MotionRecord(ch, e->motion);
+                if (rec != NULL)        // PORT: no motion table on the host yet: nothing to set
+                    memcpy(rec + MOTION_TABLE_H12, &arg, sizeof(arg));
+            }
+            break;
+        }
+    }
+}
+
+// CT3 0x018f6b50
+// Alyssa's face motions by her body motion (pAM, slots 2 and 3), then the blinks of the three faces
+// that have them (Alyssa while she has hp, CALH, CALJ: their shape's bank name and id): pAME's list
+// over EyeTicks plays the pair's entry in slot 4; at the list's end a new list is drawn.
 void asMotionAdderByNowMotion(CHARACTER *ch)
 {
-    ALYSSAPAN_STUB("asMotionAdderByNowMotion", 0x018f6b50);
+    int which = -1;
+    int pair[2];
+
+    if (ch->id == CHARA_ID_ALYSSA) {
+        short body = CharaShort(ch, CHARA_MOTION_SLOTS);
+        if (body != -1 && body < PAM_MOTION_LIMIT) {
+            MotionAddList(ch, pAM[body][0], CharaInt(ch, CHARA_SLOT_TIME + MOTION_ADD_SLOT_A * 4),
+                          CharaShort(ch, CHARA_MOTION_SLOTS + MOTION_ADD_SLOT_A * 2), MOTION_ADD_SLOT_A);
+            body = CharaShort(ch, CHARA_MOTION_SLOTS);
+            {
+                int t = CharaInt(ch, CHARA_SLOT_TIME + MOTION_ADD_SLOT_B * 4);
+                MotionAddList(ch, pAM[body][1], t, t, MOTION_ADD_SLOT_B);
+            }
+        }
+    }
+    if (ch->bank < 0)
+        return;
+    pair[0] = -1;
+    pair[1] = -1;
+    if (ch->id == CHARA_ID_ALYSSA && strcmp(BankInfo[ch->bank].name, kAlysShape) == 0 && ch->hp > 0) {
+        pair[0] = MOTION_EYE_ALYS_OPEN;
+        which = 0;
+        pair[1] = MOTION_EYE_ALYS_SHUT;
+    } else if (ch->id == CHARA_ID_CALH && strcmp(BankInfo[ch->bank].name, kCalhShape) == 0) {
+        pair[0] = MOTION_EYE_CALH_OPEN;
+        which = 1;
+        pair[1] = MOTION_EYE_CALH_SHUT;
+    } else if (ch->id == CHARA_ID_CALJ && strcmp(BankInfo[ch->bank].name, kCaljShape) == 0) {
+        pair[0] = MOTION_EYE_CALJ_OPEN;
+        which = 2;
+        pair[1] = MOTION_EYE_CALJ_SHUT;
+    }
+    if (which == -1)
+        return;
+    if (which == 2 && (CharaShort(ch, CHARA_MOTION_SLOTS) == MOTION_ADD_BODY_KEEP1 ||
+                       CharaShort(ch, CHARA_MOTION_SLOTS) == MOTION_ADD_BODY_KEEP7)) {
+        asCharacterMortionChangeRequest(ch->id, CHARA_MOTION_REQ_STOP, pair[0]);
+        asCharacterMortionChangeRequest(ch->id, CHARA_MOTION_REQ_STOP, pair[1]);
+        return;
+    }
+    {
+        const MOTION_ADD *e = pAME[EyeType];
+        for (; e->time >= 0; e++) {
+            if (e->time <= EyeTicks && EyeTicks < e->arg) {
+                if (e->motion != -1 && CharaShort(ch, CHARA_MOTION_SLOTS + EYE_SLOT * 2) != pair[e->motion])
+                    asCharacterMortionChangeRequest(ch->id, CHARA_MOTION_REQ_PLAY, pair[e->motion]);
+                break;
+            }
+        }
+        if (gGlobalNextTicksInterval > 0)
+            EyeTicks += gGlobalNextTicksInterval;
+        if (e->time == -1) {
+            EyeTicks = 0;
+            EyeType = tnRand(PAME_COUNT);
+            asCharacterMortionChangeRequest(ch->id, CHARA_MOTION_REQ_PLAY, pair[0]);
+        }
+    }
 }
 
 
@@ -2383,16 +3128,219 @@ void asCheckCharacterHited(int chara)
     }
 }
 
-// stub of CT3 0x018faa80
-void asCharacterMoveByPad(CHARACTER *ch, PIA_KEY *key, int dir)
+// ---- the pad move (slice 7, 2026-11-10) ---------------------------------------------------------------
+s_char iCamChangeFlag;                  /* sbss 0x01944968: type 2 steers by the last cut's axes */
+s_char iCamChangeCount;                 /* sbss 0x0194496c: frames the U-turn stays off after that */
+int iCamChangeRot;                      /* sbss 0x019449f8: her rot when the cut changed */
+short iCameraID_Stock;                  /* sbss 0x019449fc: Cam[6].cut last frame */
+short iCameraBank_Stock;                /* sbss 0x01944a00: Cam[6].bank last frame */
+
+static float CharaFloat(const CHARACTER *ch, int off)
 {
-    ALYSSAPAN_STUB("asCharacterMoveByPad", 0x018faa80);
+    float v;
+    memcpy(&v, (const u_char *)ch + off, sizeof(v));
+    return v;
 }
 
-// stub of CT3 0x018fa940
+static void SetCharaFloat(CHARACTER *ch, int off, float v)
+{
+    memcpy((u_char *)ch + off, &v, sizeof(v));
+}
+
+// This frame's global ticks in 5-tick (one 60 Hz frame) units; 0 when the interval is negative.
+static float PadTickStep(void)
+{
+    return gGlobalNextTicksInterval < 0 ? 0.0f : (float)gGlobalNextTicksInterval / 5.0f;
+}
+
+// A stick byte past the dead zone [lo, hi], in stick units (/ 128, signed); 0 inside it.
+static float PadStickAxis(u_int v, u_int lo, u_int hi)
+{
+    if (v < lo)
+        return (float)(int)(v - lo) / PAD_STICK_SCALE;
+    if (hi < v)
+        return (float)(int)(v - hi) / PAD_STICK_SCALE;
+    return 0.0f;
+}
+
+static u_int PadStickByte(int off)
+{
+    return ((const u_char *)&pad[0])[off];
+}
+
+// The VU's xyz normalise (vmul, the sum, vrsqrt, vmulq); w kept. PORT: a zero vector stays zero (the
+// VU's rsqrt of 0 gives its largest float, times 0: zero too; the host would make NaN).
+static void PadNormalize3(float *out, const float *v)
+{
+    float l = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
+    float r = l > 0.0f ? 1.0f / sqrtf(l) : 0.0f;
+    out[0] = v[0] * r;
+    out[1] = v[1] * r;
+    out[2] = v[2] * r;
+    out[3] = v[3];
+}
+
+// CT3 0x018fa940
 void asCharacterMoveByPadUD(PIA_KEY *key)
 {
-    ALYSSAPAN_STUB("asCharacterMoveByPadUD", 0x018fa940);
+    u_int y = PadStickByte(PAD_STICK_LY);
+    u_int dead = KEY_MAP[KEY_MAP_STICK_DEAD];
+    float v = 0.0f;
+    // the ROM tests the byte itself against the move's minimum length (not its distance from the centre)
+    if ((float)y >= PAD_STICK_MIN_LEN)
+        v = PadStickAxis(y, (PAD_STICK_CENTRE - dead) & 0xff, (PAD_STICK_CENTRE + dead) & 0xff);
+    if (v == 0.0f)
+        key->h0a = PAD_MOVE_NONE;
+    else
+        key->h0a = (short)(int)(v < 0.0f ? -1.0f : 1.0f);
+}
+
+// CT3 0x018faa80
+// The stick moves her: controller_type CONTROLLER_TANK turns her by x and sets the walk direction by y;
+// the camera types turn her toward the stick's direction in Cam[6]'s view (dir -1: backward, the turn
+// half a circle off), at most her turn speed a frame, and set PIA_KEY.h0c when the stick points behind
+// her (no turn then while it stays set). The move itself is the motion's (root motion): only CHARA_PAD_MOVE.
+void asCharacterMoveByPad(CHARACTER *ch, PIA_KEY *key, int dir)
+{
+    u_int x = PadStickByte(PAD_STICK_LX);
+    u_int y = PadStickByte(PAD_STICK_LY);
+    int dead = (s_char)KEY_MAP[KEY_MAP_STICK_DEAD];
+    u_int lo = (PAD_STICK_CENTRE - dead) & 0xff;
+    u_int hi = (PAD_STICK_CENTRE + dead) & 0xff;
+    u_short turnSpeed;
+    int turn, flip = 0, noTurn;
+    short wasBack = key->h0c;
+    float sx = 0.0f, sy = 0.0f;
+    float mv[4] = { 0.0f, 0.0f, 0.0f, 1.0f };   // vf0
+    float len[4];
+
+    memcpy(&turnSpeed, (const u_char *)ch + CHARA_TURN_SPEED, sizeof(turnSpeed));
+    turn = (int)((float)turnSpeed * PadTickStep());
+    noTurn = ssTrigCheckEvent(TRIG_EVENT_NO_HIT_6F, 1, 0) & 0xff;
+    if (dir != 1 && dir == -1)
+        flip = ANGLE_HALF_TURN;
+    if (turn > PAD_TURN_MAX)
+        turn = PAD_TURN_MAX;
+
+    len[0] = (float)x - PAD_STICK_SCALE;
+    len[1] = (float)y - PAD_STICK_SCALE;
+    len[2] = 0.0f;                      // PORT: the ROM leaves z (sp+0x168) as the stack had it
+    len[3] = 0.0f;
+    if (asVectorLength3D(len) >= PAD_STICK_MIN_LEN) {
+        sx = -PadStickAxis(x, lo, hi);
+        sy = PadStickAxis(y, lo, hi);
+    }
+    if (sx == 0.0f && sy == 0.0f) {
+        key->h0a = PAD_MOVE_NONE;
+        SetCharaFloat(ch, CHARA_PAD_MOVE, 0.0f);
+    } else {
+        key->h0a = PAD_MOVE_ON;
+        SetCharaFloat(ch, CHARA_PAD_MOVE, 1.0f);
+        mv[0] = sx;
+        mv[2] = sy;
+    }
+
+    if (controller_type == CONTROLLER_TANK) {
+        if (key->h0a != PAD_MOVE_NONE) {
+            float t = -mv[0] * PadTickStep() * PAD_TANK_TURN;
+            if (mv[2] < 0.0f) {
+                key->h0a = PAD_MOVE_BACK;
+                t *= -1.0f;
+            } else if (mv[2] > 0.0f) {
+                key->h0a = PAD_MOVE_ON;
+            } else if (mv[2] == 0.0f) {
+                key->h0a = mv[0] == 0.0f ? PAD_MOVE_NONE : PAD_MOVE_TURN;
+            }
+            ch->rot += (int)t;
+        }
+    } else if (controller_type == CONTROLLER_CAMERA_HOLD || controller_type == CONTROLLER_CAMERA) {
+        const CAMERA *cam = &Cam[CAMERA_SHARED];
+        const float (*m)[4] = iCamChangeFlag == 0 ? cam->view2 : cam->viewPrev;
+        float row0[4], row2[4], n[4], axis[4], p[4], d[4];
+        float scale, step;
+        const float *pos = (const float *)&ch->pos;
+        int i;
+
+        PadNormalize3(n, mv);
+        scale = key->h0a == PAD_MOVE_ON ? CharaFloat(ch, CHARA_PAD_MOVE) : 0.0f;
+        for (i = 0; i < 3; i++)
+            n[i] *= scale;
+        memcpy(row0, m[0], sizeof(row0));
+        memcpy(row2, m[2], sizeof(row2));
+
+        if (controller_type == CONTROLLER_CAMERA) {
+            iCamChangeFlag = 0;
+        } else if (controller_type == CONTROLLER_CAMERA_HOLD &&
+                   (iCameraID_Stock != cam->cut || iCameraBank_Stock != cam->bank)) {
+            iCamChangeFlag = 1;
+            iCamChangeRot = ch->rot;
+        }
+
+        // the stick's y along the view's z axis, its x along the view's x axis, both flat (y = 0)
+        axis[0] = row0[2];
+        axis[1] = 0.0f;
+        axis[2] = row2[2];
+        axis[3] = 0.0f;
+        PadNormalize3(axis, axis);
+        step = PadTickStep();
+        for (i = 0; i < 3; i++)
+            p[i] = pos[i] + axis[i] * n[2] * step;
+        axis[0] = row0[0];
+        axis[1] = 0.0f;
+        axis[2] = row2[0];
+        axis[3] = 0.0f;
+        PadNormalize3(axis, axis);
+        for (i = 0; i < 3; i++)
+            p[i] += axis[i] * n[0] * step;
+        for (i = 0; i < 3; i++)
+            d[i] = p[i] - pos[i];
+        d[3] = 0.0f;
+
+        if (asVectorLength(d) > 0.0f) {
+            float a = asRadianByO(d, RADIAN_AXIS_Y);
+            u_int want = (((u_int)(int)((-a * ANGLE_FULL_TURN_F) / 6.2831855f) & 0xffff) + flip) & 0xffff;
+            u_int delta = (want - (u_int)ch->rot) & 0xffff;
+            int camBusy = (int)iCamChangeCount + (int)iCamChangeFlag != 0;
+            if (noTurn == 0) {
+                if (delta < ANGLE_HALF_TURN) {
+                    key->h0c = (delta < PAD_TURN_BACK_LO || camBusy) ? 0 : 1;
+                    if (key->h0c == 0 || wasBack == 0) {
+                        if ((int)delta < turn)
+                            ch->rot = (int)want;
+                        else
+                            ch->rot += turn;
+                    }
+                } else {
+                    key->h0c = (delta < PAD_TURN_BACK_HI && !camBusy) ? 1 : 0;
+                    if (key->h0c == 0 || wasBack == 0) {
+                        if (0x10000 - turn < (int)delta)
+                            ch->rot = (int)want;
+                        else
+                            ch->rot -= turn;
+                    }
+                }
+            } else if (delta < ANGLE_HALF_TURN) {
+                key->h0c = (delta < PAD_TURN_BACK_LO_FIXED || camBusy) ? 0 : 1;
+            } else {
+                key->h0c = (delta < PAD_TURN_BACK_HI_FIXED && !camBusy) ? 1 : 0;
+            }
+        }
+
+        if (controller_type == CONTROLLER_CAMERA_HOLD) {
+            int s = asISubRotate16((u_int)iCamChangeRot, (u_int)ch->rot);
+            if (((s + CAM_CHANGE_SETTLE) & 0xffff) >= 2 * CAM_CHANGE_SETTLE) {
+                if (iCamChangeFlag != 0)
+                    iCamChangeCount = CAM_CHANGE_COUNT;
+                iCamChangeFlag = 0;
+            }
+            if (key->h0a == PAD_MOVE_NONE)
+                iCamChangeFlag = 0;
+            iCameraBank_Stock = cam->bank;
+            iCameraID_Stock = cam->cut;
+            if (iCamChangeCount > 0)
+                iCamChangeCount--;
+        }
+    }
 }
 
 // stub of CT3 0x018f8c90

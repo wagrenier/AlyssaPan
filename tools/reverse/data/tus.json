@@ -1022,7 +1022,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 140..140, 2 functions keyed by their statics, 6 unkeyed; file name from the names"
   },
   "game/wideXcmd_DebugPrint.c": {
-   "notes": "Next slice: asCharacterMortionFunctionOperation (0x1578, alone or split), asMotionAdderByNowMotion (needs pAM / pAME nested .data tables: datadump them), asPanicEventOperation, then the stubbed key-table entries (asPIA1 STAND / SIT / SITGO / WALK / RUN / MOVEEND / LOCK / CATWALK / KAIDAN / YUMI / BEHIND / SITBEHIND / PSTAND / PRUN / SITGONOUP, asPIA0 SIT / MOVEEND / CATWALK / YUMI / BEHIND / SITBEHIND) and asCharacterMoveByPad / asCharacterMoveByPadUD. pBossInfo pointer words have no host form (open-items 1 as): no chain is seen. callcheck flags only the explained Damaging / Hited helpers. The shot stays black: nothing draws yet.",
+   "notes": "Next slice: asCharacterMortionFunctionOperation (0x1578, alone or split), then the stubbed key-table entries (asPIA1 STAND / SIT / SITGO / WALK / RUN / MOVEEND / LOCK / CATWALK / KAIDAN / YUMI / BEHIND / SITBEHIND / PSTAND / PRUN / SITGONOUP, asPIA0 SIT / MOVEEND / CATWALK / YUMI / BEHIND / SITBEHIND): PRUN / PSTAND call asPanicEventOperation (open-items 1 ax confirms its modes there). Doubts in open-items 1 av..ay. callcheck flags only the explained Damaging / Hited helpers. The shot stays black: nothing draws yet.",
    "ranges": [
     [
      "018f3f60",
@@ -1059,6 +1059,11 @@
      "date": "2026-11-10 18:56",
      "status": "partial",
      "summary": "slice 6: the player key dispatch (asPlayerInputAnalyze with its typed tables asPIA0 / asPIA1 / asPIAK, every key-table entry now (CHARACTER *, PIA_KEY *)), 19 small key-table and pad entries, the boss chains (asChainLengthCheck, asPIA0_KEY_TBL_PULLED) and the holy water check (asWater_Run_Check); 24 functions, 23 entries stubbed"
+    },
+    {
+     "date": "2026-11-10 19:18",
+     "status": "partial",
+     "summary": "slice 7: the pad move (asCharacterMoveByPad: tank and camera-relative steering, the turn-around flag PIA_KEY.h0c; asCharacterMoveByPadUD), the panic events (asPanicEventOperation: scream, tumble, freeze), the face motions and blinks (asMotionAdderByNowMotion with AM / pAM / AME / pAME generated from the ELF) and asChangeCharacterMotionSettingPlayRate; CAMERA.viewPrev / bank named (5 functions)"
     }
    ],
    "status": "partial",

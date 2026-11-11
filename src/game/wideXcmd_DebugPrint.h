@@ -42,8 +42,11 @@ typedef struct PIA_KEY {
     u_int cnt;                          /* 0x0: pad_cnt_button[0] (held); cleared for the no-key kinds */
     u_int trg;                          /* 0x4: pad_trg_button[0] (pressed this frame); cleared with cnt */
     short h08;                          /* 0x8: 0 */
-    short h0a;                          /* 0xa: 0; the pad handlers' result (asPIA1_KEY_TBL_HAIHAI steps at 1) */
-    short h0c;                          /* 0xc: 0; set to 1 by most asPIA0 entries */
+    short h0a;                          /* 0xa: 0; the pad handlers' result (asPIA1_KEY_TBL_HAIHAI steps at 1):
+                                           PAD_MOVE_* (asCharacterMoveByPad / _UD) */
+    short h0c;                          /* 0xc: 0; set to 1 by most asPIA0 entries; asCharacterMoveByPad sets
+                                           it to 1 when the stick points behind her (PAD_TURN_BACK_*): no
+                                           turn while it stays 1 (the turn-around motion's cue, a guess) */
     short pad0e;
 } PIA_KEY;
 static_assert(sizeof(PIA_KEY) == 0x10, "PIA_KEY");
@@ -396,9 +399,96 @@ void asPIAK_BHVC1_MoveLR(CHARACTER *ch, PIA_KEY *key);                          
 int asChainLengthCheck(int query);                                                       // CT3 0x018f4140
 // She drinks holy water when the triggers allow it; 1 when she does.
 int asWater_Run_Check(CHARACTER *ch);                                                    // CT3 0x018f8050
+// The left stick's vertical alone: key->h0a = -1 / 0 / 1 (PAD_MOVE_*).
 void asCharacterMoveByPadUD(PIA_KEY *key);                                               // CT3 0x018fa940
 // Moves the character by the pad; dir 1 forward (MoveLR / Stop), -1 backward (MoveBLR).
 void asCharacterMoveByPad(CHARACTER *ch, PIA_KEY *key, int dir);                         // CT3 0x018faa80
+
+// ---- the pad move (asCharacterMoveByPad / _UD, 2026-11-10; names from these uses) ----------------------
+#define KEY_MAP_STICK_DEAD 34           /* KEY_MAP[34]: the stick's dead zone around 0x80 (a signed byte) */
+#define PAD_STICK_LX 0x1e               /* pad[0]: the stick byte the move reads as x (PAD_DATA.stick[2]) */
+#define PAD_STICK_LY 0x1f               /* ... as y (stick[3]) */
+#define PAD_STICK_CENTRE 0x80
+#define PAD_STICK_MIN_LEN 100.0f        /* below: no move (_UD tests the y byte itself against it, as the ROM) */
+#define PAD_STICK_SCALE 128.0f
+#define PAD_MOVE_NONE 0                 /* PIA_KEY.h0a: the stick is idle */
+#define PAD_MOVE_ON 1                   /* moved (camera-relative types; type 1: forward) */
+#define PAD_MOVE_BACK -1                /* type 1 / _UD: backward */
+#define PAD_MOVE_TURN 2                 /* type 1: turning only */
+#define CHARA_PAD_MOVE 0x354            /* float (CHARA_BHV_BYTES[0..3]): 1.0 while the stick moves her, else 0 */
+#define CHARA_TURN_SPEED 0x35a          /* u_short (CHARA_BHV_BYTES[6..7], 0x600 at init): turn per 5 ticks */
+#define PAD_TURN_MAX 0x7fff
+#define PAD_TANK_TURN 1024.0f           /* controller_type 1: turn per stick unit and 5 ticks */
+#define PAD_TURN_BACK_LO 0x6aab         /* the stick > 150 degrees off her facing: PIA_KEY.h0c = 1 */
+#define PAD_TURN_BACK_HI 0x9556
+#define PAD_TURN_BACK_LO_FIXED 0x4001   /* the same with TRIG_EVENT_NO_HIT_6F set (no turn): > 90 degrees */
+#define PAD_TURN_BACK_HI_FIXED 0xc001
+#define CAM_CHANGE_SETTLE 0x1000        /* type 2: |rot - iCamChangeRot| >= this ends the held-camera steer */
+#define CAM_CHANGE_COUNT 5              /* frames the U-turn stays off after that */
+// controller_type (main.c): how the stick steers.
+#define CONTROLLER_CAMERA 0             /* camera-relative */
+#define CONTROLLER_TANK 1               /* x turns, y walks */
+#define CONTROLLER_CAMERA_HOLD 2        /* camera-relative, keeping the last cut's axes until she turns */
+
+extern s_char iCamChangeFlag;                  /* sbss 0x01944968 */
+extern s_char iCamChangeCount;                 /* sbss 0x0194496c */
+extern int iCamChangeRot;                      /* sbss 0x019449f8 */
+extern short iCameraID_Stock;                  /* sbss 0x019449fc */
+extern short iCameraBank_Stock;                /* sbss 0x01944a00 */
+
+// ---- asPanicEventOperation (2026-11-10): Alyssa's random panic events --------------------------------
+#define PANIC_EV_TICK 0                 /* count this frame's ticks; arm the events (motion group = the second argument) */
+#define PANIC_EV_RESET 1
+#define PANIC_EV_TAKE_STOP 2            /* take an armed scream or freeze (2 and 4 alike) */
+#define PANIC_EV_TAKE_RUN 3             /* take an armed scream, tumble or freeze */
+#define PANIC_EV_TAKE_STOP2 4
+#define PANIC_EVENT_NONE 0              /* the answers */
+#define PANIC_EVENT_SCREAM 1
+#define PANIC_EVENT_TUMBLE 2
+#define PANIC_EVENT_FREEZE 3
+#define TRIG_EVENT_NO_PANIC_EVENT 0x8b  /* set: no panic event (name from this use) */
+#define PANIC_WAIT 600                  /* ticks after an event before the next can arm */
+#define PANIC_SCREAM_PERIOD 300         /* ticks between scream draws */
+#define PANIC_TIMES 17                  /* @586 / @587's entries (16 read) */
+#define PANIC_TIMES_READ 16
+#define MOTION_GROUP_RUN 0x0e           /* PANIC_EV_TICK's group: running counts toward a tumble */
+// The answer, PANIC_EVENT_*; group is the motion group for PANIC_EV_TICK.
+int asPanicEventOperation(int mode, int group);                                          // CT3 0x018fb560
+// ---- asMotionAdderByNowMotion (2026-11-10): the face motions laid over the body's --------------------
+// pAM[body motion] = two lists (slot 2's, slot 3's) of { time, h12, motion }, descending by time, ended
+// by time -1: once the slot's time reaches an entry's, that motion is requested and its record's
+// MOTION_TABLE_H12 set to h12. pAME[EyeType] = the blink lists { from, to (in arg), pair index (in motion,
+// -1 none) } over EyeTicks. layout: EE (8-byte records; the ROM's pointer tables become host pointers).
+typedef struct MOTION_ADD {
+    int time;                           /* 0x0: ticks (slot time / EyeTicks); -1 ends the list */
+    short arg;                          /* 0x4: pAM: the record's MOTION_TABLE_H12; pAME: the end tick */
+    short motion;                       /* 0x6: pAM: the motion; pAME: the pair entry (-1: none) */
+} MOTION_ADD;
+static_assert(sizeof(MOTION_ADD) == 8, "MOTION_ADD");
+#define PAM_COUNT 233                   /* pAM's pairs (1864 bytes) */
+#define PAM_MOTION_LIMIT 200            /* the ROM reads pAM only for body motions below this */
+#define PAME_COUNT 3                    /* pAME: EyeType = tnRand(PAME_COUNT) */
+#define MOTION_ADD_SLOT_A 2             /* the slots pAM's two lists drive */
+#define MOTION_ADD_SLOT_B 3
+#define MOTION_ADD_BODY_KEEP1 1         /* CALJ in these body motions: its pair is stopped (CHARA_MOTION_REQ_STOP), no blink */
+#define MOTION_ADD_BODY_KEEP7 7
+#define CHARA_ID_ALYSSA 0x00            /* CHARACTER.id of the three blinking faces (with their shapes) */
+#define CHARA_ID_CALH 0x1c
+#define CHARA_ID_CALJ 0x0d
+#define MOTION_EYE_ALYS_OPEN 0x42       /* the blink pairs (open, shut by pAME's order: entry 0 then 1) */
+#define MOTION_EYE_ALYS_SHUT 0x43
+#define MOTION_EYE_CALH_OPEN 0x103
+#define MOTION_EYE_CALH_SHUT 0x104
+#define MOTION_EYE_CALJ_OPEN 3
+#define MOTION_EYE_CALJ_SHUT 4
+#define EYE_SLOT 4                      /* the slot the blink plays in (CHARA_MOTION_SLOTS[4], 0x3a0) */
+extern const MOTION_ADD AM[263];                /* sdata 0x0192ffb0 */
+extern const MOTION_ADD *const pAM[PAM_COUNT][2]; /* sdata 0x019307f0 */
+extern const MOTION_ADD AME[16];                /* sdata 0x0193b910 */
+extern const MOTION_ADD *const pAME[PAME_COUNT]; /* sdata 0x0193b990 */
+
+// Character[chara]'s motion record index: its play rate (MOTION_REC_PLAY_RATE).
+void asChangeCharacterMotionSettingPlayRate(int chara, int index, u_char rate);           // CT3 0x018fe0e0
 
 // The lever mash (ControllerClattering*): RLC_SET starts one with the four settings (< 0: default) and
 // answers its state (> 0: over, forgotten); RLC_FREE drops it.
