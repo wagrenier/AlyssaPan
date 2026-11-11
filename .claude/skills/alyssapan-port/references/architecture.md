@@ -811,6 +811,17 @@ view * matrix (+0x180) and +0x300 = that * diag(record +0x2c0 xyz).
   closest point pushed out). Answers 0 placed, 2 no target (mode ONE / AXES needed; ORBIT: ONE), 3 / 4 /
   5 / 6 the path does not fit, -1 an unknown kind. CamChangeZELCAM_S (a trigger command) sets ZelCam
   ([4] / [5] are int words), CamSetNowDOFLevel Cam[6]'s DOF level (4 ends the DOF pass).
+- **camera_main(pad, mode)** (slice 4) sets GlobalCameraMode and iCameraMode. Modes 0 / 1 (debug):
+  Alyssa flies -- the d-pad and L1 / L2 give a view-space step through 5-entry pressure tables
+  (foword / side 4..12, length 2..6; a pressure byte's bits 6..7 pick the pair, bits 0..5 blend in 64ths),
+  the right stick adds to it, the left stick and the face buttons (turn_angle_table 16..256) turn
+  CameraAngle, R1 / R2 scale CameraBehind and AlissaEyeHeight by 0.95 / 1.125; the step turns by the yaw
+  (mode 1: and the pitch) and moves Character[0].pos, whose rot takes the yaw + 0x8000. Mode 2: the ND
+  camera (NDAlyssaPos starts at Alyssa; R1 cycles flat / vertical / drive; drive moves Character[NDiChar]
+  along its own turn, R2 steps NDiChar, triangle / cross raise NDCameraEyePoint). Mode 3 becomes 4 with
+  controller_num 4 and iSm 0. Mode 4, the game's: a mode change asks motion 0; in controller mode 100 L1 /
+  L2 step iSm through the scene bank's cuts (CamChange {300, scene, iSm - 1, 1}, "Camera ID %d" into
+  szCamModeAdd). Every time step is gGlobalNextTicksInterval / 5; stick bytes 0x53..0xad read as 120.
 
 ## Areas, rattles, warps, the slerp, game/QuatSlerp.c (2026-11-10, slice 2)
 

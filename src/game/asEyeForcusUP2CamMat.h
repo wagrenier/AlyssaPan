@@ -28,11 +28,30 @@ extern float CameGri_dvsX;                  /* sbss 0x0194189c: ... and yaw defl
 extern u_int CameGri_DU;                    /* sbss 0x019418a0: yaw angle at full deflection (16-bit units) */
 extern u_int CameGri_DR;                    /* sbss 0x019418a4: pitch angle at full deflection */
 
+// camera_main's debug cameras (2026-11-10).
+extern float NDCameraEyePoint;              /* sbss 0x0193cef8: the ND drive camera's height over the character */
+extern int NDbVerticalMove;                 /* sbss 0x0193d050: ND_MOVE_* (R1 cycles it) */
+extern float NDdeltaMove[4];                /* sbss 0x0193d060: the ND camera's step this frame (view space) */
+extern int NDAlyssaRot[4];                  /* sbss 0x0193d080: [1] the ND view's yaw + 0x8000 */
+extern int NDiChar;                         /* sdata 0x019387c4: 34; the Character[] slot ND_MOVE_DRIVE moves */
+extern const float NDfoword_move_table[5];  /* sdata 0x01938770: the ND camera's d-pad up / down step */
+extern const float NDside_move_table[5];    /* sdata 0x01938790: left / right */
+extern const float NDlength_move_table[5];  /* sdata 0x019387b0: L1 / L2 (and the drive eye's triangle / cross) */
+#define ND_MOVE_FLAT 0                     /* the ND camera flies level */
+#define ND_MOVE_VERTICAL 1                  /* ... along its pitch too */
+#define ND_MOVE_DRIVE 2                     /* the pad moves Character[NDiChar]; the camera follows it */
+#define CAMERA_STICK_REST 120.0f            /* camera_main: a stick byte in 0x53..0xad reads as this */
+#define CAMERA_STICK_DEAD_LO 0x53
+#define CAMERA_STICK_DEAD_HI 0xad
+#define CAMERA_CUT_STEP_TICKS 300           /* camera_main: the debug cut step's CamChange arg */
+#define MOTION_DEBUG_CAMERA 0x8a            /* camera_main: Alyssa's motion while a debug camera runs */
+
 // iCameraMode (camera_view's cases; names from what each builds).
 #define CAMERA_MODE_FOLLOW 0                /* Cam[6] behind Character[0] (CameraAngle, CameraBehind) */
 #define CAMERA_MODE_FOLLOW1 1               /* the same */
 #define CAMERA_MODE_ND 2                    /* Cam[6] behind NDAlyssaPos (the ND* set) */
-#define CAMERA_MODE_SCENE 4                 /* a scene bank without a cut gets cut 0 */
+#define CAMERA_MODE_TO_SCENE 3              /* camera_main: becomes CAMERA_MODE_SCENE (controller 4, cut 0) */
+#define CAMERA_MODE_SCENE 4                /* a scene bank without a cut gets cut 0 */
 
 // The look-around stick (camera_view, CameGri_Mode 0 / 1: pad[0]'s stick bytes 2, 3 or 0, 1).
 #define CAMERA_STICK_CENTER 0x80

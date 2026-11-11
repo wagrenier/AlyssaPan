@@ -933,7 +933,7 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    upload not cycled it shows). Fixed in renderer.cpp (hazards.md). Still in the way of ATLD, besides the
    camera: UiCanvas maps window y with FS2's origin (1792) and a 512-high frame, so CT3's window (2048..2496,
    centre 2272) lands half below the frame -- the ui_canvas.cpp host task must set CT3's origin.
-5. **game/asEyeForcusUP2CamMat.c (the camera) -- partial (2026-11-10, slice 1):** 15 functions written
+5. **game/asEyeForcusUP2CamMat.c (the camera) -- verify (2026-11-10, slice 4; slice 1 below):** 15 functions written
    (architecture.md "The camera"): asEyeForcusUP2CamMat, asCameraPositionTranserUP, the cut chain
    (CamChange_S, CamChangeSub, asGetDestinationTRG, asGetDstinationFromTargetList,
    asCopyCharacterParameterTRG / _EYE), the geometry helpers (asCheckInnerPositions,
@@ -983,6 +983,19 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    character eye part not found (lpCopyMP NULL) reads a zero record on the host (address 0 in the ROM);
    (o) OBJ_CTRL.kind is a point count for a camera path: the seek bars' CTRL_KIND_SEEKBAR (2) may be a
    count too.
+   **Slice 4 (2026-11-10, scheduled run): camera_main -- the TU's 30 functions are written (verify).**
+   The smoke run calls it with CAMERA_MODE_SCENE every frame (ControllerMain, data_load_set); the debug
+   cameras (0 / 1 Alyssa flies, 2 the ND camera with ND_MOVE_FLAT / _VERTICAL / _DRIVE) and the
+   controller-100 cut step (L1 / L2, "Camera ID %d") are not reached; the shot stays black (the draw-side
+   z inf of slice 3). Doubts: (p) PAD_DATA.press (0x0c..0x17) is named in the DualShock 2's pressure order
+   from the pairing here (each byte read under its SCE_PAD* bit): gaPadRead's TU confirms it, and the host
+   pad must fill it (else every pressure step reads 0 -> the table's first entry blended to 0); (q) the
+   stick rest value is 120 with the dead zone 0x53..0xad (the ROM's, not 0x80), kept; (r) bVerticalMove
+   (sbss 0x0194180c, far from this TU's run) has no reader seen: lib/unassigned_data.cpp; GlobalCameraMode
+   (0x0193cf08) sits inside this TU's sbss run and could move here; (s) MOTION_DEBUG_CAMERA (0x8a) and the
+   motion 0 request on a mode change are named from this one use; (t) ND_MOVE_DRIVE steps NDiChar on
+   pad_key_button (repeat), wraps at 34, and the mode-2 entry copies Character[0].rot into NDAlyssaRot[1]
+   only while NDAlyssaPos.w is 0 (the first time).
 
 ## Decisions
 

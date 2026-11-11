@@ -1,6 +1,5 @@
 {
  "queue": [
-  "game/asEyeForcusUP2CamMat.c",
   "alyssapan/rendering/ui_canvas.cpp",
   "game/ssGrpPortalCheck.c",
   "game/wideXcmd_DebugPrint.c",
@@ -729,7 +728,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 67..67, 4 functions keyed by their statics, 3 unkeyed; source string ahalloc.c"
   },
   "game/asEyeForcusUP2CamMat.c": {
-   "notes": "camera_main (0x018881a0, 0x1aac bytes, the pad-driven camera with Camera ID %d) is the TU's last function: next, alone. The smoke run reaches asGetDestinationEYE only for global banks 0..5 (kind 0, no path); the shot is still black and the first object (light0) lands at window (2304, 2272) with z inf, which looks like a draw-side w problem rather than the camera. Doubts in open-items.md Next up item 5 (k)..(o).",
+   "notes": "The smoke run calls camera_main with CAMERA_MODE_SCENE each frame; the debug modes and the cut step are not reached. Shot still black: the first object lands at z inf (draw side, slice 3's note). PAD_DATA.press named in DualShock 2 pressure order from this reader (gaPadRead's TU confirms; the host pad must fill it). callcheck: gaRotMatrixY / gaSetRotMatrixX live in the FlyMove helper. Doubts (p)..(t) in open-items.md item 5.",
    "ranges": [
     [
      "01883db0",
@@ -751,9 +750,14 @@
      "date": "2026-11-10 22:35",
      "status": "partial",
      "summary": "camera slice 3: asGetDestinationEYE (the seven eye kinds: part, rail, orbit, stay, plane, ring, segment; the cut path from OBJ_CTRL), CamSetNowDOFLevel, CamChangeZELCAM_S; eye kinds and answers named"
+    },
+    {
+     "date": "2026-11-10 22:53",
+     "status": "verify",
+     "summary": "camera slice 4: camera_main (the pad camera: debug fly modes 0 / 1, the ND camera with its drive mode, mode 3 -> 4, the scene camera's controller-100 cut step); the TU's 30 functions are written"
     }
    ],
-   "status": "partial",
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 87..87, 7 functions keyed by their statics, 23 unkeyed; file name from the names"
   },
   "game/asMothOperate.c": {

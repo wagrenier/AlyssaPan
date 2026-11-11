@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-10 22:35 at commit `cc6d4c7` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-10 22:53 at commit `f90d4d9` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **851**; stubs: **181**
+- reconstructed CT3 functions: **852**; stubs: **180**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -67,7 +67,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/SdMasterVolumeSetSE.c` | 61 | 0 |
 | `src/game/ahRelocateSunPs2ObjectArry.c` | 93 | 0 |
 | `src/game/ahalloc.c` | 7 | 0 |
-| `src/game/asEyeForcusUP2CamMat.c` | 29 | 1 |
+| `src/game/asEyeForcusUP2CamMat.c` | 30 | 0 |
 | `src/game/asMothOperate.c` | 0 | 1 |
 | `src/game/asMothPause.c` | 0 | 1 |
 | `src/game/asMothRouteSearch.c` | 0 | 2 |
@@ -92,10 +92,9 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 39, partial 2, verify 24, done 4, blocked 1
-- next: **game/asEyeForcusUP2CamMat.c** (pinned in the queue)
-- pinned queue: game/asEyeForcusUP2CamMat.c, alyssapan/rendering/ui_canvas.cpp, game/ssGrpPortalCheck.c, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
-- partial: `game/asEyeForcusUP2CamMat.c` 29/30 -- camera_main (0x018881a0, 0x1aac bytes, the pad-driven camera with Camera ID %d) is the TU's last function: next, alone. The smoke run reaches asGetDestinationEY
+- 65 TUs: todo 39, partial 1, verify 25, done 4, blocked 1
+- next: **game/ssGrpPortalCheck.c** (pinned in the queue)
+- pinned queue: alyssapan/rendering/ui_canvas.cpp, game/ssGrpPortalCheck.c, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
 - partial: `game/wideXcmd_DebugPrint.c` 107/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed) -- the last function of the TU. New stubs
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
@@ -116,6 +115,7 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/SdMasterVolumeSetSE.c` 61/61 -- All 61 functions written. callcheck MISSING on SdLoadSQProc is its step helpers (SdLoadSQOpen/Read/Send/Command), as for SdLoadSEProc. ROM slips kept: step 6 pr
 - verify: `game/ahRelocateSunPs2ObjectArry.c` 93/93 -- All 93 functions written; nothing reaches the general body yet (the two written callers pass one flag each; asCharacterAnimationExecute and asResetCharacterPosi
 - verify: `game/ahalloc.c` 7/7 -- Host block header is 0x20 bytes (EE 0x10). SunAllocInit runs at boot; nothing calls _SunAlloc yet. AlignedNum is a stub answering 0, so game/AlignedNum.c is que
+- verify: `game/asEyeForcusUP2CamMat.c` 30/30 -- The smoke run calls camera_main with CAMERA_MODE_SCENE each frame; the debug modes and the cut step are not reached. Shot still black: the first object lands at
 - verify: `game/fileio.c` 40/40 -- All 40 functions written. Round2ChangeChar keeps the ROM order of its 150 Round2ChangeSectInfo pairs as three tables; round values named from the file names onl
 - verify: `game/main.c` 29/29 -- Smoke run: build green, layoutcheck OK, callcheck: main_rtn_Particle2 matches the ROM (extra BankEePtr only); AllDrawObject / GlobalDrawObject / DrawObjectRefra
 - verify: `game/main2.c` 18/18 -- Smoke run leaves main2 and runs the frame loop with no crash; the shot stays black because FSMltLoad (fileio.c) is a stub so no bank loads. PORT BankReady skips
@@ -125,6 +125,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-10 22:53 `game/asEyeForcusUP2CamMat.c` verify: camera slice 4: camera_main (the pad camera: debug fly modes 0 / 1, the ND camera with its drive mode, mode 3 -> 4, the scene camera's controller-100 cut step);
 - 2026-11-10 22:35 `game/asEyeForcusUP2CamMat.c` partial: camera slice 3: asGetDestinationEYE (the seven eye kinds: part, rail, orbit, stay, plane, ring, segment; the cut path from OBJ_CTRL), CamSetNowDOFLevel, CamChan
 - 2026-11-10 22:17 `game/asEyeForcusUP2CamMat.c` partial: camera slice 2: 7 functions -- camera_view and camera_view0 (the frame's camera: last frame's view kept, stocked cut retried, cut move blend, look-around stick,
 - 2026-11-10 22:01 `game/asEyeForcusUP2CamMat.c` partial: camera slice 1: 15 functions -- the view builder, the bank view switch, init / init0 / destroy, the cut chain (CamChange_S, CamChangeSub, target list) and the l
@@ -132,7 +133,6 @@ Recent sessions:
 - 2026-11-10 21:15 `ga/gaBGT_DrawObject.c` partial: slice 3: the clipped path (gaBGT_DrawObject), NoClippingCheck and the billboard jump into it, SetupDma_light0/1/2 build the ROM packet and hand the object to th
 - 2026-11-10 20:57 `ga/gaBGT_DrawObject.c` partial: slice 2: the light0 VU1 object program read (transform 0x04d, projection 0x0f5, cull 0x1fe / 0x22c) and run on the host per object; each frame's triangles go to
 - 2026-11-10 20:45 `ga/gaBGT_DrawObject.c` partial: slice 1: the no-clip path (NoClippingCheck2, nc2 light0 and light1) hands each ga draw object to the new host module AlyssaPan_DrawGaObject (GaMeshRecorder); AT
-- 2026-11-10 20:29 `alyssapan/rendering/ui_canvas.cpp` blocked: First screen found: ATLD, the memory-card check, drawn as world-space quads through gaBGT_DrawObject_NoClippingCheck2 (no 2D packet step); ct3pack.py reads CT3P
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
@@ -144,8 +144,8 @@ Recent sessions:
 | `game/tiAvoidObject.c` | todo | 0/7/82 | 30.5 | 27 | 4 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/ssHitCheckAttackToScn.c` | todo | 0/5/37 | 32.0 | 22 | 3 |
-| `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
+| `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `game/asUseArrow.c` | todo | 0/6/11 | 6.4 | 16 | 1 |
 | `game/tkXDTrg_GetSceneHash.c` | todo | 0/3/50 | 21.0 | 14 | 2 |
 
@@ -187,10 +187,10 @@ Recent sessions:
 | `018a52f0` | gaDrawObject_VertexLocalView_Billboard | 3 | sym | stub | ga/gaDrawObject.c |
 | `018a5b88` | gaDrawObject_RemakeIndex | 3 | sym | stub | ga/gaDrawObject.c |
 | `018a6038` | gaDrawObject_MakeVertexReferenceTableNoClip | 3 | sym | stub | ga/gaDrawObject.c |
-| `018881a0` | camera_main | 3 | sym | stub | game/asEyeForcusUP2CamMat.c |
 | `0188df70` | tiDrawLensFlares | 3 | sym | stub | game/Clipping_Portal.c |
 | `0188cd70` | tiVibrationTimer | 3 | sym | stub | game/Clipping_Portal.c |
 | `018c1ce0` | AA_videoDecAbort | 3 | sym | stub | game/AA_mpegTS.c |
 | `018666c0` | asInitArrowInfo | 2 | sym | stub | game/asUseArrow.c |
 | `01882c10` | asInitMothInfo | 2 | sym | stub | game/asMothRouteSearch.c |
+| `018a6080` | gaDrawObject_SetBig | 2 | sym | stub | ga/gaDrawObject.c |
 

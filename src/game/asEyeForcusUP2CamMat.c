@@ -5,9 +5,11 @@
 // destination search (CamChangeSub, asGetDestination*) and the per-frame camera are still stubs.
 // Slice 2 (2026-11-10): the per-frame camera (camera_view, camera_view0), the move step, the cut by part
 // hash and its stock; asGetDestinationEYE and camera_main are still stubs.
+// Slice 3 (2026-11-10): asGetDestinationEYE. Slice 4 (2026-11-10): camera_main -- the TU's code is complete.
 
 #include <float.h>
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "common/alyssapan_stub.h"
@@ -23,6 +25,7 @@
 #include "game/ssGrpPortalCheck.h"
 #include "game/unassigned_data.h"
 #include "game/wideXcmd_DebugPrint.h"
+#include "sdk/libpad.h"
 
 // ---- data (symtab names; see the header) ---------------------------------------------------------------
 float AlissaEyeHeight = CAMERA_EYE_HEIGHT_INIT; /* sdata 0x019386e0 */
@@ -49,6 +52,21 @@ float CameGri_dvsX;                         /* sbss 0x0194189c */
 u_int CameGri_DU;                           /* sbss 0x019418a0 */
 u_int CameGri_DR;                           /* sbss 0x019418a4 */
 CAM_QUAKE CamQuake[CAM_QUAKE_AXES];         /* sbss 0x0193cf10 */
+float NDCameraEyePoint;                     /* sbss 0x0193cef8 */
+int NDbVerticalMove;                        /* sbss 0x0193d050 */
+alignas(16) float NDdeltaMove[4];           /* sbss 0x0193d060 */
+alignas(16) int NDAlyssaRot[4];             /* sbss 0x0193d080 */
+int NDiChar = CHARACTER_MAX - 1;            /* sdata 0x019387c4: 34 */
+alignas(16) static float deltaMove[4];      /* sbss 0x0193d0b0 (static) */
+// camera_main's pressure tables (5 entries: a pressure byte blends two neighbours).
+static const float foword_move_table[5] = {4.0f, 6.0f, 8.0f, 10.0f, 12.0f};   /* sdata 0x019386f0 (static) */
+static const float side_move_table[5] = {4.0f, 6.0f, 8.0f, 10.0f, 12.0f};     /* sdata 0x01938710 (static) */
+static const float length_move_table[5] = {2.0f, 3.0f, 4.0f, 5.0f, 6.0f};     /* sdata 0x01938730 (static) */
+static const int turn_angle_table[5] = {16, 32, 64, 128, 256};                /* sdata 0x01938750 (static) */
+const float NDfoword_move_table[5] = {4.0f, 6.0f, 8.0f, 10.0f, 12.0f};        /* sdata 0x01938770 */
+const float NDside_move_table[5] = {4.0f, 6.0f, 8.0f, 10.0f, 12.0f};          /* sdata 0x01938790 */
+const float NDlength_move_table[5] = {2.0f, 3.0f, 4.0f, 5.0f, 6.0f};          /* sdata 0x019387b0 */
+static const char s_cameraId[] = "Camera ID %d";                              /* rodata 0x019344a0 (@2089) */
 
 // vmulax / vmadday / vmaddaz / vmaddw.xyzw: out = v.x m[0] + v.y m[1] + v.z m[2] + v.w m[3] (out may be v).
 static void ApplyMatrixXYZW(float *out, float (*m)[4], const float *v)
@@ -1314,10 +1332,255 @@ void camera_view(void)
     CameraFollowView(NDAlyssaPos, NDAlissaEyeHeight, NDCameraAngle, NDCameraBehind);
 }
 
-// ---- stubs (tools/reverse/stubgen.py) ----
+// ---- camera_main: the pad's camera (slice 4, 2026-11-10) -----------------------------------------------
 
-// stub of CT3 0x018881a0
+// A pressure byte through a 5-entry table: bits 6..7 pick the pair, bits 0..5 the blend (64 steps).
+static float PressLerp(const float *tbl, u_char p)
+{
+    u_int f = p & 0x3f;
+    int i = p >> 6;
+    return ((float)f * tbl[i + 1] + (float)(int)(0x40 - f) * tbl[i]) / 64.0f;
+}
+
+// turn_angle_table holds ints: the same blend in integer steps, divided toward zero.
+static int PressTurn(u_char p)
+{
+    int i = p >> 6;
+    int r = (int)(0x40 - (p & 0x3f)) * turn_angle_table[i] + (int)(p & 0x3f) * turn_angle_table[i + 1];
+    return r / 64;
+}
+
+// A stick byte with its dead zone: 0x53..0xad read as the rest value 120 (the ROM's, not 128).
+static float StickByte(u_char b)
+{
+    return (b < CAMERA_STICK_DEAD_LO || CAMERA_STICK_DEAD_HI < b) ? (float)b : CAMERA_STICK_REST;
+}
+
+// This frame's ticks in fifths (0 while the interval is negative).
+static float TickScale(void)
+{
+    return gGlobalNextTicksInterval < 0 ? 0.0f : (float)gGlobalNextTicksInterval / 5.0f;
+}
+
+// The flying cameras' (mode 0 / 1, ND flat / vertical) step in view space: the d-pad and L1 / L2.
+static void FlyStep(float *delta, const PAD_DATA *pad, const float *fwd, const float *side, const float *len)
+{
+    delta[0] = 0.0f;
+    delta[1] = 0.0f;
+    delta[2] = 0.0f;
+    delta[3] = 1.0f;
+    if (pad_cnt_button[0] & SCE_PADLdown)
+        delta[2] = -PressLerp(fwd, pad->press[PAD_PRESS_DOWN]);
+    if (pad_cnt_button[0] & SCE_PADLup)
+        delta[2] = PressLerp(fwd, pad->press[PAD_PRESS_UP]);
+    if (pad_cnt_button[0] & SCE_PADLright)
+        delta[0] = PressLerp(side, pad->press[PAD_PRESS_RIGHT]);
+    if (pad_cnt_button[0] & SCE_PADLleft)
+        delta[0] = -PressLerp(side, pad->press[PAD_PRESS_LEFT]);
+    if (pad_cnt_button[0] & SCE_PADL1)
+        delta[1] = PressLerp(len, pad->press[PAD_PRESS_L1]);
+    if (pad_cnt_button[0] & SCE_PADL2)
+        delta[1] = -PressLerp(len, pad->press[PAD_PRESS_L2]);
+}
+
+// The flying cameras' sticks and move: the right stick (bytes 2, 3) adds to the step, the left (0, 1)
+// turns (angle[1] yaw, angle[0] pitch; rotOut takes the yaw + 0x8000 before [1] is masked, as the ROM
+// does); the step turns by the yaw (and the pitch when vertical) and moves pos by it in ticks.
+static void FlyMove(const PAD_DATA *pad, float *delta, int *angle, int *rotOut, int vertical, float *pos)
+{
+    float m[4][4];
+    float v[4];
+    float sx = StickByte(pad->stick[2]);
+    float sy = StickByte(pad->stick[3]);
+    float s;
+
+    delta[0] -= (sx - CAMERA_STICK_REST) * 0.05f;
+    delta[2] += (sy - CAMERA_STICK_REST) * 0.05f;
+    sx = StickByte(pad->stick[0]);
+    sy = StickByte(pad->stick[1]);
+    angle[1] = (int)((float)angle[1] + (sx - CAMERA_STICK_REST) * 1.5f * TickScale());
+    s = TickScale();
+    *rotOut = (angle[1] + 0x8000) & 0xffff;
+    angle[0] = (int)((float)angle[0] - (sy - CAMERA_STICK_REST) * 1.5f * s) & 0xffff;
+    angle[1] &= 0xffff;
+    angle[2] &= 0xffff;
+    if (vertical == 0) {
+        gaSetRotMatrixY(m, angle[1]);
+    } else {
+        gaSetRotMatrixX(m, angle[0]);
+        gaRotMatrixY(m, angle[1], m);
+    }
+    ApplyMatrixXYZW(v, m, delta);
+    pos[0] += v[0] * TickScale();
+    pos[1] += v[1] * TickScale();
+    pos[2] += v[2] * TickScale();
+}
+
+// R1 / R2 (or square / circle) scale a follow camera's distance and eye height.
+static void ScaleFollow(float *behind, float *height, float k)
+{
+    *behind *= k;
+    *height *= k;
+}
+
+// CT3 0x018881a0
+// The frame's pad camera (ControllerMain; data_load_set with CAMERA_MODE_SCENE). GlobalCameraMode takes
+// the mode. 0 / 1: Alyssa flies (d-pad, L1 / L2, sticks; R1 / R2 the follow distance; the face buttons
+// turn), 1 along the pitch too. 2: the ND camera -- R1 cycles ND_MOVE_FLAT / _VERTICAL (the ND eye flies,
+// started at Alyssa) and _DRIVE (R2 steps NDiChar; the pad walks that character, the eye rides it).
+// 3: becomes CAMERA_MODE_SCENE with controller 4 and cut 0. 4: the scene camera; in controller mode 100
+// L1 / L2 step the scene bank's cuts ("Camera ID %d" into szCamModeAdd). iCameraMode follows the mode.
 void camera_main(PAD_DATA *pad, int mode)
 {
-    ALYSSAPAN_STUB("camera_main", 0x018881a0);
+    float m[4][4];
+    int step = 0;
+    int cur;
+
+    GlobalCameraMode = mode;
+    switch (mode) {
+    case CAMERA_MODE_FOLLOW:
+    case CAMERA_MODE_FOLLOW1:
+        asCharacterMortionChangeRequest(0, 0, MOTION_DEBUG_CAMERA);
+        FlyStep(deltaMove, pad, foword_move_table, side_move_table, length_move_table);
+        if (pad_cnt_button[0] & SCE_PADR1)
+            ScaleFollow(&CameraBehind, &AlissaEyeHeight, 0.95f);
+        if (pad_cnt_button[0] & SCE_PADR2)
+            ScaleFollow(&CameraBehind, &AlissaEyeHeight, 1.125f);
+        if (pad_cnt_button[0] & SCE_PADRdown)
+            CameraAngle[0] = (int)((float)CameraAngle[0] +
+                                   TickScale() * (float)PressTurn(pad->press[PAD_PRESS_CROSS]));
+        if (pad_cnt_button[0] & SCE_PADRup)
+            CameraAngle[0] = (int)((float)CameraAngle[0] -
+                                   TickScale() * (float)PressTurn(pad->press[PAD_PRESS_TRIANGLE]));
+        if (pad_cnt_button[0] & SCE_PADRright)
+            CameraAngle[1] = (int)((float)CameraAngle[1] -
+                                   TickScale() * (float)PressTurn(pad->press[PAD_PRESS_CIRCLE]));
+        if (pad_cnt_button[0] & SCE_PADRleft)
+            CameraAngle[1] = (int)((float)CameraAngle[1] +
+                                   TickScale() * (float)PressTurn(pad->press[PAD_PRESS_SQUARE]));
+        bVerticalMove = mode;
+        FlyMove(pad, deltaMove, CameraAngle, &Character[0].rot, mode, (float *)Character[0].pos);
+        iCameraMode = mode;
+        return;
+
+    case CAMERA_MODE_ND:
+        asCharacterMortionChangeRequest(0, 0, MOTION_DEBUG_CAMERA);
+        if (NDAlyssaPos[3] == 0.0f) {
+            NDAlyssaPos[0] = ((const float *)Character[0].pos)[0];
+            NDAlyssaPos[1] = ((const float *)Character[0].pos)[1];
+            NDAlyssaPos[2] = ((const float *)Character[0].pos)[2];
+            NDAlyssaPos[3] = 1.0f;
+            NDAlyssaRot[1] = Character[0].rot;
+            NDbVerticalMove = ND_MOVE_FLAT;
+        }
+        if ((pad_trg_button[0] & SCE_PADR1) && ++NDbVerticalMove > ND_MOVE_DRIVE)
+            NDbVerticalMove = ND_MOVE_FLAT;
+        if (NDbVerticalMove != ND_MOVE_DRIVE) {
+            if (NDbVerticalMove == ND_MOVE_FLAT || NDbVerticalMove == ND_MOVE_VERTICAL) {
+                FlyStep(NDdeltaMove, pad, NDfoword_move_table, NDside_move_table, NDlength_move_table);
+                if (pad_cnt_button[0] & SCE_PADRleft)
+                    ScaleFollow(&NDCameraBehind, &NDAlissaEyeHeight, 0.95f);
+                if (pad_cnt_button[0] & SCE_PADRright)
+                    ScaleFollow(&NDCameraBehind, &NDAlissaEyeHeight, 1.125f);
+                if (pad_cnt_button[0] & SCE_PADRup) {
+                    NDAlissaEyeHeight = CAMERA_EYE_HEIGHT_INIT;
+                    NDCameraBehind = CAMERA_BEHIND_INIT;
+                }
+                FlyMove(pad, NDdeltaMove, NDCameraAngle, &NDAlyssaRot[1], NDbVerticalMove, NDAlyssaPos);
+            }
+            iCameraMode = mode;
+            return;
+        }
+        {
+            float side = 0.0f, fwd = 0.0f, up = 0.0f, sx, sy, t0, t1;
+            CHARACTER *ch;
+            float *pos;
+
+            if ((pad_key_button[0] & SCE_PADR2) && ++NDiChar > CHARACTER_MAX - 1)
+                NDiChar = 0;
+            sx = StickByte(pad->stick[0]);
+            sy = StickByte(pad->stick[1]);
+            t0 = TickScale();
+            t1 = TickScale();
+            NDCameraAngle[1] = (int)((float)NDCameraAngle[1] + (sx - CAMERA_STICK_REST) * 1.5f * t0) & 0xffff;
+            NDCameraAngle[0] = (int)((float)NDCameraAngle[0] - (sy - CAMERA_STICK_REST) * 1.5f * t1) & 0xffff;
+            if (pad_cnt_button[0] & SCE_PADLright)
+                side = PressLerp(NDside_move_table, pad->press[PAD_PRESS_RIGHT]);
+            if (pad_cnt_button[0] & SCE_PADLleft)
+                side = -PressLerp(NDside_move_table, pad->press[PAD_PRESS_LEFT]);
+            if (pad_cnt_button[0] & SCE_PADLup)
+                fwd = PressLerp(NDfoword_move_table, pad->press[PAD_PRESS_UP]);
+            if (pad_cnt_button[0] & SCE_PADLdown)
+                fwd = -PressLerp(NDfoword_move_table, pad->press[PAD_PRESS_DOWN]);
+            if (pad_cnt_button[0] & SCE_PADL1)
+                up = PressLerp(NDlength_move_table, pad->press[PAD_PRESS_L1]);
+            if (pad_cnt_button[0] & SCE_PADL2)
+                up = -PressLerp(NDlength_move_table, pad->press[PAD_PRESS_L2]);
+            if (pad_cnt_button[0] & SCE_PADRup)
+                NDCameraEyePoint += PressLerp(NDlength_move_table, pad->press[PAD_PRESS_TRIANGLE]);
+            if (pad_cnt_button[0] & SCE_PADRdown)
+                NDCameraEyePoint -= PressLerp(NDlength_move_table, pad->press[PAD_PRESS_CROSS]);
+            if (pad_cnt_button[0] & SCE_PADRleft)
+                ScaleFollow(&NDCameraBehind, &NDAlissaEyeHeight, 0.95f);
+            if (pad_cnt_button[0] & SCE_PADRright)
+                ScaleFollow(&NDCameraBehind, &NDAlissaEyeHeight, 1.125f);
+            if (NDiChar < 0) {
+                iCameraMode = mode;
+                return;
+            }
+            ch = &Character[NDiChar];
+            pos = (float *)ch->pos;
+            NDAlyssaPos[0] = pos[0];
+            NDAlyssaPos[2] = pos[2];
+            NDAlyssaPos[3] = 1.0f;
+            NDAlyssaPos[1] = pos[1] + NDCameraEyePoint;
+            sx = StickByte(pad->stick[2]);
+            ch->rot += (int)((sx - CAMERA_STICK_REST) * TickScale()) * 8;
+            gaSetRotMatrixY(m, ch->rot);
+            // vmulx.xyz / vadd.xyz: the character walks along the turn's x row, then its z row; w stays.
+            for (int k = 0; k < 3; k++)
+                pos[k] += m[0][k] * side;
+            for (int k = 0; k < 3; k++)
+                pos[k] += m[2][k] * fwd;
+            pos[1] += up;
+        }
+        iCameraMode = mode;
+        return;
+
+    case CAMERA_MODE_TO_SCENE:
+        GlobalCameraMode = CAMERA_MODE_SCENE;
+        controller_num = 4;
+        iSm = 0;
+        break;
+    case CAMERA_MODE_SCENE:
+        break;
+    default:
+        iCameraMode = mode;
+        return;
+    }
+
+    cur = GlobalCameraMode;
+    if (iCameraMode != GlobalCameraMode)
+        asCharacterMortionChangeRequest(0, 0, 0);
+    if (controller_mode == CONTROLLER_MODE_100 && BankInfo[idCurrentScene].state == BANK_STATE_LOADED) {
+        int cuts = ((const u_char *)BankEePtr(idCurrentScene,
+                                              All_table_TBL[idCurrentScene]->ctrl))[CAM_CTRL_CUT_COUNT];
+        if (pad_trg_button[0] & SCE_PADL1) {
+            iSm++;
+            step = 1;
+            if (cuts < iSm)
+                iSm = 1;
+        } else if (pad_trg_button[0] & SCE_PADL2) {
+            iSm--;
+            step = 1;
+            if (iSm < 1)
+                iSm = cuts;
+        }
+    }
+    if (step) {
+        CAM_CHANGE req = {CAMERA_CUT_STEP_TICKS, idCurrentScene, (short)(iSm - 1), 1, 0};
+        CamChange(&req);
+        sprintf(szCamModeAdd, s_cameraId, iSm - 1);
+    }
+    iCameraMode = cur;
 }

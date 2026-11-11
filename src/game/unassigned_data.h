@@ -178,6 +178,7 @@ extern int vsBossMuteki;                        /* sbss 0x0194485c: Alyssa's inv
                                                    (asCheckCharacterHited counts it down) */
 extern int AfterPanicStartMuteki;               /* sbss 0x01944860: her invulnerable ticks after a panic starts */
 extern int GlobalCameraMode;                    /* sbss 0x0193cf08: CAMERA_MODE_* (wideXcmd_DebugPrint.h) */
+extern int bVerticalMove;                       /* sbss 0x0194180c: camera_main writes its mode 0 / 1 (no reader seen) */
 extern u_char act_small;                        /* sbss 0x0193f740: the pad's small motor is running (vibration TU) */
 extern u_char act_large;                        /* sbss 0x0193f744: its large motor */
 extern int GlobalVariable[GLOBAL_VARIABLE_COUNT]; /* sbss 0x01941190 */

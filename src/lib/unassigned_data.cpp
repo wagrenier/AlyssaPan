@@ -297,6 +297,7 @@ PANIC_INFO PanicInfoData;                       /* sbss 0x01940e50 */
 int vsBossMuteki;                               /* sbss 0x0194485c */
 int AfterPanicStartMuteki;                      /* sbss 0x01944860 */
 int GlobalCameraMode;                           /* sbss 0x0193cf08 */
+int bVerticalMove;                              /* sbss 0x0194180c: camera_main mode 0 / 1 (1 = vertical) */
 u_char act_small;                               /* sbss 0x0193f740 */
 u_char act_large;                               /* sbss 0x0193f744 */
 int GlobalVariable[GLOBAL_VARIABLE_COUNT];      /* sbss 0x01941190 */
