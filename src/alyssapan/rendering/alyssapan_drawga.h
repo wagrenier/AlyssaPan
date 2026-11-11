@@ -45,9 +45,32 @@ struct AlyssaPanGaObject
     const float *lightMatrix;   /* +0x5c, light1 only: 3 qwords */
     const void *lightWork;      /* +0x3c, light1 only: 17 qwords (GA_LIGHT_WORK) */
     float lightScale;           /* +0x30, light1 only (the set-up stores it at scratchpad 0xcc) */
-    uint64_t gsReg70;           /* +0x70: a GS register value (the header's 0x78) */
-    uint64_t gsReg78;           /* +0x78: a GS register value (the header's 0xc0) */
+    uint64_t gsReg70;           /* +0x70: two floats, not a GS register: the VU1 program's Z offset and
+                                   fog base (the header's 0x78 = vf17.zw) */
+    uint64_t gsReg78;           /* +0x78: two floats, not a GS register: the ST offset (the header's 0xc0 =
+                                   vf30.xy) */
     const void *upload;         /* the attr argument: a GS upload packet (halfword qwc, then data) or null */
+    const float *vuHeader;      /* the scratchpad's 0x60..0xd0 as the set-up left it: the 3dlib qwords the
+                                   VU1 program reads (ALYSSAPAN_GA_HDR_*), 4 floats each */
+};
+
+/* Float indices into vuHeader: what the VU1 program loads each qword as. */
+enum
+{
+    ALYSSAPAN_GA_HDR_SCALE = 0,   /* vf16 (0x60): projection scale x, y, z (12.4 units) */
+    ALYSSAPAN_GA_HDR_OFFSET = 4,  /* vf17 (0x70): screen centre x, y; Z offset; fog base */
+    ALYSSAPAN_GA_HDR_COUNTS = 8,  /* vf18 (0x80): 0, vertices, prims; w the projection distance */
+    ALYSSAPAN_GA_HDR_FOG = 20,    /* vf29 (0xb0): fog bias, fog scale, colour max (255), fog distance bias */
+    ALYSSAPAN_GA_HDR_ST = 24,     /* vf30 (0xc0): ST offset s, t; w the light1 scale */
+};
+
+/* flags & 3, the VU1 program's variant: which screen-space winding it drops (the ADC bit on the third
+ * vertex's XYZF2). */
+enum
+{
+    ALYSSAPAN_GA_CULL_NEGATIVE = 0, /* drops a triangle whose screen cross product's z is negative */
+    ALYSSAPAN_GA_CULL_POSITIVE = 1, /* drops it when that z is zero or positive */
+    /* 2 and 3: no culling */
 };
 
 /* The object, in the order the game draws it. */

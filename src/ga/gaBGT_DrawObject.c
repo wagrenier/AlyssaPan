@@ -14,7 +14,8 @@
 // REF to the scratchpad's FLUSH / MSCNT / FLUSHE.
 //
 // Host: no VIF, no VU1. The set-ups keep their scratchpad stores (the 3dlib header the renderer would read)
-// and hand the same blocks to the native draw module (alyssapan_drawga.h). The D8 copy has nothing to copy;
+// and hand the same blocks, with that header, to the native draw module (alyssapan_drawga.h), which runs the
+// VU1 program's maths (slice 2: rendering/ga_mesh.cpp, architecture.md). The D8 copy has nothing to copy;
 // the packet area still flips as the ROM's does.
 //
 // Read, not reconstructed (dead): gaBGT_DrawObject_nc2_SetupDma_light2 (0x018a4c78) -- the call at
@@ -72,6 +73,8 @@ static void FillObject(AlyssaPanGaObject *o, const GA_SPR_WORK *spr, const u_cha
     o->gsReg78 = spr->objReg78;
     // PORT: the ROM reads attr as an address (0 = no upload); main_rtn and its kin always pass 0.
     o->upload = (const void *)(uintptr_t)(u_int)attr;
+    // The 14-qword header's 3dlib part (scratchpad 0x60..0xd0): the VU1 program's constants.
+    o->vuHeader = &spr->work21;
 }
 
 // CT3 0x018a41ac

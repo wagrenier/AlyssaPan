@@ -891,6 +891,18 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    camera (game/asEyeForcusUP2CamMat.c, next in the queue) places the quads. Doubts: the index record's
    fourth halfword (repeats the first in ATLD) and the ST / colour blocks' single VIF head qword are read
    from ATLD's data only.
+   **Slice 2 (2026-11-10):** (a) done for light0 (architecture.md "The VU1 object program"): the
+   transform, projection, colour, ST offset, fog and the variant's cull run on the host
+   (`GaMeshRecorder::project` / `cull`), and seams.cpp's DrawGaFrame draws each frame's triangles through
+   UiCanvas, squeezed at wide aspects. **Still black**: ATLD's object matrix (obj +0x58) is all zeros in the
+   smoke run (asChangeViewMatrix_forTheBank 0x01886690 and the camera are stubs: game/asEyeForcusUP2CamMat.c,
+   next, fills it). Left: (b') the texture (TEX_INFO / the tbuffer upload, decoded at its source), a depth
+   test and fog in the draw (UiCanvas has neither: a ga pass of its own may be cleaner), the frame end (CT3
+   never kicks UiCanvas; the ga frame closes at the first object after a vblank, PORT); UiCanvas's window
+   origin is FS2's (1792, 512 wide) while CT3's window is 2048..2560 x 2048..2496 (centre 2304, 2272): the
+   ui_canvas.cpp check must set CT3's; (e) light1's lighting (0x296 / 0x40b; light1 meshes are grey);
+   (c) as before. Doubt: GA_OBJ_REG70 / REG78 are floats (Z offset + fog base, ST offset), so their names
+   in gaBGT_DrawObject.h and the AlyssaPanGaObject fields are kept for now but mislead.
 
 ## Decisions
 

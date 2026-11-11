@@ -7,6 +7,14 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-10, gaBGT_DrawObject.c slice 2) **vudis.py misprints three lower-op fields**: `iaddiu`'s
+  imm15 (`iaddiu vi1, vi1, 0x801` is +1, `0x804` +4, `0x1007` +7: high bits leak in), `mtir`'s component
+  (it prints the dest mask, not fsf: the kick routines' `mtir.` / `.w` / `.z` are x / y / z, as the
+  unpipelined 0x1ba's `ilw.x / .y / .z` show) and `div`'s fsf / ftf (decode them from the printed mask:
+  fsf = bit22*2 + bit21, ftf = bit24*2 + bit23 with x=24 y=23 z=22 w=21, so `div.xzw ft=1 fs=18` is
+  Q = vf18.w / vf1.z). Branch targets are index + 1 + imm. Cross-check a reading against a second
+  form of the same routine before trusting a constant; the tool wants these fixed.
+
 - (2026-11-10, gaBGT_DrawObject.c slice 1) **The ga library's asm objects decompile to nonsense**:
   functions that keep their state through `t9 = 0x70000000` (the scratchpad) come out of Ghidra as stores to
   `uRamfcea0000`-style addresses and "read-only address is written" warnings, with MIPS instruction words

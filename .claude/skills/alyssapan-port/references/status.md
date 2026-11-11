@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-10 20:45 at commit `defea1e` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-10 20:57 at commit `4592d7a` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -93,7 +93,7 @@ Least-named game-code regions (64 KB blocks):
 - 65 TUs: todo 40, partial 2, verify 23, done 4, blocked 1
 - next: **ga/gaBGT_DrawObject.c** (pinned in the queue)
 - pinned queue: ga/gaBGT_DrawObject.c, game/asEyeForcusUP2CamMat.c, alyssapan/rendering/ui_canvas.cpp, game/ssGrpPortalCheck.c, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
-- partial: `ga/gaBGT_DrawObject.c` 3/9 -- Read from the disassembly (asm object, t9 = scratchpad). nc2 light2 is dead code. Left: the VU1 programs at MSCAL 0x1a / 0x22 for the transform and colour, a GP
+- partial: `ga/gaBGT_DrawObject.c` 3/9 -- VU1 maths in GaMeshRecorder::project / cull (architecture.md The VU1 object program). obj +0x70 / +0x78 are floats (Z offset + fog base, ST offset), not GS regi
 - partial: `game/wideXcmd_DebugPrint.c` 107/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed) -- the last function of the TU. New stubs
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaDmaSync_VIF1.c` 5/5 -- Host: kicks leave CHCR.STR clear (the transfer is over), so the syncs return at once; the BGT send keeps the copy and the flip, the packet goes nowhere (draw mo
@@ -122,6 +122,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-10 20:57 `ga/gaBGT_DrawObject.c` partial: slice 2: the light0 VU1 object program read (transform 0x04d, projection 0x0f5, cull 0x1fe / 0x22c) and run on the host per object; each frame's triangles go to
 - 2026-11-10 20:45 `ga/gaBGT_DrawObject.c` partial: slice 1: the no-clip path (NoClippingCheck2, nc2 light0 and light1) hands each ga draw object to the new host module AlyssaPan_DrawGaObject (GaMeshRecorder); AT
 - 2026-11-10 20:29 `alyssapan/rendering/ui_canvas.cpp` blocked: First screen found: ATLD, the memory-card check, drawn as world-space quads through gaBGT_DrawObject_NoClippingCheck2 (no 2D packet step); ct3pack.py reads CT3P
 - 2026-11-10 20:12 `alyssapan/iop/fsys_server.cpp` done: Host FSYS_IOP file server (iop::FsysServer) on io::Disc, registered when FSYS_IOP.IRX loads: SUNA answers a loose file's size and first sector
@@ -129,7 +130,6 @@ Recent sessions:
 - 2026-11-10 19:35 `game/wideXcmd_DebugPrint.c` partial: slice 8: the cat walk (fall, hidden feet part, death drop), the lever-mash locks (asPIA1_KEY_TBL_LOCK), panic run / stand (confirms the panic event answers), hi
 - 2026-11-10 19:18 `game/wideXcmd_DebugPrint.c` partial: slice 7: the pad move (asCharacterMoveByPad: tank and camera-relative steering, the turn-around flag PIA_KEY.h0c; asCharacterMoveByPadUD), the panic events (asP
 - 2026-11-10 18:56 `game/wideXcmd_DebugPrint.c` partial: slice 6: the player key dispatch (asPlayerInputAnalyze with its typed tables asPIA0 / asPIA1 / asPIAK, every key-table entry now (CHARACTER *, PIA_KEY *)), 19 s
-- 2026-11-10 18:34 `game/wideXcmd_DebugPrint.c` partial: slice 5: asCheckCharacterHited (the boss battle invulnerability vsBossMuteki / AfterPanicStartMuteki, the stage bosses scripted strikes, then Alyssa's hit table
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
@@ -141,8 +141,8 @@ Recent sessions:
 | `game/tiAvoidObject.c` | todo | 0/7/82 | 30.5 | 27 | 4 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/ssHitCheckAttackToScn.c` | todo | 0/5/37 | 32.0 | 22 | 3 |
-| `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
+| `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `game/asUseArrow.c` | todo | 0/6/11 | 6.4 | 16 | 1 |
 | `game/tkXDTrg_GetSceneHash.c` | todo | 0/3/50 | 21.0 | 14 | 2 |
 

@@ -439,6 +439,36 @@ the TU map's evidence.
   `rendering::GaMeshRecorder` copies a frame's meshes (positions, ST, RGBA, triangles, matrix). Smoke run:
   ATLD's first object arrives as light0, flags 1, 4 vertices, 2 triangles, v0 (-845 80 0), st 1/2048.
 
+## The VU1 object program (vu1_object_draw_program, .vutext 0x018ff430; gaBGT_DrawObject.c slice 2, 2026-11-10)
+
+Read with `vudis.py 18ff430 335 --all` (mind hazards.md's vudis misprints). Micro addresses:
+- **Entries** 0x1a / 0x1c / 0x1e / 0x20 (light0, + 2 x variant) all branch to **0x14f** with vi15 = the
+  kick routine (variant 0 -> 0x1fe, 1 -> 0x22c, 2 / 3 -> 0x1d9); 0x22..0x28 (light1) to **0x17f** with the
+  same vi15 set. Entry 0 (0x2a: vf31, vf29 from VU 0 / 1) is never sent (no reference to
+  `vifcode_mscal_0000`): **vf31 stays 0**.
+- **The header** at VU 0x1a0 (the set-up's CNT 15): vf16 = scratchpad 0x60 (projection scale x, y, z x 16),
+  vf17 = 0x70 (screen centre x, y; obj +0x70's two floats: Z offset, fog base), vf18 = 0x80 (0, vertices,
+  prims, w = work[6] the projection distance), vf19 = the GIFtag, vf20 = obj +0x38's qword, then light1's
+  light matrix (5..7), the object matrix vf24..vf27 (8..11), vf29 = 0xb0 (work9 fog bias, work25 fog
+  scale, 255, work24 fog distance bias), vf30 = 0xc0 (obj +0x78's two floats: the ST offset; w obj +0x30).
+  **obj +0x70 / +0x78 are floats, not GS register values.**
+- **0x14f (light0)** loads the header and calls **0x04d**: v' = vf24 x + vf25 y + vf26 z + vf27 into the
+  vertex's slot (VU 0..), the colour bytes (VU 256..) to floats; [E]. The chain's MSCNT then runs **0x0f5**,
+  the projection (wrap-pipelined, two vertices a pass): Q = vf18.w / v'.z; XYZ = vf17.xyz + vf31 + vf16 *
+  (v'.x, v'.y, 1) * Q; F = (vf17.w + vf29.x) * 16 + vf29.y / (vf29.w + |v'|^2); RGBA = clamp(colour + vf20,
+  0, vf29.z); STQ = (st + vf30.xy) * Q; ftoi0 into VU 0 / 128 / 256 (XYZF2, ST, RGBAQ), then jr vi15.
+  ATLD: the screen centre is **(2304, 2272)** window units (2048 + 256, 2048 + 224: a 512 x 448 window).
+- **The kick routines** walk the index record at 0x17f (x / y / z halfwords = the three vertices' qword
+  offsets x 16; the fourth is unused) and copy each vertex's ST / RGBAQ / XYZF2 after the GIFtag at 0x1bf,
+  then XGKICK. Variants 0 and 1 cull: the screen edges' outer product (OPMULA / OPMSUB), z's sign flag (MAC
+  0x20) sets the third XYZF2's ADC bit -- variant 0 drops z < 0, variant 1 drops z >= 0; 0x1d9 keeps all.
+- 0x0af is the same projection over an index list (the clipped path's); 0x084 is light1's transform (no
+  colour conversion); light1's lighting is at 0x296 / 0x40b (via 0x192 / 0x196), not read.
+- Host: `rendering::GaMeshRecorder::project` / `cull` do this per object; seams.cpp's DrawGaFrame hands a
+  frame's triangles to UiCanvas (squeezed at wide aspects = the projection widened). Smoke run 2026-11-10:
+  ATLD's object matrix (obj +0x58) is all zeros (asChangeViewMatrix_forTheBank and the camera are stubs),
+  so v'.z = 0 and nothing is drawn.
+
 ## The file layer, game/ArtoolDebugOpen.c (2026-11-10)
 
 `IopLoadModules` reboots the IOP with `cdrom0:\IOP\IOPRP255.IMG;1` and loads the ten modules from

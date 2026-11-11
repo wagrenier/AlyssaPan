@@ -21,8 +21,9 @@
 #define GA_OBJ_NORMALS 0x64             /* u_int EE: a VIF head qword + vertexCount qwords, light1 only */
 #define GA_OBJ_ST 0x68                  /* u_int EE: a VIF head qword (STMASK, UNPACK V2-32) + the STs */
 #define GA_OBJ_COLOURS 0x6c             /* u_int EE: a VIF head qword (UNPACK V4-8) + the RGBAs */
-#define GA_OBJ_REG70 0x70               /* u_long: a GS register value (to the scratchpad's 0x78) */
-#define GA_OBJ_REG78 0x78               /* u_long: a GS register value (to the scratchpad's 0xc0) */
+#define GA_OBJ_REG70 0x70               /* 2 floats (to the scratchpad's 0x78): the VU1 program's Z offset and
+                                           fog base (vf17.zw), not a GS register (slice 2) */
+#define GA_OBJ_REG78 0x78               /* 2 floats (to the scratchpad's 0xc0): the ST offset (vf30.xy) */
 
 #define GA_OBJ_FLAG_VARIANT 0x03        /* picks the VU1 program: MSCAL 0x1a / 0x22 + 2 x this */
 #define GA_OBJ_FLAG_LIGHT 0x1c          /* the light kind: 0 light0; 8, 0x10 light1 (the clipped path traps
