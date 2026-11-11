@@ -131,6 +131,7 @@ void tiCalc_HurikoCLOSED(HURIKO *h, int bank, int ticks);                       
 void tiGetNewNormalData(HURIKO *h);                                                      // CT3 0x018912b0
 // dst.xyz = src.xyz / |src.xyz|; w scaled the same (VU0: the whole vector times rsqrt(x2+y2+z2)).
 void gaNormalizeVectorXYZ(float *dst, const float *src);                                 // CT3 0x01891570
+float gaNormalizeVector3XYZ(float *dst, const float *src);                              // CT3 0x018922c0
 
 // ---- vibration ----
 // Ticks run 5 a frame (LinkMatrixTree.c): tiVibrationOn's time is in frames.

@@ -158,6 +158,7 @@ extern u_char ShadeOff_Level;                   /* sbss 0x0193f760: the level ar
 extern u_char XFade_Type;                       /* sbss 0x01942958: the cross-fade's kind (XFADE_TYPE_*) */
 extern int FadeEndTicks;                        /* sbss 0x01942948: a fade is over once FadeStartTicks reaches it */
 extern int FadeStartTicks;                      /* sbss 0x0194294c */
+extern int XfadeEndTicks;                       /* sbss 0x01942950: the cross-fade is over once XfadeStartTicks reaches it */
 extern int XfadeStartTicks;                     /* sbss 0x01942954 */
 extern int VibTimeTicks;                        /* sbss 0x0193f76c */
 

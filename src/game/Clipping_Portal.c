@@ -11,6 +11,7 @@
 #include "game/ahRelocateSunPs2ObjectArry.h"
 #include "game/ssGrpPortalCheck.h"
 #include "game/ssHitCheckAttackToScn.h"
+#include "game/tiXcmd_TransItem.h"
 #include "game/unassigned_data.h"
 #include "ga/gaInit3dlib.h"
 #include "ga/gaInitDrawObject.h"
@@ -885,6 +886,150 @@ void tiSet_CharaTranslucenceON(int chara, int level, int flag)
     chr->translucentAlpha = (float)level;
 }
 
+// ---- the pipe joint (chara 3's tube) ----
+//
+// Character CHARA_PIPE's bank has a tube from part s_tyubu01 (the base) to s_tyubu02 (the target) with an
+// elbow, n_29 (the joint). Each frame the elbow is set by two-bone IK (upper length PIPE_LENGTH1, lower
+// PIPE_LENGTH2) and then swung by a damped spring toward the target's REC_PIPE_AIM, sagging under
+// PipeGravity; the joint's REC_BASE is set for BuildMatrixTree and put back to its rest pose after.
+// The parts are matrix-tree records, so the offsets are LinkMatrixTree.c's (the LEG_REC_* above).
+#define CHARA_PIPE 3                    /* Character[3]: main2.c's CHARA_E03 ("E_03"), who calls tiPipeJointInit */
+#define PIPE_PART_BASE "s_tyubu01"      /* data 0x019344e8 */
+#define PIPE_PART_JOINT "n_29"          /* data 0x019344f8 */
+#define PIPE_PART_TARGET "s_tyubu02"    /* data 0x01934500 */
+#define PIPE_LENGTH1 35.0f              /* base -> elbow (0x420c0000) */
+#define PIPE_LENGTH2 55.0f              /* elbow -> target (0x425c0000) */
+#define PIPE_PULL_MAX 20.0f             /* the target's pull is cut to this length */
+#define PIPE_PULL_GAIN 1.2f
+#define PIPE_SPRING_DAMP 0.5f
+#define REC_PIPE_AIM 0x2f0              /* float[4]: the point the target part pulls the elbow toward
+                                           (MODEL_PARTS +0x330; named from this use) */
+#define REC_MATRIX_T 0x1b0              /* float[4]: the world matrix's row 3 (translation) */
+
+static u_char *pPipe_Target;            /* sbss 0x0193d200 (local) */
+static u_char *pPipe_Joint;             /* sbss 0x0193d240 (local) */
+static u_char *pPipe_Base;              /* sbss 0x0193d280 (local) */
+static u_int matParent;                 /* sbss 0x0193d1c0 (local): the joint's REC_PARENT (an EE word) */
+static float prevMatrix[4][4];          /* sbss 0x0193d180 (local): the joint's REC_BASE at init */
+static float length1;                   /* sbss 0x0193d288 (local) */
+static float length2;                   /* sbss 0x0193d284 (local) */
+static float Pipe_Vel[4];               /* data 0x01938d50 (local): the elbow's spring velocity, 0 at load */
+static const float PipeDown[4] = { 0.0f, -1.0f, 0.0f, 0.0f };   /* data 0x01938d60 (@2316) */
+static const float PipeGravity[4] = { 0.0f, 0.5f, 0.0f, 0.0f }; /* data 0x01938d70 (@2317) */
+static int Pipe_Bank = -1;              /* PORT: the bank tiPipeJointInit read, to resolve matParent */
+
+// CT3 0x018922c0: VU0 -- dst.xyz = src.xyz / |src.xyz|, dst.w = src.w; answers the length (1 / rsqrt).
+float gaNormalizeVector3XYZ(float *dst, const float *src)
+{
+    float q = 1.0f / sqrtf(src[0] * src[0] + src[1] * src[1] + src[2] * src[2]);
+
+    dst[0] = src[0] * q;
+    dst[1] = src[1] * q;
+    dst[2] = src[2] * q;
+    dst[3] = src[3];
+    return 1.0f / q;
+}
+
+// PORT: matParent (an EE word) as a host matrix (FootParentMatrix's rule).
+static float (*PipeParentMatrix(void))[4]
+{
+    if (matParent == MATUNIT_EE)
+        return matUnit;
+    return BANK_PTR(float (*)[4], Pipe_Bank, matParent);
+}
+
+// CT3 0x0188bf30: main2.c, when CHARA_PIPE's shape loads into `bank`: find the three parts, keep the
+// joint's parent matrix word and rest pose, set the two lengths.
+void tiPipeJointInit(int bank)
+{
+    u_char *header = pModelPartsHeader[bank];
+
+    pPipe_Base = PARTS_REC(header, asFindModelPartsID(header, ahGetHash(PIPE_PART_BASE)));
+    pPipe_Joint = PARTS_REC(header, asFindModelPartsID(header, ahGetHash(PIPE_PART_JOINT)));
+    pPipe_Target = PARTS_REC(header, asFindModelPartsID(header, ahGetHash(PIPE_PART_TARGET)));
+    matParent = *(u_int *)(pPipe_Joint + LEG_REC_PARENT);
+    memcpy(prevMatrix, pPipe_Joint + LEG_REC_BASE, sizeof prevMatrix);
+    length1 = PIPE_LENGTH1;
+    length2 = PIPE_LENGTH2;
+    Pipe_Bank = bank;
+}
+
+// CT3 0x0188bb60: once a frame (main), while CHARA_PIPE has both top flag bits (REFRACTION and SHADOW):
+// place the elbow, rebuild the bank's tree with it, then put the joint's REC_BASE back.
+void tiPipeJointUpdate(void)
+{
+    CHARACTER *chr = &Character[CHARA_PIPE];
+    float dir[4], axis[4], elbow[4], pull[4], pullDir[4], rot[4][4], m[4][4];
+    float d[4], dist, len, accel;
+    int k;
+
+    if ((chr->flags & CHARACTER_FLAG_REFRACTION) == 0 || (chr->flags & CHARACTER_FLAG_SHADOW) == 0) {
+        return;
+    }
+    pPipe_Joint[LEG_REC_BITS] = LEG_REC_BIT_DIRTY;
+
+    // The elbow: turn the base -> target direction about down x dir by the law of cosines' angle.
+    for (k = 0; k < 3; k++)
+        d[k] = LEG_F(pPipe_Target, LEG_REC_POS)[k] - LEG_F(pPipe_Base, LEG_REC_POS)[k];
+    d[3] = LEG_F(pPipe_Target, LEG_REC_POS)[3]; // vsub.xyz: w stays the target's
+    dist = gaNormalizeVector3XYZ(dir, d);
+    // The ROM also normalises base -> joint here; the axis overwrites that store before anything reads it.
+    axis[0] = PipeDown[1] * dir[2] - dir[1] * PipeDown[2];
+    axis[1] = PipeDown[2] * dir[0] - dir[2] * PipeDown[0];
+    axis[2] = PipeDown[0] * dir[1] - dir[0] * PipeDown[1];
+    axis[3] = 0.0f;
+    asMakeRotMatrixByQuartanion(rot, axis,
+                                ahAcos(((dist * dist + length1 * length1) - length2 * length2) /
+                                       (dist * 2.0f * length1)));
+    dir[3] = 0.0f;
+    for (k = 0; k < 4; k++)
+        elbow[k] = dir[0] * rot[0][k] + dir[1] * rot[1][k] + dir[2] * rot[2][k] + dir[3] * rot[3][k];
+    for (k = 0; k < 3; k++)
+        elbow[k] = elbow[k] * length1 + LEG_F(pPipe_Base, LEG_REC_POS)[k];
+    elbow[3] = 1.0f;
+
+    // The swing: the target's pull (cut to PIPE_PULL_MAX) drives a damped spring that sags by PipeGravity.
+    for (k = 0; k < 3; k++)
+        pull[k] = LEG_F(pPipe_Target, REC_PIPE_AIM)[k] - LEG_F(pPipe_Target, LEG_REC_POS)[k];
+    pull[3] = LEG_F(pPipe_Target, REC_PIPE_AIM)[3];
+    len = gaNormalizeVector3XYZ(pullDir, pull);
+    if (!(len <= PIPE_PULL_MAX)) {
+        for (k = 0; k < 3; k++)
+            pull[k] = pullDir[k] * PIPE_PULL_MAX;
+    }
+    for (k = 0; k < 3; k++) {
+        accel = (pull[k] * PIPE_PULL_GAIN + ((pull[k] - Pipe_Vel[k]) - PipeGravity[k])) * PIPE_SPRING_DAMP;
+        Pipe_Vel[k] += accel;
+        elbow[k] += Pipe_Vel[k];
+    }
+
+    // The joint's world matrix with the elbow as its translation (its row 3 cleared first), carried back
+    // through the inverse offset and parent into REC_BASE.
+    LEG_F(pPipe_Joint, REC_MATRIX_T)[0] = 0.0f;
+    LEG_F(pPipe_Joint, REC_MATRIX_T)[1] = 0.0f;
+    LEG_F(pPipe_Joint, REC_MATRIX_T)[2] = 0.0f;
+    LEG_F(pPipe_Joint, REC_MATRIX_T)[3] = 1.0f;
+    memcpy(m, LEG_M(pPipe_Joint, LEG_REC_MATRIX), sizeof(float[3][4]));
+    for (k = 0; k < 3; k++)
+        m[3][k] = LEG_F(pPipe_Joint, REC_MATRIX_T)[k] + elbow[k];
+    m[3][3] = LEG_F(pPipe_Joint, REC_MATRIX_T)[3];
+    gaInversMatrix(rot, LEG_M(pPipe_Joint, LEG_REC_OFFSET));
+    gaMulMatrix(m, m, rot);
+    gaInversMatrix(rot, PipeParentMatrix());
+    gaMulMatrix(LEG_M(pPipe_Joint, LEG_REC_BASE), rot, m);
+    BuildMatrixTree(chr->bank, 2, 0);
+    memcpy(LEG_M(pPipe_Joint, LEG_REC_BASE), prevMatrix, sizeof prevMatrix);
+}
+
+// CT3 0x0188d6e0: ssGrpPortalCheck's trigger: start a plain cross-fade out lasting `time` seconds.
+void tiXFadeOut_Start(float time)
+{
+    fXFade = 1;
+    XfadeStartTicks = 0;
+    XfadeEndTicks = (int)(time * 30.0f);
+    XFade_Type = XFADE_TYPE_NONE;
+}
+
 // ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x01893850
@@ -921,12 +1066,6 @@ void tiLightBelt2UpdateForALYSSA_Battle(void)
 void tiLightBelt2UpdateForBOSS_Battle(void)
 {
     ALYSSAPAN_STUB("tiLightBelt2UpdateForBOSS_Battle", 0x0188a1f0);
-}
-
-// stub of CT3 0x0188bb60
-void tiPipeJointUpdate(void)
-{
-    ALYSSAPAN_STUB("tiPipeJointUpdate", 0x0188bb60);
 }
 
 // stub of CT3 0x01894230
@@ -987,18 +1126,6 @@ void tiLensFlaresInit(int scene)
 void tiParticleInit(int scene)
 {
     ALYSSAPAN_STUB("tiParticleInit", 0x01890350);
-}
-
-// stub of CT3 0x0188bf30
-void tiPipeJointInit(int bank)
-{
-    ALYSSAPAN_STUB("tiPipeJointInit", 0x0188bf30);
-}
-
-// stub of CT3 0x0188d6e0
-void tiXFadeOut_Start(float time)
-{
-    ALYSSAPAN_STUB("tiXFadeOut_Start", 0x0188d6e0);
 }
 
 // stub of CT3 0x018949c0

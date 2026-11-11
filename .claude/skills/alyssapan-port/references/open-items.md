@@ -1276,9 +1276,33 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    frame) -- the name wants to become generic (PARTS_KIND_ON_ROOT) when its writer is read;
    (jo) tiHurikoHitUpdate skips forced-stop banks among the scene banks too, unlike tiHurikoUpdate: the
    ROM's, kept; (jp) tiSet_CharaTranslucenceON stores the state (1 or 2), OFF clears bits: the ROM's.
-   Slice left: tiPipeJointUpdate with tiPipeJointInit, tiDrawShadingOff with CaptureDBuffer and
-   tiVRAMViewer, ExportDrawToTex, tiDrawLensFlares with tiLensFlaresInit, tiLightBelt2Update,
-   tiParticleInit, plus the six slice-3 helper stubs.
+   Slice 5 (2026-11-11): tiPipeJointInit, tiPipeJointUpdate, gaNormalizeVector3XYZ, tiXFadeOut_Start;
+   XfadeEndTicks (0x01942950) declared. Open from it: (jq) the pipe is Character[3]'s (CHARA_E03) tube,
+   parts s_tyubu01 (base) / n_29 (elbow joint) / s_tyubu02 (target): two-bone IK (35 / 55) plus a damped
+   spring (Pipe_Vel, gravity 0.5) toward the target's record +0x2f0 (REC_PIPE_AIM, MODEL_PARTS +0x330,
+   named from this one use -- its writer names it); the gate is Character[3].flags' two top bits
+   (REFRACTION and SHADOW, see (u)); the ROM normalises base -> joint and never reads it (dropped,
+   commented); nothing on screen yet: chara 3 never loads in the smoke run; (jr) **tiFreeBossData left a
+   stub on purpose**: it _SunFree's gHeapJunc blocks held at pBossInfo +0xe8 / +0xec / +0xfc..+0x110 /
+   +0x13c / +0x140 (and +0x140's +0x24 / +0x28), 4 bytes apart, gated by +0x90 / +0x91 (chain counts) and
+   +0xc4, then pBossInfo itself and trigger variables 0x53, 0x54, 0x52, 0x56, 5 (-1); host pointers do not
+   fit those slots, so it waits for the boss TU that allocates pBossInfo to decide its layout (as
+   BossInfoPtr in wideXcmd_DebugPrint.c); (js) **the lens flares need a host draw call first**:
+   tiLensFlaresInit walks ALL_TABLE +0x88 (EE words -> flare records: +0 u_short trigger part (whole word
+   = parts index at init), +4 <- EE of partsPos[i] (its w + 128 is the sprite alpha), +8 <- EE of the
+   part's MODEL_PARTS.pos, +0xc element count, +0x10 EE elements of 0x14: +0 tex EE (10 words: 0..6 go
+   to sunSetupTBufferData as the decompiler shows them -- check its 8 slots against TEX_INFO by value --,
+   6 is also the u size, 7 u0, 8 the v size, 9 v0), +4 tbuffer
+   EE, +8 u_int size (half = size / 2), +0xc float distance factor, +0x10 EE of a 0x60-byte DMA/GIF
+   packet: one REGLIST SPRITE PRIM 6 / RGBAQ (+0x38) / UV (+0x40) / XYZF2 (+0x48) / UV (+0x50) / XYZF2
+   (+0x58), UV in 1/16 texels + 8 / 9) and sets the draw control 0x0193d6c0 (gaSetupDrawCtrlData 1,1,0,1,0,1,0);
+   tiDrawLensFlares projects each enabled flare through matrix_global_view, keeps it inside 512 x 448,
+   and spreads the elements along the line to the screen centre (256, 224) by len * factor. On the host
+   that is a textured screen sprite at the GS window's coordinates: write a host task for
+   AlyssaPan_DrawGaSprite (anchored through DisplayGeometry, not 512 x 448), then the pair.
+   Slice left: tiDrawShadingOff with CaptureDBuffer and tiVRAMViewer, ExportDrawToTex, tiDrawLensFlares
+   with tiLensFlaresInit (after the host sprite), tiLightBelt2Update, tiParticleInit, tiFreeBossData
+   (boss TU), plus the six slice-3 helper stubs.
 
 ## Decisions
 
