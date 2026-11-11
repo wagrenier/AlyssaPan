@@ -219,6 +219,7 @@ int tiXcmd_SetPointForGhostArea(int argc, char **argv, int bank)
 
 // CT3 0x018e1f80 .. 0x018e20b0: the free slots of the table. Free1 / Free2 were left with a job: a
 // character's translucent drawing on (argv[0], alpha argv[1]) / off.
+// CT3 0x018e1f80
 int tiXcmd___________Free6(int argc, char **argv, int bank)
 {
     (void)argc;
@@ -227,6 +228,7 @@ int tiXcmd___________Free6(int argc, char **argv, int bank)
     return XCMD_DONE;
 }
 
+// CT3 0x018e1f90
 int tiXcmd___________Free5(int argc, char **argv, int bank)
 {
     (void)argc;
@@ -235,6 +237,7 @@ int tiXcmd___________Free5(int argc, char **argv, int bank)
     return XCMD_DONE;
 }
 
+// CT3 0x018e1fa0
 int tiXcmd___________Free4(int argc, char **argv, int bank)
 {
     (void)argc;
@@ -243,6 +246,7 @@ int tiXcmd___________Free4(int argc, char **argv, int bank)
     return XCMD_DONE;
 }
 
+// CT3 0x018e1fb0
 int tiXcmd___________Free3(int argc, char **argv, int bank)
 {
     (void)argc;
@@ -434,6 +438,7 @@ int tiXcmd_LightBeltEnd(int argc, char **argv, int bank)
     return XCMD_DONE;
 }
 
+// CT3 0x018e4b30
 int tiXcmd_LightBeltStart(int argc, char **argv, int bank)
 {
     (void)argc;
@@ -1171,6 +1176,7 @@ int tiXcmd_CopyVariable(int argc, char **argv, int bank)
 
 // CT3 0x018e6f50 / 0x018e6fb0 / 0x018e7010 / 0x018e7070 / 0x018e70d0: the memory-card screens' ids
 // (Character_Init.c's MemorycardUpdate reads them) = the variable argv[0] (global argv[1]).
+// CT3 0x018e6f50
 int tiXcmd_SetmcAccess_ID(int argc, char **argv, int bank)
 {
     (void)argc;
@@ -1178,6 +1184,7 @@ int tiXcmd_SetmcAccess_ID(int argc, char **argv, int bank)
     return XCMD_DONE;
 }
 
+// CT3 0x018e6fb0
 int tiXcmd_SetmcErr_ID(int argc, char **argv, int bank)
 {
     (void)argc;
@@ -1185,6 +1192,7 @@ int tiXcmd_SetmcErr_ID(int argc, char **argv, int bank)
     return XCMD_DONE;
 }
 
+// CT3 0x018e7010
 int tiXcmd_SetmcFile_ID(int argc, char **argv, int bank)
 {
     (void)argc;
@@ -1192,6 +1200,7 @@ int tiXcmd_SetmcFile_ID(int argc, char **argv, int bank)
     return XCMD_DONE;
 }
 
+// CT3 0x018e7070
 int tiXcmd_SetmcSlot_ID(int argc, char **argv, int bank)
 {
     (void)argc;
@@ -1199,6 +1208,7 @@ int tiXcmd_SetmcSlot_ID(int argc, char **argv, int bank)
     return XCMD_DONE;
 }
 
+// CT3 0x018e70d0
 int tiXcmd_SetmcMain_ID(int argc, char **argv, int bank)
 {
     (void)argc;
@@ -1215,11 +1225,165 @@ int tiXcmd_StereoCheckFlg(int argc, char **argv, int bank)
     return XCMD_DONE;
 }
 
+// CT3 0x018e75a0
 int tiXcmd_StereoON_OFF(int argc, char **argv, int bank)
 {
     (void)argc;
     (void)argv;
     (void)bank;
+    return XCMD_DONE;
+}
+
+// An item row's event word (+0x14: the event GetItem registers when the item is picked up).
+static int ItemRowEvent(const u_char *rec)
+{
+    int ev;
+
+    memcpy(&ev, rec + ITEM_ROW_EVENT, sizeof(ev));
+    return ev;
+}
+
+// A letter's event word (LetterData +8) and its category (byte 0).
+static int LetterEvent(int letter)
+{
+    int ev;
+
+    memcpy(&ev, LetterData[letter] + LETTER_DATA_EVENT, sizeof(ev));
+    return ev;
+}
+
+// CT3 0x018e6160: the variable argv[0] (global argv[1]) = slot (the variable argv[2], global argv[3]) of
+// list argv[4] (ITEM_TABLE_*: ItemList, KeyItemList, LetterList[category: the variable argv[5] / argv[6]],
+// ArrowList). Any other list does nothing.
+int tiXcmd_GetIDfromList(int argc, char **argv, int bank)
+{
+    int slot = ssTrigGetVariable(atoi(argv[2]) & 0xffff, atoi(argv[3]), bank);
+    int list = atoi(argv[4]);
+    int id;
+
+    (void)argc;
+    switch (list) {
+    case ITEM_TABLE_ARROWS:
+        id = ArrowList[slot];
+        break;
+    case ITEM_TABLE_LETTERS:
+        id = LetterList[ssTrigGetVariable(atoi(argv[5]) & 0xffff, atoi(argv[6]), bank)][slot];
+        break;
+    case ITEM_TABLE_KEY_ITEMS:
+        id = KeyItemList[slot];
+        break;
+    case ITEM_TABLE_ITEMS:
+        id = ItemList[slot];
+        break;
+    default:
+        return XCMD_DONE;
+    }
+    ssTrigSetVariable(atoi(argv[0]) & 0xffff, id, atoi(argv[1]), bank);
+    return XCMD_DONE;
+}
+
+// CT3 0x018e6bf0: Alyssa picks up item (the variable argv[0], global argv[1]) of kind argv[2]
+// (ITEM_TABLE_*). TRIG_VAR_GOT_ITEM_KIND (global) = the kind; the item goes to the first free slot of its
+// list, its pick-up event (the row's ITEM_ROW_EVENT / the letter's) is registered and the next frame
+// pauses (pause_reservation). A full list sets the item variable to -1 instead (items and key items).
+int tiXcmd_GetItem(int argc, char **argv, int bank)
+{
+    int var = atoi(argv[0]) & 0xffff;
+    int global = atoi(argv[1]);
+    int kind = atoi(argv[2]);
+    int id = ssTrigGetVariable(var, global, bank);
+    int i;
+
+    (void)argc;
+    ssTrigSetVariable(TRIG_VAR_GOT_ITEM_KIND, kind, 1, 0);
+    switch (kind) {
+    case ITEM_TABLE_ARROWS:
+        if (id != ARROW_UNLISTED) {
+            for (i = 0; i < ARROW_LIST_SLOTS; i++) {
+                if (ArrowList[i] == 0) {
+                    ArrowList[i] = id;
+                    break;
+                }
+            }
+        }
+        // PORT: the ROM adds to ArrowData[id] unchecked; ArrowData has ARROW_KINDS ints here (sbss
+        // 0x0193f858..0x0193f864; 0x0193f864..0x0193f870 is unnamed): ids past them are not counted.
+        if (id >= 0 && id < ARROW_KINDS)
+            ArrowData[id]++;
+        pause_reservation = 1;
+        break;
+    case ITEM_TABLE_LETTERS: {
+        int *list = LetterList[LetterData[id][0]];   /* byte 0: the category */
+
+        for (i = 0; i < LETTER_LIST_SLOTS; i++) {
+            if (list[i] == 0) {
+                list[i] = id;
+                break;
+            }
+        }
+        ssTrigRegisterEvent(LetterEvent(id), 1, 0);
+        pause_reservation = 1;
+        break;
+    }
+    case ITEM_TABLE_KEY_ITEMS:
+        for (i = 0; i < KEY_ITEM_LIST_SLOTS; i++) {
+            if (KeyItemList[i] == 0) {
+                KeyItemList[i] = id;
+                break;
+            }
+        }
+        if (i == KEY_ITEM_LIST_SLOTS) {
+            ssTrigSetVariable(var, -1, global, bank);
+        } else {
+            pause_reservation = 1;
+            ssTrigRegisterEvent(ItemRowEvent(KeyItemData[id]), 1, 0);
+        }
+        break;
+    case ITEM_TABLE_ITEMS:
+        if (id < ITEM_FIXED_SLOTS) {
+            // The first items have a slot of their own: ItemList[id - 1]. PORT: id 0 would write the
+            // word before ItemList (KeyItemList[23] in the ROM's sbss): not written here.
+            if (id >= 1)
+                ItemList[id - 1] = id;
+            ItemData[id][ITEM_FIELD_HELD]++;
+            ssTrigRegisterEvent(ItemRowEvent(ItemData[id]), 1, 0);
+            pause_reservation = 1;
+            break;
+        }
+        // The others take the first free slot from ITEM_FIXED_SLOTS - 1 on; one already listed stays
+        // where it is.
+        for (i = ITEM_FIXED_SLOTS - 1; i < ITEM_LIST_SLOTS; i++) {
+            if (ItemList[i] == id)
+                break;
+            if (ItemList[i] == 0) {
+                ItemList[i] = id;
+                break;
+            }
+        }
+        if (i == ITEM_LIST_SLOTS) {
+            ssTrigSetVariable(var, -1, global, bank);
+        } else {
+            ItemData[id][ITEM_FIELD_HELD]++;
+            pause_reservation = 1;
+            ssTrigRegisterEvent(ItemRowEvent(ItemData[id]), 1, 0);
+        }
+        break;
+    default:
+        break;
+    }
+    return XCMD_DONE;
+}
+
+// CT3 0x018e7130: the memory-card screens' ids back to variables argv[0..4] (each in the bank's own
+// scope): main, slot, file, error, access.
+int tiXcmd_GetMCflag(int argc, char **argv, int bank)
+{
+    (void)argc;
+    ssTrigSetVariable(atoi(argv[0]) & 0xffff, mcMain_ID, 0, bank);
+    ssTrigSetVariable(atoi(argv[1]) & 0xffff, mcSlot_ID, 0, bank);
+    ssTrigSetVariable(atoi(argv[2]) & 0xffff, mcFile_ID, 0, bank);
+    ssTrigSetVariable(atoi(argv[3]) & 0xffff, mcErr_ID, 0, bank);
+    ssTrigSetVariable(atoi(argv[4]) & 0xffff, mcAccess_ID, 0, bank);
     return XCMD_DONE;
 }
 
@@ -1299,27 +1463,6 @@ int tiXcmd_FreeGhostPole(int argc, char **argv, int bank)
 int tiXcmd_GetBloodAttackObject(int argc, char **argv, int bank)
 {
     ALYSSAPAN_STUB("tiXcmd_GetBloodAttackObject", 0x018e20c0);
-    return {};
-}
-
-// stub of CT3 0x018e6160
-int tiXcmd_GetIDfromList(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_GetIDfromList", 0x018e6160);
-    return {};
-}
-
-// stub of CT3 0x018e6bf0
-int tiXcmd_GetItem(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_GetItem", 0x018e6bf0);
-    return {};
-}
-
-// stub of CT3 0x018e7130
-int tiXcmd_GetMCflag(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_GetMCflag", 0x018e7130);
     return {};
 }
 

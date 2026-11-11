@@ -1115,7 +1115,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 81..81, 18 functions keyed by their statics, 13 unkeyed; file name from the names"
   },
   "game/tiXcmd_TransItem.c": {
-   "notes": "Slice 4. Written: SetItemData, GetItemData (KeyItemData now defined from the ELF at 0x0192f170; ITEM_TABLE_*, ITEM_FIELD_*), CheckCurrentScene, CompareVar2, CompareVariable (XCMD_SCOPE_LITERAL, COMPARE_*), SubVariable, CopyVariable, SetReset; TranslucenceAlphaAnim got its callcheck note. Left: GetBloodAttackObject, Balows2th, SCISSORS_MAN and the BOSS commands (they store EE pointers into pBossInfo: wait for the boss TU host form), wideXcmd_Delay (ActWork, ssTrigWaitByAnimFrame), vibration, ghost pole, MC file checks, SetScale/Rotation, the other wideXcmd and tkXcmd. Open question: save image aiData may be KeyItemData (open-items.md). Screen unchanged: frame 120 memory-card text as the reference, then black and flat grey; the script waits at tiFade_Start and hhXcmd_LoadSE (stubs), the next blocker for the picture.",
+   "notes": "Slice 5. Written: GetItem (ITEM_TABLE_LETTERS, ITEM_FIXED_SLOTS, ITEM_ROW_EVENT, LETTER_DATA_EVENT, TRIG_VAR_GOT_ITEM_KIND; host guards for ArrowData[3] and ItemList[-1], open-items.md), GetIDfromList, GetMCflag; Free3..6, LightBeltStart/End, SetmcAccess/Err/File/Slot/Main_ID and StereoCheckFlg/ON_OFF got their CT3 address lines. Left: GetBloodAttackObject, Balows2th, SCISSORS_MAN and the BOSS commands (EE pointers into pBossInfo: wait for the boss TU host form), wideXcmd_Delay, vibration, ghost pole, CheckMCFile, CopySunPs2Object, SetScale/Rotation, AddVariable, the other wideXcmd and tkXcmd. Screen unchanged: frame 120 memory-card text, then flat grey; the script waits at tiFade_Start and hhXcmd_LoadSE (stubs), the next blocker for the picture.",
    "ranges": [
     [
      "018e0e80",
@@ -1142,6 +1142,11 @@
      "date": "2026-11-11 10:53",
      "status": "partial",
      "summary": "reconstruct 8 functions: item and key-item table fields, variable compare, copy and subtract, current-scene check, soft reset"
+    },
+    {
+     "date": "2026-11-11 11:10",
+     "status": "partial",
+     "summary": "reconstruct 3 functions and annotate 11: item pick-up, list lookup, memory-card flags back to variables; the empty free, light-belt, stereo and memory-card id commands get their addresses"
     }
    ],
    "status": "partial",

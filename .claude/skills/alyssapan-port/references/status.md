@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-11 10:53 at commit `57c2b1d` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-11 11:10 at commit `38a74d5` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1014**; stubs: **348**
+- reconstructed CT3 functions: **1026**; stubs: **345**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -88,7 +88,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/ssHitCheckAttackToScn.c` | 0 | 6 |
 | `src/game/ssSetTexUVforCubeMap.c` | 1 | 44 |
 | `src/game/tiAvoidObject.c` | 0 | 7 |
-| `src/game/tiXcmd_TransItem.c` | 48 | 35 |
+| `src/game/tiXcmd_TransItem.c` | 60 | 32 |
 | `src/game/tkXDTrg_GetSceneHash.c` | 0 | 7 |
 | `src/game/tnXcmd.c` | 0 | 8 |
 | `src/game/wideXcmd_DebugPrint.c` | 107 | 1 |
@@ -102,7 +102,7 @@ Least-named game-code regions (64 KB blocks):
 - next: **game/tiXcmd_TransItem.c** (pinned in the queue)
 - pinned queue: game/tiXcmd_TransItem.c, game/xcmd_tn.c, alyssapan/rendering/ga_atld.cpp, alyssapan/rendering/ui_canvas.cpp, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
 - partial: `alyssapan/rendering/ga_atld.cpp` 0/0 -- Shot still black for a game reason: the light0 colour is vertex colour plus the part's ALL_TABLE.partsPos (the ambient RGB), which only the event command tnXcmd
-- partial: `game/tiXcmd_TransItem.c` 48/93 -- Slice 4. Written: SetItemData, GetItemData (KeyItemData now defined from the ELF at 0x0192f170; ITEM_TABLE_*, ITEM_FIELD_*), CheckCurrentScene, CompareVar2, Com
+- partial: `game/tiXcmd_TransItem.c` 60/93 -- Slice 5. Written: GetItem (ITEM_TABLE_LETTERS, ITEM_FIXED_SLOTS, ITEM_ROW_EVENT, LETTER_DATA_EVENT, TRIG_VAR_GOT_ITEM_KIND; host guards for ArrowData[3] and Ite
 - partial: `game/wideXcmd_DebugPrint.c` 107/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed) -- the last function of the TU. New stubs
 - partial: `game/xcmd_tn.c` 37/57 -- 15 commands written. Picture: frame 120 shows ATLD memory-card text at 4:3 as before; black from frame 180 because the script waits on the stub tiXcmd_XFade_Bre
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
@@ -135,6 +135,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-11 11:10 `game/tiXcmd_TransItem.c` partial: reconstruct 3 functions and annotate 11: item pick-up, list lookup, memory-card flags back to variables; the empty free, light-belt, stereo and memory-card id c
 - 2026-11-11 10:53 `game/tiXcmd_TransItem.c` partial: reconstruct 8 functions: item and key-item table fields, variable compare, copy and subtract, current-scene check, soft reset
 - 2026-11-11 10:30 `game/tiXcmd_TransItem.c` partial: reconstruct 14 functions: key-config frame and assignment, Alyssa life and status bar, item slot swap and last index, memory-card screen ids, stereo slots
 - 2026-11-11 10:15 `game/tiXcmd_TransItem.c` partial: reconstruct 13 functions: pad-driven item examination, fade start, cross-fade out, reserved camera, translucence and edge-shading animations, letter list and da
@@ -142,7 +143,6 @@ Recent sessions:
 - 2026-11-11 09:33 `game/xcmd_tn.c` partial: slice 2: wideXcmd_PlayAnimeToFream2 (the reached stub), clips, panic, continue, time stop, shape / behaviour / bank free, stay room, message bank, menu map, fog
 - 2026-11-11 09:21 `game/ssGrpPortalCheck.c` verify: picture: ssSetAmbColorToAllObj (game/ssSetTexUVforCubeMap.c) fills every ga object's +0x38 ambient pointer; ATLD's Checking text shows at 4:3 and wide
 - 2026-11-11 09:05 `game/ssGrpPortalCheck.c` partial: triggers slice 5: ssTrigExecuteActCmd (every command id and operand size, TRIG_CMD_*), the 256-slot ssXcmd_functions table from the ELF, suXcmd_AnmDirection; 23
-- 2026-11-11 08:37 `game/ssGrpPortalCheck.c` partial: triggers slice 4: ssTrigCheckConditions and its checks (ssTrigCheckInput, ssTrigCheckVariable, ssTrigLookAtCheck, ssTrigAttackHitCheck), ssTrigSetEnable, Trigge
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|

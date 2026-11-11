@@ -86,6 +86,18 @@ enum {
     ITEM_FIELD_10 = 5,                  /* int +0x10 */
 };
 
+// Slice 5 (2026-11-11): tiXcmd_GetItem / tiXcmd_GetIDfromList. The kinds are ITEM_TABLE_* plus
+// ITEM_TABLE_LETTERS; the list sizes are the symtab's (ArrowList 200 bytes, KeyItemList 96, ArrowData 12).
+#define ITEM_TABLE_LETTERS 2            /* LetterData / LetterList (between the key items and the arrows) */
+#define ITEM_ROW_EVENT 0x14             /* the item row's int: the event registered on pick-up */
+#define LETTER_DATA_EVENT 8             /* LetterData's int: the same for a letter */
+#define ITEM_FIXED_SLOTS 5              /* items 1..4 own ItemList[id - 1]; the others list from slot 4 */
+#define KEY_ITEM_LIST_SLOTS 24          /* KeyItemList[] */
+#define ARROW_LIST_SLOTS 50             /* ArrowList[] */
+#define ARROW_KINDS 3                   /* ArrowData[]: the held count of each arrow kind */
+#define ARROW_UNLISTED 3                /* GetItem's arrow id that is counted only, never listed */
+#define TRIG_VAR_GOT_ITEM_KIND 0x23     /* global: the kind of the last item picked up (GetItem) */
+
 // tiXcmd_CompareVariable: an operand whose global argument is XCMD_SCOPE_LITERAL is the number itself
 // (tkXcmd_GetValueType answers 2 for the same); the answer goes to a variable as COMPARE_*.
 #define XCMD_SCOPE_LITERAL 2

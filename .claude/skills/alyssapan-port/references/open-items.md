@@ -1248,6 +1248,14 @@ apply here):
 
 ## Open questions
 
+- (2026-11-11, game/tiXcmd_TransItem.c slice 5) **tiXcmd_GetItem's two out-of-range writes, guarded on
+  the host:** arrow id 3 (ARROW_UNLISTED: counted, never listed) increments ArrowData[3], but the symtab
+  gives ArrowData 12 bytes (3 ints, sbss 0x0193f858): the ROM writes the unnamed word at 0x0193f864. The
+  port counts only ids 0..2. Either an arrow kind 3 exists whose count lives in that word (then ArrowData
+  wants 4 ints and the save image's arrowData with it) or no script picks up arrow 3: a script reader
+  answers it. Item id 0 would write ItemList[-1] (KeyItemList[23] in the ROM): not written. Also named
+  from this one use: TRIG_VAR_GOT_ITEM_KIND (global 0x23), ITEM_ROW_EVENT (+0x14), LETTER_DATA_EVENT (+8),
+  ITEM_FIXED_SLOTS (items 1..4 own a slot).
 - (2026-11-11, game/tiXcmd_TransItem.c slice 4) **KeyItemData in the save image?** KeyItemData (data
   0x0192f170, 100 x 0x18 = 0x960, right after ItemData) is now defined in src/lib/unassigned_data.cpp from
   the ELF. Character_Init.h's save struct has `aiData[0x960]` at 0xd590, right after itemData and "not
