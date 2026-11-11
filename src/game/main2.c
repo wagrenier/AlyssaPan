@@ -191,7 +191,7 @@ void CharacterAllFree(void)
         if (chr->bank > 0)
             TrgCharacterShapeFree(i);
         if (chr->junc != NULL) {
-            _SunFree(&gHeapJunc, &chr->junc->buf);
+            _SunFree(&gHeapJunc, (void **)&chr->junc->poles);
             _SunFree(&gHeapJunc, (void **)&chr->junc);
         }
     }

@@ -147,7 +147,7 @@ void Character_All_Init(void)
             chr->h536[j] = 0;
         }
         if (chr->junc != NULL) {
-            _SunFree(&gHeapJunc, &chr->junc->buf);
+            _SunFree(&gHeapJunc, (void **)&chr->junc->poles);
             _SunFree(&gHeapJunc, (void **)&chr->junc);
         }
     }

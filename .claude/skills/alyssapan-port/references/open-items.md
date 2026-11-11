@@ -1248,6 +1248,16 @@ apply here):
 
 ## Open questions
 
+- (2026-11-11, game/tiXcmd_TransItem.c slice 7) **Named from one use, to confirm where they are read:**
+  CHARA_JUNC +0x00 `poleCount` and +0x0c `poles` (was `buf`: u_int[poleCount] EE addresses of the
+  ghost poles' part positions, tiXcmd_SetGhostPole; the ghost AI that reads them is unread);
+  DRAW_OBJ_PACKET_QWC (+0x48, the ga draw object's packet is this + 1 qwords) and DRAW_OBJ_PACKET (+0x68,
+  its relocated packet word), both from tiXcmd_CopySunPs2Object only. CopySunPs2Object copies 0x100 bytes
+  of the texture upload packet (TI_TBUFFER_COPY_SIZE) where SUN_TBUFFER_DATA is 0xd8: kept as the ROM
+  (bank packets are probably 0x100-spaced; unverified). PORT deviations: CopySunPs2Object returns when a
+  part has no draw-list record (the ROM reads through NULL). SetGhostPole leaks a block already there, as
+  the ROM. callcheck lists atoff / ssTrigGetVariable as missing from wideXcmd_GetRate: they live in its
+  static helper TiRateOperand -- explained, not a gap.
 - (2026-11-11, game/tiXcmd_TransItem.c slice 6) **tiXcmd_CheckMCFile's play-time minutes look like a ROM
   bug, kept:** the ROM computes minutes = (time - hours) / 1800, taking off the hour *count* rather than
   hours * 108000 frames, and never wraps them at 60 (seconds do wrap), so a save past one hour shows

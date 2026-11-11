@@ -1501,14 +1501,187 @@ int wideXcmd_GetCharaData(int argc, char **argv, int bank)
     return XCMD_DONE;
 }
 
-// ---- stubs (tools/reverse/stubgen.py) ----
+// An operand of wideXcmd_GetRate: with the scope XCMD_SCOPE_LITERAL the number argv[i] (read as a float),
+// else the variable argv[i] in scope argv[i + 1].
+static float TiRateOperand(char **argv, int i, int bank)
+{
+    int scope = atoi(argv[i + 1]);
 
-// stub of CT3 0x018e8640
+    if (scope == XCMD_SCOPE_LITERAL)
+        return atoff(argv[i]);
+    return (float)ssTrigGetVariable(atoi(argv[i]) & 0xffff, scope, bank);
+}
+
+// CT3 0x018e79d0: the variable argv[0] (scope argv[1]) = a / b * c, truncated, where a, b and c are the
+// operands argv[2], argv[4] and argv[6] (TiRateOperand). A rate that truncates to 0 from a non-zero a
+// answers 1: something left shows as something.
+int wideXcmd_GetRate(int argc, char **argv, int bank)
+{
+    float c = TiRateOperand(argv, 6, bank);
+    float a = TiRateOperand(argv, 2, bank);
+    float b = TiRateOperand(argv, 4, bank);
+    int rate = (int)((a / b) * c);
+
+    (void)argc;
+    if (rate == 0 && a != 0.0f)
+        rate = 1;
+    ssTrigSetVariable(atoi(argv[0]) & 0xffff, rate, atoi(argv[1]), bank);
+    return XCMD_DONE;
+}
+
+// CT3 0x018e7b70: Character[argv[0]]'s ghost poles (and its junction block) back to gHeapJunc.
+int tiXcmd_FreeGhostPole(int argc, char **argv, int bank)
+{
+    CHARACTER *chr = &Character[atoi(argv[0])];
+
+    (void)argc;
+    (void)bank;
+    if (chr->junc != NULL) {
+        _SunFree(&gHeapJunc, (void **)&chr->junc->poles);
+        _SunFree(&gHeapJunc, (void **)&chr->junc);
+    }
+    return XCMD_DONE;
+}
+
+// CT3 0x018e7bf0: Character[argv[0]] gets a new junction block with argv[1] ghost poles: the positions
+// of this bank's parts argv[2..]. The ghost area's point is cleared; its range is left as the heap had
+// it. As the ROM, a block already there is not freed first.
+int tiXcmd_SetGhostPole(int argc, char **argv, int bank)
+{
+    CHARACTER *chr = &Character[atoi(argv[0])];
+    int count = atoi(argv[1]);
+    CHARA_JUNC *junc = (CHARA_JUNC *)_SunAlloc(&gHeapJunc, (int)sizeof(CHARA_JUNC), 4);
+    int i;
+
+    (void)argc;
+    chr->junc = junc;
+    junc->ghostPoint = 0;
+    junc->poleCount = count;
+    junc->poles = (u_int *)_SunAlloc(&gHeapJunc, count * (int)sizeof(u_int), 4);
+    for (i = 0; i < count; i++)
+        junc->poles[i] = BankEeAddr(bank, &TiPart(bank, atoi(argv[2 + i]))->pos[0]);
+    return XCMD_DONE;
+}
+
+// CT3 0x018e7d10: Character[argv[0]] becomes the player.
+int tiXcmd_SetPlayerChara(int argc, char **argv, int bank)
+{
+    (void)argc;
+    (void)bank;
+    asSetCharacterIdentity(&Character[atoi(argv[0])], 1);
+    return XCMD_DONE;
+}
+
+// CT3 0x018e7d60: the variable argv[0] (scope argv[1]) = one decimal digit of the variable argv[2]
+// (scope argv[3]): the digit at place argv[4] (1, 10, 100...) of its absolute value.
+int wideXcmd_GetNumberOfBeam(int argc, char **argv, int bank)
+{
+    int value = ssTrigGetVariable(atoi(argv[2]) & 0xffff, atoi(argv[3]), bank) / atoi(argv[4]);
+
+    (void)argc;
+    if (value < 0)
+        value = -value;
+    ssTrigSetVariable(atoi(argv[0]) & 0xffff, value % 10, atoi(argv[1]), bank);
+    return XCMD_DONE;
+}
+
+// CT3 0x018e8210: argv[0] non-zero: draw only the global pass (DRAW_MODE_GLOBAL_ONLY), keeping the mode
+// it replaces; 0: back to that mode.
+int tiXcmd_SetDrawMode_Global(int argc, char **argv, int bank)
+{
+    (void)argc;
+    (void)bank;
+    if (atoi(argv[0]) == 0) {
+        DrawMode = prevDrawMode;
+    } else {
+        prevDrawMode = DrawMode;
+        DrawMode = DRAW_MODE_GLOBAL_ONLY;
+    }
+    return XCMD_DONE;
+}
+
+// The draw list record of part `part` in the bank's list `list` (0: objOpaque, else objTrans): the last
+// one that matches, as the ROM walks the whole list. NULL when none.
+static DRAW_OBJ_ENTRY *TiFindDrawEntry(int bank, int list, int part)
+{
+    const ALL_TABLE *tbl = All_table_TBL[bank];
+    const u_int *entries = BANK_PTR(const u_int *, bank, list == 0 ? tbl->objOpaque : tbl->objTrans);
+    DRAW_OBJ_ENTRY *found = NULL;
+
+    for (; *entries != 0; entries++) {
+        DRAW_OBJ_ENTRY *entry = BANK_PTR(DRAW_OBJ_ENTRY *, bank, *entries);
+        if (entry->parts == part)
+            found = entry;
+    }
+    return found;
+}
+
+// A word of a ga draw object (bank data, EE layout).
+static u_int TiObjWord(int bank, u_int obj, int off)
+{
+    u_int word;
+
+    memcpy(&word, BANK_PTR(const u_char *, bank, obj) + off, sizeof(word));
+    return word;
+}
+
+// CT3 0x018e83d0: part argv[0]'s draw object takes the look of part argv[2]'s -- its texture, the
+// texture's upload packet and the object's packet -- when both are in the same list (argv[1] == argv[3]:
+// 0 objOpaque, else objTrans), argv[4] is 0 and the two packets are the same size.
+// PORT: a part with no record returns (the ROM reads through the NULL).
+int tiXcmd_CopySunPs2Object(int argc, char **argv, int bank)
+{
+    int dstPart = atoi(argv[0]);
+    int srcPart = atoi(argv[2]);
+    int dstList = atoi(argv[1]);
+    int srcList = atoi(argv[3]);
+    DRAW_OBJ_ENTRY *dst;
+    DRAW_OBJ_ENTRY *src;
+    u_int qwc;
+
+    (void)argc;
+    if (dstList != srcList || atoi(argv[4]) != 0)
+        return XCMD_DONE;
+    dst = TiFindDrawEntry(bank, dstList, dstPart);
+    src = TiFindDrawEntry(bank, srcList, srcPart);
+    if (dst == NULL || src == NULL)
+        return XCMD_DONE;
+    qwc = TiObjWord(bank, dst->obj, DRAW_OBJ_PACKET_QWC);
+    if (qwc != TiObjWord(bank, src->obj, DRAW_OBJ_PACKET_QWC))
+        return XCMD_DONE;
+    dst->tex = src->tex;
+    memcpy(BANK_PTR(void *, bank, dst->tbuffer), BANK_PTR(const void *, bank, src->tbuffer),
+           TI_TBUFFER_COPY_SIZE);
+    gaMemCopy128(BANK_PTR(void *, bank, TiObjWord(bank, dst->obj, DRAW_OBJ_PACKET)),
+                 BANK_PTR(const void *, bank, TiObjWord(bank, src->obj, DRAW_OBJ_PACKET)), qwc + 1);
+    return XCMD_DONE;
+}
+
+// CT3 0x018e8640: the variable argv[0] (global argv[1]) += the number argv[2].
 int tiXcmd_AddVariable(int argc, char **argv, int bank)
 {
-    ALYSSAPAN_STUB("tiXcmd_AddVariable", 0x018e8640);
-    return {};
+    int var = atoi(argv[0]) & 0xffff;
+    int global = atoi(argv[1]);
+    int value = ssTrigGetVariable(var, global, bank);
+
+    (void)argc;
+    ssTrigSetVariable(var, value + atoi(argv[2]), global, bank);
+    return XCMD_DONE;
 }
+
+// CT3 0x018e8b70: a test command: reads argv[2..5] as floats and drops them.
+int tiXcmd_TEST00(int argc, char **argv, int bank)
+{
+    int i;
+
+    (void)argc;
+    (void)bank;
+    for (i = 2; i < 6; i++)
+        (void)atoff(argv[i]);
+    return XCMD_DONE;
+}
+
+// ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x018e3460
 int tiXcmd_BOSS_BattleStart(int argc, char **argv, int bank)
@@ -1545,24 +1718,10 @@ int tiXcmd_Balows2th(int argc, char **argv, int bank)
     return {};
 }
 
-// stub of CT3 0x018e83d0
-int tiXcmd_CopySunPs2Object(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_CopySunPs2Object", 0x018e83d0);
-    return {};
-}
-
 // stub of CT3 0x018e2ae0
 int tiXcmd_End_SPAttack_SCISSORS_MAN(int argc, char **argv, int bank)
 {
     ALYSSAPAN_STUB("tiXcmd_End_SPAttack_SCISSORS_MAN", 0x018e2ae0);
-    return {};
-}
-
-// stub of CT3 0x018e7b70
-int tiXcmd_FreeGhostPole(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_FreeGhostPole", 0x018e7b70);
     return {};
 }
 
@@ -1594,27 +1753,6 @@ int tiXcmd_SceneAnimationSkipToVariable(int argc, char **argv, int bank)
     return {};
 }
 
-// stub of CT3 0x018e8210
-int tiXcmd_SetDrawMode_Global(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_SetDrawMode_Global", 0x018e8210);
-    return {};
-}
-
-// stub of CT3 0x018e7bf0
-int tiXcmd_SetGhostPole(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_SetGhostPole", 0x018e7bf0);
-    return {};
-}
-
-// stub of CT3 0x018e7d10
-int tiXcmd_SetPlayerChara(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_SetPlayerChara", 0x018e7d10);
-    return {};
-}
-
 // stub of CT3 0x018e89d0
 int tiXcmd_SetRotation(int argc, char **argv, int bank)
 {
@@ -1626,13 +1764,6 @@ int tiXcmd_SetRotation(int argc, char **argv, int bank)
 int tiXcmd_SetScale(int argc, char **argv, int bank)
 {
     ALYSSAPAN_STUB("tiXcmd_SetScale", 0x018e8930);
-    return {};
-}
-
-// stub of CT3 0x018e8b70
-int tiXcmd_TEST00(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_TEST00", 0x018e8b70);
     return {};
 }
 
@@ -1664,16 +1795,3 @@ int wideXcmd_Delay(int argc, char **argv, int bank)
     return {};
 }
 
-// stub of CT3 0x018e7d60
-int wideXcmd_GetNumberOfBeam(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("wideXcmd_GetNumberOfBeam", 0x018e7d60);
-    return {};
-}
-
-// stub of CT3 0x018e79d0
-int wideXcmd_GetRate(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("wideXcmd_GetRate", 0x018e79d0);
-    return {};
-}

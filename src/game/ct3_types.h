@@ -103,10 +103,11 @@ static_assert(offsetof(CHARACTER, junc) == 0x570, "CHARACTER.junc");
 // The gHeapJunc block at CHARACTER.junc: only its buffer pointer (EE +0xc) is read so far (Character_All_Init
 // frees it, then the block). layout: host -- the EE's 0xc bytes before it are kept, the pointer is a host one.
 typedef struct CHARA_JUNC {
-    u_char pad00[4];
+    int poleCount;                      /* EE 0x00: tiXcmd_SetGhostPole's count of poles */
     float ghostRange;                   /* EE 0x04: tiXcmd_SetPointForGhostArea's range */
     u_int ghostPoint;                   /* EE 0x08: EE address (BankEeAddr) of the ghost area's part position */
-    void *buf;                          /* EE 0x0c: a gHeapJunc block */
+    u_int *poles;                       /* EE 0x0c: a gHeapJunc block of poleCount EE addresses (BankEeAddr)
+                                           of the ghost poles' part positions (tiXcmd_SetGhostPole) */
 } CHARA_JUNC;
 
 // CHARACTER.translucent (AllDrawObject): any bit keeps the character out of the opaque and mirror passes.
@@ -596,6 +597,8 @@ static_assert(sizeof(DRAW_OBJ_ENTRY) == 0x1c, "DRAW_OBJ_ENTRY");
 #define DRAW_OBJ_LIGHT 0x30             /* float */
 #define DRAW_OBJ_POS 0x38               /* u_int: EE address of the part's ALL_TABLE.partsPos qword (BankEePtr): the
                                            ambient RGB the VU1 light0 program adds (vf20), alpha in w */
+#define DRAW_OBJ_PACKET_QWC 0x48        /* u_int: the object's packet is this + 1 qwords (tiXcmd_CopySunPs2Object) */
+#define DRAW_OBJ_PACKET 0x68            /* u_int: EE address of the object's packet (relocated) */
 #define DRAW_OBJ_ATTR 0x3c              /* int: MODEL_PARTS.attr */
 #define DRAW_OBJ_FLAG_CLIP 0x20         /* always drawn through the clipping path */
 

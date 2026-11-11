@@ -111,6 +111,9 @@ enum {
 // tiXcmd_CompareVariable: an operand whose global argument is XCMD_SCOPE_LITERAL is the number itself
 // (tkXcmd_GetValueType answers 2 for the same); the answer goes to a variable as COMPARE_*.
 #define XCMD_SCOPE_LITERAL 2
+// tiXcmd_CopySunPs2Object copies this much of a texture upload packet (SUN_TBUFFER_DATA is 0xd8; the ROM
+// copies 0x100, as tex_A$2748 holds).
+#define TI_TBUFFER_COPY_SIZE 0x100
 enum {
     COMPARE_EQUAL = 0,
     COMPARE_GREATER = 1,                /* the first operand is the greater */
