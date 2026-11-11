@@ -1,6 +1,6 @@
 {
  "queue": [
-  "alyssapan/rendering/ga_atld.cpp",
+  "game/Clipping_Portal.c",
   "alyssapan/rendering/ui_canvas.cpp",
   "game/wideXcmd_DebugPrint.c",
   "game/tkXDTrg_GetSceneHash.c",
@@ -42,15 +42,20 @@
    "task": "Host FSYS_IOP file server on io::Disc: the RPC server the EE file code (fileio.c FSMltLoad, IOPGetFileSize.c) calls; sdk/sif.cpp answers zeros today, so no bank loads. Read the EE side's RPC numbers and request records, register the server in iop/rpc_servers, answer sizes and reads from the disc. Done when a smoke run's log shows CT3PACK banks read and main2 gets past BankReady with a real bank."
   },
   "alyssapan/rendering/ga_atld.cpp": {
-   "notes": "Shot still black for a game reason: the light0 colour is vertex colour plus the part's ALL_TABLE.partsPos (the ambient RGB), which only the event command tnXcmd_Scene_Ambient_Change (0x018f1940, game/xcmd_tn.c, queued first) sets. With the ambient forced to 0x80 (probe, stripped) ATLD's text matches work/ref/ATLD/trans_04, centred at 4:3 and at 1280x540. Left: depth, fog, HIGHLIGHT modes, CT3's ALPHA_1 and TEX1_1; the icons' ST offset (0.5) points at an empty sheet cell (blink?); a second bank's objects draw top left (open-items item 7).",
+   "notes": "Shot frame 120 matches work/ref/ATLD/page_0_01 at 4:3 and wide (451 px, 22 px left of centre in both). Brightness is the bank ambient 90 (texel x 90/128), the game value. Left for the screen that needs them: depth, fog, HIGHLIGHT modes, ALPHA_1 and TEX1_1; the icons empty cell waits on the UV track. Next blocker: from frame 240 the frame is flat grey after the stub tiFade_Start; game/Clipping_Portal.c queued first.",
    "sessions": [
     {
      "date": "2026-11-11 07:55",
      "status": "partial",
      "summary": "ga textures: sunBGT_ExecTBufferData_VIF1 hands TEX0, CLAMP, level 0 and the CLUT to AlyssaPan_DrawGaTexture; TextureStore decodes CT3 GS textures at their source; DrawGaFrame draws textured, blended meshes in CT3's window, centred at any aspect"
+    },
+    {
+     "date": "2026-11-11 13:54",
+     "status": "done",
+     "summary": "ATLD draws as the game picks it: the memory-card text textured, centred, same size at 4:3 and 1280x540; the slot 2 wording is page 1 of a 10-page slide texture, and ct3pack tex now thaws every page to work/ref"
     }
    ],
-   "status": "partial",
+   "status": "done",
    "task": "The first picture, ATLD (the memory-card check screen): its quads now land on screen (grey, untextured, right of centre). Make the ga host draw module draw them as work/ref/ATLD shows (white outlined text and arrow marks, centred), at 4:3 and wide: the object texture from the bank TIM2 via TextureStore keyed by the GS registers, the light0 colour, CT3 window origin, then depth and fog. open-items.md Next up item 7."
   },
   "alyssapan/rendering/ui_canvas.cpp": {

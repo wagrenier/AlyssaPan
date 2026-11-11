@@ -1081,10 +1081,10 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    switch hides parts 2 / 3 (the text) and shows 5 / 6 / 7. Left, for other TUs: (w) parts 6 / 7 (the
    icon sheet's arrow marks, window ~2410..2476 x 2384, colour 90 90 90 78) still sample an empty cell
    (ST offset obj +0x78 = 0.5, 0): the UV track (EA_010, written) must move it -- bank 0's animation does
-   not reach that key, probably because the scripts wait in stubs (wideXcmd_PlayAnimeToFream2, (r)); (x)
-   the shot reads "slot 2" where the decoded reference reads "slot 1": the sheet probably holds both
-   lines and the game picks one by the card slot (the memory card shim answers for slot 2?) -- check
-   which slot sdk_libmc.cpp reports; (q) and (r) stand (camera cut, PlayAnimeToFream2).
+   not reach that key, probably because the scripts wait in stubs (wideXcmd_PlayAnimeToFream2, (r)); ~~(x)
+   the shot reads "slot 2" where the decoded reference reads "slot 1"~~ settled 2026-11-11 (ga_atld.cpp):
+   the text is a paged texture of 10 slide pages, page 1 is the check of slot 2 (architecture.md "ATLD's
+   messages are a paged texture"); (q) and (r) stand (camera cut, PlayAnimeToFream2).
 
 7. **(2026-11-11, the user: "2D is still not showing up") The first picture.** Fixed: the black screen was
    Execute_ExecuteAnimationHistory writing an EE address into every camera cut's focal length (hazards.md
@@ -1191,6 +1191,21 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    first-match tables are equivalent -- a harness (the *cmp.py pattern) could prove it; (ak) bit 0 of
    MODEL_PARTS.flags has three names by part kind (PARTS_FLAG_FOG, PARTS_FLAG_HIDDEN, KEY_PART_LOCKED):
    whichever TU loads the parts header may unify them.
+   **Host task ga_atld.cpp, done (2026-11-11 13:45, scheduled run): ATLD draws as the game picks it.**
+   With the x commands reached, frame 120 shows the memory-card text textured, centred, the same 451 px
+   wide at 4:3 (683 x 512) and wide (1214 x 512 in a 1280 x 540 window), 22 px left of centre in both
+   (the text's place inside its 512-texel page). It reads "slot 2" because the text is a **paged
+   texture**: 10 slide pages packed in ATLD, each with its own CLUT, and the script shows page 1 (the
+   check of slot 2) -- `ct3pack.py tex` now thaws every page to `work/ref/ATLD/page_0_NN.png`, and the
+   shot matches page_0_01 (architecture.md). Brightness: texels x 90/128 (the bank's ambient 90), the
+   brightest 151 -- the game's own value. Not shown by any ATLD picture, left for the screen that needs
+   them: depth and fog in DrawGaFrame, HIGHLIGHT / HIGHLIGHT2 (drawn as MODULATE), CT3's ALPHA_1 / TEX1_1
+   (alpha blend and bilinear assumed); the icons' empty sheet cell stays with (w) above (the UV track).
+   **Next blocker (the picture after ATLD):** frame 180 black, from 240 on the whole frame is flat 128
+   grey. The run reaches the stub `tiFade_Start` (0x0188d3c0) right after ATLD's last draw, then the
+   scene teardown (ssParticleDeInit, ssPartMotionBlurAllEnd, tiWindEnd) and `hhXcmd_LoadSE`: the grey is
+   the next scene's first screen or a fade nothing drives -- tiFade_Start's TU (and the fade draw) first.
+   **Queued first: game/Clipping_Portal.c** (tiFade_Start's object; Claude's call, this run).
 
 ## Decisions
 

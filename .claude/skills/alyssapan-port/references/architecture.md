@@ -431,6 +431,19 @@ the TU map's evidence.
   the scene's three draw lists (ALL_TABLE +0x18 objOpaque, +0x1c objTrans, +0x60 objAfter) and stores
   `partsPos + entry.parts * 0x10` (an EE address) at each entry's ga object +0x38. While it was a stub the
   word stayed 0, the host added no ambient and every light0 part drew in its bare vertex colour (black).
+  In the smoke run the text draws at ambient 90 (vertex rgba 90 90 90 127), so its brightest texel (CLUT
+  0xd7) shows as 151, not white: the game's value, not forced.
+- **ATLD's messages are a paged texture (2026-11-11, ga_atld.cpp):** ALL_TABLE +0x8c (texFileSet,
+  0x00116824) has one set: part 5, **slide** pages (packed in the bank, tnSlideThawing's LZSS), 10 of them,
+  one buffer at 0x00102800 = the text record's level 0 (SUN_TEX_ATTR 0x00112900). Each page thaws to
+  65,600 bytes: 65,536 of PSMT4 pixels **and its own 16-colour CLUT** (64 bytes), which lands on the
+  record's CLUT (0x00112800 = level 0 + 0x10000). The pages (`ct3pack.py tex ATLD.BIN` ->
+  `work/ref/ATLD/page_0_NN.png`): 0 / 1 "Checking... Do not remove memory card... slot 1 / slot 2"; 2 no
+  card in either slot; 3 / 4 / 5 too little space (slot 1 / slot 2 / either; "at least 678KB", "Start
+  without save?"); 6 / 7 "Data autoloaded from MEMORY CARD slot 1 / 2"; 8 / 9 "slot 1 / 2 autoload
+  failed". The trigger script picks the page (tnTrigTexFileSetPage); at frame 120 of a smoke run it shows
+  page 1 (the check of slot 2 after slot 1: Character_Init.h MC_AUTO_NEXT_SLOT). **The reference for a
+  paged part is the page the game picked, not the bank's level 0** (trans_04 is page 0).
 - **The x commands (2026-11-11, xcmd_tn.c slice 1):** the trigger script's command 0x514 in
   `ssTrigExecuteActCmd` (0x018d5450) reads a 2-byte length, an index byte and an argc byte, then argc
   NUL-terminated strings from ActData, and calls `ssXcmd_functions[index](argc, argv, bank)` (data

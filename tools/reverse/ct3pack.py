@@ -6,7 +6,10 @@
     py ct3pack.py info NAME               the unpacked image's header and ALL_TABLE words (+0x80)
     py ct3pack.py tex NAME [...]          every texture the bank's draw lists name (DRAW_OBJ_ENTRY +8 ->
                                           TEX_INFO -> SUN_TEX_ATTR), level 0 with the entry's CLUT, to
-                                          work/ref/<bank>/<list>_<i>_<tex>_c<clut>.png: the references
+                                          work/ref/<bank>/<list>_<i>_<tex>_c<clut>.png: the references;
+                                          and every page of the bank's paged textures (ALL_TABLE +0x8c)
+                                          stored as slide data, thawed into the record its buffer patches,
+                                          to work/ref/<bank>/page_<set>_<page>.png (file pages listed)
 
 The directory (FlInit): sector 0's words [0] count, [1] header bytes, [2] header sectors; 0x20-byte rows
 from sector 1: name[0x14], size, first sector (relative to the pack), sector count. A packed file
@@ -195,6 +198,94 @@ def textures(name, img):
             p += 4
             i += 1
         print("%s list (ALL_TABLE +0x%02x): %d entries" % (kind, off, i))
+    slide_pages(img, base, table, outdir)
+
+
+def slide_thaw(img, off):
+    """game/QuatSlerp.c tnSlideThawing / decode: Okumura's LZSS after an 8-byte header whose first word
+    is where the input ends (from the page's start)."""
+    end = off + u32(img, off)
+    pos = off + 8
+    ring = bytearray(4096 + 17)
+    r, flags, out = 4096 - 18, 0, bytearray()
+    while True:
+        flags >>= 1
+        if not flags & 0x100:
+            if pos >= end:
+                return bytes(out)
+            flags = img[pos] | 0xff00
+            pos += 1
+        if flags & 1:
+            if pos >= end:
+                return bytes(out)
+            c = img[pos]
+            pos += 1
+            out.append(c)
+            ring[r] = c
+            r = (r + 1) & 4095
+        else:
+            if pos + 1 >= end:
+                return bytes(out)
+            i, j = img[pos], img[pos + 1]
+            pos += 2
+            i |= (j & 0xf0) << 4
+            for k in range((j & 0x0f) + 3):
+                c = ring[(i + k) & 4095]
+                out.append(c)
+                ring[r] = c
+                r = (r + 1) & 4095
+
+
+def slide_pages(img, base, table, outdir):
+    """The paged textures (ALL_TABLE +0x8c, game/QuatSlerp.h TEX_FILE_SET_TABLE) whose pages are slide
+    data in the bank: each page thawed into the texture record its buffer patches (the record whose level
+    0 is the buffer), to work/ref/<bank>/page_<set>_<page>.png. File-name pages (DATA/IMG/) are listed."""
+    sys.path.insert(0, HERE)
+    import tm2png
+    tfs = u32(img, table + 0x8c)
+    if tfs == 0:
+        return
+    sets, files, bufs = (u32(img, tfs - base + 4 * k) for k in range(3))
+    # Every texture record (SUN_TEX_ATTR) the draw lists name, by its level-0 address.
+    attrs = {}
+    for off, _ in DRAW_LISTS:
+        lst = u32(img, table + off)
+        p = lst - base if lst else -1
+        while 0 <= p < len(img) and u32(img, p) != 0:
+            tex = u32(img, u32(img, p) - base + 8)
+            if tex:
+                a = u32(img, tex - base) - base
+                attrs[u32(img, a + 0x1c)] = a
+            p += 4
+    s = sets - base
+    n = 0
+    while u32(img, s) != 0:
+        parts, slide, page, fi, bi = struct.unpack_from("<I4i", img, s)
+        count, pages = struct.unpack_from("<iI", img, files - base + 8 * fi)
+        bcount, slots = struct.unpack_from("<iI", img, bufs - base + 8 * bi)
+        level0 = u32(img, slots - base + 4)
+        part = struct.unpack_from("<i", img, parts - base)[0]
+        a = attrs.get(level0)
+        print("  page set %d: part %d, %d %s pages, page %d shown, %d buffer(s) at 0x%08x"
+              % (n, part, count, "slide" if slide else "file", page, bcount, level0))
+        for pg in range(count):
+            src = u32(img, pages - base + 4 * pg) - base
+            if not slide:
+                print("    page %d: file %s" % (pg, img[src:img.index(b"\0", src)].decode("ascii", "replace")))
+                continue
+            if a is None:
+                print("    page %d: no draw-list texture uses the buffer" % pg)
+                continue
+            data = slide_thaw(img, src)
+            work = bytearray(img)
+            work[level0 - base:level0 - base + len(data)] = data
+            got = decode_tex(bytes(work), base, a, 0)
+            if got:
+                path = os.path.join(outdir, "page_%d_%02d.png" % (n, pg))
+                tm2png.png(path, got[0], got[1], got[2])
+                print("    page %d: %d bytes -> %s" % (pg, len(data), os.path.relpath(path, HERE)))
+        s += 0x14
+        n += 1
 
 
 def main(argv):
