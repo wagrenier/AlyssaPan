@@ -749,6 +749,32 @@ view * matrix (+0x180) and +0x300 = that * diag(record +0x2c0 xyz).
 - **Angles** are 0x10000 per turn; ahAcos interpolates the ROM's 4098-entry ah_acos_table below 0.9988
   and calls acosf above (that branch returns acosf's own 16 bits, also for a negative cosine).
 
+## The camera, game/asEyeForcusUP2CamMat.c (2026-11-10, slice 1)
+
+- **Seven cameras** (Cam[7], 0x1c0 bytes): one per global bank 0..5, Cam[6] shared by every scene bank
+  (asCheckBankID). Each holds the view (+0), view2 (+0x40: the drawing view --
+  asChangeViewMatrix_forTheBank copies it into matrix_global_view and turns focal[3], LEICA mm, into
+  screen_0[8]), viewPrev (+0x80: view2 before the last cut, unless iCamChangeFlag), then eye / focus / up
+  each live / from / to (+0xc0..+0x14c) and four focal lengths (+0x150, 2.88 at init).
+- **A cut** (CamChange_S(bank, cut, mode, arg)): -> 1 for no bank, 5 when the camera already shows that
+  cut of that bank. The first scene-bank cut after camera_init0 skips that test once and holds main
+  for 2 more frames (SkipMain += 2). CamChangeSub then needs the bank loaded and its control table
+  (ALL_TABLE +0xc0: +0 the cut records, +4 the target records, +0xc the cut count) to have the cut;
+  it copies live -> from, keeps the table's three EE words in the camera (+0x16c..+0x174), takes the
+  cut's DOF level (+0x1a: 4 = none; any other turns DrawMode to DOF for a scene bank), its eye kind
+  (+0x18) and target mode (+0x17), and has asGetDestinationEYE / _TRG fill the "to" set; a scene bank's
+  cut registers trigger event 0xb3.
+- **Cut records** are 0x20 bytes (+0 part hash, +0x10 character slot, +0x12 "on a character", +0x13..15
+  three target indices, +0x17 target mode, +0x18 eye kind, +0x1a DOF level); **target records** 0x10
+  (+0 part hash, +8 part index in the camera's bank, +0xa character slot, +0xc "on a character"). A
+  character's part is looked up again into lpCopyMP[slot] (asFindModelParts) when its hash changed;
+  a part's world position is its record +0xf0. Target mode 1 looks at one target, 3 takes x / y / z
+  from three, 0 / 2 / 4 leave the focus.
+- **The view builder** (asEyeForcusUP2CamMat): front = |focus - eye|, right = |up x front|, up' =
+  |front x right|, then asCamRUF2ViewMatrix with screen_0[8] swapped for the call; 0 when eye == focus.
+- camera_init: AlissaEyeHeight 135, CameraBehind 250, FOV_deg 40 (screen_0[8] = asFocalLength_LEICA2PS2(40)),
+  every camera reset (identity view, DOF level 4, cut / bank -1).
+
 ## Areas, rattles, warps, the slerp, game/QuatSlerp.c (2026-11-10, slice 2)
 
 - **Areas** (GetAreaNumber): a room's area number 1..52 (the save file's area, the map / scene name

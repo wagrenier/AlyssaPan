@@ -933,6 +933,26 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    upload not cycled it shows). Fixed in renderer.cpp (hazards.md). Still in the way of ATLD, besides the
    camera: UiCanvas maps window y with FS2's origin (1792) and a 512-high frame, so CT3's window (2048..2496,
    centre 2272) lands half below the frame -- the ui_canvas.cpp host task must set CT3's origin.
+5. **game/asEyeForcusUP2CamMat.c (the camera) -- partial (2026-11-10, slice 1):** 15 functions written
+   (architecture.md "The camera"): asEyeForcusUP2CamMat, asCameraPositionTranserUP, the cut chain
+   (CamChange_S, CamChangeSub, asGetDestinationTRG, asGetDstinationFromTargetList,
+   asCopyCharacterParameterTRG / _EYE), the geometry helpers (asCheckInnerPositions,
+   asCheckThePositionInRectAngle, asGetLineRadTargetPos, asGetPlaneRadTargetPos), the bank view switch
+   (asChangeViewMatrix_forTheBank), CamGetNowDOFLevel, CamChangeFOV_S, camera_init / _init0 / _destroy.
+   The smoke run now gets through CamChangeSub to **asGetDestinationEYE** (0x01884f50, 0xdc8 bytes, the
+   slice's last function: next) -- then **camera_view** (0x018875d0, reached each frame, the one that fills
+   the view: the shot stays black until it runs) and camera_main. Doubts: (a) CAMERA's eye / focus / up
+   *From / *To names come from CamChangeSub's copies and asGetDestination*'s arguments; focal[3] is the one
+   asChangeViewMatrix_forTheBank reads, [0..2] live / from / to -- camera_view confirms; b17a, b17c, b17f,
+   b181, w164 unnamed (init / cut values only); (b) **CAMERA.bank is an int** (CamChange_S writes and
+   compares 4 bytes; was a short from asCharacterMoveByPad's stock); (c) ALL_TABLE.ctrl is one table for
+   the cameras (+0 cuts, +4 targets, +0xc cut count) and the controlled parts (+8 list, +0xe count): name
+   it when its loader is read; (d) the camera globals (AlissaEyeHeight, CameraAngle, ZelCam, CamStock,
+   lpCopyMP, ...) are defined in this TU with the symtab's addresses: no other TU had them -- move them if
+   a symtab object run puts them elsewhere; Cam[] stays in lib/unassigned_data.cpp; (e) asGetPlaneRadTargetPos
+   reads quad[-1] in the ROM when three or four edges face away (@1029's -1 indices): the port returns 1
+   with w 0 there (not reachable with a convex quad and its own normal); (f) camera_init0 indexes Cam[] by
+   the bank number as the ROM does: a guard stops past Cam[6] (no caller passes more).
 
 ## Decisions
 

@@ -729,12 +729,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 67..67, 4 functions keyed by their statics, 3 unkeyed; source string ahalloc.c"
   },
   "game/asEyeForcusUP2CamMat.c": {
+   "notes": "asGetDestinationEYE (0x01884f50) is the slice's last function and next; then camera_view (reached each frame, fills the view: the shot stays black until it runs) and camera_main. CAMERA gained eye / focus / up live-from-to, focal, cuts / targets / ctrlList, eyeKind / trgKind, dofLevel; CAMERA.bank is now an int. Doubts in open-items.md Next up item 5.",
    "ranges": [
     [
      "01883db0",
      "01889cd0"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-10 22:01",
+     "status": "partial",
+     "summary": "camera slice 1: 15 functions -- the view builder, the bank view switch, init / init0 / destroy, the cut chain (CamChange_S, CamChangeSub, target list) and the line / plane / rect helpers"
+    }
+   ],
+   "status": "partial",
    "why": "tumap.py (bootstrap 5): symtab local chunks 87..87, 7 functions keyed by their statics, 23 unkeyed; file name from the names"
   },
   "game/asMothOperate.c": {

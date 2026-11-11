@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-10 21:30 at commit `6a856d2` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-10 22:02 at commit `cb85291` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **822**; stubs: **189**
+- reconstructed CT3 functions: **840**; stubs: **183**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -67,7 +67,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/SdMasterVolumeSetSE.c` | 61 | 0 |
 | `src/game/ahRelocateSunPs2ObjectArry.c` | 93 | 0 |
 | `src/game/ahalloc.c` | 7 | 0 |
-| `src/game/asEyeForcusUP2CamMat.c` | 0 | 9 |
+| `src/game/asEyeForcusUP2CamMat.c` | 18 | 3 |
 | `src/game/asMothOperate.c` | 0 | 1 |
 | `src/game/asMothPause.c` | 0 | 1 |
 | `src/game/asMothRouteSearch.c` | 0 | 2 |
@@ -92,9 +92,10 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 40, partial 1, verify 24, done 4, blocked 1
+- 65 TUs: todo 39, partial 2, verify 24, done 4, blocked 1
 - next: **game/asEyeForcusUP2CamMat.c** (pinned in the queue)
 - pinned queue: game/asEyeForcusUP2CamMat.c, alyssapan/rendering/ui_canvas.cpp, game/ssGrpPortalCheck.c, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
+- partial: `game/asEyeForcusUP2CamMat.c` 18/30 -- asGetDestinationEYE (0x01884f50) is the slice's last function and next; then camera_view (reached each frame, fills the view: the shot stays black until it runs
 - partial: `game/wideXcmd_DebugPrint.c` 107/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed) -- the last function of the TU. New stubs
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
@@ -124,6 +125,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-10 22:01 `game/asEyeForcusUP2CamMat.c` partial: camera slice 1: 15 functions -- the view builder, the bank view switch, init / init0 / destroy, the cut chain (CamChange_S, CamChangeSub, target list) and the l
 - 2026-11-10 21:30 `ga/gaBGT_DrawObject.c` verify: slice 4: nc2_SetupDma_light2 written (dead in the ROM, nc2_light1's code instruction for instruction); every function of the TU is written; shot black until the
 - 2026-11-10 21:15 `ga/gaBGT_DrawObject.c` partial: slice 3: the clipped path (gaBGT_DrawObject), NoClippingCheck and the billboard jump into it, SetupDma_light0/1/2 build the ROM packet and hand the object to th
 - 2026-11-10 20:57 `ga/gaBGT_DrawObject.c` partial: slice 2: the light0 VU1 object program read (transform 0x04d, projection 0x0f5, cull 0x1fe / 0x22c) and run on the host per object; each frame's triangles go to
@@ -131,19 +133,18 @@ Recent sessions:
 - 2026-11-10 20:29 `alyssapan/rendering/ui_canvas.cpp` blocked: First screen found: ATLD, the memory-card check, drawn as world-space quads through gaBGT_DrawObject_NoClippingCheck2 (no 2D packet step); ct3pack.py reads CT3P
 - 2026-11-10 20:12 `alyssapan/iop/fsys_server.cpp` done: Host FSYS_IOP file server (iop::FsysServer) on io::Disc, registered when FSYS_IOP.IRX loads: SUNA answers a loose file's size and first sector
 - 2026-11-10 19:50 `game/wideXcmd_DebugPrint.c` partial: slice 9: the ground key-table entries -- standing, walking, running and the run stop (iRunCount), the move end, crouching and crawling (KEY_MAP_HIDE is the crou
-- 2026-11-10 19:35 `game/wideXcmd_DebugPrint.c` partial: slice 8: the cat walk (fall, hidden feet part, death drop), the lever-mash locks (asPIA1_KEY_TBL_LOCK), panic run / stand (confirms the panic event answers), hi
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `game/ssGrpPortalCheck.c` | todo | 0/11/59 | 26.4 | 480 | 10 |
+| `game/ssGrpPortalCheck.c` | todo | 0/11/59 | 26.4 | 481 | 10 |
 | `game/Clipping_Portal.c` | todo | 0/34/73 | 44.8 | 160 | 18 |
 | `game/ssSetTexUVforCubeMap.c` | todo | 0/31/96 | 35.3 | 86 | 9 |
 | `game/CpDivideEECom.c` | todo | 0/10/18 | 3.3 | 80 | 10 |
-| `game/asEyeForcusUP2CamMat.c` | todo | 0/9/30 | 23.6 | 57 | 6 |
 | `ga/gaDrawObject.c` | todo | 0/11/11 | 6.9 | 39 | 0 |
 | `game/tiAvoidObject.c` | todo | 0/7/82 | 30.5 | 27 | 4 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/ssHitCheckAttackToScn.c` | todo | 0/5/37 | 32.0 | 22 | 3 |
+| `game/asEyeForcusUP2CamMat.c` | partial | 18/3/30 | 23.6 | 20 | 3 |
 | `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
 | `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `game/asUseArrow.c` | todo | 0/6/11 | 6.4 | 16 | 1 |
@@ -154,12 +155,11 @@ Recent sessions:
 |---|---|---|---|---|---|
 | `018d9100` | ssTrigCheckEvent | 171 | sym | stub | game/ssGrpPortalCheck.c |
 | `018d9560` | ssTrigRemoveEvent | 110 | sym | stub | game/ssGrpPortalCheck.c |
-| `018d95e0` | ssTrigRegisterEvent | 62 | sym | stub | game/ssGrpPortalCheck.c |
+| `018d95e0` | ssTrigRegisterEvent | 63 | sym | stub | game/ssGrpPortalCheck.c |
 | `018d9470` | ssTrigSetVariable | 43 | sym | stub | game/ssGrpPortalCheck.c |
 | `018d9430` | ssTrigGetVariable | 38 | sym | stub | game/ssGrpPortalCheck.c |
 | `01851b10` | ConvertQuat2Matrix | 17 | sym | stub | game/Convert.c |
 | `018d1e70` | CpGetEEIOPStatus | 14 | sym | stub | game/CpDivideEECom.c |
-| `01886690` | asChangeViewMatrix_forTheBank | 12 | sym | stub | game/asEyeForcusUP2CamMat.c |
 | `0188ced0` | tiDrawShadingOff | 9 | sym | stub | game/Clipping_Portal.c |
 | `01893cf0` | ExportDrawToTex | 8 | sym | stub | game/Clipping_Portal.c |
 | `018a3078` | gaObjectClippingCheck | 7 | sym | stub | ga/gaObjectClippingCheck.c |
@@ -187,9 +187,10 @@ Recent sessions:
 | `018a52f0` | gaDrawObject_VertexLocalView_Billboard | 3 | sym | stub | ga/gaDrawObject.c |
 | `018a5b88` | gaDrawObject_RemakeIndex | 3 | sym | stub | ga/gaDrawObject.c |
 | `018a6038` | gaDrawObject_MakeVertexReferenceTableNoClip | 3 | sym | stub | ga/gaDrawObject.c |
-| `018870c0` | camera_init0 | 3 | sym | stub | game/asEyeForcusUP2CamMat.c |
-| `01886dc0` | CamChange_S | 3 | sym | stub | game/asEyeForcusUP2CamMat.c |
 | `018881a0` | camera_main | 3 | sym | stub | game/asEyeForcusUP2CamMat.c |
 | `0188df70` | tiDrawLensFlares | 3 | sym | stub | game/Clipping_Portal.c |
 | `0188cd70` | tiVibrationTimer | 3 | sym | stub | game/Clipping_Portal.c |
+| `018c1ce0` | AA_videoDecAbort | 3 | sym | stub | game/AA_mpegTS.c |
+| `018666c0` | asInitArrowInfo | 2 | sym | stub | game/asUseArrow.c |
+| `01882c10` | asInitMothInfo | 2 | sym | stub | game/asMothRouteSearch.c |
 

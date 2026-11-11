@@ -122,7 +122,7 @@ static_assert(sizeof(CHAR_AMB_CHANGE) == 0x1c, "CHAR_AMB_CHANGE");
 #define CHARACTER_FLAG_SHADOW 0x40000000u /* main: the character's bank casts a shadow polygon */
 
 // One camera of Cam[7] (0x01ae7c40, 0x1c0 bytes each; indexed by asCheckBankID: scene banks 0..5 and
-// the shared one). Only what main.c reads.
+// the shared one). camera_init0 (asEyeForcusUP2CamMat.c) resets every field named here.
 typedef struct CAMERA {
     float view[4][4];                   /* 0x000: the view matrix (asGetShadowMatrixGlobalView copies
                                            Cam[6]'s, the shared one, for the shadows) */
@@ -132,16 +132,57 @@ typedef struct CAMERA {
     float viewPrev[4][4];               /* 0x080: asCharacterMoveByPad steers by Cam[6]'s rows 0 / 2 of this
                                            one instead of view2 while iCamChangeFlag is set (the cut just
                                            changed): the previous cut's view, a guess from that one use */
-    u_char pad0c0[0x30];
+    // 0x0c0..0x14c: eye, focus point and up, each live / from / to (camera_init0: eyes (10, 10, 10, 1),
+    // focus points (0, 0, 0, 1), ups (0, 1, 0, 0)). A cut (CamChangeSub) copies the live ones into
+    // *From and has asGetDestinationEYE / _TRG fill *To (asEyeForcusUP2CamMat.c, 2026-11-10).
+    float eye[4];                       /* 0x0c0 */
+    float eyeFrom[4];                   /* 0x0d0 */
+    float eyeTo[4];                     /* 0x0e0 */
     float focus[4];                    /* 0x0f0: the point looked at (ssHQDOF_DrawAllObject's focusPos) */
-    u_char pad100[0x68];
-    short bank;                         /* 0x168: the cut's bank; asCharacterMoveByPad stocks it with cut
-                                           (iCameraBank_Stock / iCameraID_Stock) to see a cut change */
-    u_char pad16a[0xe];
+    float focusFrom[4];                 /* 0x100 */
+    float focusTo[4];                   /* 0x110 */
+    float up[4];                        /* 0x120 */
+    float upFrom[4];                    /* 0x130 */
+    float upTo[4];                      /* 0x140 */
+    float focal[4];                     /* 0x150: focal lengths (LEICA mm; 2.88 each at init): [0] live,
+                                           [1] from, [2] to (CamChangeSub); asChangeViewMatrix_forTheBank
+                                           turns [3] into screen_0's projection distance */
+    int changeArg;                      /* 0x160: CamChange_S's fourth argument (0 at init) */
+    int w164;                           /* 0x164: 0 at init and on a cut change */
+    int bank;                           /* 0x168: the bank CamChange_S last cut to (-1 at init), written and
+                                           compared as an int; asCharacterMoveByPad stocks it as a short
+                                           with cut (iCameraBank_Stock / iCameraID_Stock) */
+    u_int cuts;                         /* 0x16c: EE address of bank's CAM_CUT records (its control table
+                                           +0, CamChangeSub; BankEePtr(bank, ...)); 0 at init */
+    u_int targets;                      /* 0x170: ... of its CAM_TRG records (control table +4) */
+    u_int ctrlList;                     /* 0x174: ... of its OBJ_CTRL list (control table +8) */
     short cut;                        /* 0x178: the camera's cut, CamChange_S's second argument (a save
-                                           keeps the live bank's; name from data_save_set) */
-    u_char pad17a[0x46];
+                                           keeps the live bank's; name from data_save_set); -1 at init */
+    u_char b17a;                        /* 0x17a: 0xff at init and on a cut change */
+    u_char eyeKind;                     /* 0x17b: the cut's CAM_CUT_EYE_KIND (asGetDestinationEYE's kind) */
+    u_char b17c;                        /* 0x17c: camera_init0: 4 for a global bank (0..5), 0xff for a
+                                           scene bank; 0xff on a cut change */
+    u_char trgKind;                     /* 0x17d: asGetDestinationTRG's kind: 0 = the cut's target list,
+                                           4 = none (the cut's CAM_CUT_HAS_TARGETS is 0) */
+    u_char changeMode;                  /* 0x17e: CamChange_S's third argument */
+    u_char b17f;                        /* 0x17f: 0 at init, 1 on a cut (CamChangeSub) */
+    u_char dofLevel;                    /* 0x180: the DOF level (CamGetNowDOFLevel reads Cam[6]'s); 4 at init */
+    u_char b181;                        /* 0x181: 0 at init; the cut's byte +0x1b */
+    u_char b182;                        /* 0x182: 0 at init */
+    u_char pad183[0x3d];
 } CAMERA;
+static_assert(offsetof(CAMERA, eye) == 0x0c0, "CAMERA.eye");
+static_assert(offsetof(CAMERA, up) == 0x120, "CAMERA.up");
+static_assert(offsetof(CAMERA, focal) == 0x150, "CAMERA.focal");
+static_assert(offsetof(CAMERA, changeArg) == 0x160, "CAMERA.changeArg");
+static_assert(offsetof(CAMERA, cuts) == 0x16c, "CAMERA.cuts");
+static_assert(offsetof(CAMERA, ctrlList) == 0x174, "CAMERA.ctrlList");
+static_assert(offsetof(CAMERA, eyeKind) == 0x17b, "CAMERA.eyeKind");
+static_assert(offsetof(CAMERA, trgKind) == 0x17d, "CAMERA.trgKind");
+static_assert(offsetof(CAMERA, b17c) == 0x17c, "CAMERA.b17c");
+static_assert(offsetof(CAMERA, changeMode) == 0x17e, "CAMERA.changeMode");
+static_assert(offsetof(CAMERA, dofLevel) == 0x180, "CAMERA.dofLevel");
+static_assert(offsetof(CAMERA, b182) == 0x182, "CAMERA.b182");
 static_assert(offsetof(CAMERA, cut) == 0x178, "CAMERA.cut");
 static_assert(sizeof(CAMERA) == 0x1c0, "CAMERA");
 static_assert(offsetof(CAMERA, focus) == 0x0f0, "CAMERA.focus");
@@ -332,7 +373,9 @@ typedef struct ALL_TABLE {
     u_int behavior;                     /* 0xbc: scene_init -> pBehaviorHeader[bank]; the relocator reads
                                            words to 0xe8: the table's end is not known */
     u_int ctrl;                         /* 0xc0: OBJ_CTRL_TABLE: the scene's controlled parts
-                                           (asSeekBarInitializeForX takes the CTRL_KIND_SEEKBAR ones) */
+                                           (asSeekBarInitializeForX takes the CTRL_KIND_SEEKBAR ones);
+                                           also its cameras: +0 the CAM_CUT records, +4 the CAM_TRG
+                                           records, +0xc (u_char) the cut count (CamChangeSub) */
     u_int padc4[2];
     u_int mirror;                       /* 0xcc: MIRROR_LIST (asEnumMirror), 0 = no mirror */
     u_int padd0[2];
