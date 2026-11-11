@@ -1248,6 +1248,15 @@ apply here):
 
 ## Open questions
 
+- (2026-11-11, game/tiXcmd_TransItem.c slice 4) **KeyItemData in the save image?** KeyItemData (data
+  0x0192f170, 100 x 0x18 = 0x960, right after ItemData) is now defined in src/lib/unassigned_data.cpp from
+  the ELF. Character_Init.h's save struct has `aiData[0x960]` at 0xd590, right after itemData and "not
+  written here": the same size as KeyItemData, so it is probably KeyItemData that data_save_set /
+  data_load_set skip or copy elsewhere. Read the save path's disassembly before the save TU is done.
+  Item-row fields keep their offsets (ITEM_FIELD_04..10) until a reader of the rows names them; table 2
+  (between key items and arrows) does nothing in Set/GetItemData. XCMD_SCOPE_LITERAL (2) and COMPARE_*
+  were named from CompareVariable alone.
+
 - (2026-11-11, game/tiXcmd_TransItem.c slice 3) **Named from one use:** KEY_FRAME_* (tiXcmd_KeyNumToFrame's
   button picture frames, by the libpad bit each matches; anything else answers 0, circle's frame);
   KEY_MAP_CONFIG_FIRST..LAST (16..34: SetKeyToKeyMap's swap loop, which includes 34 = KEY_MAP_STICK_DEAD as

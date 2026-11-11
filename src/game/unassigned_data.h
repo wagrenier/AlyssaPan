@@ -164,6 +164,7 @@ extern int VibTimeTicks;                        /* sbss 0x0193f76c */
 // ---- items (tiItemInit) ------------------------------------------------------------------------------
 extern int ItemList[12];                        /* sbss 0x0193f9a0 */
 extern u_char ItemData[100][0x18];              /* data 0x0192e810: the item table (byte +1 = held) */
+extern u_char KeyItemData[100][0x18];           /* data 0x0192f170: the key-item table, ItemData's shape */
 extern int KeyItemList[24];                     /* sbss 0x0193f940 */
 extern int LetterList[5][10];                   /* sbss 0x0193f870 */
 extern int ArrowData[3];                        /* sbss 0x0193f858 */

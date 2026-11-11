@@ -70,6 +70,31 @@ enum {
 #define ITEM_LIST_LAST_A 1              /* GetItemListLastIndex's argv[2]: both run the same loop */
 #define ITEM_LIST_LAST_B 0
 
+// tiXcmd_SetItemData / tiXcmd_GetItemData: argv[5] picks the table, argv[4] the field of its 0x18-byte
+// row (ItemData / KeyItemData; the fields' meanings are not read yet, so they keep their offsets).
+enum {
+    ITEM_TABLE_ITEMS = 0,               /* ItemData */
+    ITEM_TABLE_KEY_ITEMS = 1,           /* KeyItemData */
+    ITEM_TABLE_ARROWS = 3,              /* ArrowData (GetItemData, field ITEM_FIELD_HELD only) */
+};
+enum {
+    ITEM_FIELD_KIND = 0,                /* byte +0 */
+    ITEM_FIELD_HELD = 1,                /* byte +1 (held count) */
+    ITEM_FIELD_04 = 2,                  /* int +4 (SetItemData stores the value & 0xff) */
+    ITEM_FIELD_08 = 3,                  /* int +8 */
+    ITEM_FIELD_0C = 4,                  /* int +0xc */
+    ITEM_FIELD_10 = 5,                  /* int +0x10 */
+};
+
+// tiXcmd_CompareVariable: an operand whose global argument is XCMD_SCOPE_LITERAL is the number itself
+// (tkXcmd_GetValueType answers 2 for the same); the answer goes to a variable as COMPARE_*.
+#define XCMD_SCOPE_LITERAL 2
+enum {
+    COMPARE_EQUAL = 0,
+    COMPARE_GREATER = 1,                /* the first operand is the greater */
+    COMPARE_LESS = 2,
+};
+
 // The x commands (ssXcmd_functions slots, ssTrigExecuteActCmd's command 0x514): declared with the
 // table's SS_XCMD shape (xcmd_tn.h) until this TU's session reads each one (2026-11-11).
 int tkXcmd_CharSceneChange(int argc, char **argv, int bank);                             // CT3 0x018e8d20

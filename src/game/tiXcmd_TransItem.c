@@ -606,6 +606,7 @@ static int TiAnimFloat(float *v, const char *op, float step, float target)
 
 // CT3 0x018e4a20: character argv[0]'s translucence alpha, argv[1] "+" / "-" argv[2] a frame toward
 // argv[3]; the command waits until it gets there.
+// callcheck: strcmp (in TiAnimFloat, which the ROM has inline)
 int tiXcmd_TranslucenceAlphaAnim(int argc, char **argv, int bank)
 {
     CHARACTER *chr = &Character[atoi(argv[0])];
@@ -975,6 +976,199 @@ int tiXcmd_GetItemListLastIndex(int argc, char **argv, int bank)
     return XCMD_DONE;
 }
 
+// The 0x18-byte item row's fields (ITEM_FIELD_*): two bytes, then ints at +4..+0x10. The row is a
+// u_char array here (as the save image copies it), so the ints go through memcpy.
+static u_char *ItemTableRow(int table, int row)
+{
+    if (table == ITEM_TABLE_KEY_ITEMS)
+        return KeyItemData[row];
+    if (table == ITEM_TABLE_ITEMS)
+        return ItemData[row];
+    return NULL;
+}
+
+static int ItemFieldOffset(int field)
+{
+    return 4 * (field - ITEM_FIELD_04 + 1);     /* ITEM_FIELD_04.. -> +4, +8, +0xc, +0x10 */
+}
+
+// CT3 0x018e5a50: row = the variable argv[2] (global argv[3]); field argv[4] of table argv[5] (items or
+// key items) = the variable argv[0] (global argv[1]). The byte fields keep the low byte; field +4 takes
+// the value & 0xff as a whole int. Any other table or field does nothing.
+int tiXcmd_SetItemData(int argc, char **argv, int bank)
+{
+    int row = ssTrigGetVariable(atoi(argv[2]) & 0xffff, atoi(argv[3]), bank);
+    int value = ssTrigGetVariable(atoi(argv[0]) & 0xffff, atoi(argv[1]), bank);
+    int table = atoi(argv[5]);
+    int field = atoi(argv[4]);
+    u_char *rec = ItemTableRow(table, row);
+    int v;
+
+    (void)argc;
+    if (rec == NULL)
+        return XCMD_DONE;
+    switch (field) {
+    case ITEM_FIELD_KIND:
+    case ITEM_FIELD_HELD:
+        rec[field] = (u_char)value;
+        break;
+    case ITEM_FIELD_04:
+        v = value & 0xff;
+        memcpy(rec + ItemFieldOffset(field), &v, sizeof(v));
+        break;
+    case ITEM_FIELD_08:
+    case ITEM_FIELD_0C:
+    case ITEM_FIELD_10:
+        memcpy(rec + ItemFieldOffset(field), &value, sizeof(value));
+        break;
+    default:
+        break;
+    }
+    return XCMD_DONE;
+}
+
+// CT3 0x018e5ce0: the variable argv[0] (global argv[1]) = field argv[4] of row (the variable argv[2],
+// global argv[3]) of table argv[5]. The arrows' table answers only ITEM_FIELD_HELD (ArrowData[row]);
+// the byte fields read unsigned. Any other table or field leaves the variable alone.
+int tiXcmd_GetItemData(int argc, char **argv, int bank)
+{
+    int row = ssTrigGetVariable(atoi(argv[2]) & 0xffff, atoi(argv[3]), bank);
+    int table = atoi(argv[5]);
+    int field = atoi(argv[4]);
+    u_char *rec;
+    int value;
+
+    (void)argc;
+    if (table == ITEM_TABLE_ARROWS) {
+        if (field == ITEM_FIELD_HELD)
+            ssTrigSetVariable(atoi(argv[0]) & 0xffff, ArrowData[row], atoi(argv[1]), bank);
+        return XCMD_DONE;
+    }
+    rec = ItemTableRow(table, row);
+    if (rec == NULL)
+        return XCMD_DONE;
+    switch (field) {
+    case ITEM_FIELD_KIND:
+    case ITEM_FIELD_HELD:
+        value = rec[field];
+        break;
+    case ITEM_FIELD_04:
+    case ITEM_FIELD_08:
+    case ITEM_FIELD_0C:
+    case ITEM_FIELD_10:
+        memcpy(&value, rec + ItemFieldOffset(field), sizeof(value));
+        break;
+    default:
+        return XCMD_DONE;
+    }
+    ssTrigSetVariable(atoi(argv[0]) & 0xffff, value, atoi(argv[1]), bank);
+    return XCMD_DONE;
+}
+
+// CT3 0x018e7e20: event argv[0] (global argv[1]) is set when the bank running the script is the
+// current scene, cleared otherwise.
+int tiXcmd_CheckCurrentScene(int argc, char **argv, int bank)
+{
+    (void)argc;
+    if (bank == idCurrentScene)
+        ssTrigRegisterEvent(atoi(argv[0]), atoi(argv[1]), bank);
+    else
+        ssTrigRemoveEvent(atoi(argv[0]), atoi(argv[1]), bank);
+    return XCMD_DONE;
+}
+
+// CT3 0x018e7eb0: compares the variables argv[2] (global argv[3]) and argv[4] (global argv[5]) with
+// the operator argv[6] ("==", "!=", ">", ">=", "<", "<="): event argv[0] (global argv[1]) is set when
+// it holds, cleared when not. Another operator does nothing.
+int tiXcmd_CompareVar2(int argc, char **argv, int bank)
+{
+    int a = ssTrigGetVariable(atoi(argv[2]) & 0xffff, atoi(argv[3]), bank);
+    int b = ssTrigGetVariable(atoi(argv[4]) & 0xffff, atoi(argv[5]), bank);
+    const char *op = argv[6];
+    int holds;
+
+    (void)argc;
+    if (strcmp(op, "==") == 0)
+        holds = a == b;
+    else if (strcmp(op, "!=") == 0)
+        holds = a != b;
+    else if (strcmp(op, ">") == 0)
+        holds = b < a;
+    else if (strcmp(op, ">=") == 0)
+        holds = !(a < b);
+    else if (strcmp(op, "<") == 0)
+        holds = a < b;
+    else if (strcmp(op, "<=") == 0)
+        holds = !(b < a);
+    else
+        return XCMD_DONE;
+    if (holds)
+        ssTrigRegisterEvent(atoi(argv[0]), atoi(argv[1]), bank);
+    else
+        ssTrigRemoveEvent(atoi(argv[0]), atoi(argv[1]), bank);
+    return XCMD_DONE;
+}
+
+// CT3 0x018e8260: the variable argv[0] (global argv[1]) = COMPARE_* of a against b: a is the variable
+// argv[2] (global argv[3]) or, with the global XCMD_SCOPE_LITERAL, the number argv[2]; b likewise from
+// argv[4] / argv[5].
+int tiXcmd_CompareVariable(int argc, char **argv, int bank)
+{
+    int a, b, answer;
+
+    (void)argc;
+    if (atoi(argv[3]) == XCMD_SCOPE_LITERAL)
+        a = atoi(argv[2]);
+    else
+        a = ssTrigGetVariable(atoi(argv[2]) & 0xffff, atoi(argv[3]), bank);
+    if (atoi(argv[5]) == XCMD_SCOPE_LITERAL)
+        b = atoi(argv[4]);
+    else
+        b = ssTrigGetVariable(atoi(argv[4]) & 0xffff, atoi(argv[5]), bank);
+    if (a == b)
+        answer = COMPARE_EQUAL;
+    else if (b < a)
+        answer = COMPARE_GREATER;
+    else
+        answer = COMPARE_LESS;
+    ssTrigSetVariable(atoi(argv[0]) & 0xffff, answer, atoi(argv[1]), bank);
+    return XCMD_DONE;
+}
+
+// CT3 0x018e85b0: the variable argv[0] (global argv[1]) -= the number argv[2].
+int tiXcmd_SubVariable(int argc, char **argv, int bank)
+{
+    int var = atoi(argv[0]) & 0xffff;
+    int global = atoi(argv[1]);
+    int value = ssTrigGetVariable(var, global, bank);
+
+    (void)argc;
+    ssTrigSetVariable(var, value - atoi(argv[2]), global, bank);
+    return XCMD_DONE;
+}
+
+// CT3 0x018e8890: asks for the soft reset (fReset), as the ROM returning 1.
+int tiXcmd_SetReset(int argc, char **argv, int bank)
+{
+    (void)argc;
+    (void)argv;
+    (void)bank;
+    fReset = 1;
+    return XCMD_DONE;
+}
+
+// CT3 0x018e88a0: the variable argv[0] (global argv[1]) = the variable argv[2] (global argv[3]). As
+// the ROM, the source's number is not masked to 16 bits.
+int tiXcmd_CopyVariable(int argc, char **argv, int bank)
+{
+    int var = atoi(argv[0]) & 0xffff;
+    int value = ssTrigGetVariable(atoi(argv[2]), atoi(argv[3]), bank);
+
+    (void)argc;
+    ssTrigSetVariable(var, value, atoi(argv[1]), bank);
+    return XCMD_DONE;
+}
+
 // CT3 0x018e6f50 / 0x018e6fb0 / 0x018e7010 / 0x018e7070 / 0x018e70d0: the memory-card screens' ids
 // (Character_Init.c's MemorycardUpdate reads them) = the variable argv[0] (global argv[1]).
 int tiXcmd_SetmcAccess_ID(int argc, char **argv, int bank)
@@ -1073,13 +1267,6 @@ int tiXcmd_Balows2th(int argc, char **argv, int bank)
     return {};
 }
 
-// stub of CT3 0x018e7e20
-int tiXcmd_CheckCurrentScene(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_CheckCurrentScene", 0x018e7e20);
-    return {};
-}
-
 // stub of CT3 0x018e71f0
 int tiXcmd_CheckMCFile(int argc, char **argv, int bank)
 {
@@ -1087,31 +1274,10 @@ int tiXcmd_CheckMCFile(int argc, char **argv, int bank)
     return {};
 }
 
-// stub of CT3 0x018e7eb0
-int tiXcmd_CompareVar2(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_CompareVar2", 0x018e7eb0);
-    return {};
-}
-
-// stub of CT3 0x018e8260
-int tiXcmd_CompareVariable(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_CompareVariable", 0x018e8260);
-    return {};
-}
-
 // stub of CT3 0x018e83d0
 int tiXcmd_CopySunPs2Object(int argc, char **argv, int bank)
 {
     ALYSSAPAN_STUB("tiXcmd_CopySunPs2Object", 0x018e83d0);
-    return {};
-}
-
-// stub of CT3 0x018e88a0
-int tiXcmd_CopyVariable(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_CopyVariable", 0x018e88a0);
     return {};
 }
 
@@ -1147,13 +1313,6 @@ int tiXcmd_GetIDfromList(int argc, char **argv, int bank)
 int tiXcmd_GetItem(int argc, char **argv, int bank)
 {
     ALYSSAPAN_STUB("tiXcmd_GetItem", 0x018e6bf0);
-    return {};
-}
-
-// stub of CT3 0x018e5ce0
-int tiXcmd_GetItemData(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_GetItemData", 0x018e5ce0);
     return {};
 }
 
@@ -1199,24 +1358,10 @@ int tiXcmd_SetGhostPole(int argc, char **argv, int bank)
     return {};
 }
 
-// stub of CT3 0x018e5a50
-int tiXcmd_SetItemData(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_SetItemData", 0x018e5a50);
-    return {};
-}
-
 // stub of CT3 0x018e7d10
 int tiXcmd_SetPlayerChara(int argc, char **argv, int bank)
 {
     ALYSSAPAN_STUB("tiXcmd_SetPlayerChara", 0x018e7d10);
-    return {};
-}
-
-// stub of CT3 0x018e8890
-int tiXcmd_SetReset(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_SetReset", 0x018e8890);
     return {};
 }
 
@@ -1231,13 +1376,6 @@ int tiXcmd_SetRotation(int argc, char **argv, int bank)
 int tiXcmd_SetScale(int argc, char **argv, int bank)
 {
     ALYSSAPAN_STUB("tiXcmd_SetScale", 0x018e8930);
-    return {};
-}
-
-// stub of CT3 0x018e85b0
-int tiXcmd_SubVariable(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_SubVariable", 0x018e85b0);
     return {};
 }
 

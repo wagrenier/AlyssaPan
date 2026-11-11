@@ -1115,7 +1115,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 81..81, 18 functions keyed by their statics, 13 unkeyed; file name from the names"
   },
   "game/tiXcmd_TransItem.c": {
-   "notes": "Slice 3. Written: KeyNumToFrame, SetKeyToKeyMap, GetAlyssaLife, CheckLife, SetStatusBar, MoveItem, GetItemListLastIndex, SetmcAccess/Err/File/Slot/Main_ID, StereoCheckFlg, StereoON_OFF (Free3..5 and LightBeltStart were already written). New names: KEY_FRAME_*, KEY_MAP_CONFIG_FIRST/LAST, KEY_MAP_LINKED_FIRST, STATUS_BAR_FROM_NOW, ITEM_LIST_SLOTS (open-items.md Open questions). Left: Balows2th and the boss commands storing pointers in pBossInfo (wait for the boss TU host form), vibration, variables, scene checks, MC file checks, wideXcmd and tkXcmd (about 30). Screen unchanged: frame 120 ATLD memory-card text at 4:3 as the reference, last.png flat grey; the script now waits at tiFade_Start and hhXcmd_LoadSE (stubs) -- the next blocker for the picture.",
+   "notes": "Slice 4. Written: SetItemData, GetItemData (KeyItemData now defined from the ELF at 0x0192f170; ITEM_TABLE_*, ITEM_FIELD_*), CheckCurrentScene, CompareVar2, CompareVariable (XCMD_SCOPE_LITERAL, COMPARE_*), SubVariable, CopyVariable, SetReset; TranslucenceAlphaAnim got its callcheck note. Left: GetBloodAttackObject, Balows2th, SCISSORS_MAN and the BOSS commands (they store EE pointers into pBossInfo: wait for the boss TU host form), wideXcmd_Delay (ActWork, ssTrigWaitByAnimFrame), vibration, ghost pole, MC file checks, SetScale/Rotation, the other wideXcmd and tkXcmd. Open question: save image aiData may be KeyItemData (open-items.md). Screen unchanged: frame 120 memory-card text as the reference, then black and flat grey; the script waits at tiFade_Start and hhXcmd_LoadSE (stubs), the next blocker for the picture.",
    "ranges": [
     [
      "018e0e80",
@@ -1137,6 +1137,11 @@
      "date": "2026-11-11 10:30",
      "status": "partial",
      "summary": "reconstruct 14 functions: key-config frame and assignment, Alyssa life and status bar, item slot swap and last index, memory-card screen ids, stereo slots"
+    },
+    {
+     "date": "2026-11-11 10:53",
+     "status": "partial",
+     "summary": "reconstruct 8 functions: item and key-item table fields, variable compare, copy and subtract, current-scene check, soft reset"
     }
    ],
    "status": "partial",
