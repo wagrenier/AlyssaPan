@@ -24,6 +24,7 @@
 #include "game/ahRelocateSunPs2ObjectArry.h"
 #include "game/sound.h"
 #include "game/ssSetTexUVforCubeMap.h"
+#include "game/fileio.h"
 #include "game/unassigned_data.h"
 #include "game/LinkMatrixTree.h"
 #include "game/main.h"
@@ -1327,7 +1328,8 @@ static int HitObjectId(u_int ee, int idOff)
         return -1;
     }
     for (bank = 0; bank < BANK_MAX; bank++) {
-        if (BankImage[bank] != NULL && BankImageEE[bank] != 0 && BankImageEE[bank] <= ee &&
+        if (BankImage[bank] != NULL && BankInfo[bank].state != BANK_STATE_FREE && BankImageEE[bank] != 0 &&
+            BankImageEE[bank] <= ee &&
             (best < 0 || BankImageEE[bank] > BankImageEE[best])) {
             best = bank;
         }

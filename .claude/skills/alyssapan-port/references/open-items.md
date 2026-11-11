@@ -1451,6 +1451,19 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    during the attract cycle is unseen (kg2 stays open); (kl2) the script's start test (which event or pad
    word it reads) was not read: pad_button_read.c's session sees it when START does or does not end the
    scene.
+   **The title draws (2026-11-11 18:55, the user's live session).** The grey was the title itself drawn
+   untextured: two of ATLD's texture packets were empty because SunTexEePtr resolved their records (EE
+   0x412b00.., past 0x410000) into free slot bank 6 -- the GLBL heap (EE 0x400000, 3 MB) and the scene
+   slots (0x410000 on) share EE addresses in the ROM, and a free slot always has its host image. The three
+   EE resolvers (SunTexEePtr, BankOfEeAddr, ssGrpPortalCheck.c HitObjectId) now skip BANK_STATE_FREE banks.
+   A 40 s run shows the clock logo, CLOCK TOWER 3, NEW / LOAD / OPTIONS with the cursor and the copyright
+   lines, at 4:3 and 16:9 (the 3 and the menu come late in the intro animation: let runs go 40 s or more).
+   Also: ssXcmd_SetAllControlDisable (game/wideXcmd_TriggerInit.c) was the stub the script waited on after
+   START; with it, START on NEW reaches tnXcmd_LoadWait E_00 (Alyssa's bank, the first scene). Open: (ko2)
+   at wide aspects the backdrop panels end short of the window edges with visible seams (the user's
+   decision on backdrops is YamiPan's; CT3's is to make); (kp2) ExportDrawToTex binds the screen copy,
+   which has no host picture, so the objects after it draw untextured until rendering/ga_copy.cpp (kk);
+   (kq2) the next title-path blocker is the E_00 load after NEW.
    **For 3D after it** (not queued yet): a ga pass of its own with depth and fog, widened from
    DisplayGeometry (UiCanvas has neither and squeezes), gaObjectClippingCheck and ga/gaDrawObject.c (the
    clipped path most scene objects take), light1 / light2 lighting and billboards (item 4 (e) (f) (g)),

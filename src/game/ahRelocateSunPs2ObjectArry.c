@@ -3899,7 +3899,8 @@ static int BankOfEeAddr(u_int ee)
 {
     int bank, best = -1;
     for (bank = 0; bank < BANK_MAX; bank++) {
-        if (BankImage[bank] != NULL && BankImageEE[bank] <= ee && (best < 0 || BankImageEE[bank] > BankImageEE[best]))
+        if (BankImage[bank] != NULL && BankInfo[bank].state != BANK_STATE_FREE && BankImageEE[bank] <= ee &&
+            (best < 0 || BankImageEE[bank] > BankImageEE[best]))
             best = bank;
     }
     return best;

@@ -1361,12 +1361,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 141..141, 28 functions keyed by their statics, 80 unkeyed; file name from the names"
   },
   "game/wideXcmd_TriggerInit.c": {
+   "notes": "Title draws at 4:3 and 16:9 after 40 s (logo, 3, menu, copyright). Fix in SunTexEePtr, BankOfEeAddr, HitObjectId: free slot banks shared EE addresses with the GLBL heap. Next on the title path: E_00 load after NEW (tnXcmd_LoadWait), the wide-aspect backdrop seams, ExportDrawToTex unbinding (open-items 8 ko2..kq2). The rest of this TU are stubs.",
    "ranges": [
     [
      "018dd550",
      "018e0e80"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-11 18:57",
+     "status": "partial",
+     "summary": "ssXcmd_SetAllControlDisable (the title script waited on its stub after START); EE resolvers skip free banks so ATLD's textures bind: the title screen draws"
+    }
+   ],
+   "status": "partial",
    "why": "tumap.py (bootstrap 5): symtab local chunks 136..136, 7 functions keyed by their statics, 36 unkeyed; file name from the names"
   },
   "game/xcmd_tn.c": {

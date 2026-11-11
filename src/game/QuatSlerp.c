@@ -2191,7 +2191,9 @@ static const SUN_TEX_ATTR tex_attr_A_2750 = {512, 448, 9, 9, SCE_GS_PSMCT32, 0, 
 // PORT: an EE word of a texture record (TEX_INFO.tim, SUN_TEX_ATTR.clutData) as a host pointer. The ROM
 // reads it directly; the host finds the bank whose relocated EE range holds it (as
 // ahRelocateSunPs2ObjectArry.c's BankOfEeAddr), or the one game-data record a caller passes
-// (tex_attr_A$2750). NULL when neither holds it.
+// (tex_attr_A$2750). NULL when neither holds it. Free banks are skipped: the GLBL heap (EE 0x400000, 3 MB)
+// and the scene slots (from 0x410000) share EE addresses, and a free slot always has its image, so a global
+// bank's records past 0x410000 (ATLD's) resolved into empty slot 6 and the title drew untextured (2026-11-11).
 static const void *SunTexEePtr(u_int ee)
 {
     int bank, best = -1;
@@ -2201,7 +2203,8 @@ static const void *SunTexEePtr(u_int ee)
     if (ee == TEX_ATTR_A_2750_EE)
         return &tex_attr_A_2750;
     for (bank = 0; bank < BANK_MAX; bank++) {
-        if (BankImage[bank] != NULL && BankImageEE[bank] <= ee && (best < 0 || BankImageEE[bank] > BankImageEE[best]))
+        if (BankImage[bank] != NULL && BankInfo[bank].state != BANK_STATE_FREE && BankImageEE[bank] <= ee &&
+            (best < 0 || BankImageEE[bank] > BankImageEE[best]))
             best = bank;
     }
     return best < 0 ? NULL : BankEePtr(best, ee);

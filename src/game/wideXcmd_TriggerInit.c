@@ -1,8 +1,83 @@
 // game/wideXcmd_TriggerInit.c -- Clock Tower 3 module (file from the inference in alyssapan_functions.txt).
-// Functions below are stubs until reconstructed; see tools/reverse/stage.py.
+// ssXcmd_SetAllControlDisable is reconstructed (2026-11-11); the rest are stubs until reconstructed.
 
 #include "common/alyssapan_stub.h"
 #include "game/wideXcmd_TriggerInit.h"
+#include "game/Character_Init.h"
+#include "game/QuatSlerp.h"
+#include "game/asMothPause.h"
+#include "game/sound.h"
+#include "game/ssGrpPortalCheck.h"
+#include "game/unassigned_data.h"
+#include "game/wideXcmd_DebugPrint.h"
+#include "game/xcmd_tn.h"
+
+#include <stdlib.h>
+
+// ---- x commands (2026-11-11) ----
+
+// ControlDisableflag: ssXcmd_SetAllControlDisable's state.
+#define CONTROL_DISABLE_OFF 0           /* controls as they were */
+#define CONTROL_DISABLE_ON 1            /* everything stopped; the command waits for the hold event */
+#define CONTROL_DISABLE_PARTIAL 2       /* bank script: stalkers and moths running again, the hold continues */
+#define SET_ALL_CONTROL_ARGC_MOTION 2   /* "0 <motion>": Alyssa takes that motion when the hold ends */
+
+// CT3 0x018de9d0: "SetAllControlDisable <on> [motion]". on != 0: the stalkers' AI, the menu and the
+// player's keys back on (each unless its panic-keep event is set), TRIG_EVENT_MC_RELOADED removed unless
+// TRIG_EVENT_PANIC_NO_RELOAD, the moths resumed: done. on == 0: the first run stops them all (registering
+// TRIG_EVENT_MC_RELOADED instead) and waits; the next runs wait while the hold event 0x49 is set -- a bank's
+// script (bank != 0) then lets the stalkers and moths run again once (CONTROL_DISABLE_PARTIAL); the global
+// script's run ends at once -- and when the event clears the command ends, starting Alyssa's motion argv[1]
+// when given. The player's keys and the menu stay off after the hold until the "1" form.
+// The title script's first command after START (2026-11-11 probe): as a stub it answered XCMD_WAIT for good.
+int ssXcmd_SetAllControlDisable(int argc, char **argv, int bank)
+{
+    if (atoi(argv[0]) != 0) {
+        if (ssTrigCheckEvent(TRIG_EVENT_PANIC_KEEP_MONSTERS, 1, -1) == 0)
+            MonsterAIUpdate(0);
+        if (ssTrigCheckEvent(TRIG_EVENT_PANIC_KEEP_MENU, 1, -1) == 0)
+            ssMenuUpdate(0);
+        if (ssTrigCheckEvent(TRIG_EVENT_PANIC_KEEP_PLAYER, 1, -1) == 0)
+            PlayerControlUpdate(0);
+        if (ssTrigCheckEvent(TRIG_EVENT_PANIC_NO_RELOAD, 1, -1) == 0)
+            ssTrigRemoveEvent(TRIG_EVENT_MC_RELOADED, 1, -1);
+        asMothPause(0);
+        return XCMD_DONE;
+    }
+
+    if (ControlDisableflag == CONTROL_DISABLE_OFF) {
+        if (ssTrigCheckEvent(TRIG_EVENT_PANIC_KEEP_MONSTERS, 1, -1) == 0)
+            MonsterAIUpdate(1);
+        if (ssTrigCheckEvent(TRIG_EVENT_PANIC_KEEP_MENU, 1, -1) == 0)
+            ssMenuUpdate(1);
+        if (ssTrigCheckEvent(TRIG_EVENT_PANIC_KEEP_PLAYER, 1, -1) == 0)
+            PlayerControlUpdate(1);
+        if (ssTrigCheckEvent(TRIG_EVENT_PANIC_NO_RELOAD, 1, -1) == 0)
+            ssTrigRegisterEvent(TRIG_EVENT_MC_RELOADED, 1, -1);
+        asMothPause(1);
+    }
+    if (ControlDisableflag == CONTROL_DISABLE_OFF) {
+        ControlDisableflag = CONTROL_DISABLE_ON;
+        return XCMD_WAIT;
+    }
+    if (ssTrigCheckEvent(TRIG_EVENT_BOSS_ALYS_DEAD, 1, 0) == 0) {
+        ControlDisableflag = CONTROL_DISABLE_OFF;
+        if (argc == SET_ALL_CONTROL_ARGC_MOTION)
+            asCharacterMortionChangeRequest(0, 0, atoi(argv[1]));
+        return XCMD_DONE;
+    }
+    if (bank == 0)
+        return XCMD_DONE;
+    if (ControlDisableflag == CONTROL_DISABLE_ON) {
+        if (ssTrigCheckEvent(TRIG_EVENT_PANIC_KEEP_MONSTERS, 1, -1) == 0)
+            MonsterAIUpdate(0);
+        if (ssTrigCheckEvent(TRIG_EVENT_PANIC_NO_RELOAD, 1, -1) == 0)
+            ssTrigRemoveEvent(TRIG_EVENT_MC_RELOADED, 1, -1);
+        asMothPause(0);
+        ControlDisableflag = CONTROL_DISABLE_PARTIAL;
+    }
+    return XCMD_WAIT;
+}
 
 // ---- stubs (tools/reverse/stubgen.py) ----
 
@@ -163,13 +238,6 @@ int ssXcmd_ScnAtkRequest(int argc, char **argv, int bank)
 int ssXcmd_SetAdvantageousTime(int argc, char **argv, int bank)
 {
     ALYSSAPAN_STUB("ssXcmd_SetAdvantageousTime", 0x018de4a0);
-    return {};
-}
-
-// stub of CT3 0x018de9d0
-int ssXcmd_SetAllControlDisable(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("ssXcmd_SetAllControlDisable", 0x018de9d0);
     return {};
 }
 
