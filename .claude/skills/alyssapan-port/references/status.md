@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-10 19:50 at commit `9785850` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-10 20:12 at commit `a43807a` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -90,9 +90,9 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 41, partial 1, verify 23, done 3
-- next: **game/wideXcmd_DebugPrint.c** (pinned in the queue)
-- pinned queue: game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/asEyeForcusUP2CamMat.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c, game/ssGrpPortalCheck.c
+- 65 TUs: todo 42, partial 1, verify 23, done 4
+- next: **alyssapan/rendering/ui_canvas.cpp** (pinned in the queue)
+- pinned queue: alyssapan/rendering/ui_canvas.cpp, game/ssGrpPortalCheck.c, game/asEyeForcusUP2CamMat.c, ga/gaBGT_DrawObject.c, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
 - partial: `game/wideXcmd_DebugPrint.c` 107/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed) -- the last function of the TU. New stubs
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaDmaSync_VIF1.c` 5/5 -- Host: kicks leave CHCR.STR clear (the transfer is over), so the syncs return at once; the BGT send keeps the copy and the flip, the packet goes nowhere (draw mo
@@ -120,6 +120,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-10 20:12 `alyssapan/iop/fsys_server.cpp` done: Host FSYS_IOP file server (iop::FsysServer) on io::Disc, registered when FSYS_IOP.IRX loads: SUNA answers a loose file's size and first sector
 - 2026-11-10 19:50 `game/wideXcmd_DebugPrint.c` partial: slice 9: the ground key-table entries -- standing, walking, running and the run stop (iRunCount), the move end, crouching and crawling (KEY_MAP_HIDE is the crou
 - 2026-11-10 19:35 `game/wideXcmd_DebugPrint.c` partial: slice 8: the cat walk (fall, hidden feet part, death drop), the lever-mash locks (asPIA1_KEY_TBL_LOCK), panic run / stand (confirms the panic event answers), hi
 - 2026-11-10 19:18 `game/wideXcmd_DebugPrint.c` partial: slice 7: the pad move (asCharacterMoveByPad: tank and camera-relative steering, the turn-around flag PIA_KEY.h0c; asCharacterMoveByPadUD), the panic events (asP
@@ -127,7 +128,6 @@ Recent sessions:
 - 2026-11-10 18:34 `game/wideXcmd_DebugPrint.c` partial: slice 5: asCheckCharacterHited (the boss battle invulnerability vsBossMuteki / AfterPanicStartMuteki, the stage bosses scripted strikes, then Alyssa's hit table
 - 2026-11-10 18:13 `game/wideXcmd_DebugPrint.c` partial: slice 4: asCharacterAnimationExecute (the per-frame motion play, what follows a motion's end, root motion), asChangeAlyssaMortionByDamaging, asPIA1_KEY_TBL_HAIH
 - 2026-11-10 17:56 `game/wideXcmd_DebugPrint.c` partial: slice 3: asRequestExecute (the motion queue consumer, body and blend slots), asResetCharacterPosition, asCharacterForceMoveOperate, asCatWalkEventOperation (4 f
-- 2026-11-10 17:38 `game/wideXcmd_DebugPrint.c` partial: slice 2: positioning (asCharacterPositioning, as1CharacterPositioning, OnlyDeltaPos, the pause review, asResetCharacterRotation), the panic / barrier / lock sta
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|

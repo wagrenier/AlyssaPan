@@ -7,7 +7,7 @@
 // sceSifCallRpc returns (so its end function runs at once). The other modules only "load", and a call
 // to a server nobody registered answers at once with an empty reply. CT3 loads SNDDRV.IRX (its own
 // driver), SCE's MODHSYN / MODMIDI / MODMSIN and SDRDRV: none is reconstructed yet (architecture.md
-// "The IOP side").
+// "The IOP side"). FSYS_IOP.IRX, the file server, is host code (alyssapan/iop/fsys_server.h).
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -28,6 +28,7 @@
 #include <cstring>
 
 #include "alyssapan/core/logger.h"
+#include "alyssapan/iop/fsys_server.h"
 #include "alyssapan/iop/kernel.h"
 
 namespace
@@ -41,15 +42,19 @@ bool namesModule(std::string_view path, std::string_view file)
            }) != path.end();
 }
 
-// The IOP modules whose code runs here: a module's file and its start(). Empty until one is reconstructed
-// under src/iop/ (YamiPan's src/iop/rxsnddrv/ is the precedent: IOP code on iop::Kernel, its RPC server
-// registered through sceSifRegisterRpc, functions annotated `IOP 0x...`).
+// The IOP modules whose code runs here: a module's file and its start(). A module reconstructed under
+// src/iop/ (YamiPan's src/iop/rxsnddrv/ is the precedent: IOP code on iop::Kernel, its RPC server
+// registered through sceSifRegisterRpc, functions annotated `IOP 0x...`), or a host server standing in
+// for one whose code is not in the ELF.
 struct IopModule
 {
     std::string_view file;
     int (*start)();                     // the module's start, as Kernel::runModuleStart takes it
 };
-constexpr std::array<IopModule, 0> kIopModules{};
+constexpr std::array<IopModule, 1> kIopModules{{
+    // FSYS_IOP.IRX, the file server: host code (alyssapan/iop/fsys_server.h), not a reconstruction.
+    {alyssapan::iop::FsysServer::kModuleFile, &alyssapan::iop::FsysServer::start},
+}};
 
 } // namespace
 

@@ -962,6 +962,18 @@ apply here):
 
 ## Open questions
 
+- (2026-11-10, host task `alyssapan/iop/fsys_server.cpp`) **The queue's premise "no bank loads" was
+  stale**: banks never go through the file server (every `*.BIN` is in CT3PACK.DAT, found by FlFindPacked
+  and read with sceCdRead), and a probe showed INFO, E_GL, 0MH0 and ATLD loaded and set up at boot, with
+  TrgGLBLSceneDraw past BankReady (camera_init0 reached) -- before this task too. The server is written
+  anyway (the movies are loose files) and answers sizes and sectors from io::Disc. The black screenshot
+  is the draw path's, not the loader's: the next pinned task (`alyssapan/rendering/ui_canvas.cpp`) is the
+  real way to the first picture. Two small doubts: (a) FSYS_IOP's answer for a name not on the disc is
+  unread (the host answers -1 / -1; FlProc stores both as the file's size and base sector) -- read
+  `IOP\FSYS_IOP.IRX` if a missing loose file ever matters; (b) main2.c's comment above BankReady still
+  says FSMltLoad is a stub: the guard stays useful, the comment wants refreshing when main2.c is next
+  touched.
+
 - (2026-11-09) What lies below 0x01810000 at run time? The ELF is linked high in the 32 MB and keeps
   `.relmain` relocations; the port does not load the ELF, so this only matters if code addresses memory
   under its own image (a buffer, a second program). Look in `main` / `system_init`.

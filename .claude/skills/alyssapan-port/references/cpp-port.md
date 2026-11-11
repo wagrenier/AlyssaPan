@@ -56,7 +56,8 @@ src/alyssapan/
   core/    Application, Logger (log::), Paths, Config / IniFile, Window, EventQueue, crash report
   os/      Thread, TimedWaiter
   ee/      Kernel (one EE thread runs at a time, by priority), Thread / Semaphore, InterruptController
-  iop/     Kernel (one big lock), SystemMemory (2 MB below 4 GB), RpcServers, Spu2 (+ Spu2Voices)
+  iop/     Kernel (one big lock), SystemMemory (2 MB below 4 GB), RpcServers, Spu2 (+ Spu2Voices),
+           FsysServer (FSYS_IOP.IRX on io::Disc: a loose file's size and sector; CT3's own, 2026-11-10)
   audio/   AudioOutput (one SDL stream, s16 stereo 48 kHz)
   gpu/     handles, Device       RAII over SDL_GPU, shader loading
   rendering/

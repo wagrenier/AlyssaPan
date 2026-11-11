@@ -708,6 +708,19 @@ stack; `SDRDRV` serves the EE's sdremote client; `SNDDRV.IRX` (151 KB) is presum
 driver and `FSYS_IOP.IRX` its file server. None is read yet. No sibling met modhsyn (MioPan, ReiPan,
 RosePan, YamiPan all ran a game's own driver over libsd).
 
+**The file server, FSYS_IOP.IRX (2026-11-10, host task `alyssapan/iop/fsys_server.cpp`).** The EE binds
+three services ('SUN@' / 'SUNA' / 'SUNB', game/IOPGetFileSize.c) and calls only 'SUNA': FlProc sends a
+0x40-byte name (`\DIR\NAME;1`, upper case, built by FlReqOpen) and reads back {size, first sector} (0x10
+bytes), then reads the sectors itself with sceCdRead. **It serves loose files only** -- a name found in
+CT3PACK.DAT's directory (FlFindPacked) never reaches the IOP, and every bank (`*.BIN`), `.INF`, `.ICO`,
+`.SDT` / `.BD` is in the pack (980 rows); the loose files are the movies (`DATA\MOVIE1..3\*.MOV`) and the
+boot files. The host server (`iop::FsysServer`) answers from `io::Disc::find`, registered when
+sceSifLoadModule loads `FSYS_IOP.IRX` (sdk/sif.cpp `kIopModules`); probed 2026-11-10:
+`\DATA\MOVIE2\M_CAPCOM.MOV;1` -> 6,569,988 bytes (the file's size) at sector 1,635,587. A name not on the
+disc answers -1 / -1: the module's own answer is unread (open-items.md). **The banks load without it**:
+INFO, E_GL, 0MH0 and ATLD pass every FSMltLoadProc phase to the set-up step at boot (probed 2026-11-10),
+and TrgGLBLSceneDraw gets past BankReady (camera_init0 / CamChange_S are reached).
+
 **The memory card (2026-11-09, sdk/libmc.cpp's host task).** CT3 links libmc's EE side at
 0x01826d38..0x01828530. Its `sceMcInit` binds `MCSERV` and refuses an IOP side older than mcserv 0x20a /
 mcman 0x20e (returns -120 / -121, strings 0x01932010 / 0x01932038): the host answers 0. The game calls
