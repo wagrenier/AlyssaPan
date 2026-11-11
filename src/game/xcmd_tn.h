@@ -36,7 +36,23 @@ typedef int (*SS_XCMD)(int argc, char **argv, int bank);
 #define XCMD_END_PANIC_BEAT 2
 #define XCMD_END_PANIC_FORCE_ZERO 3
 #define XCMD_END_PANIC_FORCE_BEAT 4
-extern int load_id;                     /* sbss 0x0194493c: the area tnXcmd_Menu_MapLoad loaded */
+// Slice 3 (2026-11-11): the omni overrides take light slots 1..XCMD_OMNI_SLOTS (the ROM indexes
+// [slot - 1]); a cleared pair is 0xffff (no bank). The screen adjust's offsets are clamped to
+// +-XCMD_SCREEN_ADJUST_MAX; DX moves AA_DISPLAY_DX_STEP units per step from AA_DISPLAY_DX_BASE, DY 1
+// from AA_DISPLAY_DY_BASE (movie.h).
+#define XCMD_OMNI_SLOTS 4
+#define XCMD_OMNI_NONE 0xffff
+#define XCMD_SCREEN_ADJUST_MAX 0x10
+#define XCMD_PUZZLE_ROW_FRAMES 24       /* tnXcmd_1P01_PazzleInit: frames per step of variable 0x12 */
+#define XCMD_PUZZLE_COL_FRAMES 40       /* ... and per step of variable 0x21, / 100 */
+#define TRIG_VAR_PUZZLE_ROW 0x12        /* named from tnXcmd_1P01_PazzleInit only */
+#define TRIG_VAR_PUZZLE_COL 0x21
+#define XCMD_ROODERS_TIME_LIMIT 0x2a30  /* tnXcmd_SetRoodersPts: 10800 s (3 h) of play earn time points */
+#define XCMD_ROODERS_FPS 30             /* progress_time counts frames */
+#define XCMD_ROODERS_ITEM_POINTS 10000
+#define XCMD_ROODERS_TOP_DIGIT 1000000000
+#define ITEM_ROW_HELD 1                 /* ItemData row byte +1: held count */
+extern int load_id;                    /* sbss 0x0194493c: the area tnXcmd_Menu_MapLoad loaded */
 
 int tnXcmd_AutoLoad(int argc, char **argv, int bank);                                   // CT3 0x018eebb0
 int tnXcmd_AutoLoadInit(int argc, char **argv, int bank);                               // CT3 0x018eecd0

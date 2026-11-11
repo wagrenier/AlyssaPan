@@ -1,6 +1,5 @@
 {
  "queue": [
-  "game/tiXcmd_TransItem.c",
   "game/xcmd_tn.c",
   "alyssapan/rendering/ga_atld.cpp",
   "alyssapan/rendering/ui_canvas.cpp",
@@ -1263,7 +1262,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 136..136, 7 functions keyed by their statics, 36 unkeyed; file name from the names"
   },
   "game/xcmd_tn.c": {
-   "notes": "15 commands written. Picture: frame 120 shows ATLD memory-card text at 4:3 as before; black from frame 180 because the script waits on the stub tiXcmd_XFade_Break (answers 0), now queued first. callcheck gaps explained: static helpers XcmdValue / XcmdPanicOff, snprintf for sprintf, the dead WideErrorMsgDebug message. BankFree behaviour case: the ROM passes an unset register as the character, the port uses BankID_TO_CharID. Left: SetRoodersPts, SetAllControlDisableCamera, ScreenAdjust, omni commands, Filter_Change, TimeSet, SetMovieWorkBuff, 1P01_PazzleAnim and 10 beyond.",
+   "notes": "11 commands written (SetRoodersPts, SetAllControlDisableCamera, ScreenAdjust, All and CharOmniEffect, OmniRange, Filter_Change, SetMovieWorkBuff, 1P01_PazzleInit, tnCurrentSceneSet, TexFileSetNext); MODEL_PARTS 0x70..0x7c named (the omni range ease). Picture unchanged: frame 120 the memory-card text at 4:3, then flat grey (the script waits at tiFade_Start and hhXcmd_LoadSE, stubs); none of the new commands is reached. callcheck gaps are static helpers (XcmdIsOn, XcmdControlLock, XcmdValue, XcmdOmniFalloff) and the dropped retail-empty sprintf message. Left: Key_Lock (0x16f0 bytes, its own session), TimeSet, 1P01_PazzleAnim, VariableCal, PlayAnimeToFream, PlayAnimeRange, Character_Ambient_Change, VistaVision, TexFileSetPage. open-items.md (aa)..(ad) list the doubts. tiXcmd_TransItem.c left the pinned queue this run (boss stubs wait for pBossInfo's host form).",
    "ranges": [
     [
      "018ee5f0",
@@ -1280,6 +1279,11 @@
      "date": "2026-11-11 09:33",
      "status": "partial",
      "summary": "slice 2: wideXcmd_PlayAnimeToFream2 (the reached stub), clips, panic, continue, time stop, shape / behaviour / bank free, stay room, message bank, menu map, fog animations"
+    },
+    {
+     "date": "2026-11-11 12:55",
+     "status": "partial",
+     "summary": "slice 3: 11 x commands: the clear's points, control lock, screen adjust, omni lights and range, screen filter, movie buffers, puzzle start, current scene, texture page"
     }
    ],
    "status": "partial",

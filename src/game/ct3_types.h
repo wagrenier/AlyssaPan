@@ -465,8 +465,13 @@ typedef struct MODEL_PARTS {
     u_int flags;                        /* 0x50: PARTS_FLAG_* */
     short warpH54;                      /* 0x54: a warp onto this part (a marker) copies it to
                                            CHARACTER.h100 (ExecuteWarpObject) */
-    u_char pad056[0x6a];
-    float initRot[3][4];                /* 0xc0: rows 0..2 of the part's initial placement, transInit its row 3
+    u_char pad056[0x1a];
+    int omniChanging;                   /* 0x70: a point light's range is easing (OmniRangeChange's
+                                           REC_OMNI_CHANGING: the matrix record is the part + 0x40) */
+    int omniSteps;                      /* 0x74: the steps left (REC_OMNI_STEPS) */
+    float omniRange;                    /* 0x78: the range it eases to (REC_OMNI_RANGE; tnXcmd_OmniRange) */
+    u_char pad07c[0x44];
+    float initRot[3][4];               /* 0xc0: rows 0..2 of the part's initial placement, transInit its row 3
                                            (tiXcmd_SetMapData copies the four rows into placeRot) */
     float transInit[4];                 /* 0xf0: the part's initial translation (asGetObjectTransInitialValue) */
     u_char pad100[0x20];
@@ -485,7 +490,8 @@ typedef struct MODEL_PARTS {
     float scale[4];                     /* 0x300: the part's scale (LinkMatrixTree's REC_SCALE); tiXcmd_SetScale
                                            multiplies x, y, z by a factor, w kept */
     float lightColor[4];              /* 0x310: as a light source (SceneLightSet, CharLightSet) */
-    float lightPos[4];                  /* 0x320: as a light source; w: falloff (1 = Omni0/1_num) */
+    float lightPos[4];                  /* 0x320: as a light source; w: falloff (1 = Omni0/1_num), for a
+                                           point light 1 / its current range (REC_OMNI_INV_RANGE) */
     u_char pad330[0x50];
 } MODEL_PARTS;
 static_assert(offsetof(MODEL_PARTS, alpha) == 0x120, "MODEL_PARTS.alpha");
@@ -495,6 +501,8 @@ static_assert(offsetof(MODEL_PARTS, losAlpha) == 0x124, "MODEL_PARTS.losAlpha");
 static_assert(offsetof(MODEL_PARTS, distAlpha) == 0x128, "MODEL_PARTS.distAlpha");
 static_assert(offsetof(MODEL_PARTS, angleAlpha) == 0x12c, "MODEL_PARTS.angleAlpha");
 static_assert(offsetof(MODEL_PARTS, scale) == 0x300, "MODEL_PARTS.scale");
+static_assert(offsetof(MODEL_PARTS, omniChanging) == 0x70, "MODEL_PARTS.omniChanging");
+static_assert(offsetof(MODEL_PARTS, omniRange) == 0x78, "MODEL_PARTS.omniRange");
 static_assert(offsetof(MODEL_PARTS, pos) == 0x130, "MODEL_PARTS.pos");
 static_assert(offsetof(MODEL_PARTS, lightColor) == 0x310, "MODEL_PARTS.lightColor");
 static_assert(offsetof(MODEL_PARTS, lightPos) == 0x320, "MODEL_PARTS.lightPos");

@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-11 12:31 at commit `433ecbf` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-11 12:56 at commit `77cca5c` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1051**; stubs: **323**
+- reconstructed CT3 functions: **1062**; stubs: **312**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -93,18 +93,18 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/tnXcmd.c` | 0 | 8 |
 | `src/game/wideXcmd_DebugPrint.c` | 107 | 1 |
 | `src/game/wideXcmd_TriggerInit.c` | 0 | 44 |
-| `src/game/xcmd_tn.c` | 39 | 20 |
+| `src/game/xcmd_tn.c` | 50 | 9 |
 | `src/lib/unassigned_stubs.cpp` | 0 | 1 |
 
 ## Translation units (one session each: `tus.py`)
 
 - 65 TUs: todo 35, partial 5, verify 26, done 4, blocked 1
-- next: **game/tiXcmd_TransItem.c** (pinned in the queue)
-- pinned queue: game/tiXcmd_TransItem.c, game/xcmd_tn.c, alyssapan/rendering/ga_atld.cpp, alyssapan/rendering/ui_canvas.cpp, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
+- next: **game/xcmd_tn.c** (pinned in the queue)
+- pinned queue: game/xcmd_tn.c, alyssapan/rendering/ga_atld.cpp, alyssapan/rendering/ui_canvas.cpp, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
 - partial: `alyssapan/rendering/ga_atld.cpp` 0/0 -- Shot still black for a game reason: the light0 colour is vertex colour plus the part's ALL_TABLE.partsPos (the ambient RGB), which only the event command tnXcmd
 - partial: `game/tiXcmd_TransItem.c` 85/93 -- Slice 10. Written: tiXcmd_UseItem (ITEM_USE_* modes from argv[4], ITEM_KIND_* from the row byte +0: give-take, signal, heal Character[0].hp up to hpMax, calm vi
 - partial: `game/wideXcmd_DebugPrint.c` 107/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed) -- the last function of the TU. New stubs
-- partial: `game/xcmd_tn.c` 37/57 -- 15 commands written. Picture: frame 120 shows ATLD memory-card text at 4:3 as before; black from frame 180 because the script waits on the stub tiXcmd_XFade_Bre
+- partial: `game/xcmd_tn.c` 48/57 -- 11 commands written (SetRoodersPts, SetAllControlDisableCamera, ScreenAdjust, All and CharOmniEffect, OmniRange, Filter_Change, SetMovieWorkBuff, 1P01_PazzleIni
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaDmaSync_VIF1.c` 5/5 -- Host: kicks leave CHCR.STR clear (the transfer is over), so the syncs return at once; the BGT send keeps the copy and the flip, the packet goes nowhere (draw mo
@@ -135,6 +135,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-11 12:55 `game/xcmd_tn.c` partial: slice 3: 11 x commands: the clear's points, control lock, screen adjust, omni lights and range, screen filter, movie buffers, puzzle start, current scene, textu
 - 2026-11-11 12:30 `game/tiXcmd_TransItem.c` partial: the item use command (UseItem)
 - 2026-11-11 12:08 `game/tiXcmd_TransItem.c` partial: reconstruct 2 functions: the script delay command and the boss second phase (Balows2th)
 - 2026-11-11 11:47 `game/tiXcmd_TransItem.c` partial: reconstruct 6 functions: part scale and rotation, scene animation skip to a variable, scope letters, caption flag, character room change
@@ -142,7 +143,6 @@ Recent sessions:
 - 2026-11-11 11:24 `game/tiXcmd_TransItem.c` partial: reconstruct 7 functions: vibration start, end and option, wait for a free brain, character HP data, memory-card file digits
 - 2026-11-11 11:10 `game/tiXcmd_TransItem.c` partial: reconstruct 3 functions and annotate 11: item pick-up, list lookup, memory-card flags back to variables; the empty free, light-belt, stereo and memory-card id c
 - 2026-11-11 10:53 `game/tiXcmd_TransItem.c` partial: reconstruct 8 functions: item and key-item table fields, variable compare, copy and subtract, current-scene check, soft reset
-- 2026-11-11 10:30 `game/tiXcmd_TransItem.c` partial: reconstruct 14 functions: key-config frame and assignment, Alyssa life and status bar, item slot swap and last index, memory-card screen ids, stereo slots
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
@@ -151,11 +151,11 @@ Recent sessions:
 | `game/CpDivideEECom.c` | todo | 0/10/18 | 3.3 | 80 | 10 |
 | `ga/gaDrawObject.c` | todo | 0/11/11 | 6.9 | 39 | 0 |
 | `game/tiAvoidObject.c` | todo | 0/7/82 | 30.5 | 27 | 4 |
-| `game/ssHitCheckAttackToScn.c` | todo | 0/6/37 | 32.0 | 23 | 3 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
+| `game/ssHitCheckAttackToScn.c` | todo | 0/6/37 | 32.0 | 23 | 3 |
 | `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
-| `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
 | `game/asUseArrow.c` | todo | 0/7/11 | 6.4 | 17 | 1 |
+| `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
 | `game/tkXDTrg_GetSceneHash.c` | todo | 0/8/50 | 21.0 | 15 | 2 |
 | `game/AA_SoundMonoSoart.c` | todo | 0/8/20 | 4.0 | 13 | 1 |
 
@@ -170,13 +170,13 @@ Recent sessions:
 | `0188cdc0` | tiVibrationOff | 8 | sym | stub | game/Clipping_Portal.c |
 | `0188d3c0` | tiFade_Start | 8 | sym | stub | game/Clipping_Portal.c |
 | `01893cf0` | ExportDrawToTex | 8 | sym | stub | game/Clipping_Portal.c |
+| `01883ca0` | asMothPause | 7 | sym | stub | game/asMothPause.c |
 | `018a3078` | gaObjectClippingCheck | 7 | sym | stub | ga/gaObjectClippingCheck.c |
 | `018a4fe0` | gaDrawObject_VertexLocalViewWithClippingFlagSet | 6 | sym | stub | ga/gaDrawObject.c |
 | `018a51e8` | gaDrawObject_VertexLocalViewWithClippingFlagSet_Billboard | 6 | sym | stub | ga/gaDrawObject.c |
 | `018a5fe0` | gaDrawObject_MakeVertexReferenceTable | 6 | sym | stub | ga/gaDrawObject.c |
 | `018518d0` | ConvertMatrix2Quat | 6 | sym | stub | game/Convert.c |
 | `018d1fa0` | CpSifDmaTransEEToIOP | 6 | sym | stub | game/CpDivideEECom.c |
-| `01883ca0` | asMothPause | 5 | sym | stub | game/asMothPause.c |
 | `01866c10` | asShootArrowSetting | 5 | sym | stub | game/asUseArrow.c |
 | `01896920` | ssGetNumBlurDrawObjForScene | 5 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `018bd830` | AA_clearGsMem | 4 | sym | stub | game/AA_GetDataWord.c |

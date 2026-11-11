@@ -3,8 +3,10 @@
 // bank whose script runs it; ssTrigExecuteActCmd (ssGrpPortalCheck.c) calls them through ssXcmd_functions.
 // Slice 1 (2026-11-11): the ambient colour, the waits, the variables, the room-in icons and the small
 // bank / flag commands. Slice 2 (2026-11-11): clips, panic, continue, time stop, the frees, stay room,
-// the message bank, the menu map, the fog animations, wideXcmd_PlayAnimeToFream2. Left: rooders, camera,
-// screen adjust, omni lights, filter, time set, movie buffers, the puzzle and the other anime commands.
+// the message bank, the menu map, the fog animations, wideXcmd_PlayAnimeToFream2. Slice 3 (2026-11-11):
+// the camera-time control lock, screen adjust, omni lights, the screen filter, movie buffers, the
+// puzzle's start, the current scene, the texture page and the clear's points. Left: key lock, time set,
+// the puzzle's animation and the other anime / variable commands.
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,6 +24,7 @@
 #include "game/asEyeForcusUP2CamMat.h"
 #include "game/asMothPause.h"
 #include "game/wideXcmd_DebugPrint.h"
+#include "game/movie.h"
 #include "ga/gaInit3dlib.h"
 
 // The bank's part i (the ROM: header + i * 0x380, the flags word at +0x50).
@@ -766,40 +769,290 @@ int wideXcmd_PlayAnimeToFream2(int argc, char **argv, int bank)
     return XCMD_DONE;
 }
 
-// ---- stubs (tools/reverse/stubgen.py) ----
+// ---- slice 3 (2026-11-11): control lock, screen adjust, omni lights, filter, movie buffers, puzzle ----
 
-// stub of CT3 0x018f3ba0
+// CT3 0x018ee5f0: the clear's points (the "Rooders" score), digit by digit into local variables argv[0]
+// (units) .. argv[9] (10^9, the quotient, not taken mod 10). Time: 10 points a second under
+// XCMD_ROODERS_TIME_LIMIT seconds of play (progress_time / 30, unsigned), never below 0; plus
+// XCMD_ROODERS_ITEM_POINTS for each of ArrowData[1], ArrowData[2] and the held counts (byte 1) of item rows
+// 1..3 (names from this one use).
+int tnXcmd_SetRoodersPts(int argc, char **argv, int bank)
+{
+    int score, rest, i;
+    int div = XCMD_ROODERS_TOP_DIGIT;
+
+    (void)argc;
+    score = (XCMD_ROODERS_TIME_LIMIT - (int)((u_int)progress_time / XCMD_ROODERS_FPS)) * 10;
+    if (score < 0)
+        score = 0;
+    score += (ArrowData[1] + ArrowData[2] + ItemData[3][ITEM_ROW_HELD] + ItemData[1][ITEM_ROW_HELD]
+              + ItemData[2][ITEM_ROW_HELD]) * XCMD_ROODERS_ITEM_POINTS;
+    // The ROM peels the digits from the top (score % 10^9, % 10^8, ...) and stores them from the units up.
+    int digit[10];
+    rest = score;
+    digit[9] = score / div;
+    for (i = 8; i >= 0; i--) {
+        rest %= div;
+        div /= 10;
+        digit[i] = rest / div;
+    }
+    for (i = 0; i < 10; i++)
+        ssTrigSetVariable(atoi(argv[i]) & 0xffff, digit[i], 0, bank);
+    return XCMD_DONE;
+}
+
+// "ON" / "on": the commands' switch argument.
+static int XcmdIsOn(const char *arg)
+{
+    return strcmp("ON", arg) == 0 || strcmp("on", arg) == 0;
+}
+
+// The lock of tnXcmd_SetAllControlDisableCamera: the menu, the player's keys and (outside panic event
+// 0x257) the stalkers' AI stop (mode 1) or run again (mode 0), each unless its panic "keep" event is set;
+// TRIG_EVENT_MC_RELOADED follows the lock unless TRIG_EVENT_PANIC_NO_RELOAD is set; asMothPause too.
+static void XcmdControlLock(int mode)
+{
+    if (!ssTrigCheckEvent(TRIG_EVENT_PANIC_KEEP_MENU, 1, -1))
+        ssMenuUpdate(mode);
+    if (!ssTrigCheckEvent(TRIG_EVENT_PANIC_KEEP_PLAYER, 1, -1))
+        PlayerControlUpdate(mode);
+    if (ssTrigCheckEvent(TRIG_EVENT_PANIC_ON_257, 1, 0))
+        return;
+    if (!ssTrigCheckEvent(TRIG_EVENT_PANIC_KEEP_MONSTERS, 1, -1))
+        MonsterAIUpdate(mode);
+    if (!ssTrigCheckEvent(TRIG_EVENT_PANIC_NO_RELOAD, 1, -1)) {
+        if (mode)
+            ssTrigRegisterEvent(TRIG_EVENT_MC_RELOADED, 1, -1);
+        else
+            ssTrigRemoveEvent(TRIG_EVENT_MC_RELOADED, 1, -1);
+    }
+    asMothPause(mode);
+}
+
+// CT3 0x018ee9c0: argv[0] 0 locks the controls while the camera plays (XcmdControlLock(1)); anything
+// else releases them. The ROM writes both branches out in full.
+int tnXcmd_SetAllControlDisableCamera(int argc, char **argv, int bank)
+{
+    (void)argc;
+    (void)bank;
+    XcmdControlLock(atoi(argv[0]) == 0 ? 1 : 0);
+    return XCMD_DONE;
+}
+
+// CT3 0x018eedf0: the picture's position on the TV (the options' screen adjust). argv[0] "GET" / "get"
+// reads ga_disp's DISPLAY into variables argv[1] (x) and argv[2] (y); anything else takes them from those
+// variables, clamped to +-XCMD_SCREEN_ADJUST_MAX, puts them into DISPLAY.DX / DY and sends ga_disp, then
+// writes the clamped values back. The variables are local. On the host DISPLAY places nothing (the
+// renderer owns the picture's geometry); the values are kept for the options screen and the movies.
+int wideXcmd_ScreenAdjust(int argc, char **argv, int bank)
+{
+    int x, y;
+
+    (void)argc;
+    if (strcmp("GET", argv[0]) == 0 || strcmp("get", argv[0]) == 0) {
+        y = (int)ga_disp.display.DY - AA_DISPLAY_DY_BASE;
+        x = ((int)ga_disp.display.DX - AA_DISPLAY_DX_BASE) / AA_DISPLAY_DX_STEP;
+    } else {
+        x = ssTrigGetVariable(atoi(argv[1]) & 0xffff, 0, bank);
+        y = ssTrigGetVariable(atoi(argv[2]) & 0xffff, 0, bank);
+        if (x > XCMD_SCREEN_ADJUST_MAX)
+            x = XCMD_SCREEN_ADJUST_MAX;
+        if (y > XCMD_SCREEN_ADJUST_MAX)
+            y = XCMD_SCREEN_ADJUST_MAX;
+        if (x < -XCMD_SCREEN_ADJUST_MAX)
+            x = -XCMD_SCREEN_ADJUST_MAX;
+        if (y < -XCMD_SCREEN_ADJUST_MAX)
+            y = -XCMD_SCREEN_ADJUST_MAX;
+        ga_disp.display.DX = x * AA_DISPLAY_DX_STEP + AA_DISPLAY_DX_BASE;
+        ga_disp.display.DY = y + AA_DISPLAY_DY_BASE;
+        sceGsPutDispEnv(&ga_disp);
+    }
+    ssTrigSetVariable(atoi(argv[1]) & 0xffff, x, 0, bank);
+    ssTrigSetVariable(atoi(argv[2]) & 0xffff, y, 0, bank);
+    return XCMD_DONE;
+}
+
+// CT3 0x018ef550: the point-light override every bank's light set takes (AllOmniEffect, read by
+// Character_Init.c's light sets). argv[0] "ON": slot argv[1] (1..XCMD_OMNI_SLOTS) = this bank's part
+// argv[2]. Otherwise argv[1] 0 clears every slot, another slot number clears that one.
+int tnXcmd_AllOmniEffect(int argc, char **argv, int bank)
+{
+    int slot, i;
+
+    (void)argc;
+    if (XcmdIsOn(argv[0])) {
+        slot = atoi(argv[1]) - 1;
+        AllOmniEffect[slot * 2] = (u_short)bank;
+        AllOmniEffect[slot * 2 + 1] = (u_short)atoi(argv[2]);
+    } else if (atoi(argv[1]) == 0) {
+        for (i = 0; i < XCMD_OMNI_SLOTS * 2; i++)
+            AllOmniEffect[i] = XCMD_OMNI_NONE;
+    } else {
+        slot = atoi(argv[1]) - 1;
+        AllOmniEffect[slot * 2] = XCMD_OMNI_NONE;
+        AllOmniEffect[slot * 2 + 1] = XCMD_OMNI_NONE;
+    }
+    return XCMD_DONE;
+}
+
+// CT3 0x018ef670: as tnXcmd_AllOmniEffect for character argv[1]'s light set only (CharOmniEffect):
+// "ON": slot argv[2] = this bank's part argv[3]; otherwise slot argv[2] 0 clears the four, another
+// clears that one.
+int tnXcmd_CharOmniEffect(int argc, char **argv, int bank)
+{
+    int chara, slot, i;
+
+    (void)argc;
+    chara = atoi(argv[1]);
+    if (XcmdIsOn(argv[0])) {
+        slot = atoi(argv[2]) - 1;
+        CharOmniEffect[chara][slot * 2] = (u_short)bank;
+        CharOmniEffect[chara][slot * 2 + 1] = (u_short)atoi(argv[3]);
+    } else if (atoi(argv[2]) == 0) {
+        for (i = 0; i < XCMD_OMNI_SLOTS; i++) {
+            CharOmniEffect[chara][i * 2] = XCMD_OMNI_NONE;
+            CharOmniEffect[chara][i * 2 + 1] = XCMD_OMNI_NONE;
+        }
+    } else {
+        slot = atoi(argv[2]) - 1;
+        CharOmniEffect[chara][slot * 2] = XCMD_OMNI_NONE;
+        CharOmniEffect[chara][slot * 2 + 1] = XCMD_OMNI_NONE;
+    }
+    return XCMD_DONE;
+}
+
+// The falloff of tnXcmd_OmniRange: lightPos w = 1 / the value argv[4] by argv[5]'s source (XcmdValue);
+// another source leaves it.
+static void XcmdOmniFalloff(MODEL_PARTS *part, char **argv, int bank)
+{
+    int ok, value = XcmdValue(argv, 4, bank, &ok);
+
+    if (ok)
+        part->lightPos[3] = 1.0f / (float)value;
+}
+
+// CT3 0x018ef810: point light part argv[0] of the bank. With three arguments the range ease stops and
+// only the falloff is set; otherwise the range eases (OmniRangeChange) to argv[1] by argv[2]'s source over
+// argv[3] steps, then the falloff. PORT: with three arguments the ROM still reads argv[4] and argv[5]
+// (stale slots of the dispatcher's array); the host has no such slots and leaves the falloff.
+int tnXcmd_OmniRange(int argc, char **argv, int bank)
+{
+    MODEL_PARTS *part = XcmdPart(bank, atoi(argv[0]));
+    int ok, value;
+
+    if (argc == 3) {
+        part->omniChanging = 0;
+        part->omniSteps = 0;
+        return XCMD_DONE;
+    }
+    part->omniChanging = 1;
+    part->omniSteps = atoi(argv[3]);
+    value = XcmdValue(argv, 1, bank, &ok);
+    if (ok)
+        part->omniRange = (float)value;
+    XcmdOmniFalloff(part, argv, bank);
+    return XCMD_DONE;
+}
+
+// CT3 0x018f1710: the screen filter (FilterChangeWork, drawn by QuatSlerp.c's ScreenFilter). argv[0]
+// "ON": waits while a fade runs, then turns it on: argv[1] "type1" FILTER_MODE_ADD / "type2"
+// FILTER_MODE_BLEND (else the mode is kept), argv[2] "R,G,B,A" the target; with five arguments it fades
+// over argv[3] frames from argv[4] "R,G,B,A" (else at once), with six argv[5] "AUTO_OFF" turns it off at
+// the end. Anything else: waits while a fade runs, then off.
+int tnXcmd_Filter_Change(int argc, char **argv, int bank)
+{
+    FILTER_CHANGE_WORK *w = &FilterChangeWork;
+
+    (void)bank;
+    if (w->timer != 0)
+        return XCMD_WAIT;
+    if (!XcmdIsOn(argv[0])) {
+        w->active = 0;
+        w->timer = 0;
+        return XCMD_DONE;
+    }
+    w->active = FILTER_ON;
+    if (strcmp("type1", argv[1]) == 0)
+        w->mode = FILTER_MODE_ADD;
+    if (strcmp("type2", argv[1]) == 0)
+        w->mode = FILTER_MODE_BLEND;
+    sscanf(argv[2], "%d,%d,%d,%d", &w->target[1], &w->target[2], &w->target[3], &w->target[0]);
+    if (argc < 5) {
+        w->timer = 0;
+    } else {
+        w->timer = atoi(argv[3]);
+        sscanf(argv[4], "%d,%d,%d,%d", &w->current[1], &w->current[2], &w->current[3], &w->current[0]);
+    }
+    if (argc >= 6 && strcmp("AUTO_OFF", argv[5]) == 0)
+        w->active |= FILTER_OFF_AT_END;
+    return XCMD_DONE;
+}
+
+// CT3 0x018f2430: the movie's banks: AA_MovieUseBank[i].bank = argv[i] for the six blocks. When any of
+// them overlaps a drawn bank (BankUseCheck) the ROM reports "%s Bank:%d-%d" (the block's name, its first
+// and last bank) through WideErrorMsgDebug (line 0x6ee, empty in retail) and unsets all six.
+int tnXcmd_SetMovieWorkBuff(int argc, char **argv, int bank)
+{
+    int i, first, clash = 0;
+
+    (void)argc;
+    (void)bank;
+    for (i = 0; i < AA_MOVIE_WORKS; i++) {
+        first = atoi(argv[i]);
+        if (BankUseCheck(first, AA_MovieUseBank[i].count)) {
+            WideErrorMsgDebug();
+            clash = 1;
+        }
+        AA_MovieUseBank[i].bank = first;
+    }
+    if (clash) {
+        for (i = 0; i < AA_MOVIE_WORKS; i++)
+            AA_MovieUseBank[i].bank = -1;
+    }
+    return XCMD_DONE;
+}
+
+// CT3 0x018f2fa0: puzzle 1P01's start: the scene animations argv[0] and argv[1] of the bank jump to the
+// frame of the saved state, (row * XCMD_PUZZLE_ROW_FRAMES + col * XCMD_PUZZLE_COL_FRAMES / 100) script
+// frames from global variables 0x12 and 0x21.
+int tnXcmd_1P01_PazzleInit(int argc, char **argv, int bank)
+{
+    int col = ssTrigGetVariable(TRIG_VAR_PUZZLE_COL, 1, 0);
+    int row = ssTrigGetVariable(TRIG_VAR_PUZZLE_ROW, 1, 0);
+    int to = (row * XCMD_PUZZLE_ROW_FRAMES + col * XCMD_PUZZLE_COL_FRAMES / 100) * XCMD_FRAME_TIME;
+
+    (void)argc;
+    asSceneAnimationStart(1.0f, 0, All_table_TBL[bank], -1, to, atoi(argv[0]) & 0xffff, 1, 0, 0, 0, 1, 0,
+                          SCENE_ANIM_SCENE, 0);
+    asSceneAnimationStart(1.0f, 0, All_table_TBL[bank], -1, to, atoi(argv[1]) & 0xffff, 1, 0, 0, 0, 1, 0,
+                          SCENE_ANIM_SCENE, 0);
+    return XCMD_DONE;
+}
+
+// CT3 0x018f3ba0: the current scene, and the camera's, = argv[0].
 int tnCurrentSceneSet(int argc, char **argv, int bank)
 {
-    ALYSSAPAN_STUB("tnCurrentSceneSet", 0x018f3ba0);
-    return {};
+    (void)argc;
+    (void)bank;
+    idCurrentScene = atoi(argv[0]);
+    idCameraScene = idCurrentScene;
+    return XCMD_DONE;
 }
+
+// CT3 0x018f3bd0: the bank's texture file goes to page argv[0] (argv[1]: back).
+int tnXcmd_TexFileSetNext(int argc, char **argv, int bank)
+{
+    (void)argc;
+    TexFileSetNext(bank, atoi(argv[0]), atoi(argv[1]));
+    return XCMD_DONE;
+}
+
+// ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x018f2c50
 int tnXcmd_1P01_PazzleAnim(int argc, char **argv, int bank)
 {
     ALYSSAPAN_STUB("tnXcmd_1P01_PazzleAnim", 0x018f2c50);
-    return {};
-}
-
-// stub of CT3 0x018f2fa0
-int tnXcmd_1P01_PazzleInit(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tnXcmd_1P01_PazzleInit", 0x018f2fa0);
-    return {};
-}
-
-// stub of CT3 0x018ef550
-int tnXcmd_AllOmniEffect(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tnXcmd_AllOmniEffect", 0x018ef550);
-    return {};
-}
-
-// stub of CT3 0x018ef670
-int tnXcmd_CharOmniEffect(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tnXcmd_CharOmniEffect", 0x018ef670);
     return {};
 }
 
@@ -810,52 +1063,10 @@ int tnXcmd_Character_Ambient_Change(int argc, char **argv, int bank)
     return {};
 }
 
-// stub of CT3 0x018f1710
-int tnXcmd_Filter_Change(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tnXcmd_Filter_Change", 0x018f1710);
-    return {};
-}
-
 // stub of CT3 0x018efc50
 int tnXcmd_Key_Lock(int argc, char **argv, int bank)
 {
     ALYSSAPAN_STUB("tnXcmd_Key_Lock", 0x018efc50);
-    return {};
-}
-
-// stub of CT3 0x018ef810
-int tnXcmd_OmniRange(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tnXcmd_OmniRange", 0x018ef810);
-    return {};
-}
-
-// stub of CT3 0x018ee9c0
-int tnXcmd_SetAllControlDisableCamera(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tnXcmd_SetAllControlDisableCamera", 0x018ee9c0);
-    return {};
-}
-
-// stub of CT3 0x018f2430
-int tnXcmd_SetMovieWorkBuff(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tnXcmd_SetMovieWorkBuff", 0x018f2430);
-    return {};
-}
-
-// stub of CT3 0x018ee5f0
-int tnXcmd_SetRoodersPts(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tnXcmd_SetRoodersPts", 0x018ee5f0);
-    return {};
-}
-
-// stub of CT3 0x018f3bd0
-int tnXcmd_TexFileSetNext(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tnXcmd_TexFileSetNext", 0x018f3bd0);
     return {};
 }
 
@@ -891,13 +1102,6 @@ int wideXcmd_PlayAnimeRange(int argc, char **argv, int bank)
 int wideXcmd_PlayAnimeToFream(int argc, char **argv, int bank)
 {
     ALYSSAPAN_STUB("wideXcmd_PlayAnimeToFream", 0x018f30e0);
-    return {};
-}
-
-// stub of CT3 0x018eedf0
-int wideXcmd_ScreenAdjust(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("wideXcmd_ScreenAdjust", 0x018eedf0);
     return {};
 }
 

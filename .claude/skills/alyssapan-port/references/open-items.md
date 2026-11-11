@@ -1142,6 +1142,22 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    asGetSceneAnimationCurrent's time / 100: the units are taken as given, not checked against a run.
    Left: SetRoodersPts, SetAllControlDisableCamera, ScreenAdjust, the omni commands, Filter_Change,
    TimeSet, SetMovieWorkBuff, 1P01_PazzleAnim, and 10 beyond the slice.
+   **game/xcmd_tn.c slice 3, partial (2026-11-11 12:55, scheduled run):** 11 commands written
+   (SetRoodersPts, SetAllControlDisableCamera, ScreenAdjust, All / CharOmniEffect, OmniRange,
+   Filter_Change, SetMovieWorkBuff, 1P01_PazzleInit, tnCurrentSceneSet, TexFileSetNext); MODEL_PARTS
+   +0x70 / +0x74 / +0x78 named omniChanging / omniSteps / omniRange (OmniRangeChange's record is the part
+   + 0x40). Picture unchanged (frame 120 the memory-card text, then flat grey: no new command is reached).
+   Open from slice 3: (aa) tnXcmd_OmniRange with three arguments reads argv[4] / argv[5] in the ROM
+   (stale dispatcher slots): the host skips the falloff -- look at a script that sends 3 arguments;
+   (ab) ScreenAdjust writes ga_disp.display DX / DY only: the host's picture placement ignores them (the
+   renderer owns geometry), so the options screen's adjust does nothing visible -- decide whether it
+   should nudge the host viewport; (ac) TRIG_VAR_PUZZLE_ROW / _COL (0x12 / 0x21), ITEM_ROW_HELD rows 1..3
+   and ArrowData[1] / [2] as the score's items are named from one use; (ad) SetMovieWorkBuff drops the
+   ROM's sprintf of the clash message (WideErrorMsgDebug is empty in retail), as BankFree does.
+   Also this run: game/tiXcmd_TransItem.c taken off the pinned queue (its last handoff: only the eight
+   boss stubs left, waiting for pBossInfo's host form); it stays partial and comes back after the queue.
+   Left in xcmd_tn.c: Key_Lock (0x16f0 bytes), TimeSet, 1P01_PazzleAnim, VariableCal, PlayAnimeToFream,
+   PlayAnimeRange, Character_Ambient_Change, VistaVision, TexFileSetPage.
 
 ## Decisions
 
