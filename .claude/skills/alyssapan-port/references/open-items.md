@@ -918,6 +918,15 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    index-qword stores (+0x10 CNT, +0x14 MSCNT) and lit's (+0x10 MSCNT) are written as the ROM writes them,
    unexplained until gaDrawObject_RemakeIndex* is read; GA_OBJ_FLAG2_NEAR (byte +2 & 0x04) is named from
    this one use.
+   **Slice 4 (2026-11-10): game code complete, status verify.** nc2_SetupDma_light2 written for the record:
+   its code is nc2_light1's instruction for instruction (only branch targets move; the MSCAL comes from the
+   flags), so it delegates; its two trailing words (nop, j gaDMAStopMessage_VIF1 at 0x018a4fd4) follow its
+   jr ra and are unreachable. The TU's ROM code is all written; the shot stays black until the camera
+   (game/asEyeForcusUP2CamMat.c, next) fills ATLD's object matrix. Claude's call: the TU closes as verify,
+   not partial -- what is left is host draw-module work, not this TU's code, and it stays here as its list:
+   (b') texture, depth, fog, frame end, CT3's window origin in UiCanvas; (e) light1's lighting; (f)
+   billboards; (g) light2's VU1 program; (h) the shadow-volume resolver. The camera session (or a host task
+   queued after it) takes them when ATLD's quads land on screen; the TU's picture check is then due.
 
 ## Decisions
 

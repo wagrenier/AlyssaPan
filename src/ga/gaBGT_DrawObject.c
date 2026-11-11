@@ -18,8 +18,8 @@
 // VU1 program's maths (slice 2: rendering/ga_mesh.cpp, architecture.md). The D8 copy has nothing to copy;
 // the packet area still flips as the ROM's does.
 //
-// Read, not reconstructed (dead): gaBGT_DrawObject_nc2_SetupDma_light2 (0x018a4c78) -- the call at
-// 0x018a3f44 is never branched to (any light kind other than 0 goes to light1).
+// Dead, written for the record (2026-11-10): gaBGT_DrawObject_nc2_SetupDma_light2 (0x018a4c78) -- the call
+// at 0x018a3f44 is never branched to (any light kind other than 0 goes to light1), and its code is light1's.
 //
 // Slice 3 (2026-11-10): the clipped path (gaBGT_DrawObject) and the shared local-view path
 // (gaBGT_DrawObject_NoClippingCheck, which NoClippingCheck2's billboard objects jump into at 0x018a3984),
@@ -117,6 +117,19 @@ static void gaBGT_DrawObject_nc2_SetupDma_light1(const u_char *obj, int attr)
     o.lightWork = ObjEePtr(bank, obj, GA_OBJ_LIGHT_WORK);
     o.lightScale = spr->objLight;
     AlyssaPan_DrawGaObject(&o);
+}
+
+// CT3 0x018a4c78
+// callcheck: gaDMAStopMessage_VIF1 (not this function's: the stray j at 0x018a4fd8 after its jr ra)
+// Dead in the ROM: its one call (NoClippingCheck2, 0x018a3f44) is never branched to. Its 0x35c bytes of
+// code are nc2_SetupDma_light1's, instruction for instruction (mipsdis.py diff: only the branch targets
+// move); the MSCAL it writes comes from the object's flags, not from the function, so light2 objects run the
+// same VU1 program choice as light1's here. Its last two words (0x018a4fd4: nop, j gaDMAStopMessage_VIF1)
+// follow the final jr ra and nothing reaches them -- the next object's stray tail, as at AlignedNum.c's head.
+// Kept for the record; NoClippingCheck2 names it where the ROM's dead call sits.
+static void gaBGT_DrawObject_nc2_SetupDma_light2(const u_char *obj, int attr)
+{
+    gaBGT_DrawObject_nc2_SetupDma_light1(obj, attr);
 }
 
 // The tail every path shares: the packet went to the ring (D8; nothing to copy on the host), the packet
@@ -379,6 +392,7 @@ void gaBGT_DrawObject_NoClippingCheck2(u_char *obj, int attr)
         gaBGT_DrawObject_nc2_SetupDma_light0(obj, attr);
     else
         gaBGT_DrawObject_nc2_SetupDma_light1(obj, attr);
+    (void)gaBGT_DrawObject_nc2_SetupDma_light2;     /* the ROM's dead call, 0x018a3f44 */
     FlipPacketArea(spr);
 }
 

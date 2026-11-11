@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-10 21:15 at commit `7335e76` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-10 21:30 at commit `6a856d2` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,11 +30,11 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **821**; stubs: **189**
+- reconstructed CT3 functions: **822**; stubs: **189**
 
 | file | reconstructed | stubs |
 |---|---|---|
-| `src/ga/gaBGT_DrawObject.c` | 8 | 0 |
+| `src/ga/gaBGT_DrawObject.c` | 9 | 0 |
 | `src/ga/gaDma.c` | 16 | 0 |
 | `src/ga/gaDmaSync_VIF1.c` | 6 | 0 |
 | `src/ga/gaDrawObject.c` | 0 | 11 |
@@ -92,11 +92,11 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 40, partial 2, verify 23, done 4, blocked 1
-- next: **ga/gaBGT_DrawObject.c** (pinned in the queue)
-- pinned queue: ga/gaBGT_DrawObject.c, game/asEyeForcusUP2CamMat.c, alyssapan/rendering/ui_canvas.cpp, game/ssGrpPortalCheck.c, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
-- partial: `ga/gaBGT_DrawObject.c` 8/9 -- Game code complete (nc2_light2 dead). Not reached by the smoke run: gaObjectClippingCheck is a stub, ATLD draws through nc2; shot still black (object matrix zer
+- 65 TUs: todo 40, partial 1, verify 24, done 4, blocked 1
+- next: **game/asEyeForcusUP2CamMat.c** (pinned in the queue)
+- pinned queue: game/asEyeForcusUP2CamMat.c, alyssapan/rendering/ui_canvas.cpp, game/ssGrpPortalCheck.c, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
 - partial: `game/wideXcmd_DebugPrint.c` 107/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed) -- the last function of the TU. New stubs
+- verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaDmaSync_VIF1.c` 5/5 -- Host: kicks leave CHCR.STR clear (the transfer is over), so the syncs return at once; the BGT send keeps the copy and the flip, the packet goes nowhere (draw mo
 - verify: `ga/gaInit3dlib.c` 25/25 -- 15 s smoke run: no fault, shot black (no host draw module). gaMulMatrix is dst = b * a (hazards.md). gaSetZRollMatrix now reaches gaSinCos: ga/gaSinCos.c is que
@@ -124,6 +124,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-10 21:30 `ga/gaBGT_DrawObject.c` verify: slice 4: nc2_SetupDma_light2 written (dead in the ROM, nc2_light1's code instruction for instruction); every function of the TU is written; shot black until the
 - 2026-11-10 21:15 `ga/gaBGT_DrawObject.c` partial: slice 3: the clipped path (gaBGT_DrawObject), NoClippingCheck and the billboard jump into it, SetupDma_light0/1/2 build the ROM packet and hand the object to th
 - 2026-11-10 20:57 `ga/gaBGT_DrawObject.c` partial: slice 2: the light0 VU1 object program read (transform 0x04d, projection 0x0f5, cull 0x1fe / 0x22c) and run on the host per object; each frame's triangles go to
 - 2026-11-10 20:45 `ga/gaBGT_DrawObject.c` partial: slice 1: the no-clip path (NoClippingCheck2, nc2 light0 and light1) hands each ga draw object to the new host module AlyssaPan_DrawGaObject (GaMeshRecorder); AT
@@ -131,7 +132,6 @@ Recent sessions:
 - 2026-11-10 20:12 `alyssapan/iop/fsys_server.cpp` done: Host FSYS_IOP file server (iop::FsysServer) on io::Disc, registered when FSYS_IOP.IRX loads: SUNA answers a loose file's size and first sector
 - 2026-11-10 19:50 `game/wideXcmd_DebugPrint.c` partial: slice 9: the ground key-table entries -- standing, walking, running and the run stop (iRunCount), the move end, crouching and crawling (KEY_MAP_HIDE is the crou
 - 2026-11-10 19:35 `game/wideXcmd_DebugPrint.c` partial: slice 8: the cat walk (fall, hidden feet part, death drop), the lever-mash locks (asPIA1_KEY_TBL_LOCK), panic run / stand (confirms the panic event answers), hi
-- 2026-11-10 19:18 `game/wideXcmd_DebugPrint.c` partial: slice 7: the pad move (asCharacterMoveByPad: tank and camera-relative steering, the turn-around flag PIA_KEY.h0c; asCharacterMoveByPadUD), the panic events (asP
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
@@ -144,8 +144,8 @@ Recent sessions:
 | `game/tiAvoidObject.c` | todo | 0/7/82 | 30.5 | 27 | 4 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/ssHitCheckAttackToScn.c` | todo | 0/5/37 | 32.0 | 22 | 3 |
-| `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
+| `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `game/asUseArrow.c` | todo | 0/6/11 | 6.4 | 16 | 1 |
 
 ## Frontier (called by reconstructed code, not written yet)
@@ -178,6 +178,7 @@ Recent sessions:
 | `018a7538` | gaSearchNearLight4 | 4 | sym | stub | ga/gaSearchNearLight4.c |
 | `01896a90` | ssPartMotionBlurInsertObjToDrawTable | 4 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `01889cd0` | Clipping_Portal | 4 | sym | stub | game/Clipping_Portal.c |
+| `018a8690` | gaDMAStopMessage_VIF1 | 4 | sym | stub | ga/wait.c |
 | `018a0b40` | gaPadRead | 4 | sym | stub | ga/pad_button_read.c |
 | `018db340` | asXcmd_AddForLockToTargChara | 3 | sym | stub | game/asXcmd.c |
 | `018a53c8` | gaDrawObject_RemakeIndexWithClippingCheck | 3 | sym | stub | ga/gaDrawObject.c |
@@ -191,5 +192,4 @@ Recent sessions:
 | `018881a0` | camera_main | 3 | sym | stub | game/asEyeForcusUP2CamMat.c |
 | `0188df70` | tiDrawLensFlares | 3 | sym | stub | game/Clipping_Portal.c |
 | `0188cd70` | tiVibrationTimer | 3 | sym | stub | game/Clipping_Portal.c |
-| `018a8690` | gaDMAStopMessage_VIF1 | 3 | sym | stub | ga/wait.c |
 
