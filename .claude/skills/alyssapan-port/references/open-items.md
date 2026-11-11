@@ -1344,6 +1344,25 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    host task alyssapan/core/title_trace.cpp (why frames stop after PlayADS), ga/pad_button_read.c (gaPadRead:
    the title menu needs the pad). TITL draws through the same ga path as ATLD; the real movie decoder
    (AA_mpegTS.c, AA_videoCallback.c, AA_GetDataWord.c) comes after the title.
+   **game/hhXcmd_DressUp.c (verify, 2026-11-11): all 22 functions** -- LoadSE / PurgeSE / PlaySE /
+   StopSE, the three ...ChangeSE, EffectSE, the ADS three, the SQ (MIDI) three, the Sp1 pair, DressUp,
+   FootSEConversion. A smoke run now passes LoadSE and stops in m_capcom.mov's decode loop (log: Open Mpeg
+   File "m_capcom.mov"; shots end at frame 420, flat grey): **the next blocker is the movie skip**
+   (alyssapan/core/movie_skip.cpp, queued next); PlayADS runs once the movies are skipped. Open: (ka2)
+   hhXcmd_DressUp passes Round2ChangeChar the script variable argv[0]'s value, so (eo)'s ROUND2_* is
+   what the scripts store there -- the script that sets it confirms the costume numbers; (kb2) the floor
+   word: FootSEConversion reads the material byte +0x19b of the object CHARACTER.w300[0] names (so w300[0],
+   CHARA_TARGET, is the floor / ground object, not a lock-on target: rename it with its writer); its host
+   FootGround answers none (with (v)), so no footstep sounds yet; materials 0..11 (two left / right SEs
+   each; stalkers on 9..11 use Alyssa's C_0000 bank); (kc2) the stalkers' footstep banks give their
+   Character[] slots: E_HA 2, E_RY 3, E_ON 4, E_SM 5, E_SW 6, E_BA 0x20 (one pair, SE 8 / 9, on every
+   material) -- they agree with HIT_CHARA_* (wideXcmd_DebugPrint.h: 2 E_HAMMER, 4 E_ONO, 5 E_SMA, 6 E_SWO);
+   (kd2) named from this use only: FOOT_SE_NO 0x1482a, event 0xd2 (Alyssa stepped), SE_PARAM_8000 (sent with
+   SD_SE_PARAM_NAME for reqArg2 >= 1000, SdSetParamSE reads no argument for it), SD_SE_PARAM_30 = the pitch
+   (PitchChangeSE), the 0x96 hold that spares banks 0..5 in PlaySE but not in PlaySESp1; (ke2) PORT:
+   StopADS / VolumeADS pass 0 for argv[0] (SSStopADS / SSVolumeADS drop a0) and VolumeADS drops argv[2]
+   (SdVolumeStream takes one argument); StopMIDI copies at most 15 bytes of gSQLd[0].name (the ROM's
+   strcpy into 16).
    **For 3D after it** (not queued yet): a ga pass of its own with depth and fog, widened from
    DisplayGeometry (UiCanvas has neither and squeezes), gaObjectClippingCheck and ga/gaDrawObject.c (the
    clipped path most scene objects take), light1 / light2 lighting and billboards (item 4 (e) (f) (g)),

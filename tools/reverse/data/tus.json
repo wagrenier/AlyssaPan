@@ -1,6 +1,5 @@
 {
  "queue": [
-  "game/hhXcmd_DressUp.c",
   "alyssapan/core/movie_skip.cpp",
   "alyssapan/core/title_trace.cpp",
   "ga/pad_button_read.c",
@@ -947,12 +946,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 131..131, 1 functions keyed by their statics, 0 unkeyed; file name from the names"
   },
   "game/hhXcmd_DressUp.c": {
+   "notes": "A smoke run now passes hhXcmd_LoadSE and stops in the m_capcom.mov decode loop (shots end at frame 420, flat grey): the movie skip host task is the next blocker; PlayADS runs after it. Footsteps stay silent until CHARACTER.w300[0] (the floor object) has a host form. open-items.md item 8 (ka2..ke2).",
    "ranges": [
     [
      "018dc330",
      "018dd550"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-11 16:41",
+     "status": "verify",
+     "summary": "all 22 sound x commands: LoadSE, PlaySE, the SE changes, ADS, SQ, Sp1, DressUp, FootSEConversion"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 132..132, 4 functions keyed by their statics, 18 unkeyed; file name from the names"
   },
   "game/main.c": {

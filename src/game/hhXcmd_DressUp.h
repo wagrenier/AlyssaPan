@@ -1,13 +1,14 @@
-// game/hhXcmd_DressUp.h -- CT3 game/hhXcmd_DressUp.c: the declarations other TUs call (game/sound.c first,
-// 2026-11-09). Prototypes from the call sites; the TU that writes these functions confirms them.
+// game/hhXcmd_DressUp.h -- CT3 game/hhXcmd_DressUp.c: the sound x commands (written 2026-11-11, all 22).
 #pragma once
 
 #include "sdk/scetypes.h"
 
 void hhXcmd_InitPlayStopMIDI(void);                                                      // CT3 0x018dc410
+// A footstep of bank name (C_0000 Alyssa, E_HA..E_BA the stalkers) on the floor under its character.
+int FootSEConversion(const char *name, int reqArg2, int objId, int bank, int posVol);   // CT3 0x018dcc50
 
-// The x commands (ssXcmd_functions slots, ssTrigExecuteActCmd's command 0x514): declared with the
-// table's SS_XCMD shape (xcmd_tn.h) until this TU's session reads each one (2026-11-11).
+// The x commands (ssXcmd_functions slots, ssTrigExecuteActCmd's command 0x514), the table's SS_XCMD
+// shape (xcmd_tn.h): argv[0..argc-1] the script's argument strings, bank the script's bank.
 int hhXcmd_LoadSE(int argc, char **argv, int bank);                                      // CT3 0x018dd4d0
 int hhXcmd_PurgeSE(int argc, char **argv, int bank);                                     // CT3 0x018dd490
 int hhXcmd_PlaySE(int argc, char **argv, int bank);                                      // CT3 0x018dd200

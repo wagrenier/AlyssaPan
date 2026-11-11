@@ -7,6 +7,14 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-11, hhXcmd_DressUp.c) **Ghidra drops a callee's stack arguments and their defaults.**
+  hhXcmd_PlaySESp1 passes SSPlaySESp1 a ninth argument on the stack (`sd s2,0(sp)` in the jal's delay
+  slot; s2 = 10 at entry, atoi(argv[7]) when given); the decompiler showed neither the argument nor a use
+  for that atoi. For a call with eight or more arguments, read the delay slot and the saved register's
+  start value in mipsdis.py. Likewise, read a string literal's text from the ELF (the symtab's `@<n>`
+  entries), not from the brief's string list: that list skipped "E_HA", which would have shifted every
+  stalker id in FootSEConversion by one.
+
 - (2026-11-11, Clipping_Portal.c slice 2) **Ghidra hides what a callee writes into the caller's stack
   buffer past the struct the prototype names.** tiCharaFootAdjust's CheckLOS(bank, &seg) showed the hit
   record as an uninitialised local (iStack_20) and the hit point as an unrelated array: both are the
