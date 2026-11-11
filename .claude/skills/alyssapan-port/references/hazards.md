@@ -12,7 +12,10 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
   nothing from the buffer (D3D12 and Vulkan alike), while stats showed the draws arriving. Fixed (upload
   not cycled; the transfer map still cycles). Before blaming a stub for black, prove the path: a probe quad
   through UiCanvas plus a non-black scene clear shows in one run whether anything reaches the picture.
-  YamiPan's renderer.cpp has the same line (reported to the user, not changed there).
+  **Not fully understood:** YamiPan's renderer.cpp has the identical cycled upload and renders perfectly
+  (the user, 2026-11-10), so cycling alone is not the cause; something in how AlyssaPan drives the renderer
+  (timing, frames per field) makes it lose the data. With the fix, present and game rates fell from ~32 / 30
+  to ~10.6 in the probe runs: the uncycled upload may be serialising frames. Find the real difference.
 - (2026-11-10, gaBGT_DrawObject.c slice 2) **vudis.py misprints three lower-op fields**: `iaddiu`'s
   imm15 (`iaddiu vi1, vi1, 0x801` is +1, `0x804` +4, `0x1007` +7: high bits leak in), `mtir`'s component
   (it prints the dest mask, not fsf: the kick routines' `mtir.` / `.w` / `.z` are x / y / z, as the
