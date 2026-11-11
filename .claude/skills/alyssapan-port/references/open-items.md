@@ -156,7 +156,20 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    *time* (0x464) where the first compares slot 2's motion: a ROM slip, kept; AM / pAM / AME / pAME are
    host tables generated from the ELF (EE records, host pointers); MOTION_TABLE_H12 is pAM's arg (name
    still open); the blink pairs (ALYS 0x42 / 0x43, CALH 0x103 / 0x104, CALJ 3 / 4) and character ids
-   0x1c / 0x0d named from this use. **Next:**
+   0x1c / 0x0d named from this use. Open from slice 8 (2026-11-10): (az) the PRUN / PSTAND callers
+   confirm (ax): PANIC_EV_TAKE_RUN maps freeze / tumble / scream to 0xb1 (= CHARA_MOTION_KAKOKYU, the
+   breathing) / 0xa7 / 0xaf, PANIC_EV_TAKE_STOP never answers a tumble there; (ba) TRIG_VAR_WATER_STATE (7)
+   is the held item's state, not only the water's: 2 = the bow ready (ITEM_STATE_BOW, asYumi_Run_Check), 6
+   = the water: rename it when the item TU reads it; (bb) asPIA1_KEY_TBL_PSTAND tests event 0x68, already
+   named EV_FORCE_MATRIX_OPERATION from the shadow code: one of the two names is wrong; (bc) asPIA1_KEY_TBL_LOCK
+   requests the motion's MOTION_REC_NEXT at once for any motion it has no lever mash for (the ROM's
+   default 1, kept); (bd) KEY_MAP actions 12..15 / 17 / 18 / 21 / 25 (GETUP, ARROW2, ITEM, RUN, HIDE),
+   TRIG_VAR_BOW_53, TRIG_EVENT_HIDE_HELD (0x87) / _HIDE_66 / _LOCK_9A and the cat walk / hiding / stair /
+   bow motion indices are named from these uses only; (be) pModelPartsHeader[bank] is indexed as
+   MODEL_PARTS[] from +0 by the cat walk (part i's flags at i * 0x380 + 0x50), which disagrees with
+   QuatSlerp.h's "records from +0x40" comment: the loader TU settles it; (bf) callcheck flags the BEHIND /
+   SITBEHIND entries for asRadianByO / asISubRotate16: the helpers AimBehind / BehindTurnMotion make
+   those calls. **Next:**
    ~~`ga/gaInitInterrupt.c`~~ (verify, 2026-11-09: main's frame loops now), then in the order a smoke
    run reaches the stubs: `main2` (game/main2.c: title and scene set-up), `IOPInit` / `Character_All_Init`
    (Character_Init.c), `FS_work_init` / `FileSoundServer` (fileio.c), `SunAllocInit` (ahalloc.c), the ga

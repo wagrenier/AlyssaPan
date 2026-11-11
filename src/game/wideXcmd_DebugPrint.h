@@ -519,3 +519,5 @@ void asSetCharacterKeyEnable(int enable);                                       
 // from the bank's ALL_TABLE +0xb8.
 void asInitPlayerBehaviorControler(CHARACTER *chr);                                      // CT3 0x018fe380
 void ChrMoveControllerMode_init(void);                                                   // CT3 0x018fe4b0
+// Raise the bow with arrow type `type` (BOW_ARROW_*, the .c); 1 when she raised it (slice 8).
+int asYumi_Run_Check(CHARACTER *ch, int type);                                          // CT3 0x018f93e0

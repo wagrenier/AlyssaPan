@@ -23,3 +23,10 @@ void asArrowOperate(void)
 {
     ALYSSAPAN_STUB("asArrowOperate", 0x01866d80);
 }
+
+// stub of CT3 0x01866720
+float asGetTheArrowRad(void)
+{
+    ALYSSAPAN_STUB("asGetTheArrowRad", 0x01866720);
+    return {};
+}

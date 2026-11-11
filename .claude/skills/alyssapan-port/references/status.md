@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-10 19:18 at commit `5777858` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-10 19:35 at commit `4b085e2` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **791**; stubs: **194**
+- reconstructed CT3 functions: **804**; stubs: **184**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -69,7 +69,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/asMothOperate.c` | 0 | 1 |
 | `src/game/asMothPause.c` | 0 | 1 |
 | `src/game/asMothRouteSearch.c` | 0 | 2 |
-| `src/game/asUseArrow.c` | 0 | 3 |
+| `src/game/asUseArrow.c` | 0 | 4 |
 | `src/game/asXcmd.c` | 0 | 1 |
 | `src/game/copy2area.c` | 0 | 1 |
 | `src/game/fileio.c` | 40 | 0 |
@@ -84,7 +84,8 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/ssSetTexUVforCubeMap.c` | 0 | 31 |
 | `src/game/tiAvoidObject.c` | 0 | 7 |
 | `src/game/tkXDTrg_GetSceneHash.c` | 0 | 3 |
-| `src/game/wideXcmd_DebugPrint.c` | 85 | 22 |
+| `src/game/wideXcmd_DebugPrint.c` | 98 | 10 |
+| `src/game/wideXcmd_TriggerInit.c` | 0 | 1 |
 | `src/lib/unassigned_stubs.cpp` | 0 | 1 |
 
 ## Translation units (one session each: `tus.py`)
@@ -92,7 +93,7 @@ Least-named game-code regions (64 KB blocks):
 - 65 TUs: todo 41, partial 1, verify 23, done 3
 - next: **game/wideXcmd_DebugPrint.c** (pinned in the queue)
 - pinned queue: game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/asEyeForcusUP2CamMat.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c, game/ssGrpPortalCheck.c
-- partial: `game/wideXcmd_DebugPrint.c` 85/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, alone or split), then the stubbed key-table entries (asPIA1 STAND / SIT / SITGO / WALK / RUN / MOVEEND 
+- partial: `game/wideXcmd_DebugPrint.c` 98/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed), then the remaining stubs asPIA1 STAND / 
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaDmaSync_VIF1.c` 5/5 -- Host: kicks leave CHCR.STR clear (the transfer is over), so the syncs return at once; the BGT send keeps the copy and the flip, the packet goes nowhere (draw mo
 - verify: `ga/gaInit3dlib.c` 25/25 -- 15 s smoke run: no fault, shot black (no host draw module). gaMulMatrix is dst = b * a (hazards.md). gaSetZRollMatrix now reaches gaSinCos: ga/gaSinCos.c is que
@@ -119,6 +120,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-10 19:35 `game/wideXcmd_DebugPrint.c` partial: slice 8: the cat walk (fall, hidden feet part, death drop), the lever-mash locks (asPIA1_KEY_TBL_LOCK), panic run / stand (confirms the panic event answers), hi
 - 2026-11-10 19:18 `game/wideXcmd_DebugPrint.c` partial: slice 7: the pad move (asCharacterMoveByPad: tank and camera-relative steering, the turn-around flag PIA_KEY.h0c; asCharacterMoveByPadUD), the panic events (asP
 - 2026-11-10 18:56 `game/wideXcmd_DebugPrint.c` partial: slice 6: the player key dispatch (asPlayerInputAnalyze with its typed tables asPIA0 / asPIA1 / asPIAK, every key-table entry now (CHARACTER *, PIA_KEY *)), 19 s
 - 2026-11-10 18:34 `game/wideXcmd_DebugPrint.c` partial: slice 5: asCheckCharacterHited (the boss battle invulnerability vsBossMuteki / AfterPanicStartMuteki, the stage bosses scripted strikes, then Alyssa's hit table
@@ -126,11 +128,10 @@ Recent sessions:
 - 2026-11-10 17:56 `game/wideXcmd_DebugPrint.c` partial: slice 3: asRequestExecute (the motion queue consumer, body and blend slots), asResetCharacterPosition, asCharacterForceMoveOperate, asCatWalkEventOperation (4 f
 - 2026-11-10 17:38 `game/wideXcmd_DebugPrint.c` partial: slice 2: positioning (asCharacterPositioning, as1CharacterPositioning, OnlyDeltaPos, the pause review, asResetCharacterRotation), the panic / barrier / lock sta
 - 2026-11-10 17:17 `game/wideXcmd_DebugPrint.c` partial: slice 1: asCharacterOperate, the vibration helpers, Alyssa's hit reactions (Hiting, Hirumi), the key enable, the motion request queue, asClearBehaviorChangeFlag
-- 2026-11-10 16:54 `game/movie.c` verify: slice 2: the playback (AA_movie, initAll, readMpeg, termAll); all 20 functions written
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `game/ssGrpPortalCheck.c` | todo | 0/11/59 | 26.4 | 454 | 10 |
+| `game/ssGrpPortalCheck.c` | todo | 0/11/59 | 26.4 | 464 | 10 |
 | `game/Clipping_Portal.c` | todo | 0/34/73 | 44.8 | 160 | 18 |
 | `game/ssSetTexUVforCubeMap.c` | todo | 0/31/96 | 35.3 | 86 | 9 |
 | `game/CpDivideEECom.c` | todo | 0/10/18 | 3.3 | 80 | 10 |
@@ -147,11 +148,11 @@ Recent sessions:
 
 | CT3 addr | name | call sites | provenance | state | inferred file |
 |---|---|---|---|---|---|
-| `018d9100` | ssTrigCheckEvent | 149 | sym | stub | game/ssGrpPortalCheck.c |
+| `018d9100` | ssTrigCheckEvent | 156 | sym | stub | game/ssGrpPortalCheck.c |
 | `018d9560` | ssTrigRemoveEvent | 110 | sym | stub | game/ssGrpPortalCheck.c |
 | `018d95e0` | ssTrigRegisterEvent | 62 | sym | stub | game/ssGrpPortalCheck.c |
 | `018d9470` | ssTrigSetVariable | 43 | sym | stub | game/ssGrpPortalCheck.c |
-| `018d9430` | ssTrigGetVariable | 34 | sym | stub | game/ssGrpPortalCheck.c |
+| `018d9430` | ssTrigGetVariable | 37 | sym | stub | game/ssGrpPortalCheck.c |
 | `01851b10` | ConvertQuat2Matrix | 17 | sym | stub | game/Convert.c |
 | `018d1e70` | CpGetEEIOPStatus | 14 | sym | stub | game/CpDivideEECom.c |
 | `01886690` | asChangeViewMatrix_forTheBank | 12 | sym | stub | game/asEyeForcusUP2CamMat.c |

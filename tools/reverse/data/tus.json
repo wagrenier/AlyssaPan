@@ -1022,7 +1022,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 140..140, 2 functions keyed by their statics, 6 unkeyed; file name from the names"
   },
   "game/wideXcmd_DebugPrint.c": {
-   "notes": "Next slice: asCharacterMortionFunctionOperation (0x1578, alone or split), then the stubbed key-table entries (asPIA1 STAND / SIT / SITGO / WALK / RUN / MOVEEND / LOCK / CATWALK / KAIDAN / YUMI / BEHIND / SITBEHIND / PSTAND / PRUN / SITGONOUP, asPIA0 SIT / MOVEEND / CATWALK / YUMI / BEHIND / SITBEHIND): PRUN / PSTAND call asPanicEventOperation (open-items 1 ax confirms its modes there). Doubts in open-items 1 av..ay. callcheck flags only the explained Damaging / Hited helpers. The shot stays black: nothing draws yet.",
+   "notes": "Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed), then the remaining stubs asPIA1 STAND / SIT / SITGO / WALK / RUN / MOVEEND and asPIA0 SIT / MOVEEND / YUMI. New stubs: asGetTheArrowRad (asUseArrow.c), ssXcmd_LockToTargChara (new wideXcmd_TriggerInit.c / .h). Doubts in open-items 1 az..bf. callcheck flags only the explained helpers (Damaging, Hited, AimBehind, BehindTurnMotion). The shot stays black: nothing draws yet.",
    "ranges": [
     [
      "018f3f60",
@@ -1064,6 +1064,11 @@
      "date": "2026-11-10 19:18",
      "status": "partial",
      "summary": "slice 7: the pad move (asCharacterMoveByPad: tank and camera-relative steering, the turn-around flag PIA_KEY.h0c; asCharacterMoveByPadUD), the panic events (asPanicEventOperation: scream, tumble, freeze), the face motions and blinks (asMotionAdderByNowMotion with AM / pAM / AME / pAME generated from the ELF) and asChangeCharacterMotionSettingPlayRate; CAMERA.viewPrev / bank named (5 functions)"
+    },
+    {
+     "date": "2026-11-10 19:35",
+     "status": "partial",
+     "summary": "slice 8: the cat walk (fall, hidden feet part, death drop), the lever-mash locks (asPIA1_KEY_TBL_LOCK), panic run / stand (confirms the panic event answers), hiding behind cover standing and crouched (iRad_Behind), the stairs (KAIDAN), the bow (asPIA1_KEY_TBL_YUMI, asYumi_Run_Check) and SITGONOUP; 13 functions"
     }
    ],
    "status": "partial",

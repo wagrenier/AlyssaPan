@@ -46,6 +46,7 @@
 #include "game/SdMasterVolumeSetSE.h"
 #include "game/tiAvoidObject.h"
 #include "game/unassigned_data.h"
+#include "game/wideXcmd_TriggerInit.h"
 #include "ga/gaInit3dlib.h"
 #include "ga/gaSinCos.h"
 
@@ -3343,20 +3344,6 @@ void asCharacterMoveByPad(CHARACTER *ch, PIA_KEY *key, int dir)
     }
 }
 
-// stub of CT3 0x018f8c90
-int asPIA0_KEY_TBL_BEHIND(CHARACTER *ch, PIA_KEY *key)
-{
-    ALYSSAPAN_STUB("asPIA0_KEY_TBL_BEHIND", 0x018f8c90);
-    return {};
-}
-
-// stub of CT3 0x018f81e0
-int asPIA0_KEY_TBL_CATWALK(CHARACTER *ch, PIA_KEY *key)
-{
-    ALYSSAPAN_STUB("asPIA0_KEY_TBL_CATWALK", 0x018f81e0);
-    return {};
-}
-
 // stub of CT3 0x018f9980
 int asPIA0_KEY_TBL_MOVEEND(CHARACTER *ch, PIA_KEY *key)
 {
@@ -3371,13 +3358,6 @@ int asPIA0_KEY_TBL_SIT(CHARACTER *ch, PIA_KEY *key)
     return {};
 }
 
-// stub of CT3 0x018f8a00
-int asPIA0_KEY_TBL_SITBEHIND(CHARACTER *ch, PIA_KEY *key)
-{
-    ALYSSAPAN_STUB("asPIA0_KEY_TBL_SITBEHIND", 0x018f8a00);
-    return {};
-}
-
 // stub of CT3 0x018f91d0
 int asPIA0_KEY_TBL_YUMI(CHARACTER *ch, PIA_KEY *key)
 {
@@ -3385,46 +3365,10 @@ int asPIA0_KEY_TBL_YUMI(CHARACTER *ch, PIA_KEY *key)
     return {};
 }
 
-// stub of CT3 0x018f8af0
-void asPIA1_KEY_TBL_BEHIND(CHARACTER *ch, PIA_KEY *key)
-{
-    ALYSSAPAN_STUB("asPIA1_KEY_TBL_BEHIND", 0x018f8af0);
-}
-
-// stub of CT3 0x018f8110
-void asPIA1_KEY_TBL_CATWALK(CHARACTER *ch, PIA_KEY *key)
-{
-    ALYSSAPAN_STUB("asPIA1_KEY_TBL_CATWALK", 0x018f8110);
-}
-
-// stub of CT3 0x018f8d70
-void asPIA1_KEY_TBL_KAIDAN(CHARACTER *ch, PIA_KEY *key)
-{
-    ALYSSAPAN_STUB("asPIA1_KEY_TBL_KAIDAN", 0x018f8d70);
-}
-
-// stub of CT3 0x018f8350
-void asPIA1_KEY_TBL_LOCK(CHARACTER *ch, PIA_KEY *key)
-{
-    ALYSSAPAN_STUB("asPIA1_KEY_TBL_LOCK", 0x018f8350);
-}
-
 // stub of CT3 0x018f97b0
 void asPIA1_KEY_TBL_MOVEEND(CHARACTER *ch, PIA_KEY *key)
 {
     ALYSSAPAN_STUB("asPIA1_KEY_TBL_MOVEEND", 0x018f97b0);
-}
-
-// stub of CT3 0x018f8630
-void asPIA1_KEY_TBL_PRUN(CHARACTER *ch, PIA_KEY *key)
-{
-    ALYSSAPAN_STUB("asPIA1_KEY_TBL_PRUN", 0x018f8630);
-}
-
-// stub of CT3 0x018f8750
-void asPIA1_KEY_TBL_PSTAND(CHARACTER *ch, PIA_KEY *key)
-{
-    ALYSSAPAN_STUB("asPIA1_KEY_TBL_PSTAND", 0x018f8750);
 }
 
 // stub of CT3 0x018f9b00
@@ -3439,22 +3383,10 @@ void asPIA1_KEY_TBL_SIT(CHARACTER *ch, PIA_KEY *key)
     ALYSSAPAN_STUB("asPIA1_KEY_TBL_SIT", 0x018fa390);
 }
 
-// stub of CT3 0x018f8860
-void asPIA1_KEY_TBL_SITBEHIND(CHARACTER *ch, PIA_KEY *key)
-{
-    ALYSSAPAN_STUB("asPIA1_KEY_TBL_SITBEHIND", 0x018f8860);
-}
-
 // stub of CT3 0x018fa230
 void asPIA1_KEY_TBL_SITGO(CHARACTER *ch, PIA_KEY *key)
 {
     ALYSSAPAN_STUB("asPIA1_KEY_TBL_SITGO", 0x018fa230);
-}
-
-// stub of CT3 0x018f95c0
-void asPIA1_KEY_TBL_SITGONOUP(CHARACTER *ch, PIA_KEY *key)
-{
-    ALYSSAPAN_STUB("asPIA1_KEY_TBL_SITGONOUP", 0x018f95c0);
 }
 
 // stub of CT3 0x018fa640
@@ -3469,8 +3401,507 @@ void asPIA1_KEY_TBL_WALK(CHARACTER *ch, PIA_KEY *key)
     ALYSSAPAN_STUB("asPIA1_KEY_TBL_WALK", 0x018f9f30);
 }
 
-// stub of CT3 0x018f8fe0
+// ---- slice 8 (2026-11-10): the cat walk, the lock, panic, hiding, stairs and bow key-table entries -------
+
+// KEY_MAP's actions these entries test (names from these uses).
+#define KEY_MAP_GETUP_FIRST 12          /* KEY_MAP[12..15]: any of them held gets her up from MOTION_KNOCKED */
+#define KEY_MAP_GETUP_COUNT 4
+#define KEY_MAP_ARROW2 17               /* the second arrow (asYumi_Run_Check(.., BOW_ARROW_LIST): needs ArrowList) */
+#define KEY_MAP_ITEM 18                 /* the bow (BOW_ARROW_PLAIN), else the holy water */
+#define KEY_MAP_RUN 21                  /* held on the stairs: the faster stair motions */
+#define KEY_MAP_HIDE 25                 /* held behind cover: she stays hidden */
+
+// The cat walk (asPIA0 / asPIA1_KEY_TBL_CATWALK; names from these uses).
+#define MOTION_CATWALK 0xb8             /* on the beam */
+#define MOTION_CATWALK_STEP 0xb9        /* the step (PAD_MOVE 1 in MOTION_CATWALK) */
+#define MOTION_CATWALK_STEP2 0xba
+#define MOTION_CATWALK_STOP 0xbb        /* from a step when the pad lets go */
+#define MOTION_CATWALK_SWAY 0xbc        /* the random event (asCatWalkEventOperation(CATWALK_CHECK)) */
+#define MOTION_CATWALK_FALL 0xbd        /* off the beam: no target part under her */
+#define MOTION_FALL_DEAD 0x64           /* a fall of CATWALK_FALL_SAFE or more: hp 0 */
+#define CATWALK_FALL_SAFE 300.0f        /* the drop (fFallStart - pos.y) below which she lands */
+#define SE_CATWALK_FALL 0x3f            /* SSPlaySE id in the "C_000" bank (@4024) */
+static const char kSeBankC000[] = "C_000"; /* @4024, sdata 0x019374d0 */
+static short iFeetMaxID;                /* iFeetMaxID$1645, sbss 0x019449b0: the part under her (CHARA_TARGET_PART) */
+static short iDisableMaxID;             /* iDisableMaxID$1646, sbss 0x019449b4: the part hidden while she falls */
+static float fFallStart;                /* fFallStart$1647, sbss 0x019449b8: pos.y when the fall began */
+
+// The locks and the panic events (asPIA1_KEY_TBL_LOCK / PRUN / PSTAND).
+#define MOTION_LOCK_1B 0x1b             /* a lever mash (RLC_SET 60, 10, 0x70, 10) */
+#define MOTION_KNOCKED 0xd7             /* knocked down: a mash, or KEY_MAP_GETUP lays her down (MOTION_DOWN) */
+#define MOTION_PANIC_SCREAM 0xaf        /* PANIC_EVENT_SCREAM's motion */
+#define MOTION_PANIC_TUMBLE 0xa7        /* PANIC_EVENT_TUMBLE's */
+#define MOTION_PANIC_FREEZE CHARA_MOTION_KAKOKYU /* PANIC_EVENT_FREEZE's: the breathing */
+#define MOTION_BOSS5_DEAD 0x7b          /* MOTION_BOSS5_STRUCK with no hp left */
+#define TRIG_EVENT_LOCK_9A 0x9a         /* MOTION_DAMAGE_68's mash: set, the short one while she has hp */
+#define LOCK_MUTEKI 999999999           /* vsBossMuteki through MOTION_DAMAGE_68 */
+#define LOCK_LONG_TIME 30000            /* the mash that cannot end in time (MOTION_DAMAGE_68's) */
+#define MOTION_PSTAND_WAIT 0x89         /* panic stand: after PSTAND_WAIT_TIME, MOTION_PSTAND_NEXT */
+#define MOTION_PSTAND_NEXT 0xa2
+#define PSTAND_WAIT_TIME 0x95           /* slot 0's time it must pass */
+#define MOTION_PSTAND_MOVE 0xa4         /* PAD_MOVE 1 in panic stand */
+
+// Hiding behind cover (asPIA0 / asPIA1_KEY_TBL_BEHIND and _SITBEHIND).
+#define TRIG_EVENT_HIDE_HELD 0x87       /* set: she stays hidden without KEY_MAP_HIDE (SITBEHIND), or leaves (BEHIND) */
+#define TRIG_EVENT_HIDE_66 0x66         /* set: facing the cover, she stays in it rather than peek */
+#define MOTION_BEHIND_IN 0x96           /* the motions that take her behind (asPIA0 aims her at CHARA_TARGET2) */
+#define MOTION_BEHIND_IN2 0x1f
+#define MOTION_BEHIND_IN3 0x21
+#define MOTION_BEHIND 0x97              /* standing behind cover */
+#define MOTION_BEHIND_TURN_L 0x98       /* rot below iRad_Behind */
+#define MOTION_BEHIND_TURN_R 0x99
+#define MOTION_BEHIND_PEEK 0xde         /* facing it (TRIG_EVENT_HIDE_66 clear) */
+#define MOTION_BEHIND_OUT 0xe0          /* leaving it */
+#define MOTION_SITBEHIND_IN 0x9c        /* the same crouched */
+#define MOTION_SITBEHIND_IN2 0x24
+#define MOTION_SITBEHIND_IN3 0x25
+#define MOTION_SITBEHIND 0x9d
+#define MOTION_SITBEHIND_TURN_L 0x9e
+#define MOTION_SITBEHIND_TURN_R 0x9f
+#define MOTION_SITBEHIND_PEEK 0xdf
+#define MOTION_SITBEHIND_OUT 0xe1
+#define BEHIND_ROT_SAME 0x10            /* |rot - iRad_Behind| within it: facing the cover */
+#define BEHIND_ROT_OPPOSITE 0x7ff0      /* beyond it: facing away (treated as staying) */
+static int iRad_Behind;                 /* sbss 0x019449a8: the rot that faces CHARA_TARGET2's vector */
+static int iRadSet;                     /* sbss 0x019449ac: CHARA_TARGET2's part then (read nowhere here) */
+
+// The stairs (asPIA1_KEY_TBL_KAIDAN): targetState bit 0 set, the stair's direction by targetDot.
+#define STAIR_DOT 0.3f
+#define MOTION_STAIR_WALK_POS 0x16      /* targetDot > STAIR_DOT */
+#define MOTION_STAIR_WALK_NEG 0x13      /* targetDot < -STAIR_DOT */
+#define MOTION_STAIR_WALK 0x20
+#define MOTION_STAIR_RUN_POS 0x17       /* the same with KEY_MAP_RUN held */
+#define MOTION_STAIR_RUN_NEG 0x14
+#define MOTION_STAIR_RUN 0x12
+#define MOTION_STAIR_OFF_WALK 5         /* targetState bit 0 clear: blended off the stairs */
+#define MOTION_STAIR_OFF_RUN 2
+#define MOTION_STAIR_STOP 0xa1
+
+// The bow (asPIA1_KEY_TBL_YUMI, asYumi_Run_Check).
+#define ITEM_STATE_BOW 2                /* TRIG_VAR_WATER_STATE (7): the bow is ready (WATER_READY: the water) */
+#define TRIG_VAR_BOW_53 0x53            /* 0: the bow's other mode (BOW_ARROW_NONE: MOTION_BOW_EMPTY) */
+#define BOW_ARROW_PLAIN 0               /* iArrowType: KEY_MAP_ITEM's arrow */
+#define BOW_ARROW_LIST 1                /* KEY_MAP_ARROW2's: needs ArrowList[0] */
+#define BOW_ARROW_NONE 3                /* TRIG_VAR_BOW_53 at 0 */
+#define MOTION_BOW_EMPTY 0x35
+#define MOTION_BOW_AIM 0x36             /* aiming: the buttons let go with the draw at BOW_SHOOT_RAD shoots */
+#define MOTION_BOW_SHOOT 0x37
+#define MOTION_BOW_RAISE 0x56           /* raising it; letting go of the arrow's button lowers it (motion 0) */
+#define MOTION_BOW_DRAW 0x57
+#define MOTION_BOW_RAISE2 0x58          /* raising it again from MOTION_BOW_HOLD */
+#define MOTION_BOW_HOLD 0x5d
+#define BOW_SHOOT_RAD 0.5f              /* asGetTheArrowRad's draw */
+#define BOW_AIM_H12 300                 /* MOTION_BOW_AIM's record MOTION_TABLE_H12 with TRIG_VAR_BOW_53 at 0 */
+#define BOW_LOCK_ARGC 2                 /* ssXcmd_LockToTargChara's arguments: "0", "4" */
+static int iArrowType;                  /* sbss 0x019449d0: BOW_ARROW_* of the last check */
+
+// Sit-go with no getting up (asPIA1_KEY_TBL_SITGONOUP).
+#define MOTION_SITGONOUP 0xb6
+#define MOTION_SITGONOUP2 0xc0          /* PIA_KEY.h0c toggles the two (blended) */
+#define MOTION_SITGONOUP_STOP 0xb7
+#define MOTION_SITGONOUP2_STOP 0xc2
+#define SITGONOUP_FREE_FRAMES 2         /* frames with no pad move before she stops */
+static int iFreeCount_1277;             /* iFreeCount$1277, sbss 0x0194499c */
+
+// The character's position y (pos is a qword of floats).
+static float PosY(const CHARACTER *ch)
+{
+    float y;
+    memcpy(&y, (const u_char *)&ch->pos + 4, sizeof(y));
+    return y;
+}
+
+static int KeyMapHeld(u_int buttons, int action)
+{
+    return (buttons & KEY_MAP[action]) != 0;
+}
+
+// The rot (0..0xffff) that faces CHARA_TARGET2's copied vector (asPIA0_KEY_TBL_BEHIND / _SITBEHIND).
+static void AimBehind(CHARACTER *ch)
+{
+    float r = asRadianByO((float *)((u_char *)ch + CHARA_TARGET2_COPY), ROTATE_AXIS_Y);
+    iRad_Behind = (int)((-r * 65536.0f) / 6.2831855f) & 0xffff;
+    iRadSet = CharaShort(ch, CHARA_TARGET2_COPY + CHARA_TARGET_COPY_PART);
+}
+
+// CT3 0x018f8110
+// On the beam: the sway event takes over (once per check); else a pad move steps, a stop ends a step.
+void asPIA1_KEY_TBL_CATWALK(CHARACTER *ch, PIA_KEY *key)
+{
+    short motion = CharaShort(ch, CHARA_MOTION_SLOTS);
+    if (motion == MOTION_CATWALK_SWAY)
+        return;
+    if (asCatWalkEventOperation(CATWALK_CHECK) != 0) {
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_CATWALK_SWAY);
+        return;
+    }
+    if (key->h0a == 1) {
+        if (motion == MOTION_CATWALK)
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_CATWALK_STEP);
+    } else if (key->h0a == 0) {
+        if (motion == MOTION_CATWALK_STEP || motion == MOTION_CATWALK_STEP2)
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_CATWALK_STOP);
+        else
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_CATWALK);
+    }
+}
+
+// The flags word of part `part` in the bank's parts header; NULL without one.
+static u_int *PartFlags(int bank, int part)
+{
+    if (bank < 0 || pModelPartsHeader[bank] == NULL)
+        return NULL;
+    return &((MODEL_PARTS *)pModelPartsHeader[bank])[part].flags;
+}
+
+// CT3 0x018f81e0
+// The beam under her (CHARA_TARGET): with none she falls (the part she stood on hidden, the fall's
+// start kept, its SE); landing again, the part shows, and a drop of CATWALK_FALL_SAFE or more kills her.
+// The sway ends its event. PIA_MOVE, or PIA_NONE while she falls.
+int asPIA0_KEY_TBL_CATWALK(CHARACTER *ch, PIA_KEY *key)
+{
+    const u_char *target = CharaTarget(ch);
+    short motion = CharaShort(ch, CHARA_MOTION_SLOTS);
+    int answer = PIA_MOVE;
+    u_int *flags;
+    (void)key;
+
+    if (target == NULL) {
+        if (motion != MOTION_CATWALK_FALL) {
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_CATWALK_FALL);
+            fFallStart = PosY(ch);
+            iDisableMaxID = iFeetMaxID;
+            flags = PartFlags(ch->lightBank, iDisableMaxID);
+            if (flags != NULL)
+                *flags |= PARTS_FLAG_HIDDEN;
+            SSPlaySE(kSeBankC000, SE_CATWALK_FALL, 1);
+        }
+        answer = PIA_NONE;
+    } else {
+        memcpy(&iFeetMaxID, target + CHARA_TARGET_PART, sizeof(iFeetMaxID));
+        if (motion == MOTION_CATWALK_FALL) {
+            flags = PartFlags(ch->lightBank, iDisableMaxID);
+            if (flags != NULL)
+                *flags &= ~PARTS_FLAG_HIDDEN;
+            if (fFallStart - PosY(ch) < CATWALK_FALL_SAFE) {
+                iFeetMaxID = 0;
+                iDisableMaxID = 0;
+                asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, 0);
+            } else {
+                ch->hp = 0;
+                asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_FALL_DEAD);
+                answer = PIA_NONE;
+            }
+        }
+    }
+    if (CharaShort(ch, CHARA_MOTION_SLOTS) == MOTION_CATWALK_SWAY)
+        asCatWalkEventOperation(CATWALK_RESET);
+    return answer;
+}
+
+// CT3 0x018f8350
+// Held: each lock motion is a lever mash with its own settings; once it is over (> 0), the motion's
+// next (MOTION_REC_NEXT) plays. Motions with no mash go on at once. MOTION_BOSS5_STRUCK with no hp
+// left ends in MOTION_BOSS5_DEAD; MOTION_KNOCKED gets up with any KEY_MAP_GETUP button.
+void asPIA1_KEY_TBL_LOCK(CHARACTER *ch, PIA_KEY *key)
+{
+    short motion = CharaShort(ch, CHARA_MOTION_SLOTS);
+    int over = 1;
+
+    if (motion == MOTION_BOSS5_STRUCK) {
+        over = asRapidLeverChangeOperate(RLC_SET, 150, 10, 0x70, 50);
+        if (ch->hp < 1) {
+            asRapidLeverChangeOperate(RLC_FREE, 0, 0, 0, 0);
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_BOSS5_DEAD);
+        }
+    } else if (motion == MOTION_LOCK_1B) {
+        over = asRapidLeverChangeOperate(RLC_SET, 60, 10, 0x70, 10);
+    } else if (motion == MOTION_KNOCKED) {
+        u_short any = 0;
+        int i;
+        for (i = 0; i < KEY_MAP_GETUP_COUNT; i++)
+            any |= KEY_MAP[KEY_MAP_GETUP_FIRST + i];
+        over = asRapidLeverChangeOperate(RLC_SET, 60, 1, 0xc0, 100);
+        if ((key->cnt & any) != 0) {
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_DOWN);
+            over = 0;
+        }
+    } else if (motion == MOTION_PANIC_SCREAM) {
+        over = asRapidLeverChangeOperate(RLC_SET, 90, 10, 0x70, 10);
+    } else if (motion == MOTION_PANIC_FREEZE) {
+        over = asRapidLeverChangeOperate(RLC_SET, 90, 10, 0x70, 15);
+    } else if (motion == MOTION_PANIC_TUMBLE) {
+        over = asRapidLeverChangeOperate(RLC_SET, 90, 10, 0x70, 10);
+    } else if (motion == MOTION_DAMAGE_68) {
+        if (ssTrigCheckEvent(TRIG_EVENT_NO_FATAL_HIT, 1, 0) != 0)
+            over = asRapidLeverChangeOperate(RLC_SET, 60, 10, 0x70, 10);
+        else if (ssTrigCheckEvent(TRIG_EVENT_LOCK_9A, 1, 0) == 0 || ch->hp < 1)
+            over = asRapidLeverChangeOperate(RLC_SET, LOCK_LONG_TIME, 1, 0xc0, 100);
+        else
+            over = asRapidLeverChangeOperate(RLC_SET, 60, 10, 0x70, 10);
+        vsBossMuteki = LOCK_MUTEKI;
+    }
+    if (over > 0) {
+        const u_char *rec = MotionRecord(ch, CharaShort(ch, CHARA_MOTION_SLOTS));
+        short next;
+        if (rec == NULL)
+            return;
+        memcpy(&next, rec + MOTION_REC_NEXT, sizeof(next));
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, next);
+    }
+}
+
+// The panic event's motion; 0 for none.
+static int PanicEventMotion(int event)
+{
+    switch (event) {
+    case PANIC_EVENT_FREEZE: return MOTION_PANIC_FREEZE;
+    case PANIC_EVENT_TUMBLE: return MOTION_PANIC_TUMBLE;
+    case PANIC_EVENT_SCREAM: return MOTION_PANIC_SCREAM;
+    default: return 0;
+    }
+}
+
+// CT3 0x018f8630
+// Running in panic (PAD_MOVE 0 or 1): an armed scream, tumble or freeze plays.
+void asPIA1_KEY_TBL_PRUN(CHARACTER *ch, PIA_KEY *key)
+{
+    int motion;
+    (void)ch;
+    if (key->h0a != 1 && key->h0a != 0)
+        return;
+    motion = PanicEventMotion(asPanicEventOperation(PANIC_EV_TAKE_RUN, 0));
+    if (motion != 0)
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, motion);
+}
+
+// CT3 0x018f8750
+// Standing in panic: MOTION_PSTAND_WAIT goes on after PSTAND_WAIT_TIME (not while EV 0x68 is set) and
+// takes no keys; else a pad move moves, none takes an armed scream or freeze (no tumble standing).
+void asPIA1_KEY_TBL_PSTAND(CHARACTER *ch, PIA_KEY *key)
+{
+    if (CharaShort(ch, CHARA_MOTION_SLOTS) == MOTION_PSTAND_WAIT) {
+        if (ssTrigCheckEvent(EV_FORCE_MATRIX_OPERATION, 1, 0) == 0 && CharaInt(ch, CHARA_SLOT_TIME) > PSTAND_WAIT_TIME)
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_PSTAND_NEXT);
+        return;
+    }
+    if (key->h0a == 1) {
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_PSTAND_MOVE);
+    } else if (key->h0a == 0) {
+        int event = asPanicEventOperation(PANIC_EV_TAKE_STOP, 0);
+        if (event == PANIC_EVENT_FREEZE || event == PANIC_EVENT_SCREAM)
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, PanicEventMotion(event));
+    }
+}
+
+// Behind cover with the pad moving: turn toward iRad_Behind, stay when facing it or away from it, or
+// peek (`peek`) when facing it with TRIG_EVENT_HIDE_66 clear.
+static int BehindTurnMotion(CHARACTER *ch, int stay, int left, int right, int peek)
+{
+    int d = asISubRotate16((u_int)ch->rot, (u_int)iRad_Behind);
+    if (d >= BEHIND_ROT_OPPOSITE || d <= -BEHIND_ROT_OPPOSITE)
+        return stay;
+    if (d >= BEHIND_ROT_SAME)
+        return right;
+    if (d >= -BEHIND_ROT_SAME)
+        return ssTrigCheckEvent(TRIG_EVENT_HIDE_66, 1, 0) == 0 ? peek : stay;
+    return left;
+}
+
+// CT3 0x018f8860
+// Crouched behind cover: held (KEY_MAP_HIDE, or TRIG_EVENT_HIDE_HELD), she turns or peeks with the pad
+// and stays without; let go, she leaves. Her rot is set to iRad_Behind each frame.
+void asPIA1_KEY_TBL_SITBEHIND(CHARACTER *ch, PIA_KEY *key)
+{
+    int held = 1;
+    if (ssTrigCheckEvent(TRIG_EVENT_HIDE_HELD, 1, 0) == 0)
+        held = KeyMapHeld(key->cnt, KEY_MAP_HIDE);
+    if (key->h0a == 1) {
+        int motion = held ? BehindTurnMotion(ch, MOTION_SITBEHIND, MOTION_SITBEHIND_TURN_L,
+                                             MOTION_SITBEHIND_TURN_R, MOTION_SITBEHIND_PEEK)
+                          : MOTION_SITBEHIND_OUT;
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, motion);
+    } else if (key->h0a == 0) {
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, held ? MOTION_SITBEHIND : MOTION_SITBEHIND_OUT);
+    }
+    ch->rot = iRad_Behind;
+}
+
+// CT3 0x018f8a00
+// Going behind cover crouched: the entry motions aim her at CHARA_TARGET2; while entering, peeking or
+// leaving, PIA_NONE.
+int asPIA0_KEY_TBL_SITBEHIND(CHARACTER *ch, PIA_KEY *key)
+{
+    short motion = CharaShort(ch, CHARA_MOTION_SLOTS);
+    (void)key;
+    if (motion == MOTION_SITBEHIND_IN || motion == MOTION_SITBEHIND_IN2 || motion == MOTION_SITBEHIND_IN3)
+        AimBehind(ch);
+    if (motion == MOTION_SITBEHIND_IN || motion == MOTION_SITBEHIND_IN2 || motion == MOTION_SITBEHIND_IN3 ||
+        motion == MOTION_SITBEHIND_PEEK || motion == MOTION_SITBEHIND_OUT || motion == MOTION_BEHIND_OUT)
+        return PIA_NONE;
+    return PIA_MOVE;
+}
+
+// CT3 0x018f8af0
+// Standing behind cover: KEY_MAP_HIDE held (TRIG_EVENT_HIDE_HELD clear) she leaves; else she turns or
+// peeks with the pad and stays without. Her rot is set to iRad_Behind each frame.
+void asPIA1_KEY_TBL_BEHIND(CHARACTER *ch, PIA_KEY *key)
+{
+    int leave = 0;
+    if (ssTrigCheckEvent(TRIG_EVENT_HIDE_HELD, 1, 0) == 0)
+        leave = KeyMapHeld(key->cnt, KEY_MAP_HIDE);
+    if (key->h0a == 1) {
+        int motion = leave ? MOTION_BEHIND_OUT
+                           : BehindTurnMotion(ch, MOTION_BEHIND, MOTION_BEHIND_TURN_L, MOTION_BEHIND_TURN_R,
+                                              MOTION_BEHIND_PEEK);
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, motion);
+    } else if (key->h0a == 0) {
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, leave ? MOTION_BEHIND_OUT : MOTION_BEHIND);
+    }
+    ch->rot = iRad_Behind;
+}
+
+// CT3 0x018f8c90
+// Going behind cover standing: the entry motions aim her at CHARA_TARGET2; while entering or peeking,
+// PIA_NONE.
+int asPIA0_KEY_TBL_BEHIND(CHARACTER *ch, PIA_KEY *key)
+{
+    short motion = CharaShort(ch, CHARA_MOTION_SLOTS);
+    (void)key;
+    if (motion == MOTION_BEHIND_IN || motion == MOTION_BEHIND_IN2 || motion == MOTION_BEHIND_IN3)
+        AimBehind(ch);
+    if (motion == MOTION_BEHIND_IN || motion == MOTION_BEHIND_IN2 || motion == MOTION_BEHIND_IN3 ||
+        motion == MOTION_BEHIND_PEEK)
+        return PIA_NONE;
+    return PIA_MOVE;
+}
+
+// CT3 0x018f8d70
+// On the stairs: KEY_MAP_ITEM pressed raises the bow or drinks holy water, KEY_MAP_ARROW2 the second
+// arrow; else a pad move climbs (by the stair's direction, faster with KEY_MAP_RUN; off the stair
+// target, blended to the walk / run) and none stops.
+void asPIA1_KEY_TBL_KAIDAN(CHARACTER *ch, PIA_KEY *key)
+{
+    int run;
+    if (KeyMapHeld(key->trg, KEY_MAP_ITEM)) {
+        if (asYumi_Run_Check(ch, BOW_ARROW_PLAIN) != 0 || asWater_Run_Check(ch) != 0)
+            return;
+    } else if (KeyMapHeld(key->trg, KEY_MAP_ARROW2) && asYumi_Run_Check(ch, BOW_ARROW_LIST) != 0) {
+        return;
+    }
+    if (key->h0a == 0) {
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_STAIR_STOP);
+        return;
+    }
+    if (key->h0a != 1)
+        return;
+    run = KeyMapHeld(key->cnt, KEY_MAP_RUN);
+    if ((ch->targetState & 1) == 0) {
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_BLEND, run ? MOTION_STAIR_OFF_RUN : MOTION_STAIR_OFF_WALK);
+    } else if (ch->targetDot > STAIR_DOT) {
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, run ? MOTION_STAIR_RUN_POS : MOTION_STAIR_WALK_POS);
+    } else if (ch->targetDot < -STAIR_DOT) {
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, run ? MOTION_STAIR_RUN_NEG : MOTION_STAIR_WALK_NEG);
+    } else {
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, run ? MOTION_STAIR_RUN : MOTION_STAIR_WALK);
+    }
+}
+
+// The button of the arrow type in use (iArrowType).
+static int ArrowKeyHeld(u_int buttons)
+{
+    return KeyMapHeld(buttons, iArrowType == BOW_ARROW_PLAIN ? KEY_MAP_ITEM : KEY_MAP_ARROW2);
+}
+
+// CT3 0x018f8fe0
+// The bow: aiming, both buttons let go with the draw at BOW_SHOOT_RAD, she shoots; held (MOTION_BOW_HOLD),
+// a button raises it again; drawn, she aims (TRIG_VAR_BOW_53 at 0: at once, the record's h12 set) or
+// holds while the arrow's button is let go; raising, letting go lowers it.
 void asPIA1_KEY_TBL_YUMI(CHARACTER *ch, PIA_KEY *key)
 {
-    ALYSSAPAN_STUB("asPIA1_KEY_TBL_YUMI", 0x018f8fe0);
+    short motion = CharaShort(ch, CHARA_MOTION_SLOTS);
+
+    if (motion == MOTION_BOW_AIM) {
+        if (!KeyMapHeld(key->cnt, KEY_MAP_ARROW2) && !KeyMapHeld(key->cnt, KEY_MAP_ITEM) &&
+            asGetTheArrowRad() >= BOW_SHOOT_RAD)
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_BOW_SHOOT);
+    } else if (motion == MOTION_BOW_HOLD) {
+        if (KeyMapHeld(key->trg, KEY_MAP_ITEM))
+            asYumi_Run_Check(ch, BOW_ARROW_PLAIN);
+        else if (KeyMapHeld(key->trg, KEY_MAP_ARROW2))
+            asYumi_Run_Check(ch, BOW_ARROW_LIST);
+    } else if (motion == MOTION_BOW_DRAW) {
+        u_char *aim = MotionRecord(&Character[0], MOTION_BOW_AIM);
+        short h12;
+        if (ssTrigGetVariable(TRIG_VAR_BOW_53, 1, 0) == 0) {
+            h12 = BOW_AIM_H12;
+            if (aim != NULL)
+                memcpy(aim + MOTION_TABLE_H12, &h12, sizeof(h12));
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_BOW_AIM);
+        } else {
+            h12 = 0;
+            if (aim != NULL)
+                memcpy(aim + MOTION_TABLE_H12, &h12, sizeof(h12));
+            if (!ArrowKeyHeld(key->cnt))
+                asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_BOW_HOLD);
+        }
+    } else if (motion == MOTION_BOW_RAISE) {
+        if (!ArrowKeyHeld(key->cnt))
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, 0);
+    }
+}
+
+// CT3 0x018f93e0
+// Raise the bow with arrow `type` (BOW_ARROW_*): only with the bow ready (ITEM_STATE_BOW), out of full
+// panic, and for BOW_ARROW_LIST with an arrow in ArrowList; TRIG_VAR_BOW_53 at 0 makes it BOW_ARROW_NONE.
+// It locks on (ssXcmd_LockToTargChara "0" "4" in Alyssa's bank) and plays the raise. iArrowType keeps
+// the type either way. 1 when she raised it.
+int asYumi_Run_Check(CHARACTER *ch, int type)
+{
+    short motion = CharaShort(ch, CHARA_MOTION_SLOTS);
+    int ok = 1;
+    char arg0[4], arg1[4];
+    char *argv[BOW_LOCK_ARGC] = { arg0, arg1 }; /* @1314, sbss 0x019449a0: the initializer */
+
+    if (ssTrigGetVariable(TRIG_VAR_WATER_STATE, 1, 0) != ITEM_STATE_BOW || (PanicInfoData.mode & PANIC_MODE_FULL) != 0)
+        ok = 0;
+    if (type != BOW_ARROW_PLAIN && ArrowList[0] == 0)
+        ok = 0;
+    if (ssTrigGetVariable(TRIG_VAR_BOW_53, 1, 0) == 0)
+        type = BOW_ARROW_NONE;
+    if (ok) {
+        sprintf(arg0, "%d", 0); /* @4317 */
+        sprintf(arg1, "%d", 4);
+        ssXcmd_LockToTargChara(BOW_LOCK_ARGC, argv, Character[0].bank);
+        if (type == BOW_ARROW_NONE)
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_BOW_EMPTY);
+        else if (motion == MOTION_BOW_HOLD)
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_BOW_RAISE2);
+        else
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_BOW_RAISE);
+    }
+    iArrowType = type;
+    return ok;
+}
+
+// CT3 0x018f95c0
+// Sit-go with no getting up: a pad move toggles (with PIA_KEY.h0c) between the two motions, blended;
+// SITGONOUP_FREE_FRAMES frames past without one, she stops.
+void asPIA1_KEY_TBL_SITGONOUP(CHARACTER *ch, PIA_KEY *key)
+{
+    short motion = CharaShort(ch, CHARA_MOTION_SLOTS);
+    if (key->h0a == 1) {
+        iFreeCount_1277 = 0;
+        if (key->h0c != 0) {
+            if (motion == MOTION_SITGONOUP)
+                asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_BLEND, MOTION_SITGONOUP2);
+            else if (motion == MOTION_SITGONOUP2)
+                asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_BLEND, MOTION_SITGONOUP);
+        }
+    } else if (key->h0a == 0 && ++iFreeCount_1277 > SITGONOUP_FREE_FRAMES) {
+        if (motion == MOTION_SITGONOUP)
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_SITGONOUP_STOP);
+        else if (motion == MOTION_SITGONOUP2)
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_SITGONOUP2_STOP);
+    }
 }
