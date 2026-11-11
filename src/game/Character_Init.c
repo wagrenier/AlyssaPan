@@ -13,7 +13,7 @@
 #include "game/Character_Init.h"
 
 #include "ga/gaInit3dlib.h"
-#include "ga/gaPadInit.h"
+#include "ga/pad_button_read.h"
 #include "ga/gaSearchNearLight4.h"
 #include "ga/gaInitInterrupt.h"
 #include "game/ArtoolDebugOpen.h"

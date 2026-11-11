@@ -1662,6 +1662,18 @@ apply here):
   symbol until the GCC gaDma object's .text at 0x018a1188. So one CodeWarrior object most likely spans
   0x018a0880..0x018a1188. The ga/pad_button_read.c session should take gaPadInit and its buffers into its
   file (define 018a0880-018a1188) and retire ga/gaPadInit.c; left apart for now (one TU per run).
+  **Done 2026-11-11**: ga/pad_button_read.c defines 018a0880-018a1188 with gaPadInit as its tail;
+  ga/gaPadInit.c and its TU entry are gone.
+- (2026-11-11, ga/pad_button_read.c) gaPadRead now reads (verify). A 40 s run with a scripted START at
+  pad reads 500 / 700 / 900 / 1100 (build.py --pad) logged no TITL load, but the shot turned from flat
+  grey (the attract cycle, every earlier run) to black by frame 1200: something answered the pad. The
+  next run on the title path should look at shots 900..1200 and the run log for which scene / BIN loads
+  after START (kl2: the script's start test is still unread).
+- (2026-11-11, sdk/libpad.cpp) Vibration mapping doubt: CT3 aligns actuator 0 (small, on / off) to byte
+  0 and actuator 1 (large, level) to byte 1 (act_align {0, 1, 0xff...}), but the shim's
+  scePadSetActDirect calls rumble(data[1] != 0, data[0]): the large motor's level becomes on / off and
+  the small motor's 1 a near-zero strength. Fix in the shim (read the align from scePadSetActAlign) when
+  vibration is tested; tiVibrationOn is the caller.
 
 ## Done
 

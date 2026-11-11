@@ -1,6 +1,5 @@
 {
  "queue": [
-  "ga/pad_button_read.c",
   "game/Clipping_Portal.c",
   "alyssapan/rendering/ui_canvas.cpp",
   "game/wideXcmd_DebugPrint.c",
@@ -280,24 +279,6 @@
    ],
    "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 1 unkeyed; file name from the names"
   },
-  "ga/gaPadInit.c": {
-   "notes": "Complete; nothing on screen can show pad start-up (shot black as before). The symtab puts pad_dma_buf0/1 in pad_button_read.c's local run (indices 1607..1618): the pad_button_read.c session should merge gaPadInit into its file and define 018a0880-018a1188 (open-items.md, 2026-11-10).",
-   "ranges": [
-    [
-     "018a1130",
-     "018a1188"
-    ]
-   ],
-   "sessions": [
-    {
-     "date": "2026-11-10 16:09",
-     "status": "verify",
-     "summary": "reconstruct gaPadInit (scePadInit, both ports on pad_dma_buf0/1)"
-    }
-   ],
-   "status": "verify",
-   "why": "tumap.py (bootstrap 5): symtab local chunks 100..100, 1 functions keyed by their statics, 0 unkeyed; file name from the names"
-  },
   "ga/gaSearchNearLight4.c": {
    "ranges": [
     [
@@ -344,13 +325,22 @@
    "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 6 unkeyed; file name from the names"
   },
   "ga/pad_button_read.c": {
+   "notes": "Complete; callcheck clean. 15 s smoke: flat grey as before (attract cycle). 40 s run with scripted START at reads 500..1100: no TITL in the log, but the shot is black by frame 1200 instead of grey, so the pad is answered; next title-path run reads shots 900..1200 and which scene loads (open-items 2026-11-11). Vibration: the libpad shim maps the two act bytes the FS2 way (open-items).",
    "ranges": [
     [
      "018a0880",
-     "018a1130"
+     "018a1188"
     ]
    ],
-   "why": "tumap.py (bootstrap 5): symtab local chunks 98..98, 3 functions keyed by their statics, 0 unkeyed; file name from the names"
+   "sessions": [
+    {
+     "date": "2026-11-11 17:49",
+     "status": "verify",
+     "summary": "reconstruct gaPadRead (libpad detection walk, key repeat, stick d-pad, vibration), pad_button_read, gaPadSetVibration; merge gaPadInit into this object (018a0880-018a1188, ga/gaPadInit.c retired)"
+    }
+   ],
+   "status": "verify",
+   "why": "symtab local run 1607..1618 holds pad_button_read's statics and gaPadInit's pad_dma_buf0/1, closed by the next GCC object's .text at 0x018a1188: gaPadInit is this object's tail (ga/gaPadInit.c retired, 2026-11-11)"
   },
   "ga/wait.c": {
    "ranges": [
