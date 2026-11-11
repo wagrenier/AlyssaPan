@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-11 13:11 at commit `6e6716c` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-11 13:35 at commit `40a39a9` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1069**; stubs: **305**
+- reconstructed CT3 functions: **1071**; stubs: **303**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -93,18 +93,17 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/tnXcmd.c` | 0 | 8 |
 | `src/game/wideXcmd_DebugPrint.c` | 107 | 1 |
 | `src/game/wideXcmd_TriggerInit.c` | 0 | 44 |
-| `src/game/xcmd_tn.c` | 57 | 2 |
+| `src/game/xcmd_tn.c` | 59 | 0 |
 | `src/lib/unassigned_stubs.cpp` | 0 | 1 |
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 35, partial 5, verify 26, done 4, blocked 1
-- next: **game/xcmd_tn.c** (pinned in the queue)
-- pinned queue: game/xcmd_tn.c, alyssapan/rendering/ga_atld.cpp, alyssapan/rendering/ui_canvas.cpp, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
+- 65 TUs: todo 35, partial 4, verify 27, done 4, blocked 1
+- next: **alyssapan/rendering/ga_atld.cpp** (pinned in the queue)
+- pinned queue: alyssapan/rendering/ga_atld.cpp, alyssapan/rendering/ui_canvas.cpp, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
 - partial: `alyssapan/rendering/ga_atld.cpp` 0/0 -- Shot still black for a game reason: the light0 colour is vertex colour plus the part's ALL_TABLE.partsPos (the ambient RGB), which only the event command tnXcmd
 - partial: `game/tiXcmd_TransItem.c` 85/93 -- Slice 10. Written: tiXcmd_UseItem (ITEM_USE_* modes from argv[4], ITEM_KIND_* from the row byte +0: give-take, signal, heal Character[0].hp up to hpMax, calm vi
 - partial: `game/wideXcmd_DebugPrint.c` 107/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed) -- the last function of the TU. New stubs
-- partial: `game/xcmd_tn.c` 55/57 -- 7 commands written (TimeSet, 1P01_PazzleAnim, PlayAnimeToFream, PlayAnimeRange, VariableCal, Character_Ambient_Change, TexFileSetPage); statics TimeSet_Backup a
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaDmaSync_VIF1.c` 5/5 -- Host: kicks leave CHCR.STR clear (the transfer is over), so the syncs return at once; the BGT send keeps the copy and the flip, the packet goes nowhere (draw mo
@@ -131,10 +130,12 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/movie.c` 20/21 -- Playback kept in the ROM shape: host EE kernel runs the decoder thread and vblank handler, sdk/libmpeg decodes, the picture goes through AA_GetDataWord.c displa
 - verify: `game/sound.c` 69/69 -- All 69 written. SSLoadSEfromLoadPoint takes the bank image (BankInfo +0x1c); All_table_TBL[bank] is image + 0x80, so the old +0xd4 record is ALL_TABLE.sound, wo
 - verify: `game/ssGrpPortalCheck.c` 59/59 -- Code complete. The black screen was the ga objects' +0x38 word (EE address of the part's partsPos, the ambient light0 adds) left 0 by the ssSetAmbColorToAllObj 
+- verify: `game/xcmd_tn.c` 57/57 -- All 57 functions written. VistaVision: ON or on brings the bars in, argv[1] 1 slides, a fourth argument makes ON skippable; statics VistaVisionEndCheck, VistaVi
 - blocked: `alyssapan/rendering/ui_canvas.cpp` 0/0 -- Blocked on ga/gaBGT_DrawObject.c (host draw module for ga draw objects) and the camera (asEyeForcusUP2CamMat.c camera_init0 / camera_view stubs); triggers are n
 
 Recent sessions:
 
+- 2026-11-11 13:35 `game/xcmd_tn.c` verify: slice 5: the letterbox command (tnXcmd_VistaVision, its three statics and steps) and the key locks (tnXcmd_Key_Lock as per-stage rule tables); the TU code is co
 - 2026-11-11 13:11 `game/xcmd_tn.c` partial: slice 4: 7 x commands: the play-time clock digits, the clock puzzle turn, scene animation to a frame and over a range, variable arithmetic, a character ambient 
 - 2026-11-11 12:55 `game/xcmd_tn.c` partial: slice 3: 11 x commands: the clear's points, control lock, screen adjust, omni lights and range, screen filter, movie buffers, puzzle start, current scene, textu
 - 2026-11-11 12:30 `game/tiXcmd_TransItem.c` partial: the item use command (UseItem)
@@ -142,11 +143,10 @@ Recent sessions:
 - 2026-11-11 11:47 `game/tiXcmd_TransItem.c` partial: reconstruct 6 functions: part scale and rotation, scene animation skip to a variable, scope letters, caption flag, character room change
 - 2026-11-11 11:32 `game/tiXcmd_TransItem.c` partial: reconstruct 9 functions: rate and digit variables, add variable, ghost poles set and free, player character, global-only draw mode, draw object copy, test comma
 - 2026-11-11 11:24 `game/tiXcmd_TransItem.c` partial: reconstruct 7 functions: vibration start, end and option, wait for a free brain, character HP data, memory-card file digits
-- 2026-11-11 11:10 `game/tiXcmd_TransItem.c` partial: reconstruct 3 functions and annotate 11: item pick-up, list lookup, memory-card flags back to variables; the empty free, light-belt, stereo and memory-card id c
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `game/Clipping_Portal.c` | todo | 0/40/73 | 44.8 | 188 | 20 |
+| `game/Clipping_Portal.c` | todo | 0/40/73 | 44.8 | 189 | 20 |
 | `game/ssSetTexUVforCubeMap.c` | partial | 1/44/96 | 35.3 | 107 | 10 |
 | `game/CpDivideEECom.c` | todo | 0/10/18 | 3.3 | 80 | 10 |
 | `ga/gaDrawObject.c` | todo | 0/11/11 | 6.9 | 39 | 0 |
@@ -154,8 +154,8 @@ Recent sessions:
 | `game/ssHitCheckAttackToScn.c` | todo | 0/6/37 | 32.0 | 23 | 3 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
-| `game/asUseArrow.c` | todo | 0/7/11 | 6.4 | 17 | 1 |
 | `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
+| `game/asUseArrow.c` | todo | 0/7/11 | 6.4 | 17 | 1 |
 | `game/tkXDTrg_GetSceneHash.c` | todo | 0/8/50 | 21.0 | 15 | 2 |
 | `game/AA_SoundMonoSoart.c` | todo | 0/8/20 | 4.0 | 13 | 1 |
 
@@ -165,9 +165,9 @@ Recent sessions:
 |---|---|---|---|---|---|
 | `01851b10` | ConvertQuat2Matrix | 17 | sym | stub | game/Convert.c |
 | `018d1e70` | CpGetEEIOPStatus | 14 | sym | stub | game/CpDivideEECom.c |
+| `0188cdc0` | tiVibrationOff | 9 | sym | stub | game/Clipping_Portal.c |
 | `0188ce10` | tiVibrationOn | 9 | sym | stub | game/Clipping_Portal.c |
 | `0188ced0` | tiDrawShadingOff | 9 | sym | stub | game/Clipping_Portal.c |
-| `0188cdc0` | tiVibrationOff | 8 | sym | stub | game/Clipping_Portal.c |
 | `0188d3c0` | tiFade_Start | 8 | sym | stub | game/Clipping_Portal.c |
 | `01893cf0` | ExportDrawToTex | 8 | sym | stub | game/Clipping_Portal.c |
 | `01883ca0` | asMothPause | 7 | sym | stub | game/asMothPause.c |

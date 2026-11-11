@@ -1,6 +1,5 @@
 {
  "queue": [
-  "game/xcmd_tn.c",
   "alyssapan/rendering/ga_atld.cpp",
   "alyssapan/rendering/ui_canvas.cpp",
   "game/wideXcmd_DebugPrint.c",
@@ -1262,7 +1261,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 136..136, 7 functions keyed by their statics, 36 unkeyed; file name from the names"
   },
   "game/xcmd_tn.c": {
-   "notes": "7 commands written (TimeSet, 1P01_PazzleAnim, PlayAnimeToFream, PlayAnimeRange, VariableCal, Character_Ambient_Change, TexFileSetPage); statics TimeSet_Backup and pazzle1P01_Main defined; CHAR_AMB_SET (layout EE) is tnChangeCharAmbientColorSet's request. Picture unchanged: frame 120 the memory-card text at 4:3, then flat grey (the script waits at the stubs tiFade_Start and hhXcmd_LoadSE); none of the new commands is reached. callcheck gaps are static helpers (XcmdSetDigit, XcmdPuzzleTurn, XcmdAnimSelect, XcmdValue, XcmdIsOn, XcmdControlLock, XcmdOmniFalloff) and the dropped retail-empty sprintf messages. Left: Key_Lock (0x16f0 bytes, its own session) and VistaVision (0x3c0). open-items.md slice 4 (ae)..(ah) lists the doubts: asSceneAnimationStart 12th argument is backwards at every x-command call.",
+   "notes": "All 57 functions written. VistaVision: ON or on brings the bars in, argv[1] 1 slides, a fourth argument makes ON skippable; statics VistaVisionEndCheck, VistaVisionWaitTime, VistaVisionTimeOutError (3600). Key_Lock: the ROM compare tree as first-match tables per TRIG_VAR_STAGE (1, 2, 3, 4 and 5) keyed by area and key id; a match clears MODEL_PARTS.flags bit 0 (KEY_PART_LOCKED). Picture unchanged: frame 120 the memory-card text, then flat grey (the script waits at tiFade_Start and hhXcmd_LoadSE); neither command is reached, so verify. open-items.md slice 5 (ai)..(ak): trigger events 0x17, 0x18, 0xb2 named from one use; Key_Lock story events stay numbers; flags bit 0 has three names by part kind.",
    "ranges": [
     [
      "018ee5f0",
@@ -1289,9 +1288,14 @@
      "date": "2026-11-11 13:11",
      "status": "partial",
      "summary": "slice 4: 7 x commands: the play-time clock digits, the clock puzzle turn, scene animation to a frame and over a range, variable arithmetic, a character ambient fade, the texture page"
+    },
+    {
+     "date": "2026-11-11 13:35",
+     "status": "verify",
+     "summary": "slice 5: the letterbox command (tnXcmd_VistaVision, its three statics and steps) and the key locks (tnXcmd_Key_Lock as per-stage rule tables); the TU code is complete"
     }
    ],
-   "status": "partial",
+   "status": "verify",
    "task": "Slice 1 first: tnXcmd_Scene_Ambient_Change (0x018f1940; sets scene_alpha_anim[bank] = on, steps, r g b from its text args), the event command that gives ATLD its ambient colour: AmbientAlphaUpdate moves ALL_TABLE.partsPos toward it, and the VU1 light0 program adds partsPos to every vertex colour (vf20), so until it runs the memory-card text is drawn black on black. Find who dispatches the tn xcmds and whether the smoke run reaches it (open-items.md Next up item 7).",
    "why": "tumap.py (bootstrap 5): symtab local chunks 139..139, 17 functions keyed by their statics, 40 unkeyed; source string xcmd_tn.c"
   },

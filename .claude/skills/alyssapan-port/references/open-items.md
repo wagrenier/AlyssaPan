@@ -1175,6 +1175,22 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    variable / animation alone on the host (the ROM uses stale registers). callcheck gaps of this slice are
    the static helpers (XcmdSetDigit, XcmdPuzzleTurn, XcmdAnimSelect, XcmdValue). Left in xcmd_tn.c:
    Key_Lock (0x16f0 bytes, its own session) and VistaVision (0x3c0).
+   **game/xcmd_tn.c slice 5, verify (2026-11-11 13:25, scheduled run): the TU's code is complete.**
+   tnXcmd_VistaVision (the letterbox command: argv[0] "ON" / "on" brings the bars in, else out; argv[1]
+   1 slides; a fourth argument makes ON skippable only when it is "ON" / "on"; statics
+   VistaVisionEndCheck / WaitTime / TimeOutError (= 3600) defined, steps VV_CMD_*) and tnXcmd_Key_Lock
+   (a door part's KEY_PART_LOCKED bit, MODEL_PARTS.flags bit 0, cleared by per-stage rule tables keyed on
+   TRIG_VAR_STAGE, GetAreaNumber and argv[1]'s key id: the ROM's 0x16f0-byte compare tree as data).
+   Picture unchanged (frame 120 the memory-card text, then flat grey; neither command is reached). Open
+   from slice 5: (ai) trigger events 0x17 / 0x18 / 0xb2 are named from VistaVision only
+   (TRIG_EVENT_VISTA_17 removed when the bars are gone, _OFF_18 removed when they are asked in, _AT_ONCE
+   registered for argv[1] 0); VistaVision also holds TRIG_EVENT_PANIC_HOLD (0) while the bars run, so
+   PANIC_HOLD may be a wider "cut-scene" hold; (aj) Key_Lock's ~40 story events stay numbers (one use
+   each); the rule tables were written from the decompiler's tree: the ROM's two fall-throughs (stage 3
+   area 0x15 into 0x14, stage 4/5 areas 0x2b / 0x2c into 0x29 / 0x2d) only reach rules for other keys, so
+   first-match tables are equivalent -- a harness (the *cmp.py pattern) could prove it; (ak) bit 0 of
+   MODEL_PARTS.flags has three names by part kind (PARTS_FLAG_FOG, PARTS_FLAG_HIDDEN, KEY_PART_LOCKED):
+   whichever TU loads the parts header may unify them.
 
 ## Decisions
 

@@ -13,6 +13,8 @@
 #include <string.h>
 #include "common/alyssapan_stub.h"
 #include "game/xcmd_tn.h"
+#include "game/Clipping_Portal.h"
+#include "game/sound.h"
 #include "game/Character_Init.h"
 #include "game/QuatSlerp.h"
 #include "game/ssGrpPortalCheck.h"
@@ -1326,18 +1328,326 @@ int tnXcmd_TexFileSetPage(int argc, char **argv, int bank)
     return XCMD_DONE;
 }
 
-// ---- stubs (tools/reverse/stubgen.py) ----
+// ---- the key locks (tnXcmd_Key_Lock) ----
 
-// stub of CT3 0x018efc50
+// tnXcmd_Key_Lock's table: in a stage (TRIG_VAR_STAGE) and area (GetAreaNumber), the door whose key id is
+// argv[1] opens -- MODEL_PARTS.flags loses KEY_PART_LOCKED -- as the rule's mode says. The ROM is one
+// nested compare tree; the tables keep its order (the first rule for the area and key wins: the ROM's two
+// fall-throughs, area 0x15 into 0x14 and areas 0x2b / 0x2c into 0x29 / 0x2d, only ever reach rules for
+// other keys). Key ids -1..-3 are keys of their own (-1 most often the door no key holds).
+#define KEY_PART_LOCKED 0x1             /* MODEL_PARTS.flags bit 0 on a door part (PARTS_FLAG_FOG /
+                                           PARTS_FLAG_HIDDEN on other kinds) */
+#define KEY_FREE -1                     /* the key id most rooms open unconditionally */
+enum {
+    KEY_OPEN,                           /* the door opens */
+    KEY_UNLESS,                         /* opens unless event ev[0] is set */
+    KEY_UNLESS_ALL,                     /* opens unless every event of ev[] (0 ends the list) is set */
+    KEY_IF_FIRST,                       /* opens when ev[0] is set and ev[1] is not */
+};
+// layout: host -- the port's table of the ROM's compare tree (no EE counterpart).
+typedef struct KEY_RULE {
+    short area;
+    short key;
+    u_char mode;                        /* KEY_OPEN.. */
+    short ev[3];                        /* story events (one use each: not named) */
+} KEY_RULE;
+
+// TRIG_VAR_STAGE 1.
+static const KEY_RULE KeyLockStage1[] = {
+    {1, 0x13, KEY_OPEN, {0}}, {1, 8, KEY_OPEN, {0}}, {1, 6, KEY_OPEN, {0}}, {1, 3, KEY_OPEN, {0}},
+    {1, KEY_FREE, KEY_OPEN, {0}},
+    {2, 0x10, KEY_UNLESS, {0x544}}, {2, 0x12, KEY_OPEN, {0}}, {2, 0x11, KEY_OPEN, {0}}, {2, 9, KEY_OPEN, {0}},
+    {2, 2, KEY_OPEN, {0}}, {2, KEY_FREE, KEY_OPEN, {0}},
+    {3, KEY_FREE, KEY_OPEN, {0}},
+    {4, 0x27, KEY_UNLESS, {0x536}}, {4, 0, KEY_UNLESS, {0x547}},
+    {5, 0x32, KEY_UNLESS, {0x541}},
+    {6, 0x37, KEY_UNLESS, {0x542}}, {6, 0x36, KEY_UNLESS, {0x460}},
+    {7, 0x22, KEY_UNLESS, {0x556}},
+    {8, 0x22, KEY_UNLESS, {0x548}}, {8, 0x2d, KEY_UNLESS, {0x523}}, {8, 0x29, KEY_OPEN, {0}},
+    {8, KEY_FREE, KEY_OPEN, {0}},
+    {9, 0x3a, KEY_UNLESS, {0x5ca}}, {9, 0x31, KEY_OPEN, {0}}, {9, KEY_FREE, KEY_OPEN, {0}},
+    {10, KEY_FREE, KEY_OPEN, {0}},
+};
+
+// TRIG_VAR_STAGE 2.
+static const KEY_RULE KeyLockStage2[] = {
+    {0x10, -2, KEY_UNLESS, {0x576}}, {0x10, KEY_FREE, KEY_OPEN, {0}},
+    {0xf, 0x33, KEY_UNLESS, {0x56c}}, {0xf, KEY_FREE, KEY_OPEN, {0}},
+    {0xe, 0x33, KEY_UNLESS, {0x56c}}, {0xe, 0x31, KEY_UNLESS, {0x56b}}, {0xe, 0x2f, KEY_UNLESS, {0x56a}},
+    {0xe, KEY_FREE, KEY_OPEN, {0}},
+    {0xd, KEY_FREE, KEY_OPEN, {0}},
+    {0xc, 0x37, KEY_UNLESS, {0x568}}, {0xc, 0x35, KEY_UNLESS, {0x47b}}, {0xc, 0x2f, KEY_UNLESS, {0x56a}},
+    {0xc, 0x2e, KEY_UNLESS, {0x566}}, {0xc, 0x2d, KEY_UNLESS, {0x3c4}}, {0xc, KEY_FREE, KEY_OPEN, {0}},
+    {0xb, 0x2e, KEY_UNLESS, {0x566}}, {0xb, 0x2d, KEY_UNLESS, {0x3c4}}, {0xb, KEY_FREE, KEY_OPEN, {0}},
+    {0x12, 0x12, KEY_UNLESS, {0x5e4}}, {0x12, 0x10, KEY_UNLESS, {0x544}}, {0x12, 0x11, KEY_OPEN, {0}},
+    {0x12, 9, KEY_OPEN, {0}}, {0x12, 2, KEY_OPEN, {0}}, {0x12, KEY_FREE, KEY_OPEN, {0}},
+    {2, 0x12, KEY_UNLESS, {0x5e4}}, {2, 0x10, KEY_UNLESS, {0x544}}, {2, 0x11, KEY_OPEN, {0}},
+    {2, 9, KEY_OPEN, {0}}, {2, 2, KEY_OPEN, {0}}, {2, KEY_FREE, KEY_OPEN, {0}},
+    {0x11, 0x27, KEY_UNLESS, {0x48d}}, {0x11, 7, KEY_UNLESS, {0x48d}}, {0x11, 0x28, KEY_UNLESS, {0x48a}},
+    {0x11, 8, KEY_UNLESS, {0x48a}}, {0x11, 0x13, KEY_OPEN, {0}}, {0x11, 6, KEY_OPEN, {0}},
+    {0x11, 3, KEY_OPEN, {0}}, {0x11, KEY_FREE, KEY_OPEN, {0}},
+    {1, 0x27, KEY_UNLESS, {0x48d}}, {1, 7, KEY_UNLESS, {0x48d}}, {1, 0x28, KEY_UNLESS, {0x48a}},
+    {1, 8, KEY_UNLESS, {0x48a}}, {1, 0x13, KEY_OPEN, {0}}, {1, 6, KEY_OPEN, {0}},
+    {1, 3, KEY_OPEN, {0}}, {1, KEY_FREE, KEY_OPEN, {0}},
+};
+
+// TRIG_VAR_STAGE 3.
+static const KEY_RULE KeyLockStage3[] = {
+    {0x18, 0x29, KEY_UNLESS, {0x499}}, {0x18, KEY_FREE, KEY_OPEN, {0}},
+    {0x19, 0x27, KEY_UNLESS, {0x49b}}, {0x19, KEY_FREE, KEY_OPEN, {0}},
+    {0x16, 0x27, KEY_UNLESS, {0x49b}}, {0x16, KEY_FREE, KEY_OPEN, {0}},
+    {0x15, 0x29, KEY_UNLESS, {0x499}}, {0x15, 0x25, KEY_UNLESS, {0x49d}}, {0x15, 0x24, KEY_UNLESS, {0x3d2}},
+    {0x15, KEY_FREE, KEY_OPEN, {0}},
+    {0x14, 0x25, KEY_UNLESS, {0x49d}}, {0x14, 0x24, KEY_UNLESS, {0x3d2}}, {0x14, KEY_FREE, KEY_OPEN, {0}},
+};
+
+// TRIG_VAR_STAGE 4 and 5.
+static const KEY_RULE KeyLockStage45[] = {
+    {0x24, 9, KEY_UNLESS_ALL, {0x4cb, 0x4c5, 0x4c7}}, {0x24, -2, KEY_UNLESS, {0x5c5}},
+    {0x24, KEY_FREE, KEY_OPEN, {0}},
+    {0x25, -2, KEY_UNLESS, {0x5c5}}, {0x25, KEY_FREE, KEY_OPEN, {0}},
+    {0x26, -2, KEY_UNLESS, {0x5c5}}, {0x26, KEY_FREE, KEY_OPEN, {0}},
+    {0x27, 0x1c, KEY_UNLESS, {0x5f6}}, {0x27, KEY_FREE, KEY_OPEN, {0}},
+    {0x28, 0x1c, KEY_UNLESS, {0x5f6}}, {0x28, KEY_FREE, KEY_OPEN, {0}},
+    {0x29, 0x13, KEY_UNLESS, {0x5dc}}, {0x29, KEY_FREE, KEY_OPEN, {0}},
+    {0x2b, 0x17, KEY_UNLESS_ALL, {0x4d1, 0x4cf}}, {0x2b, 0x13, KEY_UNLESS, {0x5dc}},
+    {0x2b, KEY_FREE, KEY_OPEN, {0}},
+    {0x2c, 0x17, KEY_UNLESS_ALL, {0x4d1, 0x4cf}}, {0x2c, 0xe, KEY_IF_FIRST, {0x5f9, 0x4cd}},
+    {0x2c, KEY_FREE, KEY_OPEN, {0}},
+    {0x2d, 0xe, KEY_IF_FIRST, {0x5f9, 0x4cd}}, {0x2d, KEY_FREE, KEY_OPEN, {0}},
+    {0x2e, -3, KEY_UNLESS, {0x5d1}}, {0x2e, -2, KEY_UNLESS, {0x5d2}}, {0x2e, KEY_FREE, KEY_OPEN, {0}},
+    {0x2f, 0x1d, KEY_UNLESS, {0x5bf}}, {0x2f, KEY_FREE, KEY_OPEN, {0}},
+};
+
+#define KEY_RULE_COUNT(t) ((int)(sizeof(t) / sizeof((t)[0])))
+
+static int KeyEventSet(int ev)
+{
+    return ssTrigCheckEvent(ev, 1, 0) != 0;
+}
+
+// Whether the rule opens its door now (the ROM's checks, in its order: KEY_UNLESS_ALL stops at the
+// first clear event).
+static int KeyRuleOpens(const KEY_RULE *r)
+{
+    int i;
+
+    switch (r->mode) {
+    case KEY_OPEN:
+        return 1;
+    case KEY_UNLESS:
+        return !KeyEventSet(r->ev[0]);
+    case KEY_UNLESS_ALL:
+        for (i = 0; i < 3 && r->ev[i] != 0; i++) {
+            if (!KeyEventSet(r->ev[i]))
+                return 1;
+        }
+        return 0;
+    case KEY_IF_FIRST:
+        return KeyEventSet(r->ev[0]) && !KeyEventSet(r->ev[1]);
+    }
+    return 0;
+}
+
+// CT3 0x018efc50: the door part argv[0] of this bank, locked by key argv[1], opens when the stage's
+// table says so. Three arguments: only while event argv[2] is set; four: while argv[2] or argv[3] is.
+// Always finishes at once.
 int tnXcmd_Key_Lock(int argc, char **argv, int bank)
 {
-    ALYSSAPAN_STUB("tnXcmd_Key_Lock", 0x018efc50);
-    return {};
+    const KEY_RULE *rules;
+    int count, part, key, area, stage, i;
+
+    part = atoi(argv[0]);
+    key = atoi(argv[1]);
+    area = GetAreaNumber(0);
+    if (argc == 4) {
+        if (!KeyEventSet(atoi(argv[2])) && !KeyEventSet(atoi(argv[3])))
+            return XCMD_DONE;
+    }
+    if (argc == 3) {
+        if (!KeyEventSet(atoi(argv[2])))
+            return XCMD_DONE;
+    }
+    stage = ssTrigGetVariable(TRIG_VAR_STAGE, 1, 0);
+    switch (stage) {
+    case 1:
+        rules = KeyLockStage1;
+        count = KEY_RULE_COUNT(KeyLockStage1);
+        break;
+    case 2:
+        rules = KeyLockStage2;
+        count = KEY_RULE_COUNT(KeyLockStage2);
+        break;
+    case 3:
+        rules = KeyLockStage3;
+        count = KEY_RULE_COUNT(KeyLockStage3);
+        break;
+    case 4:
+    case 5:
+        rules = KeyLockStage45;
+        count = KEY_RULE_COUNT(KeyLockStage45);
+        break;
+    default:
+        return XCMD_DONE;
+    }
+    for (i = 0; i < count; i++) {
+        if (rules[i].area == area && rules[i].key == key) {
+            if (KeyRuleOpens(&rules[i]))
+                XcmdPart(bank, part)->flags &= ~KEY_PART_LOCKED;
+            break;
+        }
+    }
+    return XCMD_DONE;
+    // callcheck: ssTrigCheckEvent (through the static KeyEventSet)
 }
 
-// stub of CT3 0x018f37e0
+// ---- the letterbox command (VistaVision) ----
+
+// tnXcmd_VistaVision's steps (VistaVisionEndCheck). ON: IDLE -> WAIT (frames) -> GO (VistaVisionStart).
+// OFF: IDLE -> OFF_SKIP -> WAIT (the demo filter's fade ends) -> GO (VistaVisionEnd) -> OFF_SLIDING (the
+// bars are gone) -> OFF_WAIT (frames). Any other value finishes the command at once.
+enum {
+    VV_CMD_IDLE = 0,
+    VV_CMD_WAIT = 1,
+    VV_CMD_GO = 2,
+    VV_CMD_OFF_SLIDING = 3,
+    VV_CMD_OFF_WAIT = 4,
+    VV_CMD_OFF_SKIP = 10,
+};
+#define VV_ARG_ON "ON"                  /* rodata 0x01936f80 (@1179) */
+#define VV_ARG_ON_LOWER "on"            /* rodata 0x01936f88 (@1180) */
+#define VV_BAR_HEIGHT 61.0f             /* 0x42740000: each bar's lines, set on every call */
+#define VV_SKIP_TIMEOUT 3600            /* 0xe10 frames: VistaVisionTimeOutError's start */
+#define VV_SKIP_DELAY 3                 /* OFF while skipping: frames before the request starts */
+#define VV_WAIT_AT_ONCE 3               /* argv[1] 0: frames around the bars' switch */
+#define VV_WAIT_SLIDE 7                 /* argv[1] != 0 */
+// Trigger events named from this one use (open-items.md): 0x18 is removed when the bars are asked in,
+// 0x17 when they are gone; 0xb2 is registered when they switch at once.
+#define TRIG_EVENT_VISTA_OFF_18 0x18
+#define TRIG_EVENT_VISTA_17 0x17
+#define TRIG_EVENT_VISTA_AT_ONCE 0xb2
+
+// VistaVisionEndCheck (sbss 0x01944930, static): where tnXcmd_VistaVision stands, VV_CMD_*. The ON and
+// OFF requests share it and its values.
+static int VistaVisionEndCheck;
+// VistaVisionWaitTime (sbss 0x01944934, static): frames left in a wait step (and the OFF request's
+// skip delay).
+static int VistaVisionWaitTime;
+// VistaVisionTimeOutError (data 0x0193b908, static, 0xe10): frames a skipping script waits before the
+// skippable bars come on.
+static int VistaVisionTimeOutError = VV_SKIP_TIMEOUT;
+
+// CT3 0x018f37e0: the letterbox. argv[0] "ON" / "on" brings the bars in, anything else takes them out;
+// argv[1] 1 slides them (VistaVisionStart / End's now = 1 is the slide), 0 shows / hides them at once.
+// Four arguments make the ON request skippable only when argv[3] is "ON" / "on" too. Each request runs
+// over several frames (XCMD_WAIT) and finishes when the bars are asked for (ON) or gone (OFF).
 int tnXcmd_VistaVision(int argc, char **argv, int bank)
 {
-    ALYSSAPAN_STUB("tnXcmd_VistaVision", 0x018f37e0);
-    return {};
+    int skippable;
+
+    (void)bank;
+    VistaVisionHeightSize = VV_BAR_HEIGHT;
+    skippable = 1;
+    if (argc == 4)
+        skippable = strcmp(VV_ARG_ON, argv[3]) == 0 || strcmp(VV_ARG_ON_LOWER, argv[3]) == 0;
+
+    if (strcmp(VV_ARG_ON, argv[0]) == 0 || strcmp(VV_ARG_ON_LOWER, argv[0]) == 0) {
+        tiVibrationOff(0);
+        if (VistaVisionEndCheck == VV_CMD_GO) {
+            if (DemoSkip != 0 && skippable) {
+                if (VistaVisionTimeOutError - 1 != 0) {
+                    VistaVisionTimeOutError--;
+                    return XCMD_WAIT;
+                }
+                VistaVisionTimeOutError = VV_SKIP_TIMEOUT;
+            }
+            VistaVisionStart(atoi(argv[1]), skippable);
+            VistaVisionEndCheck = VV_CMD_IDLE;
+            return XCMD_DONE;
+        }
+        if (VistaVisionEndCheck == VV_CMD_WAIT) {
+            if (--VistaVisionWaitTime == 0)
+                VistaVisionEndCheck = VV_CMD_GO;
+            return XCMD_WAIT;
+        }
+        if (VistaVisionEndCheck != VV_CMD_IDLE) {
+            VistaVisionEndCheck = VV_CMD_IDLE;
+            return XCMD_DONE;
+        }
+        if (ssTrigCheckEvent(TRIG_EVENT_VISTA_KEEP, 1, 0) == 0) {
+            ssTrigRegisterEvent(TRIG_EVENT_VISTA_ON, 1, 0);
+            ssTrigRemoveEvent(TRIG_EVENT_VISTA_OFF_18, 1, 0);
+            if (atoi(argv[1]) == 0) {
+                ssTrigRegisterEvent(TRIG_EVENT_VISTA_AT_ONCE, 1, 0);
+                VistaVisionWaitTime = VV_WAIT_AT_ONCE;
+            } else {
+                VistaVisionWaitTime = VV_WAIT_SLIDE;
+            }
+            VistaVisionEndCheck = VV_CMD_WAIT;
+        } else {
+            VistaVisionEndCheck = VV_CMD_GO;
+        }
+        ssTrigRegisterEvent(TRIG_EVENT_PANIC_HOLD, 1, 0);
+        return XCMD_WAIT;
+    }
+
+    switch (VistaVisionEndCheck) {
+    case VV_CMD_OFF_WAIT:
+        if (--VistaVisionWaitTime == 0) {
+            VistaVisionEndCheck = VV_CMD_IDLE;
+            ssTrigRemoveEvent(TRIG_EVENT_PANIC_HOLD, 1, 0);
+            return XCMD_DONE;
+        }
+        return XCMD_WAIT;
+    case VV_CMD_OFF_SLIDING:
+        if (VistaVisionCounter == 0.0f) {
+            if (ssTrigCheckEvent(TRIG_EVENT_VISTA_KEEP, 1, 0) == 0) {
+                ssTrigRemoveEvent(TRIG_EVENT_VISTA_17, 1, 0);
+                if (atoi(argv[1]) == 0) {
+                    ssTrigRegisterEvent(TRIG_EVENT_VISTA_AT_ONCE, 1, 0);
+                    VistaVisionWaitTime = VV_WAIT_AT_ONCE;
+                } else {
+                    VistaVisionWaitTime = VV_WAIT_SLIDE;
+                }
+                VistaVisionEndCheck = VV_CMD_OFF_WAIT;
+            } else {
+                VistaVisionWaitTime = 1; // the ROM's: the step stays, so this only re-arms the count
+            }
+        }
+        return XCMD_WAIT;
+    case VV_CMD_GO:
+        VistaVisionEnd(atoi(argv[1]));
+        VistaVisionEndCheck = VV_CMD_OFF_SLIDING;
+        return XCMD_WAIT;
+    case VV_CMD_WAIT:
+        if (DemoFilterChangeWork.active == 0)
+            VistaVisionEndCheck = VV_CMD_GO;
+        return XCMD_WAIT;
+    case VV_CMD_OFF_SKIP:
+        if (DEMO_SKIP_SET != 0 && Demo_Skip_Set != 0) {
+            ssTrigRemoveEvent(TRIG_EVENT_DEMO_SKIP_9E, 1, 0);
+            DEMO_SKIP_SET = 0;
+            Demo_Skip_Set = 0;
+        }
+        VistaVisionEndCheck = VV_CMD_WAIT;
+        return XCMD_WAIT;
+    case VV_CMD_IDLE:
+        break;
+    default:
+        VistaVisionEndCheck = VV_CMD_IDLE;
+        return XCMD_DONE;
+    }
+    if (DemoSkip != 0) {
+        if (VistaVisionWaitTime + 1 < VV_SKIP_DELAY) {
+            VistaVisionWaitTime++;
+            return XCMD_WAIT;
+        }
+        VistaVisionWaitTime = 0;
+    }
+    VistaVisionEndCheck = VV_CMD_OFF_SKIP;
+    return XCMD_WAIT;
 }
+
+// ---- stubs (tools/reverse/stubgen.py) ----
+
+
