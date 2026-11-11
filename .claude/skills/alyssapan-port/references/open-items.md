@@ -1311,9 +1311,26 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    banks, so that flag may mean more than the animation; (jw) init_black_drawctrl (sbss 0x0193d380) is
    set up for XFade_Type 2..4 (XFADE_TYPE_FROM_BLACK) but nothing staged here reads it: the cross-fade's
    draw (tiXcmd_TransItem.c or main.c's XFade pass) is its reader -- give the kinds 2 and 4 names there.
+   Slice 7 (2026-11-11): tiParticleInit and tiLensFlaresInit (scene_init's set-up, data only);
+   PARTICLE2_ENTRY +0x30..+0x3c / +0x42 / +0x58 / +0x7c, PARTICLE2_EMITTER, PARTICLE2.pos, LENS_FLARE /
+   LENS_FLARE_ELEM and the sprite packet's words, ALL_TABLE.lensFlares (+0x88), drawctrl_flare (bss
+   0x0193d6c0, a symtab global) with FLARE_DRAWCTRL_ARGS from the disassembly. Open from it: (jx) **(js)
+   corrected**: MODEL_PARTS offsets count from the parts header (part i = header + i * 0x380, the record
+   proper at +0x40), so the flare's +8 and the particle's +0x7c are MODEL_PARTS.pos (+0x130) and +0x58 /
+   the emitter's +4 are matrix200 (+0x200); (jy) the flare element's texel rectangle reads TEX_INFO as
+   u0 = maxu, u1 = maxu + minu, v0 = maxv, v1 = maxv + minv (REGION_REPEAT's fields reused as a sub-rect,
+   named from this use), UV + 8 / + 9 (the ROM's 9 for v, kept); (jz) a particle ring record's draw
+   object gets DRAW_OBJ_POS = the record's pos (+0x40) and +0x58 / +0x5c = obj6c + 0x40 / + 0x80
+   (DRAW_OBJ_W58 / W5C, unread: the particle draw names them); PARTICLE2_ENTRY.w38 (-1 at init) waits for
+   tiGenerateParticle; (ka) the translucence pair (tiChara_Translucence_Start / End / Start2 / End2,
+   ~0x400 bytes) needs a host frame-buffer capture first: Start copies the draw buffer to 0xa8000 through
+   tiVRAMViewer (a 512 x 448 sprite from VRAM), End draws it back over the character at alpha * 128 / 100,
+   End2 wobbles six sprite corners with ahCos -- a host task (AlyssaPan capture to a texture, drawn
+   through DisplayGeometry) before them. Nothing on screen: the smoke run never reaches a scene's
+   draw (frame 120 memory-card text, then the flat grey of (ia)).
    Slice left: tiDrawShadingOff with CaptureDBuffer and tiVRAMViewer, ExportDrawToTex, tiDrawLensFlares
-   with tiLensFlaresInit (after the host sprite), tiParticleInit, tiFreeBossData (boss TU), plus the six
-   slice-3 helper stubs.
+   (after the host sprite), the translucence four (ka), tiFreeBossData (boss TU), plus the six slice-3
+   helper stubs.
 
 ## Decisions
 

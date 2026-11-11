@@ -1250,6 +1250,141 @@ void tiLightBelt2Update(void)
     }
 }
 
+// ---- particles and lens flares: the scene's set-up (slice 7, 2026-11-11) ----
+
+// One relocated word of bank data as a u_long (the packets are EE u_long words; the host image keeps
+// the EE layout, not its 8-byte alignment).
+static void PutWord64(u_long *words, int index, u_long value)
+{
+    memcpy(&words[index], &value, sizeof(value));
+}
+
+// The EE address of part `part`'s field at `offset` (MODEL_PARTS offsets count from the parts header,
+// part 0 included: the record proper starts at +PARTS_HDR_RECORDS).
+static u_int PartFieldEE(int scene, int part, size_t offset)
+{
+    MODEL_PARTS *parts = (MODEL_PARTS *)pModelPartsHeader[scene];
+
+    return BankEeAddr(scene, (u_char *)&parts[part] + offset);
+}
+
+// One list of tiParticleInit: point each entry (and its emitter) at its part's matrix200 and the
+// second part's position, fill in a missing emit rate, set up its draw control and texture, and
+// point every ring record's draw object at the record's position and its 0x6c block.
+static void ParticleInitList(int scene, u_int listEE)
+{
+    u_int *list = BANK_PTR(u_int *, scene, listEE);
+    int i, k;
+
+    if (list == NULL) {
+        return;
+    }
+    for (i = 0; list[i] != 0; i++) {
+        PARTICLE2_ENTRY *ent = BANK_PTR(PARTICLE2_ENTRY *, scene, list[i]);
+        PARTICLE2_EMITTER *em = BANK_PTR(PARTICLE2_EMITTER *, scene, ent->emitter);
+        GA_DRAWCTRL_ARGS *args = BANK_PTR(GA_DRAWCTRL_ARGS *, scene, ent->drawCtrlId);
+        TEX_INFO *tex = BANK_PTR(TEX_INFO *, scene, ent->tex);
+        PARTICLE2 *ring = BANK_PTR(PARTICLE2 *, scene, ent->ring);
+        int n = ent->ringSize;
+
+        ent->w38 = -1;
+        ent->partMatrix = PartFieldEE(scene, ent->parts, offsetof(MODEL_PARTS, matrix200));
+        if (ent->emitRate < 0.1f) {
+            ent->emitRate = (float)ent->ringSize / ((float)ent->lifeTenths * 0.1f * 60.0f);
+        }
+        if (em != NULL) {
+            em->matrix = PartFieldEE(scene, em->parts, offsetof(MODEL_PARTS, matrix200));
+            em->state = 0;
+        }
+        if (ent->part2 != 0) {
+            ent->partPos = PartFieldEE(scene, ent->part2, offsetof(MODEL_PARTS, pos));
+        }
+        if (args != NULL) {
+            gaSetupDrawCtrlData(BANK_PTR(GA_DRAWCTRL_DATA *, scene, ent->drawCtrl), *args);
+        }
+        if (tex != NULL) {
+            sunSetupTBufferData(BANK_PTR(void *, scene, ent->tbuffer), *tex);
+        }
+        for (k = 0; k < n; k++) { // the ROM unrolls this by 8
+            u_char *obj = BANK_PTR(u_char *, scene, ring[k].obj);
+            u_int pos = BankEeAddr(scene, ring[k].pos);
+            u_int w58 = ring[k].obj6c + 0x40;
+            u_int w5c = ring[k].obj6c + 0x80;
+
+            memcpy(obj + DRAW_OBJ_POS, &pos, sizeof(pos));
+            memcpy(obj + DRAW_OBJ_W58, &w58, sizeof(w58));
+            memcpy(obj + DRAW_OBJ_W5C, &w5c, sizeof(w5c));
+        }
+    }
+}
+
+// CT3 0x01890350: set up bank `scene`'s second particles, both lists (scene_init).
+void tiParticleInit(int scene)
+{
+    ParticleInitList(scene, All_table_TBL[scene]->particles2);
+    ParticleInitList(scene, All_table_TBL[scene]->particles2After);
+    // callcheck: gaSetupDrawCtrlData, sunSetupTBufferData (ParticleInitList makes them)
+}
+
+// drawctrl_flare's settings (gaSetupDrawCtrlData's 29 argument slots, from the disassembly): Gouraud,
+// textured, alpha blended, UV; alpha test always passing, depth test ALWAYS; Cs * As + Cd * (1 - As);
+// TEX1: LCM 1, MXL 2, bilinear both ways.
+static const GA_DRAWCTRL_ARGS FLARE_DRAWCTRL_ARGS = {
+    1, 1, 0, 1, 0, 1, 0, 0, /* PRMODE: IIP, TME, ABE, FST */
+    1, 0, 0, 1, 0, 0, 1, 1, /* TEST_1: ATE, ATST 0 (NEVER), AFAIL 1 (FB_ONLY), ZTE, ZTST 1 (ALWAYS) */
+    0, 1, 0, 1, 0,          /* ALPHA_1: A 0 (Cs), B 1 (Cd), C 0 (As), D 1 (Cd) */
+    0,                      /* FBA_1 */
+    1, 2, 1, 1, 0, 0,       /* TEX1_1: LCM 1, MXL 2, MMAG 1, MMIN 1 */
+    0};                     /* TEXA */
+
+alignas(16) GA_DRAWCTRL_DATA drawctrl_flare;    /* bss 0x0193d6c0 */
+
+// CT3 0x0188e4a0: set up bank `scene`'s lens flares (scene_init): each flare learns the EE addresses of
+// its partsPos qword and its part's position; each element uploads its texture's set-up and gets the
+// fixed words of its sprite packet with the texture's rectangle as UVs; then drawctrl_flare.
+void tiLensFlaresInit(int scene)
+{
+    u_int *list = BANK_PTR(u_int *, scene, All_table_TBL[scene]->lensFlares);
+    u_int partsPos = All_table_TBL[scene]->partsPos;
+    int i, k;
+
+    for (i = 0; list != NULL && list[i] != 0; i++) { // PORT: the ROM reads a 0 list at EE address 0
+        LENS_FLARE *flare = BANK_PTR(LENS_FLARE *, scene, list[i]);
+        LENS_FLARE_ELEM *elems = BANK_PTR(LENS_FLARE_ELEM *, scene, flare->elems);
+
+        flare->partsPos = partsPos + (u_int)flare->parts * 0x10;
+        flare->partPos = PartFieldEE(scene, flare->parts, offsetof(MODEL_PARTS, pos));
+        for (k = 0; k < flare->count; k++) {
+            LENS_FLARE_ELEM *e = &elems[k];
+            TEX_INFO *tex = BANK_PTR(TEX_INFO *, scene, e->tex);
+            u_long *pkt = BANK_PTR(u_long *, scene, e->packet);
+            int u0 = 0, u1 = 0, v0 = 0, v1 = 0;
+
+            if (tex != NULL) {
+                sunSetupTBufferData(BANK_PTR(void *, scene, e->tbuffer), *tex);
+                u0 = (int)tex->maxu;
+                v0 = (int)tex->maxv;
+                u1 = u0 + (int)tex->minu;
+                v1 = v0 + (int)tex->minv;
+            }
+            PutWord64(pkt, LENS_FLARE_PKT_DMATAG, LENS_FLARE_DMATAG);
+            PutWord64(pkt, LENS_FLARE_PKT_DMATAG + 1, 0);
+            PutWord64(pkt, LENS_FLARE_PKT_VIFCODES, 0);
+            PutWord64(pkt, LENS_FLARE_PKT_VIFCODES + 1, LENS_FLARE_VIF_DIRECT4 << 32);
+            PutWord64(pkt, LENS_FLARE_PKT_GIFTAG, LENS_FLARE_GIFTAG);
+            PutWord64(pkt, LENS_FLARE_PKT_REGS, LENS_FLARE_GIFREGS);
+            PutWord64(pkt, LENS_FLARE_PKT_PRIM, LENS_FLARE_PRIM_SPRITE);
+            PutWord64(pkt, LENS_FLARE_PKT_UV0,
+                      ((((u_long)(u0 << 4) & 0xffff) | LENS_FLARE_UV_HALF_U)) |
+                          ((((u_long)(v0 << 4) & 0xffff) | LENS_FLARE_UV_HALF_V) << 16));
+            PutWord64(pkt, LENS_FLARE_PKT_UV1,
+                      ((((u_long)(u1 << 4) & 0xffff) | LENS_FLARE_UV_HALF_U)) |
+                          ((((u_long)(v1 << 4) & 0xffff) | LENS_FLARE_UV_HALF_V) << 16));
+        }
+    }
+    gaSetupDrawCtrlData(&drawctrl_flare, FLARE_DRAWCTRL_ARGS);
+}
+
 // ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x01893850
@@ -1328,18 +1463,6 @@ void tiChara_Translucence_Start(void)
 void tiChara_Translucence_Start2(void)
 {
     ALYSSAPAN_STUB("tiChara_Translucence_Start2", 0x0188dbd0);
-}
-
-// stub of CT3 0x0188e4a0
-void tiLensFlaresInit(int scene)
-{
-    ALYSSAPAN_STUB("tiLensFlaresInit", 0x0188e4a0);
-}
-
-// stub of CT3 0x01890350
-void tiParticleInit(int scene)
-{
-    ALYSSAPAN_STUB("tiParticleInit", 0x01890350);
 }
 
 // stub of CT3 0x018949c0

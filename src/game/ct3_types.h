@@ -406,7 +406,7 @@ typedef struct ALL_TABLE {
     u_int particles2After;              /* 0x7c: the same, mode 1; non-empty -> ExportDrawToTex */
     u_int distAtten;                    /* 0x80: DIST_ATTEN[] (DistanceAttenuationUpdate), 0 = none */
     u_int angleAtten;                   /* 0x84: ANGLE_ATTEN[] (AngleAttenuationUpdate), 0 = none */
-    u_int pad88;
+    u_int lensFlares;                   /* 0x88: list of LENS_FLARE (Clipping_Portal.h): tiLensFlaresInit, tiDrawLensFlares */
     u_int texFileSet;                   /* 0x8c: TEX_FILE_SET_TABLE (QuatSlerp.h: the paged textures), 0 = none */
     u_int hurikoHits;                   /* 0x90: list of HURIKO_HIT (Clipping_Portal.h): tiHurikoInit points them
                                            at their parts, tiHurikoHitUpdate carries them */
@@ -645,6 +645,8 @@ static_assert(sizeof(DRAW_OBJ_ENTRY) == 0x1c, "DRAW_OBJ_ENTRY");
 #define DRAW_OBJ_POS 0x38               /* u_int: EE address of the part's ALL_TABLE.partsPos qword (BankEePtr): the
                                            ambient RGB the VU1 light0 program adds (vf20), alpha in w */
 #define DRAW_OBJ_PACKET_QWC 0x48        /* u_int: the object's packet is this + 1 qwords (tiXcmd_CopySunPs2Object) */
+#define DRAW_OBJ_W58 0x58               /* u_int: a particle record's obj6c + 0x40 (tiParticleInit; unread) */
+#define DRAW_OBJ_W5C 0x5c               /* u_int: a particle record's obj6c + 0x80 (tiParticleInit; unread) */
 #define DRAW_OBJ_PACKET 0x68            /* u_int: EE address of the object's packet (relocated) */
 #define DRAW_OBJ_ATTR 0x3c              /* int: MODEL_PARTS.attr */
 #define DRAW_OBJ_FLAG_CLIP 0x20         /* always drawn through the clipping path */
@@ -681,7 +683,8 @@ typedef struct PARTICLE2 {
     u_char pad00[0x20];
     float offset[4];                    /* 0x20: added to the part's position; w scales its w
                                            around PARTS_POS_W_CENTER */
-    u_char pad30[0x20];
+    u_char pad30[0x10];
+    float pos[4];                       /* 0x40: the record's position: its draw object's DRAW_OBJ_POS (tiParticleInit) */
     int life;                           /* 0x50: tiCalc_LifeSpan: the record expires once life - age < 1 */
     int age;                            /* 0x54 (both named from that one use) */
     u_char pad58[0x10];
@@ -693,26 +696,47 @@ static_assert(sizeof(PARTICLE2) == 0x80, "PARTICLE2");
 static_assert(offsetof(PARTICLE2, offset) == 0x20, "PARTICLE2.offset");
 static_assert(offsetof(PARTICLE2, obj) == 0x68, "PARTICLE2.obj");
 static_assert(offsetof(PARTICLE2, life) == 0x50, "PARTICLE2.life");
+static_assert(offsetof(PARTICLE2, pos) == 0x40, "PARTICLE2.pos");
+
+// The emitter a PARTICLE2_ENTRY may carry (+0x30). layout: ee -- named from tiParticleInit's writes only.
+typedef struct PARTICLE2_EMITTER {
+    int parts;                          /* 0x00: the model part it follows */
+    u_int matrix;                       /* 0x04: <- EE address of that part's MODEL_PARTS.matrix200 (tiParticleInit) */
+    int pad08;
+    int state;                          /* 0x0c: <- 0 at init */
+} PARTICLE2_EMITTER;
+static_assert(offsetof(PARTICLE2_EMITTER, state) == 0x0c, "PARTICLE2_EMITTER.state");
 
 typedef struct PARTICLE2_ENTRY {
-    u_char pad00[0x40];
+    u_char pad00[0x30];
+    u_int emitter;                      /* 0x30: PARTICLE2_EMITTER, 0 = none */
+    int lifeTenths;                     /* 0x34: a record's life in 1/10 s (the emit rate's divisor) */
+    int w38;                            /* 0x38: <- -1 at init (its reader, tiGenerateParticle, is unread) */
+    float emitRate;                     /* 0x3c: records per frame; under 0.1 tiParticleInit sets
+                                           ringSize / (lifeTenths * 0.1 * 60): the ring filled over one life */
     u_short parts;                      /* EE 0x40: index into ALL_TABLE.partsPos */
-    u_short pad42;
+    u_short part2;                      /* 0x42: non-0: a second part, its position -> partPos */
     u_short ringSize;                   /* EE 0x44 */
     u_short count;                      /* EE 0x46: live records; 0 = nothing to draw */
     u_short head;                       /* EE 0x48: the oldest live record */
     u_char pad4a[6];
-    u_int drawCtrlId;                   /* 0x50: non-0: the draw control to switch to (relocated) */
-    u_int tex;                          /* 0x54: TEX_INFO; uploaded only for particles2 (not ...After) */
-    int pad58;
+    u_int drawCtrlId;                   /* 0x50: non-0: the draw control to switch to (relocated): the EE address
+                                           of its GA_DRAWCTRL_ARGS, which tiParticleInit sets drawCtrl up from */
+    u_int tex;                          /* 0x54: TEX_INFO (tiParticleInit sets tbuffer up from it); uploaded
+                                           only for particles2 (not ...After) */
+    u_int partMatrix;                   /* 0x58: <- EE address of parts' MODEL_PARTS.matrix200 (tiParticleInit) */
     u_int ring;                         /* 0x5c: PARTICLE2[ringSize] */
     u_char pad60[0x14];
     u_int tbuffer;                      /* 0x74: the texture's upload packet */
     u_int drawCtrl;                     /* 0x78: GA_DRAWCTRL_DATA */
+    u_int partPos;                      /* 0x7c: <- EE address of part2's MODEL_PARTS.pos (tiParticleInit) */
 } PARTICLE2_ENTRY;
 static_assert(offsetof(PARTICLE2_ENTRY, parts) == 0x40, "PARTICLE2_ENTRY.parts");
 static_assert(offsetof(PARTICLE2_ENTRY, drawCtrlId) == 0x50, "PARTICLE2_ENTRY.drawCtrlId");
 static_assert(offsetof(PARTICLE2_ENTRY, drawCtrl) == 0x78, "PARTICLE2_ENTRY.drawCtrl");
+static_assert(offsetof(PARTICLE2_ENTRY, emitter) == 0x30, "PARTICLE2_ENTRY.emitter");
+static_assert(offsetof(PARTICLE2_ENTRY, partMatrix) == 0x58, "PARTICLE2_ENTRY.partMatrix");
+static_assert(sizeof(PARTICLE2_ENTRY) == 0x80, "PARTICLE2_ENTRY");
 
 #define PARTS_POS_W_CENTER 128.0f       /* main_rtn_Particle2: w' = (w + 128) * scale - 128 */
 

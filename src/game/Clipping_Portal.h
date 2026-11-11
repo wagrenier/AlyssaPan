@@ -135,6 +135,53 @@ static_assert(sizeof(HURIKO_HIT) == 0x40, "HURIKO_HIT");
 #define HURIKO_FLAG_DISABLED 0x4        /* its trigger was off (set each frame it is off) */
 #define HURIKO_FLAG_RESET 0x8           /* re-enabled: tiHurikoReset on the next enabled frame */
 
+// ---- lens flares (tiLensFlaresInit, 2026-11-11 slice 7) ----
+// A bank's lens flares (ALL_TABLE.lensFlares, a 0-ended list of EE words). layout: ee -- bank data; every
+// pointer is a relocated EE word (BankEePtr). tiLensFlaresInit points each flare at its part and fills
+// each element's sprite packet; tiDrawLensFlares (unwritten) spreads the elements along the line from the
+// flare's screen point to the screen centre.
+typedef struct LENS_FLARE_ELEM {
+    u_int tex;                          /* 0x00: TEX_INFO, 0 = none; u0 = maxu, u1 = u0 + minu, v0 = maxv,
+                                           v1 = v0 + minv (the sprite's texel rectangle) */
+    u_int tbuffer;                      /* 0x04: the texture's upload packet */
+    u_int size;                         /* 0x08: the sprite's size (tiDrawLensFlares halves it) */
+    float factor;                       /* 0x0c: where on the line to the centre it sits */
+    u_int packet;                       /* 0x10: LENS_FLARE_PACKET */
+} LENS_FLARE_ELEM;
+static_assert(sizeof(LENS_FLARE_ELEM) == 0x14, "LENS_FLARE_ELEM");
+
+typedef struct LENS_FLARE {
+    int parts;                          /* 0x00: the model part (tiDrawLensFlares reads its low u_short as the
+                                           trigger part) */
+    u_int partsPos;                     /* 0x04: <- EE address of ALL_TABLE.partsPos[parts] (w + 128: alpha) */
+    u_int partPos;                      /* 0x08: <- EE address of that part's MODEL_PARTS.pos */
+    int count;                          /* 0x0c: elements */
+    u_int elems;                        /* 0x10: LENS_FLARE_ELEM[count] */
+} LENS_FLARE;
+static_assert(offsetof(LENS_FLARE, elems) == 0x10, "LENS_FLARE.elems");
+
+// An element's sprite packet (0x60 bytes of u_long words, EE data): a DMA CNT tag of 5 qwords (its VIF
+// codes 0), a qword of VIF NOP x3 / DIRECT 4, a GIF tag (one REGLIST loop of six registers), then PRIM,
+// RGBAQ (tiDrawLensFlares), UV, XYZF2, UV, XYZF2. tiLensFlaresInit writes all but RGBAQ and the XYZF2s.
+#define LENS_FLARE_PKT_DMATAG 0         /* word index; word 1 is the tag's VIF codes */
+#define LENS_FLARE_PKT_VIFCODES 2       /* words 2..3: VIF NOP x3, VIF DIRECT 4 */
+#define LENS_FLARE_PKT_GIFTAG 4
+#define LENS_FLARE_PKT_REGS 5
+#define LENS_FLARE_PKT_PRIM 6
+#define LENS_FLARE_PKT_RGBAQ 7
+#define LENS_FLARE_PKT_UV0 8
+#define LENS_FLARE_PKT_XYZF0 9
+#define LENS_FLARE_PKT_UV1 10
+#define LENS_FLARE_PKT_XYZF1 11
+#define LENS_FLARE_PKT_WORDS 12
+#define LENS_FLARE_DMATAG 0x10000005ull         /* DMA CNT, 5 qwords */
+#define LENS_FLARE_VIF_DIRECT4 0x50000004ull    /* VIF DIRECT, 4 qwords (word 3's upper half) */
+#define LENS_FLARE_GIFTAG 0x6400000000008001ull /* NLOOP 1, EOP, REGLIST, NREG 6 */
+#define LENS_FLARE_GIFREGS 0x434310ull          /* PRIM, RGBAQ, UV, XYZF2, UV, XYZF2 */
+#define LENS_FLARE_PRIM_SPRITE 6ull
+#define LENS_FLARE_UV_HALF_U 8          /* added to u * 16: half a texel */
+#define LENS_FLARE_UV_HALF_V 9          /* added to v * 16 (the ROM's own 9, not 8) */
+
 // ---- particles (tiParticleUpdate, 2026-11-11 slice 3) ----
 // PORT: the bank is added to the helpers that read a PARTICLE2_ENTRY's ring (an EE word in the bank).
 struct PARTICLE2_ENTRY;

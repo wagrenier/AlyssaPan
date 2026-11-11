@@ -474,7 +474,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 105..105, 36 functions keyed by their statics, 13 unkeyed; file name from the names"
   },
   "game/Clipping_Portal.c": {
-   "notes": "Smoke run unchanged: frame 120 ATLD memory-card text, then black; no scene bank loads, so the belts cannot show. open-items 7 jt..jw: pos330 / matrix340 named by offset, PARTS_FLAG43_BELT reader unread, init_black_drawctrl reader is the cross-fade draw. Slice left: tiDrawShadingOff with CaptureDBuffer and tiVRAMViewer, ExportDrawToTex, lens flares after a host textured sprite (open-items 7 js), tiParticleInit, tiFreeBossData (boss TU), the six slice-3 helper stubs.",
+   "notes": "Smoke run unchanged: frame 120 memory-card text, then the known flat grey; no scene draw is reached, so nothing here shows. open-items 7 jx..ka: MODEL_PARTS offsets count from the parts header (corrects js), flare UV rectangle from TEX_INFO maxu/minu/maxv/minv, DRAW_OBJ_W58/W5C unread, the translucence four need a host frame-buffer capture task first. Slice left: tiDrawShadingOff with CaptureDBuffer and tiVRAMViewer, ExportDrawToTex, tiDrawLensFlares after a host sprite, the translucence four, tiFreeBossData (boss TU), the six slice-3 helper stubs.",
    "ranges": [
     [
      "01889cd0",
@@ -511,6 +511,11 @@
      "date": "2026-11-11 16:13",
      "status": "partial",
      "summary": "slice 6: tiLightBelt2Update (light-belt ribbons: trail or Bezier points, screen-space edge rows, back into the part's draw space) and tiXFadeOut_Start2 with init_black_drawctrl; LIGHT_BELT2 rows / verts, LIGHT_BELT2_VERT, MODEL_PARTS pos330 / matrix340"
+    },
+    {
+     "date": "2026-11-11 16:29",
+     "status": "partial",
+     "summary": "slice 7: tiParticleInit and tiLensFlaresInit (scene_init set-up: parts matrix200 / pos words, emit rate, draw controls and textures, ring draw objects; flare sprite packets and drawctrl_flare); PARTICLE2_ENTRY / PARTICLE2_EMITTER / LENS_FLARE / LENS_FLARE_ELEM, ALL_TABLE.lensFlares"
     }
    ],
    "status": "partial",

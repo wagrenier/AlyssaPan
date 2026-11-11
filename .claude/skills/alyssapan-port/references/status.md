@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-11 16:13 at commit `3af0b4d` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-11 16:29 at commit `0ae14b2` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1100**; stubs: **286**
+- reconstructed CT3 functions: **1102**; stubs: **284**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -58,7 +58,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/AlignedNum.c` | 4 | 0 |
 | `src/game/ArtoolDebugOpen.c` | 15 | 0 |
 | `src/game/Character_Init.c` | 48 | 1 |
-| `src/game/Clipping_Portal.c` | 29 | 22 |
+| `src/game/Clipping_Portal.c` | 31 | 20 |
 | `src/game/Convert.c` | 0 | 2 |
 | `src/game/CpDivideEECom.c` | 0 | 10 |
 | `src/game/IOPGetFileSize.c` | 4 | 0 |
@@ -101,7 +101,7 @@ Least-named game-code regions (64 KB blocks):
 - 65 TUs: todo 34, partial 4, verify 27, done 6, blocked 1
 - next: **game/Clipping_Portal.c** (pinned in the queue)
 - pinned queue: game/Clipping_Portal.c, alyssapan/rendering/ui_canvas.cpp, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
-- partial: `game/Clipping_Portal.c` 29/73 -- Smoke run unchanged: frame 120 ATLD memory-card text, then black; no scene bank loads, so the belts cannot show. open-items 7 jt..jw: pos330 / matrix340 named b
+- partial: `game/Clipping_Portal.c` 31/73 -- Smoke run unchanged: frame 120 memory-card text, then the known flat grey; no scene draw is reached, so nothing here shows. open-items 7 jx..ka: MODEL_PARTS off
 - partial: `game/tiXcmd_TransItem.c` 85/93 -- Slice 10. Written: tiXcmd_UseItem (ITEM_USE_* modes from argv[4], ITEM_KIND_* from the row byte +0: give-take, signal, heal Character[0].hp up to hpMax, calm vi
 - partial: `game/wideXcmd_DebugPrint.c` 107/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed) -- the last function of the TU. New stubs
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
@@ -135,6 +135,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-11 16:29 `game/Clipping_Portal.c` partial: slice 7: tiParticleInit and tiLensFlaresInit (scene_init set-up: parts matrix200 / pos words, emit rate, draw controls and textures, ring draw objects; flare sp
 - 2026-11-11 16:13 `game/Clipping_Portal.c` partial: slice 6: tiLightBelt2Update (light-belt ribbons: trail or Bezier points, screen-space edge rows, back into the part's draw space) and tiXFadeOut_Start2 with ini
 - 2026-11-11 15:53 `game/Clipping_Portal.c` partial: slice 5: tiPipeJointInit and tiPipeJointUpdate (Character 3 tube: two-bone IK plus a damped spring), gaNormalizeVector3XYZ, tiXFadeOut_Start; XfadeEndTicks decl
 - 2026-11-11 15:31 `game/Clipping_Portal.c` partial: slice 4: tiHurikoInit (joint links and rest pose), tiHurikoHitUpdate, tiHurikoReset_On, tiSet_CharaTranslucenceON; HURIKO chains / jointTable, HURIKO_JOINT, HUR
@@ -142,22 +143,21 @@ Recent sessions:
 - 2026-11-11 14:54 `game/Clipping_Portal.c` partial: slice 2: Clipping_Portal (portal side planes), tiCharaFootAdjust and tiCalc_FootPos (two-bone leg IK onto the floor); LOS_HIT, CHARACTER.footAdjust, CHARA_LEG m
 - 2026-11-11 14:32 `alyssapan/rendering/ga_fill.cpp` done: the fade draws: tiFade_Draw covers the whole window through AlyssaPan_DrawGaFill, black at 4:3 and wide where the shot was flat grey
 - 2026-11-11 14:19 `game/Clipping_Portal.c` partial: slice 1: vibration (tiVibrationOn / Off / Timer), wind (tiWindInit / Update / End / End_All), tiLightBelt2Init, tiFade_Start, tiFade_Draw, tiFactorial; WIND, LI
-- 2026-11-11 13:54 `alyssapan/rendering/ga_atld.cpp` done: ATLD draws as the game picks it: the memory-card text textured, centred, same size at 4:3 and 1280x540; the slot 2 wording is page 1 of a 10-page slide texture,
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
 | `game/ssSetTexUVforCubeMap.c` | partial | 1/44/96 | 35.3 | 107 | 10 |
-| `game/Clipping_Portal.c` | partial | 29/22/73 | 44.8 | 85 | 7 |
 | `game/CpDivideEECom.c` | todo | 0/10/18 | 3.3 | 80 | 10 |
+| `game/Clipping_Portal.c` | partial | 31/20/73 | 44.8 | 73 | 5 |
 | `ga/gaDrawObject.c` | todo | 0/11/11 | 6.9 | 39 | 0 |
 | `game/tiAvoidObject.c` | todo | 0/7/82 | 30.5 | 27 | 4 |
 | `game/ssHitCheckAttackToScn.c` | todo | 0/6/37 | 32.0 | 25 | 3 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
+| `game/AA_GetDataWord.c` | todo | 0/8/15 | 4.9 | 21 | 2 |
+| `game/AA_SoundMonoSoart.c` | todo | 0/8/20 | 4.0 | 18 | 2 |
 | `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
-| `game/asUseArrow.c` | todo | 0/7/11 | 6.4 | 17 | 1 |
 | `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
-| `ga/pad_button_read.c` | todo | 0/2/3 | 2.1 | 16 | 2 |
-| `game/tkXDTrg_GetSceneHash.c` | todo | 0/8/50 | 21.0 | 15 | 2 |
+| `game/asUseArrow.c` | todo | 0/7/11 | 6.4 | 17 | 1 |
 
 ## Frontier (called by reconstructed code, not written yet)
 
