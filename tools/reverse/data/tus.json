@@ -1,9 +1,9 @@
 {
  "queue": [
+  "game/ssGrpPortalCheck.c",
   "game/xcmd_tn.c",
   "alyssapan/rendering/ga_atld.cpp",
   "alyssapan/rendering/ui_canvas.cpp",
-  "game/ssGrpPortalCheck.c",
   "game/wideXcmd_DebugPrint.c",
   "game/tkXDTrg_GetSceneHash.c",
   "game/asUseArrow.c",
@@ -1194,12 +1194,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 136..136, 7 functions keyed by their statics, 36 unkeyed; file name from the names"
   },
   "game/xcmd_tn.c": {
+   "notes": "Dispatcher found: ssTrigExecuteActCmd command 0x514 calls ssXcmd_functions[index](argc, argv, bank) (0x0193a500, 256 words; slot 138 = the ambient command). It is a stub in game/ssGrpPortalCheck.c, so the smoke run reaches none of these and the shot is unchanged (black ATLD). game/ssGrpPortalCheck.c queued first for the dispatcher and the table. Left here: 18 slice functions (SetRoodersPts, SetAllControlDisableCamera, ScreenAdjust, TimeStop, Continue, EndPanic, AllOmniEffect, CharOmniEffect, OmniRange, StayRoom, ReadChengeMsg, Menu_MapLoad, Filter_Change, TimeSet, BankFree, CharFogAnimation, SceneFogAnimation, SetMovieWorkBuff) and 17 beyond. callcheck: strncpy for strcpy is deliberate; BRANCH_CLEAR / GAME_OVER_END are present (the checker skips ALL-CAPS names).",
    "ranges": [
     [
      "018ee5f0",
      "018f3cb0"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-11 08:08",
+     "status": "partial",
+     "summary": "slice 1: tnXcmd_Scene_Ambient_Change and 21 small x commands (waits, variables, room-in icons, bank and flag commands), BankUseCheck; SS_XCMD slot type"
+    }
+   ],
+   "status": "partial",
    "task": "Slice 1 first: tnXcmd_Scene_Ambient_Change (0x018f1940; sets scene_alpha_anim[bank] = on, steps, r g b from its text args), the event command that gives ATLD its ambient colour: AmbientAlphaUpdate moves ALL_TABLE.partsPos toward it, and the VU1 light0 program adds partsPos to every vertex colour (vf20), so until it runs the memory-card text is drawn black on black. Find who dispatches the tn xcmds and whether the smoke run reaches it (open-items.md Next up item 7).",
    "why": "tumap.py (bootstrap 5): symtab local chunks 139..139, 17 functions keyed by their statics, 40 unkeyed; source string xcmd_tn.c"
   },

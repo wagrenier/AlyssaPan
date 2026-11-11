@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-11 07:55 at commit `d4e744a` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-11 08:08 at commit `da57b99` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **917**; stubs: **171**
+- reconstructed CT3 functions: **939**; stubs: **171**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -88,16 +88,18 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/tkXDTrg_GetSceneHash.c` | 0 | 3 |
 | `src/game/wideXcmd_DebugPrint.c` | 107 | 1 |
 | `src/game/wideXcmd_TriggerInit.c` | 0 | 1 |
+| `src/game/xcmd_tn.c` | 22 | 0 |
 | `src/lib/unassigned_stubs.cpp` | 0 | 1 |
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 38, partial 3, verify 25, done 4, blocked 1
-- next: **game/xcmd_tn.c** (pinned in the queue)
-- pinned queue: game/xcmd_tn.c, alyssapan/rendering/ga_atld.cpp, alyssapan/rendering/ui_canvas.cpp, game/ssGrpPortalCheck.c, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
+- 65 TUs: todo 37, partial 4, verify 25, done 4, blocked 1
+- next: **game/ssGrpPortalCheck.c** (pinned in the queue)
+- pinned queue: game/ssGrpPortalCheck.c, game/xcmd_tn.c, alyssapan/rendering/ga_atld.cpp, alyssapan/rendering/ui_canvas.cpp, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
 - partial: `alyssapan/rendering/ga_atld.cpp` 0/0 -- Shot still black for a game reason: the light0 colour is vertex colour plus the part's ALL_TABLE.partsPos (the ambient RGB), which only the event command tnXcmd
 - partial: `game/ssGrpPortalCheck.c` 50/59 -- ssTrigCheckConditions (0x018d7b70) and ssTrigExecuteActCmd (0x018d5450, 0x249c bytes) are stubs; the smoke run reaches both with real bank data. Next: ssTrigChe
 - partial: `game/wideXcmd_DebugPrint.c` 107/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed) -- the last function of the TU. New stubs
+- partial: `game/xcmd_tn.c` 22/57 -- Dispatcher found: ssTrigExecuteActCmd command 0x514 calls ssXcmd_functions[index](argc, argv, bank) (0x0193a500, 256 words; slot 138 = the ambient command). It 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaDmaSync_VIF1.c` 5/5 -- Host: kicks leave CHCR.STR clear (the transfer is over), so the syncs return at once; the BGT send keeps the copy and the flip, the packet goes nowhere (draw mo
@@ -127,6 +129,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-11 08:08 `game/xcmd_tn.c` partial: slice 1: tnXcmd_Scene_Ambient_Change and 21 small x commands (waits, variables, room-in icons, bank and flag commands), BankUseCheck; SS_XCMD slot type
 - 2026-11-11 07:55 `alyssapan/rendering/ga_atld.cpp` partial: ga textures: sunBGT_ExecTBufferData_VIF1 hands TEX0, CLAMP, level 0 and the CLUT to AlyssaPan_DrawGaTexture; TextureStore decodes CT3 GS textures at their sourc
 - 2026-11-11 07:24 `game/ssGrpPortalCheck.c` partial: triggers slice 3: Trigger_main, the detector walk (ssTrigProcDetRecur, ssTrigProceedDetector, ssTrigCheckDetector and its box, plane-volume and contact shapes),
 - 2026-11-11 07:05 `game/ssGrpPortalCheck.c` partial: triggers slice 2: Trigger_init, Trigger_deinit, TriggerGlobalInit, the trigger block getters and count readers, the delay-enable ring (ssTrigDEPop_Front, PushBa
@@ -134,7 +137,6 @@ Recent sessions:
 - 2026-11-10 22:53 `game/asEyeForcusUP2CamMat.c` verify: camera slice 4: camera_main (the pad camera: debug fly modes 0 / 1, the ND camera with its drive mode, mode 3 -> 4, the scene camera's controller-100 cut step);
 - 2026-11-10 22:35 `game/asEyeForcusUP2CamMat.c` partial: camera slice 3: asGetDestinationEYE (the seven eye kinds: part, rail, orbit, stay, plane, ring, segment; the cut path from OBJ_CTRL), CamSetNowDOFLevel, CamChan
 - 2026-11-10 22:17 `game/asEyeForcusUP2CamMat.c` partial: camera slice 2: 7 functions -- camera_view and camera_view0 (the frame's camera: last frame's view kept, stocked cut retried, cut move blend, look-around stick,
-- 2026-11-10 22:01 `game/asEyeForcusUP2CamMat.c` partial: camera slice 1: 15 functions -- the view builder, the bank view switch, init / init0 / destroy, the cut chain (CamChange_S, CamChangeSub, target list) and the l
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
@@ -145,11 +147,11 @@ Recent sessions:
 | `game/tiAvoidObject.c` | todo | 0/7/82 | 30.5 | 27 | 4 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/ssHitCheckAttackToScn.c` | todo | 0/5/37 | 32.0 | 22 | 3 |
-| `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
+| `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `game/asUseArrow.c` | todo | 0/6/11 | 6.4 | 16 | 1 |
-| `game/ssGrpPortalCheck.c` | partial | 50/2/59 | 26.4 | 14 | 2 |
 | `game/tkXDTrg_GetSceneHash.c` | todo | 0/3/50 | 21.0 | 14 | 2 |
+| `game/ssGrpPortalCheck.c` | partial | 50/2/59 | 26.4 | 14 | 2 |
 
 ## Frontier (called by reconstructed code, not written yet)
 

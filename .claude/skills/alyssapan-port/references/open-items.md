@@ -1066,8 +1066,24 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    likely a blink / animation cell the game moves (find the writer); a second bank's objects (a light1 grey
    band and a gold ornament, window 2002..2230 x 2042..2145) draw top left under ATLD's camera: check
    whether the ROM hides them (partsPos w, bank drawOn) or they belong to the next screen.
+   **game/xcmd_tn.c slice 1, partial (2026-11-11, scheduled run):** tnXcmd_Scene_Ambient_Change and 21
+   small commands written (architecture.md "The x commands"). The smoke run cannot reach them: their one
+   caller is `ssTrigExecuteActCmd` (command 0x514 through `ssXcmd_functions`, 0x0193a500), still a stub
+   in game/ssGrpPortalCheck.c, so the shot is unchanged (black ATLD; the grey band and gold ornament top
+   left). **Queued next: game/ssGrpPortalCheck.c's ssTrigExecuteActCmd** with the 256-word table (Claude's
+   call, Decisions); the table needs every slot's function declared (stubs for the ones not written).
+   Open: (u) callcheck reports ALL-CAPS calls (BRANCH_CLEAR, GAME_OVER_END) as missing though they are
+   there -- its call pattern seems to skip upper-case names as macros; (v) PARTS_FLAG_FOG (bit 0) is
+   the "not drawn" bit the room-in icon commands clear / set: rename it (PARTS_FLAG_HIDDEN?) when the
+   fog part's use is read again; (w) the strncpy in wideXcmd_GlobalFree / tnXcmd_Menu_MapOff (the ROM:
+   strcpy) bounds the copy of a 16-byte name: callcheck lists it.
 
 ## Decisions
+
+- 2026-11-11 (Claude, scheduled run, for the user to overrule): **game/ssGrpPortalCheck.c (the
+  dispatcher ssTrigExecuteActCmd) queued ahead of the rest of xcmd_tn.c.** The ambient command is
+  written but nothing calls it until the dispatcher runs command 0x514; more x commands would not change
+  the picture either.
 
 - 2026-11-11 (Claude, scheduled run, for the user to overrule): **game/xcmd_tn.c queued ahead of
   ga_atld.cpp's rest.** The host draw of ATLD is right (a forced ambient shows the reference), and what

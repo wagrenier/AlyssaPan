@@ -427,6 +427,13 @@ the TU map's evidence.
   alpha into w; `tnXcmd_Scene_Ambient_Change(steps, r, g, b)` (0x018f1940, an event command) sets the
   target. ATLD's vertex colours are (0, 0, 0, 0x7f) and its partsPos starts at 0: MODULATE draws the text
   black until the event sets the ambient (white text needs 0x80).
+- **The x commands (2026-11-11, xcmd_tn.c slice 1):** the trigger script's command 0x514 in
+  `ssTrigExecuteActCmd` (0x018d5450) reads a 2-byte length, an index byte and an argc byte, then argc
+  NUL-terminated strings from ActData, and calls `ssXcmd_functions[index](argc, argv, bank)` (data
+  0x0193a500, 256 code words; `lui 0x194 / addiu -0x5b00`, call at 0x018d6d2c). A zero low byte in v0 means
+  "again next frame": the cursor steps back over the command (length + 6). Slot 138 (0x0193a728) is
+  tnXcmd_Scene_Ambient_Change, 139 tnXcmd_Char_DirectLight_Change. The port's slot type is `SS_XCMD`
+  (game/xcmd_tn.h): every command takes (int argc, char **argv, int bank) and answers int.
 - **The window:** the VU1 projection centres on (2304, 2272) in a 512 x 448 frame; ATLD's text quad
   lands at 2086..2521 x 2149..2395 (centred), its icons at 2410..2522 x 2353..2384.
 
