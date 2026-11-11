@@ -32,15 +32,16 @@ static_assert(offsetof(WIND, world40) == 0x60, "WIND.world40");
                                            named from this use) */
 extern WIND *WindList[WIND_MAX];                /* sbss 0x0193d290 */
 
-// ---- light belts (tiLightBelt2Init, 2026-11-11; tiLightBelt2Update reads them, a later slice) ----
+// ---- light belts (tiLightBelt2Init, 2026-11-11; tiLightBelt2Update, 2026-11-11 slice 6) ----
 // A bank's light belts (ALL_TABLE.lightBelts, a 0-ended list of EE words). layout: ee -- bank data;
 // points is a relocated EE address. A belt either sits on one part (link 0: every point at the part's
 // position) or spans two parts: halfA / halfB are half the span, each in its own part's frame (w 0).
 typedef struct LIGHT_BELT2 {
     int partA;                          /* 0x00: the model part it starts at */
-    u_short pad04;
-    u_short count;                      /* 0x06: points[]'s length */
-    u_int pad08;
+    u_short rows;                       /* 0x04: rows of verts[] (3: edge, centre, edge; tiLightBelt2Update) */
+    u_short count;                      /* 0x06: points[]'s length = vertices per row */
+    u_int verts;                        /* 0x08: EE address of u_int[rows * count]: each a LIGHT_BELT2_VERT's
+                                           EE address, row-major (row 1 the centre line) */
     int link;                           /* 0x0c: 0 = on partA alone; else spans partA .. partB */
     u_int points;                       /* 0x10: EE address of float[count][4] */
     int partB;                          /* 0x14: the part it ends at (link != 0) */
@@ -51,6 +52,24 @@ typedef struct LIGHT_BELT2 {
 static_assert(offsetof(LIGHT_BELT2, points) == 0x10, "LIGHT_BELT2.points");
 static_assert(offsetof(LIGHT_BELT2, halfA) == 0x20, "LIGHT_BELT2.halfA");
 static_assert(sizeof(LIGHT_BELT2) == 0x40, "LIGHT_BELT2");
+static_assert(offsetof(LIGHT_BELT2, verts) == 0x08, "LIGHT_BELT2.verts");
+
+// One vertex of a belt's ribbon (tiLightBelt2Update, 2026-11-11). layout: ee -- bank data. The model has the
+// same position in several vertex slots: tiLightBelt2Update writes slots[0] and copies it to the rest.
+typedef struct LIGHT_BELT2_VERT {
+    u_int slots;                        /* 0x00: EE address of u_int[n]: each the EE address of a float[4] */
+    u_int pad04;
+    int n;                              /* 0x08: slots[]'s length */
+    float width2;                       /* 0x0c: the half width toward row 2, on a centre-row vertex */
+    float width0;                       /* 0x10: the half width toward row 0, on a centre-row vertex */
+} LIGHT_BELT2_VERT;
+static_assert(offsetof(LIGHT_BELT2_VERT, width0) == 0x10, "LIGHT_BELT2_VERT.width0");
+#define LIGHT_BELT2_ROW_CENTRE 1        /* verts[]'s row of the belt's points (view space) */
+#define LIGHT_BELT2_ROW_EDGE0 0         /* the centre row pushed a quarter turn one way on screen (width0) */
+#define LIGHT_BELT2_ROW_EDGE2 2         /* ... and a quarter turn the other way (width2) */
+#define LIGHT_BELT2_TURN0 0x3ffc        /* gaSetRotMatrixZ angle (0x10000 a full turn): row 0's side */
+#define LIGHT_BELT2_TURN2 0xbff4        /* ... row 2's side */
+#define PARTS_FLAG43_BELT (PARTS_FLAG43_WARPED | PARTS_FLAG43_TRANS)   /* a two-part belt sets both (3) on its parts */
 
 // ---- pendulums (huriko; tiHurikoUpdate, 2026-11-11 slice 3) ----
 // A bank's pendulums (ALL_TABLE.huriko, a 0-ended list of EE words). layout: ee -- bank data; only the

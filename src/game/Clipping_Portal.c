@@ -15,6 +15,7 @@
 #include "game/unassigned_data.h"
 #include "ga/gaInit3dlib.h"
 #include "ga/gaInitDrawObject.h"
+#include "ga/gaSinCos.h"
 #include "sdk/eekernel.h"
 #include "ga/pad_button_read.h"
 #include "alyssapan/rendering/alyssapan_drawga.h"
@@ -1030,6 +1031,225 @@ void tiXFadeOut_Start(float time)
     XFade_Type = XFADE_TYPE_NONE;
 }
 
+// The draw control tiXFadeOut_Start2 sets up for the kinds that start from black: untextured, unblended,
+// no tests but ZTST 1 / AFAIL 1, ALPHA (Cs, Cd, FIX, Cd) at FIX 0 (the ROM's 22 argument words).
+#define INIT_BLACK_DRAWCTRL_ARGS {                                                  0, 0, 0, 0, 0, 1, 0, 0,      /* PRMODE: FST */                                  0, 0, 0, 1, 0, 0, 0, 1,      /* TEST_1: AFAIL 1, ZTST 1 */                      0, 1, 2, 1, 0,               /* ALPHA_1: A Cs, B Cd, C FIX, D Cd, FIX 0 */      1,                           /* FBA_1 */                                        1, 2, 1, 1, 0, 0,            /* TEX1_1 */                                       0}                           /* TEXA */
+#define XFADE_TYPE_FROM_BLACK(kind) ((kind) == 2 || (kind) == XFADE_TYPE_PAUSE2 || (kind) == 4)
+alignas(16) static GA_DRAWCTRL_DATA init_black_drawctrl;   /* sbss 0x0193d380 (local) */
+
+// CT3 0x0188d5e0: tiXcmd_XFadeOut2Start: start a cross-fade out of kind `kind` lasting `time` seconds;
+// kinds 2..4 set up init_black_drawctrl (the cross-fade's draw reads it: not reconstructed yet).
+void tiXFadeOut_Start2(float time, u_char kind)
+{
+    fXFade = 1;
+    XfadeStartTicks = 0;
+    XfadeEndTicks = (int)(time * 30.0f);
+    XFade_Type = kind;
+    if (XFADE_TYPE_FROM_BLACK(XFade_Type)) {
+        GA_DRAWCTRL_ARGS args = INIT_BLACK_DRAWCTRL_ARGS;
+
+        gaSetupDrawCtrlData(&init_black_drawctrl, args);
+    }
+}
+
+// ---- light belts: the per-frame ribbon (slice 6) ----
+
+#define SCREEN_CX 4                     /* screen_0[]: the screen centre x (256) */
+#define SCREEN_CY 5                     /* ... y (224) */
+#define SCREEN_AX 6                     /* ... the x aspect (0.832) */
+#define SCREEN_AY 7                     /* ... the y aspect (0.94) */
+#define SCREEN_SCRZ 8                   /* ... the projection distance (512) */
+
+// A belt vertex's first slot (the one the ROM computes; the rest copy it).
+static float *BeltVertPos(int bank, const LIGHT_BELT2 *belt, int index)
+{
+    u_int *verts = BANK_PTR(u_int *, bank, belt->verts);
+    LIGHT_BELT2_VERT *v = BANK_PTR(LIGHT_BELT2_VERT *, bank, verts[index]);
+    u_int *slots = BANK_PTR(u_int *, bank, v->slots);
+
+    return BANK_PTR(float *, bank, slots[0]);
+}
+
+static LIGHT_BELT2_VERT *BeltVert(int bank, const LIGHT_BELT2 *belt, int index)
+{
+    u_int *verts = BANK_PTR(u_int *, bank, belt->verts);
+
+    return BANK_PTR(LIGHT_BELT2_VERT *, bank, verts[index]);
+}
+
+// A view-space point on the screen: (cx + scrz ax x / z, cy - scrz ay y / z, z, 1).
+static void BeltToScreen(float out[4], const float *p, float cx, float cy, float sx, float sy)
+{
+    out[0] = cx + sx * (p[0] / p[2]);
+    out[1] = cy - sy * (p[1] / p[2]);
+    out[2] = p[2];
+    out[3] = 1.0f;
+}
+
+// An edge vertex: `base` (on the screen) pushed along the turned 2D direction from `from` to `to` by
+// width * scrz / to's z, then back into view space at base's z.
+static void BeltEdge(float *out, float (*turn)[4], const float base[4], const float from[4], const float to[4],
+                     float width, float scrz, float cx, float cy, float invSx, float invSy)
+{
+    float d[4], side[4], e[4];
+    float q, scale = scrz / to[2];
+    int j;
+
+    d[0] = to[0] - from[0];
+    d[1] = to[1] - from[1];
+    d[2] = 0.0f;
+    d[3] = 0.0f;
+    q = 1.0f / sqrtf(d[0] * d[0] + d[1] * d[1]);
+    for (j = 0; j < 4; j++) {
+        d[j] *= q;
+    }
+    PortApplyMatrix(side, turn, d);
+    for (j = 0; j < 4; j++) {
+        e[j] = base[j] + side[j] * (width * scale);
+    }
+    out[0] = invSx * e[2] * (e[0] - cx);
+    out[1] = invSy * e[2] * (cy - e[1]);
+    out[2] = e[2];
+    out[3] = 1.0f;
+}
+
+// CT3 0x0188a610: once a frame (main), unless paused: move every drawn scene bank's light belts. A belt on
+// one part trails it (its points shift down one, point 0 takes the part's position); a belt between two
+// parts is a cubic Bezier from A through A + halfA, B + halfB to B. While the part's trigger is enabled the
+// ribbon is rebuilt: the centre row is the points in view space, the edge rows are pushed sideways on the
+// screen by each vertex's widths (scaled by depth), and every row goes back into the part's draw space.
+void tiLightBelt2Update(void)
+{
+    float cx = screen_0[SCREEN_CX];
+    float cy = screen_0[SCREEN_CY];
+    float scrz = screen_0[SCREEN_SCRZ];
+    float sx = scrz * screen_0[SCREEN_AX];
+    float sy = scrz * screen_0[SCREEN_AY];
+    float invSx, invSy;
+    float turn0[4][4], turn2[4][4], inv[4][4];
+    int bank;
+
+    if (pause != 0) {
+        return;
+    }
+    invSx = 1.0f / sx;
+    invSy = 1.0f / sy;
+    gaSetRotMatrixZ(turn0, LIGHT_BELT2_TURN0);
+    gaSetRotMatrixZ(turn2, LIGHT_BELT2_TURN2);
+    for (bank = BANK_SCENE_MAX; bank < BANK_MAX; bank++) {
+        BANK_INFO *bi = &BankInfo[bank];
+        u_int *list;
+        int i;
+
+        if (bi->drawOn == 0 || bi->type == BANK_TYPE_BEHAVIOR) {
+            continue;
+        }
+        if (bi->flags & BANK_FLAG_ANIM_FORCE_STOP) {
+            bank += bi->groupCount - 1;
+            continue;
+        }
+        list = BANK_PTR(u_int *, bank, All_table_TBL[bank]->lightBelts);
+        if (list == NULL) {
+            bank += bi->groupCount - 1;
+            continue;
+        }
+        for (i = 0; list[i] != 0; i++) {
+            LIGHT_BELT2 *belt = BANK_PTR(LIGHT_BELT2 *, bank, list[i]);
+            MODEL_PARTS *parts = (MODEL_PARTS *)pModelPartsHeader[bank];
+            MODEL_PARTS *a = &parts[belt->partA];
+            float (*points)[4] = BANK_PTR(float (*)[4], bank, belt->points);
+            int count = belt->count;
+            int k, r;
+
+            if (a->kind == PARTS_KIND_WIND_ON_ROOT) {
+                a = &parts[0];
+            }
+            gaInversMatrix(inv, a->matrix340);
+            if (belt->link == 0) {
+                for (k = count - 1; k != 0; k--) {
+                    memcpy(points[k], points[k - 1], sizeof(points[k]));
+                }
+                memcpy(points[0], a->pos330, sizeof(points[0]));
+            } else {
+                MODEL_PARTS *b = &parts[belt->partB];
+                float ha[4], hb[4], ctrl[4][4];
+                int j;
+
+                a->flags43 = PARTS_FLAG43_BELT;
+                a->drawOnPos[3] = 1.0f;
+                b->flags43 = PARTS_FLAG43_BELT;
+                PortApplyMatrix(ha, a->matrix200, belt->halfA);
+                PortApplyMatrix(hb, b->matrix200, belt->halfB);
+                memcpy(ctrl[0], a->pos330, sizeof(ctrl[0]));
+                for (j = 0; j < 3; j++) {
+                    ctrl[1][j] = ha[j] + a->pos330[j];
+                    ctrl[2][j] = b->pos330[j] + hb[j];
+                }
+                ctrl[1][3] = ha[3];
+                ctrl[2][3] = b->pos330[3];
+                memcpy(ctrl[3], b->pos330, sizeof(ctrl[3]));
+                for (k = 0; k < count; k++) {
+                    float s = (float)k / (float)(count - 1);
+
+                    asGetBeziePosition(1.0f - s, s, points[k], ctrl);
+                    points[k][3] = 1.0f;
+                }
+            }
+            if (!ssTrigCheckEnable((short)belt->partA, bank)) {
+                continue;
+            }
+            for (k = 0; k < count; k++) {
+                PortApplyMatrix(BeltVertPos(bank, belt, LIGHT_BELT2_ROW_CENTRE * count + k),
+                                Cam[CAMERA_SHARED].view, points[k]);
+            }
+            {
+                float prev[4], cur[4];
+
+                BeltToScreen(prev, BeltVertPos(bank, belt, LIGHT_BELT2_ROW_CENTRE * count), cx, cy, sx, sy);
+                for (k = 1; k < count; k++) {
+                    LIGHT_BELT2_VERT *v = BeltVert(bank, belt, LIGHT_BELT2_ROW_CENTRE * count + k);
+
+                    BeltToScreen(cur, BeltVertPos(bank, belt, LIGHT_BELT2_ROW_CENTRE * count + k), cx, cy, sx, sy);
+                    BeltEdge(BeltVertPos(bank, belt, LIGHT_BELT2_ROW_EDGE0 * count + k - 1), turn0, prev, prev,
+                             cur, v->width0, scrz, cx, cy, invSx, invSy);
+                    BeltEdge(BeltVertPos(bank, belt, LIGHT_BELT2_ROW_EDGE2 * count + k - 1), turn2, prev, prev,
+                             cur, v->width2, scrz, cx, cy, invSx, invSy);
+                    memcpy(prev, cur, sizeof(prev));
+                }
+                // the last vertex: the last segment's direction, from the last point itself
+                {
+                    LIGHT_BELT2_VERT *v = BeltVert(bank, belt, LIGHT_BELT2_ROW_CENTRE * count + count - 1);
+
+                    BeltToScreen(cur, BeltVertPos(bank, belt, LIGHT_BELT2_ROW_CENTRE * count + count - 1), cx, cy,
+                                 sx, sy);
+                    BeltToScreen(prev, BeltVertPos(bank, belt, LIGHT_BELT2_ROW_CENTRE * count + count - 2), cx,
+                                 cy, sx, sy);
+                    BeltEdge(BeltVertPos(bank, belt, LIGHT_BELT2_ROW_EDGE0 * count + count - 1), turn0, cur, prev,
+                             cur, v->width0, scrz, cx, cy, invSx, invSy);
+                    BeltEdge(BeltVertPos(bank, belt, LIGHT_BELT2_ROW_EDGE2 * count + count - 1), turn2, cur, prev,
+                             cur, v->width2, scrz, cx, cy, invSx, invSy);
+                }
+            }
+            for (r = 0; r < belt->rows; r++) {
+                for (k = 0; k < count; k++) {
+                    LIGHT_BELT2_VERT *v = BeltVert(bank, belt, k + r * count);
+                    u_int *slots = BANK_PTR(u_int *, bank, v->slots);
+                    float *p0 = BANK_PTR(float *, bank, slots[0]);
+                    float t[4];
+                    int j;
+
+                    memcpy(t, p0, sizeof(t));
+                    PortApplyMatrix(p0, inv, t);
+                    for (j = 1; j < v->n; j++) {
+                        memcpy(BANK_PTR(float *, bank, slots[j]), p0, 4 * sizeof(float));
+                    }
+                }
+            }
+        }
+        bank += bi->groupCount - 1;
+    }
+}
+
 // ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x01893850
@@ -1048,12 +1268,6 @@ void tiDrawLensFlares(void)
 void tiDrawShadingOff(void)
 {
     ALYSSAPAN_STUB("tiDrawShadingOff", 0x0188ced0);
-}
-
-// stub of CT3 0x0188a610
-void tiLightBelt2Update(void)
-{
-    ALYSSAPAN_STUB("tiLightBelt2Update", 0x0188a610);
 }
 
 // stub of CT3 0x01889f70
@@ -1132,12 +1346,6 @@ void tiParticleInit(int scene)
 void tiGetTransRotMatrix(float (*dst)[4], float *pos, float (*src)[4])
 {
     ALYSSAPAN_STUB("tiGetTransRotMatrix", 0x018949c0);
-}
-
-// stub of CT3 0x0188d5e0
-void tiXFadeOut_Start2(float time, u_char kind)
-{
-    ALYSSAPAN_STUB("tiXFadeOut_Start2", 0x0188d5e0);
 }
 
 // stub of CT3 0x0188fba0

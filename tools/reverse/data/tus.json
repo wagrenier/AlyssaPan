@@ -474,7 +474,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 105..105, 36 functions keyed by their statics, 13 unkeyed; file name from the names"
   },
   "game/Clipping_Portal.c": {
-   "notes": "Smoke run unchanged: frame 120 ATLD memory-card text, then black; chara 3 never loads, so the pipe cannot show. tiFreeBossData left a stub on purpose: its pBossInfo pointer slots wait for the boss TU (open-items 7 jr). Lens flares need a host textured-sprite call first (open-items 7 js has the record and packet layout). Slice left: tiDrawShadingOff with CaptureDBuffer and tiVRAMViewer, ExportDrawToTex, lens flares after the host sprite, tiLightBelt2Update, tiParticleInit, the six slice-3 helper stubs.",
+   "notes": "Smoke run unchanged: frame 120 ATLD memory-card text, then black; no scene bank loads, so the belts cannot show. open-items 7 jt..jw: pos330 / matrix340 named by offset, PARTS_FLAG43_BELT reader unread, init_black_drawctrl reader is the cross-fade draw. Slice left: tiDrawShadingOff with CaptureDBuffer and tiVRAMViewer, ExportDrawToTex, lens flares after a host textured sprite (open-items 7 js), tiParticleInit, tiFreeBossData (boss TU), the six slice-3 helper stubs.",
    "ranges": [
     [
      "01889cd0",
@@ -506,6 +506,11 @@
      "date": "2026-11-11 15:53",
      "status": "partial",
      "summary": "slice 5: tiPipeJointInit and tiPipeJointUpdate (Character 3 tube: two-bone IK plus a damped spring), gaNormalizeVector3XYZ, tiXFadeOut_Start; XfadeEndTicks declared"
+    },
+    {
+     "date": "2026-11-11 16:13",
+     "status": "partial",
+     "summary": "slice 6: tiLightBelt2Update (light-belt ribbons: trail or Bezier points, screen-space edge rows, back into the part's draw space) and tiXFadeOut_Start2 with init_black_drawctrl; LIGHT_BELT2 rows / verts, LIGHT_BELT2_VERT, MODEL_PARTS pos330 / matrix340"
     }
    ],
    "status": "partial",

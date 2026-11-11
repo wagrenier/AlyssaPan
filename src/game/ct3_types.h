@@ -523,7 +523,10 @@ typedef struct MODEL_PARTS {
     float lightColor[4];              /* 0x310: as a light source (SceneLightSet, CharLightSet) */
     float lightPos[4];                  /* 0x320: as a light source; w: falloff (1 = Omni0/1_num), for a
                                            point light 1 / its current range (REC_OMNI_INV_RANGE) */
-    u_char pad330[0x50];
+    float pos330[4];                    /* 0x330: a second position (tiLightBelt2Update: a belt's end; read beside
+                                           matrix200 as the part's live frame -- role named by its writer) */
+    float matrix340[4][4];              /* 0x340: the matrix the part is drawn with: tiLightBelt2Update inverts it
+                                           to put view-space belt vertices back into the part's space */
 } MODEL_PARTS;
 static_assert(offsetof(MODEL_PARTS, alpha) == 0x120, "MODEL_PARTS.alpha");
 static_assert(offsetof(MODEL_PARTS, matrix200) == 0x200, "MODEL_PARTS.matrix200");
@@ -533,6 +536,8 @@ static_assert(offsetof(MODEL_PARTS, losAlpha) == 0x124, "MODEL_PARTS.losAlpha");
 static_assert(offsetof(MODEL_PARTS, distAlpha) == 0x128, "MODEL_PARTS.distAlpha");
 static_assert(offsetof(MODEL_PARTS, angleAlpha) == 0x12c, "MODEL_PARTS.angleAlpha");
 static_assert(offsetof(MODEL_PARTS, scale) == 0x300, "MODEL_PARTS.scale");
+static_assert(offsetof(MODEL_PARTS, pos330) == 0x330, "MODEL_PARTS.pos330");
+static_assert(offsetof(MODEL_PARTS, matrix340) == 0x340, "MODEL_PARTS.matrix340");
 static_assert(offsetof(MODEL_PARTS, omniChanging) == 0x70, "MODEL_PARTS.omniChanging");
 static_assert(offsetof(MODEL_PARTS, omniRange) == 0x78, "MODEL_PARTS.omniRange");
 static_assert(offsetof(MODEL_PARTS, pos) == 0x130, "MODEL_PARTS.pos");

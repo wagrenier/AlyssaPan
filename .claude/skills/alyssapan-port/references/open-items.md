@@ -1300,9 +1300,20 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    and spreads the elements along the line to the screen centre (256, 224) by len * factor. On the host
    that is a textured screen sprite at the GS window's coordinates: write a host task for
    AlyssaPan_DrawGaSprite (anchored through DisplayGeometry, not 512 x 448), then the pair.
+   Slice 6 (2026-11-11): tiLightBelt2Update (the light-belt ribbons) and tiXFadeOut_Start2. Open from it:
+   (jt) MODEL_PARTS +0x330 (pos330, = (jq)'s REC_PIPE_AIM) and +0x340 (matrix340) are named by offset:
+   the belt reads +0x330 as the part's live position beside matrix200 (+0x200) and inverts +0x340 to put
+   view-space vertices back into the part's draw space, so +0x340 looks like the part's draw (local ->
+   view) matrix -- the matrix-tree TU (LinkMatrixTree / BuildMatrixTree) names both; (ju) a two-part belt
+   sets flags43 = 3 (PARTS_FLAG43_BELT = WARPED | TRANS) on both parts and drawOnPos w = 1 on A: the
+   flags' reader is still unread; (jv) LIGHT_BELT2_VERT (+0 slots EE, +8 n, +0xc / +0x10 the widths) and
+   rows (+4, expected 3) are from this one use; the bank loop skips BANK_FLAG_ANIM_FORCE_STOP (0x4)
+   banks, so that flag may mean more than the animation; (jw) init_black_drawctrl (sbss 0x0193d380) is
+   set up for XFade_Type 2..4 (XFADE_TYPE_FROM_BLACK) but nothing staged here reads it: the cross-fade's
+   draw (tiXcmd_TransItem.c or main.c's XFade pass) is its reader -- give the kinds 2 and 4 names there.
    Slice left: tiDrawShadingOff with CaptureDBuffer and tiVRAMViewer, ExportDrawToTex, tiDrawLensFlares
-   with tiLensFlaresInit (after the host sprite), tiLightBelt2Update, tiParticleInit, tiFreeBossData
-   (boss TU), plus the six slice-3 helper stubs.
+   with tiLensFlaresInit (after the host sprite), tiParticleInit, tiFreeBossData (boss TU), plus the six
+   slice-3 helper stubs.
 
 ## Decisions
 
