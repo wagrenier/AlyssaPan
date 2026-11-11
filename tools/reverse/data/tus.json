@@ -1115,7 +1115,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 81..81, 18 functions keyed by their statics, 13 unkeyed; file name from the names"
   },
   "game/tiXcmd_TransItem.c": {
-   "notes": "Slice 1 of the ti x commands. Left: OperateItem (pad-driven item turn, straightforward), Balows2th and the boss commands that store pointers in pBossInfo (SetWarp, Init/End/SPAttack_SCISSORS_MAN, SetChain, SetChain_Alyssa, GetBloodAttackObject) wait for the boss TU host form (open-items.md Open questions, 2026-11-11), plus the other 62 functions. New: MODEL_PARTS.initRot 0xc0, CHARACTER.strikeFrom 0x4e0, CHARA_JUNC ghostRange/ghostPoint, ShadeOff_* and XFade_Type globals in unassigned_data, tiGetTransRotMatrix and tiHurikoReset_On declared (stubs). Screen unchanged: black, as the previous run (draw path not reached); the reached stub moved on from tiXcmd_XFade_Break to tiXcmd_FadeStart.",
+   "notes": "Slice 2. FadeStart (the reached stub) now runs: the script goes on to tiFade_Start and hhXcmd_LoadSE (stubs). Left: Balows2th and the boss commands that store pointers in pBossInfo (open-items.md Open questions), plus about 45 other functions (vibration, variables, items, wideXcmd and tkXcmd). New: CHARACTER.edgeLevel 0x534, CHARA_EDGE_PARAM_A and _B (h536 4 and 5), FADE_TYPE_* 0..7, TRIG_EVENT_FADED_OUT 0x4a, LETTER_* and KEY_MAP_* counts, tiXFadeOut_Start2 declared (stub). callcheck: TranslucenceAlphaAnim strcmp sits in the helper TiAnimFloat. Screen: frames 60..360 black, last.png flat grey (first object drawn: a 4-vertex quad rgba 90, texture 512x256 PSM 0x14); no reference for it yet.",
    "ranges": [
     [
      "018e0e80",
@@ -1127,6 +1127,11 @@
      "date": "2026-11-11 09:59",
      "status": "partial",
      "summary": "reconstruct 22 functions: item examination, scene and map commands, free slots, range and earthquake checks, shade-off, cross-fade break, pendulum reset, reserved camera change"
+    },
+    {
+     "date": "2026-11-11 10:15",
+     "status": "partial",
+     "summary": "reconstruct 13 functions: pad-driven item examination, fade start, cross-fade out, reserved camera, translucence and edge-shading animations, letter list and data, key map reset and lookup"
     }
    ],
    "status": "partial",

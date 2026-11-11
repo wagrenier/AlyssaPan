@@ -61,9 +61,10 @@ typedef struct CHARACTER {
     u_char translucent;                 /* 0x52c: CHARA_TRANS_*; non-zero: AllDrawObject's last pass draws it */
     u_char pad52d[3];
     float translucentAlpha;             /* 0x530: tiChara_Translucence_End's first argument */
-    u_char b534;                        /* 0x534: Character_All_Init: 0 */
+    u_char edgeLevel;                   /* 0x534: the edge-shading level (tiXcmd_SetCharacterEdgeShading,
+                                           _CharaEdgeShadeAnim); Character_All_Init: 0 */
     u_char pad535;
-    short h536[6];                      /* 0x536: Character_All_Init: 0 */
+    short h536[6];                      /* 0x536: Character_All_Init: 0; [4] / [5] CHARA_EDGE_PARAM_* */
     u_char pad542[0x54c - 0x542];
     u_int legParts[8];                  /* 0x54c: CHARA_LEG_*: EE addresses (BankEeAddr) of the shape bank's
                                            leg parts + CHARA_LEG_PART_OFFSET (TrgCharacterShapeSet) */
@@ -110,6 +111,8 @@ typedef struct CHARA_JUNC {
 
 // CHARACTER.translucent (AllDrawObject): any bit keeps the character out of the opaque and mirror passes.
 #define CHARA_TRANS_TRANSLUCENT 0x1     /* drawn last between tiChara_Translucence_Start / _End */
+#define CHARA_EDGE_PARAM_A 4            /* CHARACTER.h536[]: the two edge-shading values tiXcmd_CharaEdgeShadeAnim */
+#define CHARA_EDGE_PARAM_B 5            /* animates (their reader unread) */
 #define CHARA_TRANS_GHOST 0x2           /* (without 0x1) drawn last by main_rtn_GHOST, _Start2 / _End2 */
 
 // CharAmbChangeFlag[3] (0x0193fc00, 0x1c bytes each): a character's ambient colour change in progress

@@ -3,13 +3,15 @@
 // script runs it; ssTrigExecuteActCmd (ssGrpPortalCheck.c) calls them through ssXcmd_functions.
 // Slice 1 (2026-11-11): the item examination moves, the scene / map commands, the free slots, the range
 // and earthquake checks, the shade-off, the cross-fade break, the pendulum reset, the reserved camera
-// change. Left: OperateItem, Balows2th, and the boss commands whose pointer words wait for the boss
+// change. Slice 2 (2026-11-11): OperateItem, the fades, the translucence / edge-shading animations, the
+// key map, the letter list. Left: Balows2th, and the boss commands whose pointer words wait for the boss
 // TU's host layout (SetWarp, the SCISSORS_MAN attack, SetChain*, GetBloodAttackObject), and the rest.
 
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
 #include "common/alyssapan_stub.h"
+#include "sdk/libpad.h"
 #include "game/tiXcmd_TransItem.h"
 #include "game/xcmd_tn.h"
 #include "game/Clipping_Portal.h"
@@ -17,6 +19,7 @@
 #include "game/ahRelocateSunPs2ObjectArry.h"
 #include "game/asEyeForcusUP2CamMat.h"
 #include "game/LinkMatrixTree.h"
+#include "game/main.h"
 #include "game/ssGrpPortalCheck.h"
 #include "game/unassigned_data.h"
 #include "game/wideXcmd_DebugPrint.h"
@@ -449,6 +452,413 @@ int tiXcmd_ChangeCam_Execute(int argc, char **argv, int bank)
     return XCMD_DONE;
 }
 
+// Slice 2 (2026-11-11): the pad-driven item examination, the fades, the translucence and edge-shading
+// animations, the key map, the letter list.
+
+// deg (0..360) as the game's 16-bit angle (65536 a turn), as the ROM rounds it: (int)(deg * 65536 / 360).
+static int TiDegToAngle(float deg)
+{
+    return (int)((deg * 65536.0f) / 360.0f) & 0xffff;
+}
+
+// m = the unit matrix (the ROM builds it from vf0 rotated through VMR32 before each gaSetRotMatrix*).
+static void TiUnitMatrix(float (*m)[4])
+{
+    memset(m, 0, sizeof(float[4][4]));
+    m[0][0] = m[1][1] = m[2][2] = m[3][3] = 1.0f;
+}
+
+// The examined item one step along DirectToCamera (step > 0: toward the eye), the sum kept in
+// 0..TI_ITEM_TRANS_MAX; at a bound the sum is clamped, the part stays and the command waits.
+static int TiItemStep(MODEL_PARTS *part, float step)
+{
+    trans_add_value += step;
+    if (step > 0.0f && trans_add_value > TI_ITEM_TRANS_MAX) {
+        trans_add_value = TI_ITEM_TRANS_MAX;
+        return XCMD_WAIT;
+    }
+    if (step < 0.0f && trans_add_value < 0.0f) {
+        trans_add_value = 0.0f;
+        return XCMD_WAIT;
+    }
+    TiItemMove(part, step);
+    return XCMD_DONE;
+}
+
+// CT3 0x018e0fa0: the player handles the examined item: part argv[0] moves toward / away from the eye,
+// part argv[1] turns. Runs every frame until cross (pad_trg_button) ends it. Left stick: turns by the
+// stick (x about its cosine, y about its sine, TI_ITEM_STICK_TURN degrees at full tilt); without it the
+// d-pad turns by TI_ITEM_PAD_TURN. Right stick up (or right, within 90 degrees of up) / triangle: toward
+// the eye; down / square: away, TI_ITEM_STEP a frame.
+int tiXcmd_OperateItem(int argc, char **argv, int bank)
+{
+    MODEL_PARTS *item;
+    MODEL_PARTS *turn;
+    float (*m)[4];
+    float rot[4][4];
+    float deg;
+    float mag;
+    int turnIdx;
+
+    (void)argc;
+    if (pad_trg_button[0] & TI_ITEM_EXIT_BUTTON)
+        return XCMD_DONE;
+    item = TiPart(bank, atoi(argv[0]));
+    turnIdx = atoi(argv[1]);
+    if (item->kind == PARTS_KIND_ITEM_LOCKED)
+        return XCMD_DONE;
+    item->flags43 |= PARTS_FLAG43_WARPED;
+    turn = TiPart(bank, turnIdx);
+    if (turn->kind == PARTS_KIND_ITEM_LOCKED)
+        return XCMD_DONE;
+    turn->flags43 |= PARTS_FLAG43_WARPED;
+    m = turn->placeRot;     // placeRot rows 0..2 and drawOnPos: the part's 4x4 placement
+
+    asGetAnalogStickInformation(TI_ITEM_STICK_TURN_ID, TI_ITEM_STICK_DEAD, &deg, &mag);
+    if (mag > 0.0f) {
+        TiUnitMatrix(rot);
+        gaSetRotMatrixX(rot, TiDegToAngle(mag * ahCos(TiDegToAngle(deg)) * TI_ITEM_STICK_TURN));
+        gaMulMatrix(m, rot, m);
+        TiUnitMatrix(rot);
+        gaSetRotMatrixY(rot, TiDegToAngle(mag * ahSin(TiDegToAngle(deg)) * TI_ITEM_STICK_TURN));
+        gaMulMatrix(m, rot, m);
+    } else {
+        TiUnitMatrix(rot);
+        if (pad_cnt_button[0] & SCE_PADLright) {
+            gaSetRotMatrixY(rot, TI_ITEM_PAD_TURN);
+            gaMulMatrix(m, rot, m);
+        } else if (pad_cnt_button[0] & SCE_PADLleft) {
+            gaSetRotMatrixY(rot, -TI_ITEM_PAD_TURN & 0xffff);
+            gaMulMatrix(m, rot, m);
+        } else if (pad_cnt_button[0] & SCE_PADLup) {
+            gaSetRotMatrixX(rot, TI_ITEM_PAD_TURN);
+            gaMulMatrix(m, rot, m);
+        } else if (pad_cnt_button[0] & SCE_PADLdown) {
+            gaSetRotMatrixX(rot, -TI_ITEM_PAD_TURN & 0xffff);
+            gaMulMatrix(m, rot, m);
+        }
+    }
+
+    asGetAnalogStickInformation(TI_ITEM_STICK_MOVE_ID, TI_ITEM_STICK_DEAD, &deg, &mag);
+    if (mag > 0.0f) {
+        if (deg <= TI_ITEM_STICK_TOWARD_LO || deg >= TI_ITEM_STICK_TOWARD_HI)
+            TiItemStep(item, TI_ITEM_STEP);
+        else
+            TiItemStep(item, -TI_ITEM_STEP);
+        return XCMD_WAIT;
+    }
+    // Both buttons held: away, then toward (the ROM's order); a bound ends the frame early.
+    if ((pad_cnt_button[0] & TI_ITEM_AWAY_BUTTON) && TiItemStep(item, -TI_ITEM_STEP) == XCMD_WAIT)
+        return XCMD_WAIT;
+    if (pad_cnt_button[0] & TI_ITEM_TOWARD_BUTTON)
+        TiItemStep(item, TI_ITEM_STEP);
+    return XCMD_WAIT;
+}
+
+// CT3 0x018e47b0: starts a fade (tiFade_Start). argv[1] "IN" / "OUT" / "OUT2" / "IN2", argv[2] "BLACK"
+// or "WHITE" (anything else: black; an unknown direction: FADE_TYPE_IN_BLACK, no event). The OUTs
+// register TRIG_EVENT_FADED_OUT, the INs remove it. Time: argv[0] seconds (3 arguments), or the variable
+// argv[0] (global argv[3]).
+int tiXcmd_FadeStart(int argc, char **argv, int bank)
+{
+    int white;
+    int type = FADE_TYPE_IN_BLACK;
+
+    white = strcmp(argv[2], "BLACK") != 0 && strcmp(argv[2], "WHITE") == 0;
+    if (strcmp(argv[1], "IN") == 0) {
+        type = white ? FADE_TYPE_IN_WHITE : FADE_TYPE_IN_BLACK;
+        ssTrigRemoveEvent(TRIG_EVENT_FADED_OUT, 1, 0);
+    } else if (strcmp(argv[1], "OUT") == 0) {
+        type = white ? FADE_TYPE_OUT_WHITE : FADE_TYPE_OUT_BLACK;
+        ssTrigRegisterEvent(TRIG_EVENT_FADED_OUT, 1, 0);
+    } else if (strcmp(argv[1], "OUT2") == 0) {
+        type = white ? FADE_TYPE_OUT2_WHITE : FADE_TYPE_OUT2_BLACK;
+        ssTrigRegisterEvent(TRIG_EVENT_FADED_OUT, 1, 0);
+    } else if (strcmp(argv[1], "IN2") == 0) {
+        type = white ? FADE_TYPE_IN2_WHITE : FADE_TYPE_IN2_BLACK;
+        ssTrigRemoveEvent(TRIG_EVENT_FADED_OUT, 1, 0);
+    }
+    if (argc == FADE_START_ARGC_TIME)
+        tiFade_Start(atoff(argv[0]), type);
+    else
+        tiFade_Start((float)ssTrigGetVariable(atoi(argv[0]) & 0xffff, atoi(argv[3]), bank), type);
+    return XCMD_DONE;
+}
+
+// One step of an animated value toward target: "+" adds step until it reaches target, "-" takes it off;
+// at target it is clamped and the step is done (1); short of it 0. Any other op: done, untouched.
+static int TiAnimFloat(float *v, const char *op, float step, float target)
+{
+    if (strcmp(op, "+") == 0) {
+        *v += step;
+        if (*v < target)
+            return 0;
+        *v = target;
+    } else if (strcmp(op, "-") == 0) {
+        *v -= step;
+        if (target < *v)
+            return 0;
+        *v = target;
+    }
+    return 1;
+}
+
+// CT3 0x018e4a20: character argv[0]'s translucence alpha, argv[1] "+" / "-" argv[2] a frame toward
+// argv[3]; the command waits until it gets there.
+int tiXcmd_TranslucenceAlphaAnim(int argc, char **argv, int bank)
+{
+    CHARACTER *chr = &Character[atoi(argv[0])];
+    float target = atoff(argv[3]);
+
+    (void)argc;
+    (void)bank;
+    return TiAnimFloat(&chr->translucentAlpha, argv[1], atoff(argv[2]), target) ? XCMD_DONE : XCMD_WAIT;
+}
+
+// CT3 0x018e43d0: animates character argv[0]'s edge shading, four groups of (switch, op, step, target):
+// argv[1..4] the translucence alpha (float), argv[5..8] edgeLevel (u_char), argv[9..12] / argv[13..16]
+// the two edge parameters (short h536[CHARA_EDGE_PARAM_A / _B]). A group runs when its switch is "ON";
+// the command waits until every running group is at its target. As the ROM: the last group's "-" waits
+// while the value is below the target (the others: above), and the byte compares unsigned.
+int tiXcmd_CharaEdgeShadeAnim(int argc, char **argv, int bank)
+{
+    CHARACTER *chr = &Character[atoi(argv[0])];
+    float alphaTarget = atoff(argv[4]);
+    u_char levelTarget = (u_char)atoi(argv[8]);
+    short aTarget = (short)atoi(argv[12]);
+    short bTarget = (short)atoi(argv[16]);
+    short *a = &chr->h536[CHARA_EDGE_PARAM_A];
+    short *b = &chr->h536[CHARA_EDGE_PARAM_B];
+    int done = XCMD_DONE;
+
+    (void)argc;
+    (void)bank;
+    if (strcmp(argv[1], "ON") == 0 &&
+        !TiAnimFloat(&chr->translucentAlpha, argv[2], atoff(argv[3]), alphaTarget))
+        done = XCMD_WAIT;
+    if (strcmp(argv[5], "ON") == 0) {
+        if (strcmp(argv[6], "+") == 0) {
+            chr->edgeLevel += (u_char)atoi(argv[7]);
+            if (chr->edgeLevel < levelTarget)
+                done = XCMD_WAIT;
+            else
+                chr->edgeLevel = levelTarget;
+        } else if (strcmp(argv[6], "-") == 0) {
+            chr->edgeLevel -= (u_char)atoi(argv[7]);
+            if (levelTarget < chr->edgeLevel)
+                done = XCMD_WAIT;
+            else
+                chr->edgeLevel = levelTarget;
+        }
+    }
+    if (strcmp(argv[9], "ON") == 0) {
+        if (strcmp(argv[10], "+") == 0) {
+            *a += (short)atoi(argv[11]);
+            if (*a < aTarget)
+                done = XCMD_WAIT;
+            else
+                *a = aTarget;
+        } else if (strcmp(argv[10], "-") == 0) {
+            *a -= (short)atoi(argv[11]);
+            if (aTarget < *a)
+                done = XCMD_WAIT;
+            else
+                *a = aTarget;
+        }
+    }
+    if (strcmp(argv[13], "ON") == 0) {
+        if (strcmp(argv[14], "+") == 0) {
+            *b += (short)atoi(argv[15]);
+            if (*b < bTarget)
+                done = XCMD_WAIT;
+            else
+                *b = bTarget;
+        } else if (strcmp(argv[14], "-") == 0) {
+            *b -= (short)atoi(argv[15]);
+            if (*b < bTarget)     // sic: the ROM's test, not the mirror of the others
+                done = XCMD_WAIT;
+            else
+                *b = bTarget;
+        }
+    }
+    return done;
+}
+
+// CT3 0x018e4b40: argv[2] "ON": character argv[0] drawn edge-shaded (the ghost pass) at level argv[1],
+// edgeLevel argv[3]; anything else: off.
+int tiXcmd_SetCharacterEdgeShading(int argc, char **argv, int bank)
+{
+    (void)argc;
+    (void)bank;
+    if (strcmp(argv[2], "ON") == 0) {
+        tiSet_CharaTranslucenceON(atoi(argv[0]), atoi(argv[1]), CHARA_TRANS_GHOST);
+        Character[atoi(argv[0])].edgeLevel = (u_char)atoi(argv[3]);
+    } else {
+        tiSet_CharaTranslucenceOFF(atoi(argv[0]), CHARA_TRANS_GHOST);
+    }
+    return XCMD_DONE;
+}
+
+// CT3 0x018e4c00: a cross-fade out over argv[0] seconds, kind argv[1].
+int tiXcmd_XFadeOut2Start(int argc, char **argv, int bank)
+{
+    (void)argc;
+    (void)bank;
+    tiXFadeOut_Start2(atoff(argv[0]), (u_char)atoi(argv[1]));
+    return XCMD_DONE;
+}
+
+// CT3 0x018e4c90: reserves a camera change (camera argv[0], type argv[1], time argv[2], this bank) for
+// tiXcmd_ChangeCam_Execute; TRIG_EVENT_CAM_RESERVED says one waits.
+int tiXcmd_ChangeCam_Reserve(int argc, char **argv, int bank)
+{
+    (void)argc;
+    tiReserveBank = bank;
+    tiReserveCamID = (short)atoi(argv[0]);
+    tiReserveType = (short)atoi(argv[1]);
+    tiReserveTime = atoi(argv[2]);
+    ssTrigRegisterEvent(TRIG_EVENT_CAM_RESERVED, 1, 0);
+    return XCMD_DONE;
+}
+
+// The letters list of category c holds a letter in some slot.
+static int TiLetterCategoryUsed(int c)
+{
+    int i;
+
+    for (i = 0; i < LETTER_LIST_SLOTS; i++)
+        if (LetterList[c][i] != 0)
+            break;
+    return i != LETTER_LIST_SLOTS;
+}
+
+// The index of category c's last letter (the slot before the first empty one; LETTER_LIST_SLOTS when
+// all are full).
+static int TiLetterLastIndex(int c)
+{
+    int i;
+
+    for (i = 0; i < LETTER_LIST_SLOTS; i++)
+        if (LetterList[c][i] == 0)
+            return i - 1;
+    return i;
+}
+
+// CT3 0x018e4cf0: the letters menu turns to the next category that holds a letter: the variable
+// argv[2] (global argv[3]) is the category, argv[6] 0: backward, else forward, wrapping over the
+// LETTER_CATEGORIES. When one is found the variable takes it and the variable argv[4] (global argv[5])
+// -- the letter index -- is held to its last letter; event argv[0] (global argv[1]) is registered when
+// another category was found, removed when none was.
+int tiXcmd_CheckinLetterList(int argc, char **argv, int bank)
+{
+    int catVar = atoi(argv[2]) & 0xffff;
+    int catGlobal = atoi(argv[3]);
+    int cur = ssTrigGetVariable(catVar, catGlobal, bank);
+    int c = cur - 1;
+    int idxVar;
+    int idxGlobal;
+    int last;
+
+    (void)argc;
+    if (atoi(argv[6]) == 0) {
+        if (c < 0)
+            c = LETTER_CATEGORIES - 1;
+        for (; c != cur; ) {
+            if (TiLetterCategoryUsed(c))
+                break;
+            if (--c < 0)
+                c = LETTER_CATEGORIES - 1;
+        }
+    } else {
+        for (c = (cur + 1) % LETTER_CATEGORIES; c != cur; ) {
+            if (TiLetterCategoryUsed(c))
+                break;
+            if (++c == LETTER_CATEGORIES)
+                c = 0;
+        }
+    }
+    if (c != cur) {
+        ssTrigSetVariable(catVar, c, catGlobal, bank);
+        idxVar = atoi(argv[4]) & 0xffff;
+        idxGlobal = atoi(argv[5]);
+        last = TiLetterLastIndex(c);
+        if (last < ssTrigGetVariable(idxVar, idxGlobal, bank))
+            ssTrigSetVariable(idxVar, last, idxGlobal, bank);
+        ssTrigRegisterEvent(atoi(argv[0]) & 0xffff, atoi(argv[1]), bank);
+    } else {
+        ssTrigRemoveEvent(atoi(argv[0]) & 0xffff, atoi(argv[1]), bank);
+    }
+    return XCMD_DONE;
+}
+
+// CT3 0x018e5030: the variable argv[0] (global argv[1]) = the slot of category (variable argv[4],
+// global argv[5]) that holds letter (variable argv[2], global argv[3]); LETTER_LIST_SLOTS when none.
+int tiXcmd_GetINDEX_FromLetterList(int argc, char **argv, int bank)
+{
+    int letter = ssTrigGetVariable(atoi(argv[2]) & 0xffff, atoi(argv[3]), bank);
+    int c = ssTrigGetVariable(atoi(argv[4]) & 0xffff, atoi(argv[5]), bank);
+    int i;
+
+    (void)argc;
+    for (i = 0; i < LETTER_LIST_SLOTS; i++)
+        if (LetterList[c][i] == letter)
+            break;
+    ssTrigSetVariable(atoi(argv[0]) & 0xffff, i, atoi(argv[1]), bank);
+    return XCMD_DONE;
+}
+
+// CT3 0x018e5120: the variable argv[0] (global argv[1]) = field argv[4] ("CATEGORY", "NUMBER",
+// "PAGE_NUMBER", "START_PAGE", "END_PAGE": LetterData bytes 0..4) of letter (variable argv[2], global
+// argv[3]); another name leaves it.
+int tiXcmd_GetLetterData(int argc, char **argv, int bank)
+{
+    static const char *const kFields[LETTER_DATA_FIELDS] = {
+        "CATEGORY", "NUMBER", "PAGE_NUMBER", "START_PAGE", "END_PAGE",
+    };
+    int letter = ssTrigGetVariable(atoi(argv[2]) & 0xffff, atoi(argv[3]), bank);
+    int f;
+
+    (void)argc;
+    for (f = 0; f < LETTER_DATA_FIELDS; f++) {
+        if (strcmp(argv[4], kFields[f]) == 0) {
+            ssTrigSetVariable(atoi(argv[0]) & 0xffff, LetterData[letter][f], atoi(argv[1]), bank);
+            break;
+        }
+    }
+    return XCMD_DONE;
+}
+
+// CT3 0x018e54c0: the player's key assignment back to the defaults (KEY_MAP[35..69]).
+int tiXcmd_ResetKeyMap(int argc, char **argv, int bank)
+{
+    (void)argc;
+    (void)argv;
+    (void)bank;
+    memcpy(&KEY_MAP[0], &KEY_MAP[KEY_MAP_DEFAULTS], KEY_MAP_ACTIONS * sizeof(KEY_MAP[0]));
+    return XCMD_DONE;
+}
+
+// CT3 0x018e54f0: the variable argv[2] (global argv[3]) = KEY_MAP[the variable argv[0] (global
+// argv[1])]: an action's button bits.
+int tiXcmd_GetKeyFromKeyMap(int argc, char **argv, int bank)
+{
+    int dst = atoi(argv[2]) & 0xffff;
+    int action = ssTrigGetVariable(atoi(argv[0]) & 0xffff, atoi(argv[1]), bank);
+
+    (void)argc;
+    ssTrigSetVariable(dst, KEY_MAP[action], atoi(argv[3]), bank);
+    return XCMD_DONE;
+}
+
+// CT3 0x018e7580: kept its slot, lost its body.
+int tiXcmd_SetParaDefault(int argc, char **argv, int bank)
+{
+    (void)argc;
+    (void)argv;
+    (void)bank;
+    return XCMD_DONE;
+}
+
 // ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x018e8640
@@ -493,20 +903,6 @@ int tiXcmd_Balows2th(int argc, char **argv, int bank)
     return {};
 }
 
-// stub of CT3 0x018e4c90
-int tiXcmd_ChangeCam_Reserve(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_ChangeCam_Reserve", 0x018e4c90);
-    return {};
-}
-
-// stub of CT3 0x018e43d0
-int tiXcmd_CharaEdgeShadeAnim(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_CharaEdgeShadeAnim", 0x018e43d0);
-    return {};
-}
-
 // stub of CT3 0x018e7e20
 int tiXcmd_CheckCurrentScene(int argc, char **argv, int bank)
 {
@@ -525,13 +921,6 @@ int tiXcmd_CheckLife(int argc, char **argv, int bank)
 int tiXcmd_CheckMCFile(int argc, char **argv, int bank)
 {
     ALYSSAPAN_STUB("tiXcmd_CheckMCFile", 0x018e71f0);
-    return {};
-}
-
-// stub of CT3 0x018e4cf0
-int tiXcmd_CheckinLetterList(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_CheckinLetterList", 0x018e4cf0);
     return {};
 }
 
@@ -570,13 +959,6 @@ int tiXcmd_End_SPAttack_SCISSORS_MAN(int argc, char **argv, int bank)
     return {};
 }
 
-// stub of CT3 0x018e47b0
-int tiXcmd_FadeStart(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_FadeStart", 0x018e47b0);
-    return {};
-}
-
 // stub of CT3 0x018e7b70
 int tiXcmd_FreeGhostPole(int argc, char **argv, int bank)
 {
@@ -605,13 +987,6 @@ int tiXcmd_GetIDfromList(int argc, char **argv, int bank)
     return {};
 }
 
-// stub of CT3 0x018e5030
-int tiXcmd_GetINDEX_FromLetterList(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_GetINDEX_FromLetterList", 0x018e5030);
-    return {};
-}
-
 // stub of CT3 0x018e6bf0
 int tiXcmd_GetItem(int argc, char **argv, int bank)
 {
@@ -630,20 +1005,6 @@ int tiXcmd_GetItemData(int argc, char **argv, int bank)
 int tiXcmd_GetItemListLastIndex(int argc, char **argv, int bank)
 {
     ALYSSAPAN_STUB("tiXcmd_GetItemListLastIndex", 0x018e5930);
-    return {};
-}
-
-// stub of CT3 0x018e54f0
-int tiXcmd_GetKeyFromKeyMap(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_GetKeyFromKeyMap", 0x018e54f0);
-    return {};
-}
-
-// stub of CT3 0x018e5120
-int tiXcmd_GetLetterData(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_GetLetterData", 0x018e5120);
     return {};
 }
 
@@ -675,20 +1036,6 @@ int tiXcmd_MoveItem(int argc, char **argv, int bank)
     return {};
 }
 
-// stub of CT3 0x018e0fa0
-int tiXcmd_OperateItem(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_OperateItem", 0x018e0fa0);
-    return {};
-}
-
-// stub of CT3 0x018e54c0
-int tiXcmd_ResetKeyMap(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_ResetKeyMap", 0x018e54c0);
-    return {};
-}
-
 // stub of CT3 0x018e22f0
 int tiXcmd_SPAttack_SCISSORS_MAN(int argc, char **argv, int bank)
 {
@@ -700,13 +1047,6 @@ int tiXcmd_SPAttack_SCISSORS_MAN(int argc, char **argv, int bank)
 int tiXcmd_SceneAnimationSkipToVariable(int argc, char **argv, int bank)
 {
     ALYSSAPAN_STUB("tiXcmd_SceneAnimationSkipToVariable", 0x018e86d0);
-    return {};
-}
-
-// stub of CT3 0x018e4b40
-int tiXcmd_SetCharacterEdgeShading(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_SetCharacterEdgeShading", 0x018e4b40);
     return {};
 }
 
@@ -735,13 +1075,6 @@ int tiXcmd_SetItemData(int argc, char **argv, int bank)
 int tiXcmd_SetKeyToKeyMap(int argc, char **argv, int bank)
 {
     ALYSSAPAN_STUB("tiXcmd_SetKeyToKeyMap", 0x018e5590);
-    return {};
-}
-
-// stub of CT3 0x018e7580
-int tiXcmd_SetParaDefault(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_SetParaDefault", 0x018e7580);
     return {};
 }
 
@@ -843,13 +1176,6 @@ int tiXcmd_TEST00(int argc, char **argv, int bank)
     return {};
 }
 
-// stub of CT3 0x018e4a20
-int tiXcmd_TranslucenceAlphaAnim(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_TranslucenceAlphaAnim", 0x018e4a20);
-    return {};
-}
-
 // stub of CT3 0x018e6330
 int tiXcmd_UseItem(int argc, char **argv, int bank)
 {
@@ -889,13 +1215,6 @@ int tiXcmd_VibrationStart(int argc, char **argv, int bank)
 int tiXcmd_WaitUntilBrainFree(int argc, char **argv, int bank)
 {
     ALYSSAPAN_STUB("tiXcmd_WaitUntilBrainFree", 0x018e7870);
-    return {};
-}
-
-// stub of CT3 0x018e4c00
-int tiXcmd_XFadeOut2Start(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("tiXcmd_XFadeOut2Start", 0x018e4c00);
     return {};
 }
 

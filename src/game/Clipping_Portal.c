@@ -239,3 +239,9 @@ void tiHurikoReset_On(int bank, int id, int byChara)
 {
     ALYSSAPAN_STUB("tiHurikoReset_On", 0x01890ea0);
 }
+
+// stub of CT3 0x0188d5e0
+void tiXFadeOut_Start2(float time, u_char kind)
+{
+    ALYSSAPAN_STUB("tiXFadeOut_Start2", 0x0188d5e0);
+}

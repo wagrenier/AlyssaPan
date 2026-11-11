@@ -142,7 +142,7 @@ void Character_All_Init(void)
         chr->b102 = -1;
         chr->translucent = 0;
         chr->translucentAlpha = 0.0f;   /* the ROM stores the word 0 */
-        chr->b534 = 0;
+        chr->edgeLevel = 0;
         for (j = 0; j < 6; j++) {
             chr->h536[j] = 0;
         }

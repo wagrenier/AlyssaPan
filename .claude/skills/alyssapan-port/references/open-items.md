@@ -1248,6 +1248,19 @@ apply here):
 
 ## Open questions
 
+- (2026-11-11, game/tiXcmd_TransItem.c slice 2) **Named from one use, to confirm where they are read:**
+  CHARACTER +0x534 `edgeLevel` and h536[4] / [5] `CHARA_EDGE_PARAM_A / _B` (edge shading: only the x
+  commands write them; the ghost pass in Clipping_Portal.c should read them); tiSet_CharaTranslucenceON's
+  flag 2 taken as CHARA_TRANS_GHOST; `TRIG_EVENT_FADED_OUT` 0x4a (the OUT fades register it, the INs
+  remove it); FADE_TYPE_* 0..7 from tiXcmd_FadeStart's strings (FADE_TYPE_MC_LOAD 4 = OUT2 black). The
+  pad words are libpad's swapped layout (sdk/libpad.h: 0x40 cross, 0x10 triangle, 0x80 square, d-pad in
+  the high byte), as asEyeForcusUP2CamMat.c already reads them. tiXcmd_CharaEdgeShadeAnim's fourth
+  group's "-" waits while below its target (the others: above): kept as the ROM has it.
+- (2026-11-11, slice 2's smoke run) **The last shot turned flat grey** (frames 60..360 black): past
+  tiXcmd_FadeStart the script reaches tiFade_Start (stub), and the log's first drawn object is a
+  4-vertex quad, rgba 90/90/90, texture 512x256 PSM 0x14. Which screen that is (and its reference) is the
+  next drawing-path TU's question.
+
 - (2026-11-11, game/tiXcmd_TransItem.c slice 1) **The boss commands that store pointers in pBossInfo wait
   for the boss TU's host form** (with (as) above): GetBloodAttackObject (+0x130 / +0x134: a part's EE
   address), SetWarp (+0x13c: a _SunAlloc'd list of part addresses), Init / End / SPAttack_SCISSORS_MAN

@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-11 09:59 at commit `e71cadb` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-11 10:15 at commit `b3a2e6d` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **984**; stubs: **382**
+- reconstructed CT3 functions: **997**; stubs: **370**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -58,7 +58,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/AlignedNum.c` | 4 | 0 |
 | `src/game/ArtoolDebugOpen.c` | 15 | 0 |
 | `src/game/Character_Init.c` | 48 | 1 |
-| `src/game/Clipping_Portal.c` | 0 | 39 |
+| `src/game/Clipping_Portal.c` | 0 | 40 |
 | `src/game/Convert.c` | 0 | 2 |
 | `src/game/CpDivideEECom.c` | 0 | 10 |
 | `src/game/IOPGetFileSize.c` | 4 | 0 |
@@ -88,7 +88,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/ssHitCheckAttackToScn.c` | 0 | 6 |
 | `src/game/ssSetTexUVforCubeMap.c` | 1 | 44 |
 | `src/game/tiAvoidObject.c` | 0 | 7 |
-| `src/game/tiXcmd_TransItem.c` | 18 | 70 |
+| `src/game/tiXcmd_TransItem.c` | 31 | 57 |
 | `src/game/tkXDTrg_GetSceneHash.c` | 0 | 7 |
 | `src/game/tnXcmd.c` | 0 | 8 |
 | `src/game/wideXcmd_DebugPrint.c` | 107 | 1 |
@@ -102,7 +102,7 @@ Least-named game-code regions (64 KB blocks):
 - next: **game/tiXcmd_TransItem.c** (pinned in the queue)
 - pinned queue: game/tiXcmd_TransItem.c, game/xcmd_tn.c, alyssapan/rendering/ga_atld.cpp, alyssapan/rendering/ui_canvas.cpp, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
 - partial: `alyssapan/rendering/ga_atld.cpp` 0/0 -- Shot still black for a game reason: the light0 colour is vertex colour plus the part's ALL_TABLE.partsPos (the ambient RGB), which only the event command tnXcmd
-- partial: `game/tiXcmd_TransItem.c` 18/93 -- Slice 1 of the ti x commands. Left: OperateItem (pad-driven item turn, straightforward), Balows2th and the boss commands that store pointers in pBossInfo (SetWa
+- partial: `game/tiXcmd_TransItem.c` 31/93 -- Slice 2. FadeStart (the reached stub) now runs: the script goes on to tiFade_Start and hhXcmd_LoadSE (stubs). Left: Balows2th and the boss commands that store p
 - partial: `game/wideXcmd_DebugPrint.c` 107/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed) -- the last function of the TU. New stubs
 - partial: `game/xcmd_tn.c` 37/57 -- 15 commands written. Picture: frame 120 shows ATLD memory-card text at 4:3 as before; black from frame 180 because the script waits on the stub tiXcmd_XFade_Bre
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
@@ -135,6 +135,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-11 10:15 `game/tiXcmd_TransItem.c` partial: reconstruct 13 functions: pad-driven item examination, fade start, cross-fade out, reserved camera, translucence and edge-shading animations, letter list and da
 - 2026-11-11 09:59 `game/tiXcmd_TransItem.c` partial: reconstruct 22 functions: item examination, scene and map commands, free slots, range and earthquake checks, shade-off, cross-fade break, pendulum reset, reserv
 - 2026-11-11 09:33 `game/xcmd_tn.c` partial: slice 2: wideXcmd_PlayAnimeToFream2 (the reached stub), clips, panic, continue, time stop, shape / behaviour / bank free, stay room, message bank, menu map, fog
 - 2026-11-11 09:21 `game/ssGrpPortalCheck.c` verify: picture: ssSetAmbColorToAllObj (game/ssSetTexUVforCubeMap.c) fills every ga object's +0x38 ambient pointer; ATLD's Checking text shows at 4:3 and wide
@@ -142,19 +143,18 @@ Recent sessions:
 - 2026-11-11 08:37 `game/ssGrpPortalCheck.c` partial: triggers slice 4: ssTrigCheckConditions and its checks (ssTrigCheckInput, ssTrigCheckVariable, ssTrigLookAtCheck, ssTrigAttackHitCheck), ssTrigSetEnable, Trigge
 - 2026-11-11 08:08 `game/xcmd_tn.c` partial: slice 1: tnXcmd_Scene_Ambient_Change and 21 small x commands (waits, variables, room-in icons, bank and flag commands), BankUseCheck; SS_XCMD slot type
 - 2026-11-11 07:55 `alyssapan/rendering/ga_atld.cpp` partial: ga textures: sunBGT_ExecTBufferData_VIF1 hands TEX0, CLAMP, level 0 and the CLUT to AlyssaPan_DrawGaTexture; TextureStore decodes CT3 GS textures at their sourc
-- 2026-11-11 07:24 `game/ssGrpPortalCheck.c` partial: triggers slice 3: Trigger_main, the detector walk (ssTrigProcDetRecur, ssTrigProceedDetector, ssTrigCheckDetector and its box, plane-volume and contact shapes),
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `game/Clipping_Portal.c` | todo | 0/39/73 | 44.8 | 167 | 18 |
-| `game/ssSetTexUVforCubeMap.c` | partial | 1/44/96 | 35.3 | 96 | 8 |
+| `game/Clipping_Portal.c` | todo | 0/40/73 | 44.8 | 182 | 20 |
+| `game/ssSetTexUVforCubeMap.c` | partial | 1/44/96 | 35.3 | 106 | 10 |
 | `game/CpDivideEECom.c` | todo | 0/10/18 | 3.3 | 80 | 10 |
 | `ga/gaDrawObject.c` | todo | 0/11/11 | 6.9 | 39 | 0 |
 | `game/tiAvoidObject.c` | todo | 0/7/82 | 30.5 | 27 | 4 |
 | `game/ssHitCheckAttackToScn.c` | todo | 0/6/37 | 32.0 | 23 | 3 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
-| `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
+| `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `game/asUseArrow.c` | todo | 0/6/11 | 6.4 | 16 | 1 |
 | `game/tkXDTrg_GetSceneHash.c` | todo | 0/7/50 | 21.0 | 14 | 2 |
 | `game/AA_SoundMonoSoart.c` | todo | 0/8/20 | 4.0 | 13 | 1 |
@@ -166,9 +166,9 @@ Recent sessions:
 | `01851b10` | ConvertQuat2Matrix | 17 | sym | stub | game/Convert.c |
 | `018d1e70` | CpGetEEIOPStatus | 14 | sym | stub | game/CpDivideEECom.c |
 | `0188ced0` | tiDrawShadingOff | 9 | sym | stub | game/Clipping_Portal.c |
+| `0188d3c0` | tiFade_Start | 8 | sym | stub | game/Clipping_Portal.c |
 | `01893cf0` | ExportDrawToTex | 8 | sym | stub | game/Clipping_Portal.c |
 | `018a3078` | gaObjectClippingCheck | 7 | sym | stub | ga/gaObjectClippingCheck.c |
-| `0188d3c0` | tiFade_Start | 6 | sym | stub | game/Clipping_Portal.c |
 | `018a4fe0` | gaDrawObject_VertexLocalViewWithClippingFlagSet | 6 | sym | stub | ga/gaDrawObject.c |
 | `018a51e8` | gaDrawObject_VertexLocalViewWithClippingFlagSet_Billboard | 6 | sym | stub | ga/gaDrawObject.c |
 | `018a5fe0` | gaDrawObject_MakeVertexReferenceTable | 6 | sym | stub | ga/gaDrawObject.c |

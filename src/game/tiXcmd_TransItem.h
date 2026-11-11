@@ -24,6 +24,29 @@
 #define XFADE_TYPE_PAUSE2 3
 #define TRIG_EVENT_CAM_RESERVED 0x9b    /* global: a camera change is reserved (ChangeCam_Execute removes it) */
 
+// Slice 2 (2026-11-11). tiXcmd_OperateItem's controls (pad_*_button[0], sdk/libpad.h's bits).
+#define TI_ITEM_EXIT_BUTTON SCE_PADRdown   /* cross (pressed): the examination ends */
+#define TI_ITEM_TOWARD_BUTTON SCE_PADRup   /* triangle (held): the item comes toward the eye */
+#define TI_ITEM_AWAY_BUTTON SCE_PADRleft   /* square (held): away */
+#define TI_ITEM_STICK_TURN_ID 0         /* asGetAnalogStickInformation: pad 0's left stick turns the item */
+#define TI_ITEM_STICK_MOVE_ID 1         /* its right stick moves it */
+#define TI_ITEM_STICK_DEAD 0x28         /* the dead zone both reads pass */
+#define TI_ITEM_STICK_TURN 7.0f         /* degrees a frame at full tilt */
+#define TI_ITEM_PAD_TURN 0x444          /* the d-pad's turn a frame (6 degrees) */
+#define TI_ITEM_STEP 5.0f               /* the move a frame (of TI_ITEM_TRANS_MAX) */
+#define TI_ITEM_STICK_TOWARD_LO 90.0f   /* the right stick within 90 degrees of up: toward the eye */
+#define TI_ITEM_STICK_TOWARD_HI 270.0f
+// tiXcmd_FadeStart.
+#define FADE_START_ARGC_TIME 3          /* 3 arguments: the time is argv[0]; else the variable argv[0] / argv[3] */
+#define TRIG_EVENT_FADED_OUT 0x4a       /* global: registered by the OUT fades, removed by the IN fades */
+// The letters (LetterList[LETTER_CATEGORIES][LETTER_LIST_SLOTS], LetterData's records).
+#define LETTER_CATEGORIES 5
+#define LETTER_LIST_SLOTS 10            /* also "not found" / "all full" */
+#define LETTER_DATA_FIELDS 5            /* CATEGORY, NUMBER, PAGE_NUMBER, START_PAGE, END_PAGE: bytes 0..4 */
+// KEY_MAP: [0..34] the player's assignment, [35..69] the defaults tiXcmd_ResetKeyMap copies back.
+#define KEY_MAP_ACTIONS 35
+#define KEY_MAP_DEFAULTS 35
+
 // The x commands (ssXcmd_functions slots, ssTrigExecuteActCmd's command 0x514): declared with the
 // table's SS_XCMD shape (xcmd_tn.h) until this TU's session reads each one (2026-11-11).
 int tkXcmd_CharSceneChange(int argc, char **argv, int bank);                             // CT3 0x018e8d20

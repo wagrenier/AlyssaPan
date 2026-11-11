@@ -17,7 +17,16 @@ void tiVibrationOff(int mode);                                                  
 void tiVibrationOn(int port, int a1, int a2, int a3);                                     // CT3 0x0188ce10
 void tiDrawShadingOff(void);                                                             // CT3 0x0188ced0
 // time: seconds (f12; x30 frames), type: Fade_Type (a0, a byte). MemorycardUpdate leaves a0 unset (open-items.md).
-#define FADE_TYPE_MC_LOAD 4             /* mc_load_set (name from that use) */
+#define FADE_TYPE_MC_LOAD 4             /* mc_load_set (name from that use; = FADE_TYPE_OUT2_BLACK) */
+// tiXcmd_FadeStart's kinds (2026-11-11): direction by twos, white the odd one.
+#define FADE_TYPE_IN_BLACK 0
+#define FADE_TYPE_OUT_BLACK 1
+#define FADE_TYPE_IN_WHITE 2
+#define FADE_TYPE_OUT_WHITE 3
+#define FADE_TYPE_OUT2_BLACK 4
+#define FADE_TYPE_OUT2_WHITE 5
+#define FADE_TYPE_IN2_BLACK 6
+#define FADE_TYPE_IN2_WHITE 7
 void tiFade_Start(float time, int type);                                                 // CT3 0x0188d3c0
 void tiFade_Draw(void);                                                                // CT3 0x0188d160
 void tiXFadeOut_Draw(void);                                                              // CT3 0x0188d3f0
@@ -46,6 +55,8 @@ void tiPipeJointInit(int bank);                                                 
 void tiSet_CharaTranslucenceON(int chara, int level, int flag);                          // CT3 0x0188ded0
 void tiSet_CharaTranslucenceOFF(int chara, int flag);                                    // CT3 0x0188ddc0
 void tiXFadeOut_Start(float time);                                                       // CT3 0x0188d6e0
+// From tiXcmd_XFadeOut2Start (2026-11-11): time in seconds, kind a byte.
+void tiXFadeOut_Start2(float time, u_char kind);                                         // CT3 0x0188d5e0
 
 // From tiXcmd_TransItem.c (2026-11-11). dst = src turned about the point pos (pos's translation out,
 // src, then back: two gaMulMatrix with matUnit + -pos / + pos rows).
