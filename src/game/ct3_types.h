@@ -346,7 +346,8 @@ typedef struct ALL_TABLE {
     u_int objTrans;                     /* 0x1c: list: main_rtn mode 1; scene_draw_init sorts it */
     u_int hits;                         /* 0x20: HIT_TABLE, what touched the bank's character this frame
                                            (asCheckCharacterHited reads Alyssa's) */
-    u_int pad24;
+    u_int detectors;                    /* 0x24: list of TRIG_DETECTOR (ssGrpPortalCheck.h): the bank's
+                                           trigger detectors and room portals */
     u_int light;                        /* 0x28: SCENE_LIGHT, the bank's light table (charaScale) */
     u_int partsHeader;                  /* 0x2c: the MODEL_PARTS header (scene_init -> pModelPartsHeader;
                                            InitMatrixTree, asBuildMirrorMatrixTree / _Back) */
@@ -388,7 +389,8 @@ typedef struct ALL_TABLE {
     u_int padd0[2];
     u_int search;                      /* 0xd8: SEARCH_TABLE (asSearchObject), 0 = none */
     u_int seat;                         /* 0xdc: SEAT_TABLE (asSeatArrange_Init), 0 = none */
-    u_int pade0[2];
+    u_int groupPortals;                 /* 0xe0: list of GRP_PORTAL (ssGrpPortalCheck.h) */
+    u_int pade4;
     u_int seekBarX;                     /* 0xe8: the relocator clears it; the ROM keeps the _SunAlloc'd
                                            SEEKBAR_X here. PORT: a host pointer does not fit the EE word,
                                            so the host keeps it in SeekBarX[bank] (this word stays 0) */

@@ -997,6 +997,26 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    pad_key_button (repeat), wraps at 34, and the mode-2 entry copies Character[0].rot into NDAlyssaRot[1]
    only while NDAlyssaPos.w is 0 (the first time).
 
+6. **game/ssGrpPortalCheck.c (triggers and portals) -- partial (2026-11-10, slice 1):** written: the
+   event / variable API (ssTrigCheckEvent, _RegisterEvent, _RemoveEvent, _GetVariable, _SetVariable), the
+   byte readers (ssTrigRead1/2/4/8Byte), ssTrigCheckEnable, ssTrigCheckInputEnable, CheckRoomEntry,
+   InitTriggerDetectorShape and the portals (ProcessPortal, ssScnPortalCheck, CheckPlaneEntry,
+   ssGrpPortalCheck); 15 s smoke run: no fault, shot black (as before). Next: Trigger_init (fills
+   OthData / DetData / ActData, TrigWork 0xc-byte records at 0x01ad7810, DetWork 0x1c-byte and ActWork
+   0x28-byte _SunAlloc blocks, TempEventFlag / TempVariable), then Trigger_main (three passes over
+   banks 0..5 then 6..85: ssTrigProcDetRecur, ssTrigProceedActor, ssTrigExecDelayEnable), Trigger_deinit,
+   TriggerGlobalInit and the detector / condition / actor functions. Open: (a) the temp sets are NULL
+   until Trigger_init is written: the five accessors answer 0 / do nothing then (PORT guards, remove
+   them when Trigger_init fills every bank it can be asked about, or keep them if a bank without
+   trigger data can be asked); (b) ProcessPortal gates characters on flag 0x80000000, which main's passes
+   named CHARACTER_FLAG_REFRACTION from one use: the portal pass makes it look like a "live / placed"
+   bit -- rename when the character TU sets it; (c) CHARACTER.lightBank (+0xa0) is the room's bank a
+   character stands in (the portal sets it), not only its light: rename with (b); (d) TRIG_DETECTOR /
+   GRP_PORTAL field names come from the portal readers only (+0x08 / +0xa6 / +0xa8 room ids copied to
+   CHARACTER.h100: h100 is the character's room id); (e) TRIG_VAR_ROOM_ENTRY (0x20) is named from
+   ssScnPortalCheck's one read (into CHARACTER.b102); (f) the ALL_TABLE.detectors and .groupPortals
+   lists are guarded for a 0 word (PORT) -- the ROM reads EE address 0.
+
 ## Decisions
 
 - 2026-11-10 (the user, after the ui_canvas.cpp run): **the draw path and the camera go ahead of the

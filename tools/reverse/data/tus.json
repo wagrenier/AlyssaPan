@@ -1013,12 +1013,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 102..102, 3 functions keyed by their statics, 2 unkeyed; file name from the names"
   },
   "game/ssGrpPortalCheck.c": {
+   "notes": "Temp event and variable sets are NULL until Trigger_init is written: PORT guards answer 0. Next: Trigger_init (TrigWork, DetWork, ActWork, the temp sets), then Trigger_main and the detector, condition and actor functions. Smoke run 15 s: no fault, shot black as before (no bank draws yet). open-items.md item 6.",
    "ranges": [
     [
      "018d2ee0",
      "018d9a40"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-10 23:18",
+     "status": "partial",
+     "summary": "triggers slice 1: the event and variable API, the byte readers, the enable checks, InitTriggerDetectorShape, CheckRoomEntry and the room portals (ProcessPortal, ssScnPortalCheck, CheckPlaneEntry, ssGrpPortalCheck)"
+    }
+   ],
+   "status": "partial",
    "why": "tumap.py (bootstrap 5): symtab local chunks 124..125, 24 functions keyed by their statics, 31 unkeyed; file name from the names"
   },
   "game/ssHitCheckAttackToScn.c": {

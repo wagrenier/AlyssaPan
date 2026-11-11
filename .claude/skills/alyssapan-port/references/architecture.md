@@ -882,6 +882,30 @@ view * matrix (+0x180) and +0x300 = that * diag(record +0x2c0 xyz).
 - SkipFlagTbl (sdata 0x01938200, 137 ints, -1 ended) lists the skippable demos' trigger events in
   SkipEventFlag's bit order. Character slots 1..6 are the stalkers (CheckSameRoomAsMonster).
 
+## Triggers and portals, game/ssGrpPortalCheck.c (2026-11-10, slice 1)
+
+Event flags and variables come in two sets: the global set (`GlobalEventFlag`, 0x01941590, bits;
+`GlobalVariable`, 0x01941190, ints; both saved) and a temp set per bank (`TempEventFlag[86]` 0x01944240,
+`TempVariable[86]` 0x019440e0, LOCAL statics, `_SunAlloc` blocks made by `Trigger_init`, the flags
+`(count >> 3) + 1` bytes). Every accessor is `(id, global, bank)`: global != 0 ignores bank (callers pass
+-1). The set / get of variables masks the id to 16 bits only on the set. The trigger data is read with
+little-endian byte readers (`ssTrigRead1/2/4/8Byte(&pos, data)`).
+
+A bank's ALL_TABLE +0x24 lists its trigger detectors (TRIG_DETECTOR, bank data): +0 the EE address of
+its part's world matrix (InitTriggerDetectorShape), +0xc the part, +0xe a bank, +0x10 / +0x14 EE pointers
+to a local plane normal and four local quad corners, +0x18 a room hash (non-zero: a portal). +0xe0 lists
+group portals (GRP_PORTAL) already in world space: corners at +0x40, normal +0x90, distance +0xa0, part
++0xa4, room ids +0xa6 (crossed from the front) / +0xa8 (from the back). `ProcessPortal` runs every frame
+for characters 0, 2..6 (`ssScnShiftCharList` / `ssGrpShiftCharList`) that have flag 0x80000000 and stand
+in a drawn bank (BankInfo.drawOn). A crossing is: last frame's position (CHARACTER +0xb0) on the front
+of the plane (>= 0), this frame's (+0xc0) behind (< 0) -- group portals take either direction -- and the
+crossing point inside the quad: the four corner directions' neighbouring angles (ahAcos units, 65536 a
+turn) sum to at least 65014. Entering a portal moves the character into the room: roomHashPrev /
+roomHash, +0xa0 to the detector's bank, +0x100 the room id, the ambient fade (tnChangeCharAmbientColorSet,
+0x40), 20 frames of direct light, b102 = global variable 0x20; for Alyssa (id 0) also idCurrentScene,
+SSAutoStartSoundRoomIn, RoomInFlagOn and GetAreaFloor. A part with flags bit 0 (PARTS_FLAG_HIDDEN)
+switches its detector off (ssTrigCheckEnable answers the same bit).
+
 ## The IOP side (2026-11-09)
 
 The EE loads `cdrom0:\IOP\IOPRP255.IMG;1` (an IOP reboot), then `SIO2MAN`, `PADMAN`, `MCMAN`, `MCSERV`,

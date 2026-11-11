@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-10 22:53 at commit `f90d4d9` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-10 23:18 at commit `ab6cd37` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **852**; stubs: **180**
+- reconstructed CT3 functions: **873**; stubs: **173**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -81,7 +81,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/movie.c` | 20 | 0 |
 | `src/game/sound.c` | 73 | 0 |
 | `src/game/ssCalcInversMatrix2.c` | 0 | 1 |
-| `src/game/ssGrpPortalCheck.c` | 0 | 11 |
+| `src/game/ssGrpPortalCheck.c` | 21 | 4 |
 | `src/game/ssHitCheckAttackToScn.c` | 0 | 5 |
 | `src/game/ssSetTexUVforCubeMap.c` | 0 | 31 |
 | `src/game/tiAvoidObject.c` | 0 | 7 |
@@ -92,9 +92,10 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 39, partial 1, verify 25, done 4, blocked 1
+- 65 TUs: todo 38, partial 2, verify 25, done 4, blocked 1
 - next: **game/ssGrpPortalCheck.c** (pinned in the queue)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp, game/ssGrpPortalCheck.c, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
+- partial: `game/ssGrpPortalCheck.c` 17/59 -- Temp event and variable sets are NULL until Trigger_init is written: PORT guards answer 0. Next: Trigger_init (TrigWork, DetWork, ActWork, the temp sets), then 
 - partial: `game/wideXcmd_DebugPrint.c` 107/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed) -- the last function of the TU. New stubs
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
@@ -125,6 +126,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-10 23:18 `game/ssGrpPortalCheck.c` partial: triggers slice 1: the event and variable API, the byte readers, the enable checks, InitTriggerDetectorShape, CheckRoomEntry and the room portals (ProcessPortal,
 - 2026-11-10 22:53 `game/asEyeForcusUP2CamMat.c` verify: camera slice 4: camera_main (the pad camera: debug fly modes 0 / 1, the ND camera with its drive mode, mode 3 -> 4, the scene camera's controller-100 cut step);
 - 2026-11-10 22:35 `game/asEyeForcusUP2CamMat.c` partial: camera slice 3: asGetDestinationEYE (the seven eye kinds: part, rail, orbit, stay, plane, ring, segment; the cut path from OBJ_CTRL), CamSetNowDOFLevel, CamChan
 - 2026-11-10 22:17 `game/asEyeForcusUP2CamMat.c` partial: camera slice 2: 7 functions -- camera_view and camera_view0 (the frame's camera: last frame's view kept, stocked cut retried, cut move blend, look-around stick,
@@ -132,20 +134,19 @@ Recent sessions:
 - 2026-11-10 21:30 `ga/gaBGT_DrawObject.c` verify: slice 4: nc2_SetupDma_light2 written (dead in the ROM, nc2_light1's code instruction for instruction); every function of the TU is written; shot black until the
 - 2026-11-10 21:15 `ga/gaBGT_DrawObject.c` partial: slice 3: the clipped path (gaBGT_DrawObject), NoClippingCheck and the billboard jump into it, SetupDma_light0/1/2 build the ROM packet and hand the object to th
 - 2026-11-10 20:57 `ga/gaBGT_DrawObject.c` partial: slice 2: the light0 VU1 object program read (transform 0x04d, projection 0x0f5, cull 0x1fe / 0x22c) and run on the host per object; each frame's triangles go to
-- 2026-11-10 20:45 `ga/gaBGT_DrawObject.c` partial: slice 1: the no-clip path (NoClippingCheck2, nc2 light0 and light1) hands each ga draw object to the new host module AlyssaPan_DrawGaObject (GaMeshRecorder); AT
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `game/ssGrpPortalCheck.c` | todo | 0/11/59 | 26.4 | 481 | 10 |
 | `game/Clipping_Portal.c` | todo | 0/34/73 | 44.8 | 160 | 18 |
-| `game/ssSetTexUVforCubeMap.c` | todo | 0/31/96 | 35.3 | 86 | 9 |
+| `game/ssSetTexUVforCubeMap.c` | todo | 0/31/96 | 35.3 | 87 | 9 |
 | `game/CpDivideEECom.c` | todo | 0/10/18 | 3.3 | 80 | 10 |
 | `ga/gaDrawObject.c` | todo | 0/11/11 | 6.9 | 39 | 0 |
 | `game/tiAvoidObject.c` | todo | 0/7/82 | 30.5 | 27 | 4 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/ssHitCheckAttackToScn.c` | todo | 0/5/37 | 32.0 | 22 | 3 |
-| `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
+| `game/ssGrpPortalCheck.c` | partial | 17/4/59 | 26.4 | 19 | 3 |
 | `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
+| `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
 | `game/asUseArrow.c` | todo | 0/6/11 | 6.4 | 16 | 1 |
 | `game/tkXDTrg_GetSceneHash.c` | todo | 0/3/50 | 21.0 | 14 | 2 |
 
@@ -153,11 +154,6 @@ Recent sessions:
 
 | CT3 addr | name | call sites | provenance | state | inferred file |
 |---|---|---|---|---|---|
-| `018d9100` | ssTrigCheckEvent | 171 | sym | stub | game/ssGrpPortalCheck.c |
-| `018d9560` | ssTrigRemoveEvent | 110 | sym | stub | game/ssGrpPortalCheck.c |
-| `018d95e0` | ssTrigRegisterEvent | 63 | sym | stub | game/ssGrpPortalCheck.c |
-| `018d9470` | ssTrigSetVariable | 43 | sym | stub | game/ssGrpPortalCheck.c |
-| `018d9430` | ssTrigGetVariable | 38 | sym | stub | game/ssGrpPortalCheck.c |
 | `01851b10` | ConvertQuat2Matrix | 17 | sym | stub | game/Convert.c |
 | `018d1e70` | CpGetEEIOPStatus | 14 | sym | stub | game/CpDivideEECom.c |
 | `0188ced0` | tiDrawShadingOff | 9 | sym | stub | game/Clipping_Portal.c |
@@ -187,10 +183,15 @@ Recent sessions:
 | `018a52f0` | gaDrawObject_VertexLocalView_Billboard | 3 | sym | stub | ga/gaDrawObject.c |
 | `018a5b88` | gaDrawObject_RemakeIndex | 3 | sym | stub | ga/gaDrawObject.c |
 | `018a6038` | gaDrawObject_MakeVertexReferenceTableNoClip | 3 | sym | stub | ga/gaDrawObject.c |
+| `018962a0` | tnChangeCharAmbientColorSet | 3 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `0188df70` | tiDrawLensFlares | 3 | sym | stub | game/Clipping_Portal.c |
 | `0188cd70` | tiVibrationTimer | 3 | sym | stub | game/Clipping_Portal.c |
 | `018c1ce0` | AA_videoDecAbort | 3 | sym | stub | game/AA_mpegTS.c |
 | `018666c0` | asInitArrowInfo | 2 | sym | stub | game/asUseArrow.c |
 | `01882c10` | asInitMothInfo | 2 | sym | stub | game/asMothRouteSearch.c |
 | `018a6080` | gaDrawObject_SetBig | 2 | sym | stub | ga/gaDrawObject.c |
+| `0189f720` | gaDrawObject_Redraw_Polygon | 2 | sym | stub | ga/gaDrawObject_Redraw_Polygon.c |
+| `0189dec0` | ssBGT_ZBufferClear | 2 | sym | stub | game/ssSetTexUVforCubeMap.c |
+| `018eda60` | SceneDoorFlagClear | 2 | sym | stub | game/tkXDTrg_GetSceneHash.c |
+| `018aa950` | CheckLOS_Multi | 2 | sym | stub | game/ssHitCheckAttackToScn.c |
 
