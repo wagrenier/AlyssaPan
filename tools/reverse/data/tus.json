@@ -1,6 +1,5 @@
 {
  "queue": [
-  "game/Character_Init.c",
   "alyssapan/rendering/ui_canvas.cpp"
  ],
  "settings": {
@@ -635,7 +634,7 @@
    "why": "split 2026-11-11 (architecture.md The TU map): one CodeWarrior object. Its 75 locals are symtab 1088..1162, one hash-ordered run no cut can separate (seams.py, databands.py); they tie DemoSkipGetEvent 0x01852060 to rnd 0x0185e960. Its rodata strings rise with text order (3344 GetAreaNumber .. 5148 PlayMovie), its sdata statics fall with it (SkipFlagTbl .. next). The lead-in BRANCH_CLEAR..DemoSkipRegisterEvent has no local and goes with DemoSkipGetEvent by name. Key named after the first function (no source string)."
   },
   "game/Character_Init.c": {
-   "notes": "All 49 functions written; nothing on screen reaches the card yet (main2 is a stub), shot black as before. The save image layout is in architecture.md (The save image); MemorycardAutoLoad*Check now return int, the ROM's v0 (hazards.md). Open-items az..bd hold the doubts: the image ranges no function here writes, the one-use names (MC_BANK_*, trigger events, CAMERA.cut, MODEL_PARTS.drawOnPos, PANIC_INFO), CHARACTER.slot004 as behaviour banks. Next in the queue: game/ArtoolDebugOpen.c, main2.c, fileio.c.",
+   "notes": "All 49 functions written; the title smoke run does not reach Character_Init (the card check screen draws), junc_heap's NEW path to room 0A02 does: look there for Alyssa's placement. Doubts be..bh in open-items.md (startPart and the place modes from one use, h100 as a room id, row 0 unsigned turn, the light-bank vs shape-bank split). callcheck's missing ahAcos / gaInnerProductXYZ are in the static CharaPlaceOnPart.",
    "ranges": [
     [
      "018b3a60",
@@ -672,9 +671,14 @@
      "date": "2026-11-12 12:39",
      "status": "partial",
      "summary": "marked verify -> partial: Character_Init (CT3 0x018b3a60) is still a stub and the NEW path now reaches it (junc_heap.cpp run, 2026-11-12): the room scene 0A02 sets Alyssa up through it"
+    },
+    {
+     "date": "2026-11-12 12:47",
+     "status": "verify",
+     "summary": "Character_Init written, the TU's last stub: room join (hash, light bank, room-in flag, ambient), the place modes (keep, the scene's start part, the light bank's part 0, a part), last frame's pose, the new-room highlight scale over the shape bank's draw lists, behaviour and animation restart, the stalkers' AI hook; ALL_TABLE.startPart (+0xd0) named"
     }
    ],
-   "status": "partial",
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 105..105, 36 functions keyed by their statics, 13 unkeyed; file name from the names"
   },
   "game/Clipping_Portal.c": {

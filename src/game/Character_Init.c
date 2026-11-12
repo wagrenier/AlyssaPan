@@ -33,6 +33,7 @@
 #include "game/main2.h"
 #include "game/movie.h"
 #include "game/sound.h"
+#include "game/ssSetTexUVforCubeMap.h"
 #include "game/unassigned_data.h"
 #include "game/wideXcmd_DebugPrint.h"
 #include "sdk/libgraph.h"
@@ -3101,8 +3102,104 @@ void data_save_set(u_char *data)
     tkXcmd_DoorFlagClear(save->globalEventFlag);
 }
 
-// stub of CT3 0x018b3a60
-void Character_Init(int chara, int a1, int a2)
+#define CHARA_INIT_LISTS 3              /* Character_Init: objTrans, objOpaque, objAfter (scene_init's order) */
+
+// The character onto part `part` of `bank`: its position, its turn about Y from part 0's matrix row 0 to
+// the part's (ahAcos of their dot product, no sign: Character_Init's own, unlike the warps'), its room.
+static void CharaPlaceOnPart(CHARACTER *chr, int bank, int part)
 {
-    ALYSSAPAN_STUB("Character_Init", 0x018b3a60);
+    MODEL_PARTS *parts = (MODEL_PARTS *)pModelPartsHeader[bank];
+
+    memcpy(chr->pos, parts[part].pos, sizeof(chr->pos));
+    chr->rot = ahAcos(gaInnerProductXYZ(parts[0].matrix[0], parts[part].matrix[0]));
+    chr->h100 = parts[part].warpH54;
+}
+
+// CT3 0x018b3a60: a character set up on its shape (TrgCharacterShapeSet). A character with no light
+// bank yet, or one told it is new to the room (newRoom), joins the current scene: its room hash and
+// light bank, the room-in flag for Alyssa, the scene's ambient on its bank. Then `place` puts it
+// (CHARA_PLACE_*, or a part of the light bank); last frame's position and turn follow. A new room also
+// scales the TEX_TFX_HIGHLIGHT2 entries of its own bank's three draw lists by the scene light's
+// charaScale; then its behaviour controller and animation restart, and a stalker gets its AI's
+// load-time set-up (empty in the ROM).
+void Character_Init(int chara, int place, int newRoom)
+{
+    CHARACTER *chr = &Character[chara];
+    int light;
+    int i;
+
+    chr->id = (s_char)chara;
+    light = chr->lightBank;
+    if (light == -1 || newRoom != 0) {
+        ALL_TABLE *scene;
+
+        chr->roomHash = GetRoomName_file(BankInfo[idCurrentScene].name);
+        chr->lightBank = (short)idCurrentScene;
+        light = idCurrentScene;
+        if (chara == 0)
+            RoomInFlagOn();
+        scene = All_table_TBL[idCurrentScene];
+        ssSetAmbientColor(scene->ambient[0], scene->ambient[1], scene->ambient[2], scene->ambient[3],
+                          chr->bank);
+    }
+
+    if (place == CHARA_PLACE_KEEP) {
+        chr->h100 = CHARA_ROOM_NONE;
+    } else if (place == CHARA_PLACE_START) {
+        int start = All_table_TBL[idCurrentScene]->startPart;
+
+        light = idCurrentScene;
+        if (start < 0) {
+            memcpy(chr->pos, kVf0, sizeof(chr->pos));
+            chr->h100 = CHARA_ROOM_NONE;
+            chr->rot = 0;
+        } else {
+            CharaPlaceOnPart(chr, idCurrentScene, start);
+        }
+    } else if (place == CHARA_PLACE_BANK) {
+        if (BankInfo[light].state == BANK_STATE_LOADED)
+            memcpy(chr->pos, ((MODEL_PARTS *)pModelPartsHeader[light])[0].pos, sizeof(chr->pos));
+        else
+            memcpy(chr->pos, kVf0, sizeof(chr->pos));
+        chr->h100 = CHARA_ROOM_NONE;
+        chr->rot = 0;
+    } else {
+        CharaPlaceOnPart(chr, light, place);
+    }
+    memcpy(chr->posBefore, chr->pos, sizeof(chr->posBefore));
+    chr->rotBefore = chr->rot;
+
+    // ROM: the scale comes from the light bank, the lists from Character[].bank (the shape's bank).
+    if (newRoom != 0) {
+        float scale = BANK_PTR(SCENE_LIGHT *, light, All_table_TBL[light]->light)->charaScale;
+        int bank = chr->bank;
+        ALL_TABLE *tbl = All_table_TBL[bank];
+        u_int *objs = NULL;
+        int list;
+
+        for (list = 0; list < CHARA_INIT_LISTS; list++) {
+            if (list == 2)
+                objs = BANK_PTR(u_int *, bank, tbl->objAfter);
+            else if (list == 1)
+                objs = BANK_PTR(u_int *, bank, tbl->objOpaque);
+            else if (list == 0)
+                objs = BANK_PTR(u_int *, bank, tbl->objTrans);
+            for (i = 0; objs[i] != 0; i++) {
+                DRAW_OBJ_ENTRY *ent = BANK_PTR(DRAW_OBJ_ENTRY *, bank, objs[i]);
+
+                if (ent->tex != 0 && BANK_PTR(TEX_INFO *, bank, ent->tex)->tfx == TEX_TFX_HIGHLIGHT2) {
+                    float *level = (float *)(BANK_PTR(u_char *, bank, ent->obj) + DRAW_OBJ_LIGHT);
+
+                    *level *= scale;
+                }
+            }
+        }
+    }
+
+    asInitPlayerBehaviorControler(chr);
+    asForceOperateAnimation_Character(chara, 0);
+    for (i = 0; i < ATK_CHARA_LIST2_COUNT; i++) {
+        if (chara == ssAtkCharaList2[i])
+            ssAI_CharaLoadInit();
+    }
 }

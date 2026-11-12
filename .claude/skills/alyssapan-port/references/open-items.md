@@ -319,7 +319,17 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    (+0x178), MODEL_PARTS.drawOnPos (+0x2f0) and PANIC_INFO's fields are named from this use only;
    (bd) CHARACTER.slot004[10] holds the character's behaviour banks (data_load_set compares the bank with
    each): rename it when the character TU reads it. Next: game/ArtoolDebugOpen.c, game/main2.c,
-   game/fileio.c.
+   game/fileio.c. **2026-11-12 (scheduled run): Character_Init (0x018b3a60) written, the TU's last stub
+   -- verify** (the title smoke run never reaches it; junc_heap's NEW path to room 0A02 does). Open:
+   (be) ALL_TABLE.startPart (+0xd0) and the place modes (Character_Init.h CHARA_PLACE_KEEP 0 / _START -1 /
+   _BANK -2, >= 0 a part) are named from this one use; CHARA_ROOM_NONE (-1) names h100's "no room"
+   beside tiAvoidObject.h's AI_H100_NONE (-2) / _GONE (-3): h100 is a room / group id
+   (ssGrpPortalCheck sets it), rename it when its reader is read; (bf) the turn takes part 0's and the
+   part's matrix row 0 with no sign (the warps take row 2 and sign it): kept as the ROM does; (bg)
+   _BANK tests BankInfo[light].state == BANK_STATE_LOADED (the struct's +0, as decompiled) -- the
+   decompiler's index is the light bank, not the character's shape bank; (bh) the new-room scale reads the
+   draw lists of Character[].bank but the scale from the light bank's SCENE_LIGHT, as the ROM does;
+   callcheck lists ahAcos / gaInnerProductXYZ missing: they live in the static CharaPlaceOnPart.
    **game/ArtoolDebugOpen.c (verify, 2026-11-10): all 15 functions** -- the file layer (architecture.md
    "The file layer"): IopLoadModules (now void: (ai) settled, the ROM reads no argument), FlInit (the
    pack's directory; a smoke run prints no FlInit error, so the directory loads and sceCdSearchFile finds

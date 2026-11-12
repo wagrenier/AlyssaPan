@@ -388,5 +388,13 @@ int mc_Getinfo_BranchNo(int file);                                              
 int mc_Getinfo_msg_num(int file);                                                        // CT3 0x018b5f60
 int mc_Getinfo_time(int file);                                                           // CT3 0x018b5fc0
 void Set_AA_New_McAlloc_Mode(void);                                                      // CT3 0x018bb600
-// From TrgCharacterShapeSet's call (main2.c, 2026-11-10): its own fourth and fifth arguments, swapped.
-void Character_Init(int chara, int a1, int a2);                                          // CT3 0x018b3a60
+// Character_Init's place argument (TrgCharacterShapeSet's fourth): where the character stands.
+#define CHARA_PLACE_KEEP 0              /* where it is; no room (h100 -1) */
+#define CHARA_PLACE_START (-1)          /* the current scene's ALL_TABLE.startPart, the origin when < 0 */
+#define CHARA_PLACE_BANK (-2)           /* its light bank's part 0 when that bank is loaded, else the origin */
+                                        /* >= 0: that part of its light bank (position, turn, room) */
+#define CHARA_ROOM_NONE (-1)            /* CHARACTER.h100: in no room */
+
+// TrgCharacterShapeSet's fourth and fifth arguments, swapped (main2.c): place (CHARA_PLACE_* or a part)
+// and newRoom (non-0: the character joins the current scene's room and takes its light).
+void Character_Init(int chara, int place, int newRoom);                                  // CT3 0x018b3a60

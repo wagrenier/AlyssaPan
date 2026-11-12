@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-12 12:40 at commit `a3d0eeb` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-12 12:47 at commit `b54df25` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1691**; stubs: **109**
+- reconstructed CT3 functions: **1692**; stubs: **108**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -59,7 +59,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/AlignedNum.c` | 4 | 0 |
 | `src/game/ArtoolDebugOpen.c` | 15 | 0 |
 | `src/game/BRANCH_CLEAR.c` | 184 | 0 |
-| `src/game/Character_Init.c` | 48 | 1 |
+| `src/game/Character_Init.c` | 49 | 0 |
 | `src/game/Clipping_Portal.c` | 73 | 0 |
 | `src/game/Convert.c` | 3 | 0 |
 | `src/game/CpDivideEECom.c` | 18 | 0 |
@@ -103,10 +103,9 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 13, partial 1, verify 52, done 10, blocked 1
-- next: **game/Character_Init.c** (pinned in the queue)
-- pinned queue: game/Character_Init.c, alyssapan/rendering/ui_canvas.cpp
-- partial: `game/Character_Init.c` 48/49 -- All 49 functions written; nothing on screen reaches the card yet (main2 is a stub), shot black as before. The save image layout is in architecture.md (The save 
+- 65 TUs: todo 13, verify 53, done 10, blocked 1
+- next: **ga/gaDrawObject_Redraw_Polygon.c** (frontier score 7)
+- pinned queue: alyssapan/rendering/ui_canvas.cpp
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
@@ -129,6 +128,7 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/AlignedNum.c` 4/4 -- WaitLoop is split in Ghidra: WaitLoop 0x0189f650 plus WaitLoop_body 0x0189f680 (game-inferred), one C function. The j at 0x0189f718 belongs to the next object (
 - verify: `game/ArtoolDebugOpen.c` 15/15 -- Smoke run: FlInit prints no error, so the pack directory loads and sceCdSearchFile finds the pack; no run reads a file yet (main2 and fileio.c are stubs), the s
 - verify: `game/BRANCH_CLEAR.c` 173/173 -- MotionTableOf now resolves CHARACTER +0x350 via BankEePtr of the bank, as MotionRecord in wideXcmd_DebugPrint.c does (open-items ga done). 15 s smoke run: no fa
+- verify: `game/Character_Init.c` 49/49 -- All 49 functions written; the title smoke run does not reach Character_Init (the card check screen draws), junc_heap's NEW path to room 0A02 does: look there fo
 - verify: `game/Clipping_Portal.c` 73/73 -- Smoke run unchanged (content warning screen at 4:3); no pendulum is on its path, so verify. callcheck lists the two entry points calls under the static HurikoSw
 - verify: `game/Convert.c` 2/2 -- No smoke run reaches either yet (the shot is the same clock-tower scene); the animation TUs (ExecuteAnimation, EA_100, asMakeStraw) will exercise them. Order of
 - verify: `game/CpDivideEECom.c` 18/18 -- Complete code nothing on screen shows: SNDDRV.IRX is not reconstructed, so sif.cpp answers zero replies and gAdrIOPStat stays 0 (the status DMA is skipped). The
@@ -163,6 +163,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-12 12:47 `game/Character_Init.c` verify: Character_Init written, the TU's last stub: room join (hash, light bank, room-in flag, ambient), the place modes (keep, the scene's start part, the light bank's
 - 2026-11-12 12:40 `alyssapan/core/junc_heap.cpp` done: gHeapJunc was corrupted, not exhausted: ssParticleInit sized ParticleObject and ParticleData as count * 4 and stored 8-byte host pointers, overwriting the next 
 - 2026-11-12 12:39 `game/Character_Init.c` partial: marked verify -> partial: Character_Init (CT3 0x018b3a60) is still a stub and the NEW path now reaches it (junc_heap.cpp run, 2026-11-12): the room scene 0A02 s
 - 2026-11-12 12:30 `alyssapan/core/newgame_trace.cpp` done: The silent wait after NEW: the title music ADS stream held gADSOpenSync at 1 waiting for SNDDRV.IRX to acknowledge SND_CMD_ADS_OPEN, so FlProc read nothing and 
@@ -170,19 +171,17 @@ Recent sessions:
 - 2026-11-12 11:34 `game/AA_viBuf.c` verify: reconstruct 13 functions (verify)
 - 2026-11-12 11:13 `ga/gaObjectClippingCheck.c` verify: gaObjectClippingCheck written: bounding sphere vs near/far and VU0 micro 0x068 side planes, done natively
 - 2026-11-12 10:53 `game/AA_videoCallback.c` verify: all 11 functions: ezmpegstr videoCallback, readbuf.c and strfile.c with CT3's packed rows and retry counter; new host drive stream sceCdStInit/StStart/StRead/St
-- 2026-11-12 10:36 `game/AA_SoundMonoSoart.c` verify: all 20 functions: ezmpegstr audiodec.c with CT3's EE / IOP time-stamp rings (the audio clock via AA_syncClockInAudio) and the monaural mode; new sceSdRemote shi
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `game/ssCalcInversMatrix2.c` | todo | 0/5/5 | 5.7 | 12 | 1 |
-| `ga/gaSearchNearLight4.c` | todo | 0/1/1 | 0.4 | 9 | 1 |
 | `ga/gaDrawObject_Redraw_Polygon.c` | todo | 0/1/6 | 4.3 | 7 | 1 |
-| `game/AA_cpuCycles.c` | todo | 0/4/4 | 0.3 | 6 | 0 |
-| `game/Character_Init.c` | partial | 48/1/49 | 30.6 | 6 | 1 |
+| `game/ssCalcInversMatrix2.c` | todo | 0/5/5 | 5.7 | 7 | 0 |
 | `ga/wait.c` | todo | 0/2/20 | 0.1 | 6 | 0 |
+| `game/AA_cpuCycles.c` | todo | 0/4/4 | 0.3 | 6 | 0 |
+| `ga/gaSearchNearLight4.c` | todo | 0/1/1 | 0.4 | 4 | 0 |
 | `game/copy2area.c` | todo | 0/2/2 | 0.5 | 2 | 0 |
-| `game/asMothOperate.c` | todo | 0/1/1 | 3.8 | 1 | 0 |
 | `game/ssBrain_ChgHideAtk1.c` | todo | 0/15/34 | 29.6 | 1 | 0 |
+| `game/asMothOperate.c` | todo | 0/1/1 | 3.8 | 1 | 0 |
 
 ## Frontier (called by reconstructed code, not written yet)
 
@@ -197,7 +196,6 @@ Recent sessions:
 | `0189f720` | gaDrawObject_Redraw_Polygon | 2 | sym | stub | ga/gaDrawObject_Redraw_Polygon.c |
 | `018817b0` | ssAI_SetTraceMode | 1 | sym | stub | game/ssBrain_ChgHideAtk1.c |
 | `018a91d0` | ssHit_information | 1 | sym | stub | game/ssCalcInversMatrix2.c |
-| `018b3a60` | Character_Init | 1 | sym | stub | game/Character_Init.c |
 | `018c03c0` | AA_syncClockInVideo | 1 | sym | stub | game/AA_cpuCycles.c |
 | `01882d60` | asMothOperate | 1 | sym | stub | game/asMothOperate.c |
 | `018a88e0` | ssCalcInversMatrix2 | 1 | sym | stub | game/ssCalcInversMatrix2.c |

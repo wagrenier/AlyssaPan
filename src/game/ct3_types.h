@@ -466,7 +466,9 @@ typedef struct ALL_TABLE {
     u_int hidePoles;                    /* 0xc4: HIDE_POLE_LIST (wideXcmd_TriggerInit.c: SetHideAttackPole) */
     u_int padc8;
     u_int mirror;                       /* 0xcc: MIRROR_LIST (asEnumMirror), 0 = no mirror */
-    u_int padd0[2];
+    int startPart;                      /* 0xd0: the part a character placed with CHARA_PLACE_START stands on
+                                           (Character_Init), < 0 = the origin */
+    u_int padd4;
     u_int search;                      /* 0xd8: SEARCH_TABLE (asSearchObject), 0 = none */
     u_int seat;                         /* 0xdc: SEAT_TABLE (asSeatArrange_Init), 0 = none */
     u_int groupPortals;                 /* 0xe0: list of GRP_PORTAL (ssGrpPortalCheck.h) */
