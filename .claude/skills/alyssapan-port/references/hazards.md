@@ -7,6 +7,11 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-12, ssSetTexUVforCubeMap.c slice 6) **Min / max clamps through a delay slot.** CodeWarrior
+  writes `if (v < min) min = v < 0 ? 0 : v` as a bc1f whose delay slot moves the clamp value in, then a
+  mov of v on the other path; Ghidra folds it into nonsense like `(fVar9 = 0.0, 0.0 <= fVar8)`
+  (ssGetScreenRange). Read such clamps from the disassembly; the same shape is in
+  ss2DParticleSetDrawData2 and ssVaselineGetScreenPos, still to write.
 - (2026-11-12, ssSetTexUVforCubeMap.c slice 5) **Part motion blur: host blocks, EE copies.** PART_BLUR_MAX_OBJ
   and PART_BLUR_OBJ are host structs (sizeof, not the ROM's 0x100 / 0x140: index objs as an array, never by
   0x140), but each ring copy is EE layout (PART_BLUR_COPY_SIZE, BLUR_COPY_* offsets) because main_rtn draws

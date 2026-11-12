@@ -1262,6 +1262,31 @@ the branch scene tables and a few tk x commands.
   DOF_FarClip (0x01940e3c / e40). **ssParticleCashClear**: the curve readers' cache (0x0193e020..e048;
   cashTicks -1).
 
+### Slice 6 (2026-11-12): the 2D particles (the wave pass's diamonds) and the screen sprite
+
+- **ss2DpInfo** (data 0x01939c90, 36 bytes): x, y, w, h (s16, the rectangle), +0x08 the wave object,
+  +0x0c sizeScale (size * the object's depth at the start), +0x10 the frame clock, u16 +0x14 max (ring
+  records), +0x16 head, +0x18 tail, +0x1a life (h * 10 / speed frames), u8 +0x1c speed (tenths of a
+  pixel a frame), +0x1d speed +-percent, +0x1e size, +0x1f size +-percent, +0x20 sway. Host struct
+  SS_2DP_INFO (pointer obj, PORT bank).
+- **ss2DpData** records, 0x160 bytes: a copy of **SS_draw_diamond** (data 0x01938de0, 0x150 bytes: DMA cnt
+  20, VIF DIRECT 19, GIF tag NLOOP 6 EOP PACKED regs RGBAQ UV XYZ2, PRIM 5 = triangle fan without TME:
+  the drawing pass must set the texture another way) -- 6 vertices centre, bottom, left, top, right,
+  bottom; RGBAQ grey 0x80, alpha 0x40 at the centre and 0 outside -- then du, dv (float), x, y (s16),
+  age (u16), speed, size (u8). UV = screen position + (du, dv): the pass refracts the frame through each
+  diamond. Push_Back writes X and U; ss2DParticleSetDrawData writes Y and V each frame, V clamped to
+  1..3 texels near the top. Emission: max / life records a frame; a record rises from the rectangle's
+  bottom by speed * age / 10 and is popped when age > life.
+- **ssGetScreenRange**: projects the wave object's vertices (column matrix at obj +4, verts +8, count
+  u16 +0xe, all bank EE words) with screen_0 [4..8] (centre, scale, distance), writes the clamped
+  rectangle, returns the first vertex's z. **ssTrigWaveStart** (12 arguments): x, y, w, h, size,
+  sizeRand, speed, speedRand, sway, count, bank, part (0xff: the rectangle as given; else ALL_TABLE +0x94,
+  now `waves`, gives the object, its +4 set to parts header + part * 0x380 + 0x140). DrawMode 6.
+- **SS_draw_sprite** (data 0x01938d80, 0x60 bytes): DMA cnt 5, VIF DIRECT 4, GIF tag NLOOP 1 EOP REGLIST
+  6 (PRIM 6 sprite, RGBAQ, UV, XYZ2, UV, XYZ2). ssSetSpriteCol (Q 1.0), ssSetSpriteUV (texel * 16 + 15),
+  ssSetSpritePos ((x + 0.45, y + 0.4) * 16 in doubles + 0x8000; Z the low 24 bits) fill it for the BGT
+  screen passes.
+
 ## The IOP side (2026-11-09)
 
 The EE loads `cdrom0:\IOP\IOPRP255.IMG;1` (an IOP reboot), then `SIO2MAN`, `PADMAN`, `MCMAN`, `MCSERV`,

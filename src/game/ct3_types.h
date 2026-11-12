@@ -436,7 +436,8 @@ typedef struct ALL_TABLE {
     u_int texFileSet;                   /* 0x8c: TEX_FILE_SET_TABLE (BRANCH_CLEAR.h: the paged textures), 0 = none */
     u_int hurikoHits;                   /* 0x90: list of HURIKO_HIT (Clipping_Portal.h): tiHurikoInit points them
                                            at their parts, tiHurikoHitUpdate carries them */
-    u_int pad94;
+    u_int waves;                        /* 0x94: u_int[]: EE addresses of SS_WAVE_OBJ (ssSetTexUVforCubeMap.h),
+                                           indexed by the wave trigger's part (ssTrigWaveStart) */
     u_int winds;                        /* 0x98: list of WIND (Clipping_Portal.h): tiWindInit registers them */
     u_int pad9c;
     u_int lightBelts;                   /* 0xa0: list of LIGHT_BELT2 (Clipping_Portal.h), 0 = none (tiLightBelt2Init) */

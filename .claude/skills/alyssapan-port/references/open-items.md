@@ -1679,6 +1679,19 @@ apply here):
 
 ## Open questions
 
+- (2026-11-12, game/ssSetTexUVforCubeMap.c slice 6) **partial**: the 2D particle simulation (ss2DParticle_main,
+  ssGenerate2DParticle, Push_Back, Pop_Front, LifeCheck, LifeSpan, Orbit, SetDrawData, ssGetScreenRange),
+  ssTrigWaveStart and the sprite setters (ssSetSpriteCol / _UV / _Pos) written. **Decision (Claude's, the
+  user may overrule): the host draw form keeps the ROM's packets** -- the records hold SS_draw_diamond's
+  vertices and SS_draw_sprite its registers exactly as the ROM writes them, and the host BGT passes
+  (ssBGT_WaveDrawDiamond, ..._DrawSprite) will read their XY / UV / RGBAQ and draw natively, mapping the
+  512 x 448 coordinates through DisplayGeometry. Doubts: (a) ssTrigWaveStart points the object's matrix
+  at parts header + part * 0x380 + 0x140, which by PARTS_REC is MODEL_PARTS +0x100 -- a 4x4 there would
+  overlap the named alpha at +0x120; either MODEL_PARTS' offsets are relative to another base or +0x100
+  is a matrix and alpha is misnamed: the wave pass's first run on a scene with a wave trigger decides;
+  (b) ss2DParticleSetDrawData's last two branches call __fixsfdi with no visible argument: taken as the
+  centre V ((y + dv) * 16), check the disassembly if the diamonds' V looks wrong. Nothing on screen yet:
+  the title has no wave trigger.
 - (2026-11-12, game/ssSetTexUVforCubeMap.c slice 2) 21 functions written, still **partial**: the
   reflection maps (7), the ambient change pair, ssParticleInit, ssTrigParticleStop, ssTrigHQDOFEnd,
   ssSetDOFClipRange, ssParticleCashClear. Next: ssParticle_main (reached each frame) with

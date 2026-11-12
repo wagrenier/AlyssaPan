@@ -114,7 +114,125 @@ void ssCalcReflectCubeMap(int bank, const REFLECT_ENTRY *ent, const float *eye, 
 
 extern PART_BLUR_MAX_OBJ *PartBlurMaxObj[BANK_MAX][PART_BLUR_MAX_OBJ_MAX]; /* bss 0x01a42280 */
 extern u_char **ParticleData[BANK_MAX];         /* sbss 0x01940a10: per particle list entry, its records */
-extern u_char *ss2DpData;                       /* 0x0193f778: the 2D particles' records (ssTrigVaselineStart, _WaveStart) */
+// ---- the 2D particles (the wave and vaseline passes' screen diamonds, 2026-11-12) ----------------------
+// A ring of screen-space diamonds rising through a rectangle of the 512 x 448 screen: each record is a
+// copy of the GS packet SS_draw_diamond (a triangle fan of 6 vertices about the centre, each RGBAQ, UV,
+// XYZ2 in PACKED mode) the game rewrites in place, then its own parameters. The UVs are the vertices'
+// screen positions shifted by a random (du, dv): the pass draws the frame onto itself through them, so
+// each diamond refracts what lies behind it (the heat-wave look). PORT: the packet stays in the record
+// as the ROM writes it; the host draw pass (ssBGT_WaveDrawDiamond's session) reads its vertices.
+#define SS_DIAMOND_VERTS 6              /* SS_draw_diamond: centre, bottom, left, top, right, bottom */
+#define SS_DIAMOND_PACKET_QW 21         /* DMA tag + VIF DIRECT, GIF tag, 6 x 3 registers */
+#define SS_2DP_XYZ_OFFSET 0x800         /* XYZ2: (screen + 2048) * 16, the GS's offset */
+#define SS_2DP_SUBPIXEL 16.0f           /* UV and XYZ2 carry 4 fraction bits */
+#define SS_2DP_V_FLOOR 16.0f            /* a V under one texel is clamped (the diamond leaves the top) */
+#define SS_2DP_V_CENTRE_TOP 0x20        /* ...to these: centre and sides 2.0, bottom 3.0, top 1.0 */
+#define SS_2DP_V_BOTTOM_TOP 0x30
+#define SS_2DP_V_TOP_TOP 0x10
+#define SS_2DP_SPEED_MIN 10             /* the randomised speed's floor (tenths of a pixel per frame) */
+#define SS_2DP_SPEED_MAX 0xff
+#define SS_2DP_SIZE_MIN 10              /* the randomised size's range (pixels) */
+#define SS_2DP_SIZE_MAX 100
+#define SS_2DP_SWAY_RAND 200            /* du, dv = sway * (tnRand(200) - 100) / 1000 */
+#define SS_2DP_SWAY_SCALE 0.001f
+#define SS_2DP_NO_OBJECT 0xff           /* ssTrigWaveStart's part: the rectangle comes from the arguments */
+#define SS_WAVE_OBJ_MATRIX 0x140        /* ssTrigWaveStart: the object's matrix is parts header + part * 0x380
+                                           + 0x140 (MODEL_PARTS +0x100 by PARTS_REC; open-items.md) */
+
+typedef struct SS_DIAMOND_VERTEX {      /* one vertex of the packet, 3 PACKED qwords */
+    u_int rgbaq[4];                     /* 0x00: RGBAQ: 0x80 grey; alpha 0x40 at the centre, 0 outside */
+    u_int u, v;                         /* 0x10: UV: the texel (screen position + du / dv) * 16 */
+    u_int uv2, uv3;
+    u_int x, y;                         /* 0x20: XYZ2: (screen position + 2048) * 16 */
+    u_int z, xyz3;
+} SS_DIAMOND_VERTEX;
+static_assert(sizeof(SS_DIAMOND_VERTEX) == 0x30, "SS_DIAMOND_VERTEX");
+
+// A record of ss2DpData (0x160 bytes, layout: ee -- the ROM's offsets, all 32-bit words and smaller).
+typedef struct SS_2DP_REC {
+    u_int head[12];                     /* 0x000: DMA tag, VIF DIRECT 19, GIF tag (NLOOP 6, EOP, PRIM fan) */
+    SS_DIAMOND_VERTEX vtx[SS_DIAMOND_VERTS]; /* 0x030 */
+    float du;                           /* 0x150: the U shift (sway) */
+    float dv;                           /* 0x154: the V shift */
+    short x;                            /* 0x158: the centre on screen */
+    short y;                            /* 0x15a: from the rectangle's bottom, rising speed / 10 a frame */
+    u_short age;                        /* 0x15c: frames lived; past ss2DpInfo.life it is popped */
+    u_char speed;                       /* 0x15e: tenths of a pixel per frame */
+    u_char size;                        /* 0x15f: the diamond's half-diagonal in pixels */
+} SS_2DP_REC;
+static_assert(sizeof(SS_2DP_REC) == 0x160, "SS_2DP_REC");
+static_assert(offsetof(SS_2DP_REC, du) == 0x150, "SS_2DP_REC.du");
+static_assert(offsetof(SS_2DP_REC, age) == 0x15c, "SS_2DP_REC.age");
+
+// A wave object of a bank (ALL_TABLE.waves[part], layout: ee): a mesh whose screen extent bounds the
+// diamonds. Pointer words are EE addresses in the bank (BankEePtr).
+typedef struct SS_WAVE_OBJ {
+    u_int pad00;
+    u_int matrix;                       /* 0x04: float[4][4]; ssTrigWaveStart points it at the part's */
+    u_int verts;                        /* 0x08: float[vertCount][4] */
+    u_short part;                       /* 0x0c: the part whose matrix it takes */
+    u_short vertCount;                  /* 0x0e */
+} SS_WAVE_OBJ;
+static_assert(sizeof(SS_WAVE_OBJ) == 0x10, "SS_WAVE_OBJ");
+
+// ss2DpInfo (data 0x01939c90, 36 bytes on the EE; layout: host -- obj is a host pointer, bank is PORT).
+typedef struct SS_2DP_INFO {
+    short x, y, w, h;                   /* EE 0x00: the rectangle (ssGetScreenRange writes it) */
+    SS_WAVE_OBJ *obj;                   /* EE 0x08: the wave object, NULL = a fixed rectangle */
+    float sizeScale;                    /* EE 0x0c: size * the object's depth at the start: size = this / depth */
+    int frame;                          /* EE 0x10: frames since the start (the emission clock) */
+    u_short max;                        /* EE 0x14: the ring's records */
+    u_short head;                       /* EE 0x16: the oldest */
+    u_short tail;                       /* EE 0x18: the next free */
+    u_short life;                       /* EE 0x1a: frames a diamond lives: h * 10 / speed */
+    u_char speed;                       /* EE 0x1c */
+    u_char speedRand;                   /* EE 0x1d: +-percent */
+    u_char size;                        /* EE 0x1e */
+    u_char sizeRand;                    /* EE 0x1f: +-percent */
+    u_char sway;                        /* EE 0x20: the UV shift's range, thousandths of a pixel per step */
+    int bank;                           /* PORT: the bank obj's EE words resolve in */
+} SS_2DP_INFO;
+
+extern SS_2DP_INFO ss2DpInfo;                   /* data 0x01939c90 */
+extern SS_2DP_REC *ss2DpData;                   /* 0x0193f778: the 2D particles' records (ssTrigVaselineStart, _WaveStart) */
+extern u_int SS_draw_diamond[SS_DIAMOND_PACKET_QW * 4]; /* data 0x01938de0: the record's packet template */
+
+// ---- the screen passes' sprite (SS_draw_sprite, 2026-11-12) ----
+// One GS sprite in REGLIST mode (PRIM, RGBAQ, UV, XYZ2, UV, XYZ2) the BGT screen passes (hazy, ultima, blur,
+// DOF, HQDOF write-back) fill through ssSetSpriteCol / _UV / _Pos before they send it. layout: ee; the
+// 64-bit registers are kept as (lo, hi) word pairs. PORT: the host draw passes read it as the ROM's GS
+// would (the passes' sessions).
+#define SS_SPRITE_UV_CENTRE 0xf         /* ssSetSpriteUV: texel * 16 + 15 */
+#define SS_SPRITE_X_BIAS 0.45           /* ssSetSpritePos: (x + 0.45) * 16, (y + 0.4) * 16 (doubles) */
+#define SS_SPRITE_Y_BIAS 0.4
+#define SS_SPRITE_XY_OFFSET 0x8000      /* + 2048 * 16, the GS offset */
+#define SS_SPRITE_Q_ONE 0x3f800000u     /* RGBAQ's Q: 1.0f */
+#define SS_SPRITE_Z_MASK 0xffffff
+typedef struct SS_SPRITE_PACKET {
+    u_int head[12];                     /* 0x00: DMA tag (5 qwords), VIF DIRECT 4, GIF tag (NLOOP 1, EOP, REGLIST 6) */
+    u_int prim[2];                      /* 0x30: PRIM 6 (sprite) */
+    u_int rgbaq[2];                     /* 0x38 */
+    u_int uv0[2];                       /* 0x40 */
+    u_int xyz0[2];                      /* 0x48 */
+    u_int uv1[2];                       /* 0x50 */
+    u_int xyz1[2];                      /* 0x58 */
+} SS_SPRITE_PACKET;
+static_assert(sizeof(SS_SPRITE_PACKET) == 0x60, "SS_SPRITE_PACKET");
+extern SS_SPRITE_PACKET SS_draw_sprite;         /* data 0x01938d80 */
+void ssSetSpriteCol(int r, int g, int b, int a);                                          // CT3 0x0189dfc0
+void ssSetSpriteUV(int u0, int v0, int u1, int v1);                                       // CT3 0x0189df70
+void ssSetSpritePos(float x0, float y0, float x1, float y1, float z);                     // CT3 0x0189e010
+
+// The rectangle (x, y, w, h) the object's vertices cover on the 512 x 448 screen, into info; returns the
+// depth (view z) of its first vertex.
+float ssGetScreenRange(SS_WAVE_OBJ *obj, SS_2DP_INFO *info);                              // CT3 0x0189cff0
+void ss2DParticleSetDrawData(int i);                                                      // CT3 0x0189c150
+void ssCalc2DParticleOrbit(void);                                                         // CT3 0x0189c4b0
+SS_2DP_REC *ss2DParticlePop_Front(SS_2DP_REC *data);                                      // CT3 0x0189c6b0
+int ss2DParticleLifeCheck(u_short i);                                                     // CT3 0x0189c700
+void ssCalc2DParticleLifeSpan(void);                                                      // CT3 0x0189c7a0
+int ss2DParticlePush_Back(SS_2DP_REC *data);                                              // CT3 0x0189c7f0
+void ssGenerate2DParticle(void);                                                          // CT3 0x0189cc10
 
 int ssGetNumBlurDrawObj(const PART_BLUR_MAX_OBJ *max);                                   // CT3 0x018968d0
 void ssPartMotionBlurUpdateAlpha(PART_BLUR_MAX_OBJ *max);                                // CT3 0x018965e0
@@ -169,8 +287,10 @@ void ssPartMotionBlurEnd(int part, int bank);                                   
 void ssTrigScreenBlurStart(int level);                                                   // CT3 0x0189d920
 void ssTrigHazyScreenStart(int level, int time);                                         // CT3 0x0189d310
 void ssTrigHazyScreenEnd(void);                                                          // CT3 0x0189d2f0
-void ssTrigWaveStart(int a, int b, int c, int d, int e, int f, int g, int h, int i, int j, int bank,
-                     int k);                                                             // CT3 0x0189ce60
+// x, y, w, h: the rectangle when part is SS_2DP_NO_OBJECT, else the bounds of ALL_TABLE.waves[part]; size,
+// speed (tenths of a pixel a frame) and their +-percent; sway: the UV shift; count: the ring's records.
+void ssTrigWaveStart(int x, int y, int w, int h, int size, int sizeRand, int speed, int speedRand,
+                     int sway, int count, int bank, int part);                           // CT3 0x0189ce60
 void ssTrigWaveEnd(void);                                                                // CT3 0x0189ce30
 void ssTrigVaselineStart(int a, int b, int c, int d, int e, int f, int g, int h, int i); // CT3 0x0189bd40
 void ssTrigVaselineEnd(void);                                                            // CT3 0x0189b920

@@ -714,10 +714,354 @@ void ReflectMapUpdate(void)
     }
 }
 
-// stub of CT3 0x0189cd60
+// ---- the 2D particles (2026-11-12) ----
+
+SS_2DP_INFO ss2DpInfo;                  /* data 0x01939c90 */
+
+// data 0x01938de0: the packet each record starts as (ss2DParticlePush_Back copies it). Its vertices'
+// UV and XY are overwritten; RGBAQ and the XYZ2 high words (Z, the ADC bit of the fan's first two) stay.
+u_int SS_draw_diamond[SS_DIAMOND_PACKET_QW * 4] = {
+    0x10000014, 0x00000000, 0x00000000, 0x00000000,
+    0x00000000, 0x00000000, 0x00000000, 0x50000013,
+    0x00008006, 0x3002c000, 0x00000431, 0x00000000,
+    0x00000080, 0x00000080, 0x00000080, 0x00000040,
+    0x00001000, 0x00000e00, 0x00000000, 0x00000000,
+    0x00009000, 0x00008e00, 0x0fffffe0, 0x00008000,
+    0x00000080, 0x00000080, 0x00000080, 0x00000000,
+    0x00001000, 0x00001c00, 0x00000000, 0x00000000,
+    0x00009000, 0x00009000, 0x0fffffe0, 0x00008000,
+    0x00000080, 0x00000080, 0x00000080, 0x00000000,
+    0x00000010, 0x00000e00, 0x00000000, 0x00000000,
+    0x00008e00, 0x00008e00, 0x0fffffe0, 0x00000000,
+    0x00000080, 0x00000080, 0x00000080, 0x00000000,
+    0x00001000, 0x00000010, 0x00000000, 0x00000000,
+    0x00009000, 0x00008c00, 0x0fffffe0, 0x00000000,
+    0x00000080, 0x00000080, 0x00000080, 0x00000000,
+    0x00002000, 0x00000e00, 0x00000000, 0x00000000,
+    0x00009200, 0x00008e00, 0x0fffffe0, 0x00000000,
+    0x00000080, 0x00000080, 0x00000080, 0x00000000,
+    0x00001000, 0x00001c00, 0x00000000, 0x00000000,
+    0x00009000, 0x00009000, 0x0fffffe0, 0x00000000,
+};
+
+// CodeWarrior's float -> unsigned conversion (values from 2^31 lose the bias and get bit 31 back).
+static u_int ss2DpFloatToU(float f)
+{
+    if (f < 2147483648.0f)
+        return (u_int)(int)f;
+    return (u_int)(int)(f - 2147483648.0f) | 0x80000000u;
+}
+
+// __fixsfdi to the 16 bits a GS coordinate keeps.
+static u_int ss2DpFix16(float f)
+{
+    return (u_int)(long long)f & 0xffff;
+}
+
+// CT3 0x0189cff0
+// Projects the object's vertices through its matrix (column vectors, VU0's mula / madd chain) and the
+// screen (centre + scale * d * x / z; y flipped), and writes their bounding rectangle, clamped to
+// 0..512 x 0..448. From the disassembly (Ghidra's decompilation garbles the clamps): a minimum that
+// reached 0 and a maximum that reached the edge stop moving. Returns the first vertex's view z.
+// PORT: the object's EE words resolve in info->bank. The 512 x 448 space is the ROM's; the host's
+// aspect comes from the renderer, not from here.
+float ssGetScreenRange(SS_WAVE_OBJ *obj, SS_2DP_INFO *info)
+{
+    const float (*m)[4] = (const float (*)[4])BankEePtr(info->bank, obj->matrix);
+    const float (*p)[4] = (const float (*)[4])BankEePtr(info->bank, obj->verts);
+    float minX = 513.0f, minY = 449.0f, maxX = -1.0f, maxY = -1.0f;
+    float depth = 0.0f, v[4], sx, sy;
+    int i, j;
+    for (i = 0; i < (int)obj->vertCount; i++) {
+        for (j = 0; j < 4; j++)
+            v[j] = m[0][j] * p[i][0] + m[1][j] * p[i][1] + m[2][j] * p[i][2] + m[3][j] * p[i][3];
+        if (i == 0)
+            depth = v[2];
+        sx = screen_0[GA_SCREEN_CX] + screen_0[GA_SCREEN_SCALE_X] * ((screen_0[GA_SCREEN_PROJ] * v[0]) / v[2]);
+        sy = screen_0[GA_SCREEN_CY] - screen_0[GA_SCREEN_SCALE_Y] * ((screen_0[GA_SCREEN_PROJ] * v[1]) / v[2]);
+        if (minX != 0.0f && sx < minX)
+            minX = sx < 0.0f ? 0.0f : sx;
+        if (minY != 0.0f && sy < minY)
+            minY = sy < 0.0f ? 0.0f : sy;
+        if (maxX != 512.0f && !(sx <= maxX))
+            maxX = sx <= 512.0f ? sx : 512.0f;
+        if (maxY != 448.0f && !(sy <= maxY))
+            maxY = sy <= 448.0f ? sy : 448.0f;
+    }
+    info->x = (short)ss2DpFloatToU(minX);
+    info->y = (short)ss2DpFloatToU(minY);
+    info->w = (short)ss2DpFloatToU(maxX - minX);
+    info->h = (short)ss2DpFloatToU(maxY - minY);
+    return depth;
+}
+
+// CT3 0x0189c150
+// Record i's Y and V for this frame: the diamond's centre at its y, the bottom and top size pixels away;
+// the V's follow y + dv, and near the screen's top edge they are clamped to the first texels.
+void ss2DParticleSetDrawData(int i)
+{
+    SS_2DP_REC *r = &ss2DpData[i];
+    int y = r->y, s = r->size;
+    u_int yc = ss2DpFix16((float)(y + SS_2DP_XYZ_OFFSET) * SS_2DP_SUBPIXEL);
+    float vc, vb, vt;
+    r->vtx[0].y = yc;
+    r->vtx[1].y = ss2DpFix16((float)(y + s + SS_2DP_XYZ_OFFSET) * SS_2DP_SUBPIXEL);
+    r->vtx[2].y = yc;
+    r->vtx[3].y = ss2DpFix16((float)(y - s + SS_2DP_XYZ_OFFSET) * SS_2DP_SUBPIXEL);
+    r->vtx[4].y = yc;
+    r->vtx[5].x = r->vtx[1].x;
+    r->vtx[5].y = r->vtx[1].y;
+    vc = ((float)y + r->dv) * SS_2DP_SUBPIXEL;
+    vb = vc + (float)s * SS_2DP_SUBPIXEL;
+    if (vb < SS_2DP_V_FLOOR) {
+        r->vtx[0].v = SS_2DP_V_CENTRE_TOP;
+        r->vtx[1].v = SS_2DP_V_BOTTOM_TOP;
+        r->vtx[2].v = SS_2DP_V_CENTRE_TOP;
+        r->vtx[3].v = SS_2DP_V_TOP_TOP;
+        r->vtx[4].v = SS_2DP_V_CENTRE_TOP;
+    } else {
+        vt = vc - (float)s * SS_2DP_SUBPIXEL;
+        if (vc < SS_2DP_V_FLOOR) {
+            r->vtx[0].v = SS_2DP_V_CENTRE_TOP;
+            r->vtx[1].v = ss2DpFix16(vb);
+            r->vtx[2].v = SS_2DP_V_CENTRE_TOP;
+            r->vtx[3].v = SS_2DP_V_TOP_TOP;
+            r->vtx[4].v = SS_2DP_V_CENTRE_TOP;
+        } else {
+            u_int v = ss2DpFix16(vc);
+            r->vtx[0].v = v;
+            r->vtx[1].v = ss2DpFix16(vb);
+            r->vtx[2].v = v;
+            r->vtx[3].v = vt < SS_2DP_V_FLOOR ? SS_2DP_V_TOP_TOP : ss2DpFix16(vt);
+            r->vtx[4].v = v;
+        }
+    }
+    r->vtx[5].u = r->vtx[1].u;
+    r->vtx[5].v = r->vtx[1].v;
+}
+
+// One record's step (ssCalc2DParticleOrbit's three loops have the same body): y rises from the
+// rectangle's bottom by speed / 10 a frame of age.
+static void ss2DParticleStep(int i, short bottom)
+{
+    SS_2DP_REC *r = &ss2DpData[i];
+    r->y = (short)(bottom - (short)(((u_int)r->speed * (u_int)r->age) / 10));
+    r->age++;
+    ss2DParticleSetDrawData(i);
+}
+
+// CT3 0x0189c4b0
+// Moves every live record, head to tail (the ring may wrap).
+void ssCalc2DParticleOrbit(void)
+{
+    int i = ss2DpInfo.head, tail = ss2DpInfo.tail, max = ss2DpInfo.max;
+    short bottom = (short)(ss2DpInfo.y + ss2DpInfo.h);
+    if (i < tail) {
+        for (; i < tail; i++)
+            ss2DParticleStep(i, bottom);
+    } else if (tail < i) {
+        for (; i < max; i++)
+            ss2DParticleStep(i, bottom);
+        for (i = 0; i < tail; i++)
+            ss2DParticleStep(i, bottom);
+    }
+}
+
+// CT3 0x0189c6b0
+// The oldest record, dropped from the ring; NULL when it is empty.
+SS_2DP_REC *ss2DParticlePop_Front(SS_2DP_REC *data)
+{
+    SS_2DP_REC *r;
+    if (ss2DpInfo.tail == ss2DpInfo.head)
+        return NULL;
+    r = &data[ss2DpInfo.head];
+    ss2DpInfo.head = (u_short)((ss2DpInfo.head + 1) % (u_int)ss2DpInfo.max);
+    return r;
+}
+
+// CT3 0x0189c700
+// 1: record i is live (between head and tail) and older than the life.
+int ss2DParticleLifeCheck(u_short i)
+{
+    u_short head = ss2DpInfo.head, tail = ss2DpInfo.tail;
+    if (head == tail)
+        return 0;
+    if (head < tail) {
+        if (i < head || tail <= i)
+            return 0;
+    } else if (tail < head && tail <= i && i < head) {
+        return 0;
+    }
+    return ss2DpInfo.life < ss2DpData[i].age;
+}
+
+// CT3 0x0189c7a0
+// Pops the expired records from the head.
+void ssCalc2DParticleLifeSpan(void)
+{
+    while (ss2DParticleLifeCheck(ss2DpInfo.head) && ss2DParticlePop_Front(ss2DpData) != NULL) {
+    }
+}
+
+// A randomised byte: base * (1 +- rand percent), as the ROM converts it (float -> unsigned, low byte).
+static u_int ss2DpRandomise(u_int base, u_int percent)
+{
+    int r = tnRand((int)(percent << 1));
+    float f = (float)base * ((float)(int)(r - percent) / 100.0f + 1.0f);
+    return ss2DpFloatToU(f) & 0xff;
+}
+
+// CT3 0x0189c7f0
+// A new diamond at the tail: x random across the rectangle, at its bottom; speed and size randomised by
+// their percents and clamped; the UV shifts random within +-sway / 10 pixels. The packet is the template
+// with X and U written (Y and V come each frame). 0: the ring is full.
+int ss2DParticlePush_Back(SS_2DP_REC *data)
+{
+    u_short tail = ss2DpInfo.tail;
+    u_int next = (tail + 1u) % (u_int)ss2DpInfo.max;
+    SS_2DP_REC *r;
+    short x;
+    u_int speed, size, sway;
+    float du, dv;
+    if (next == ss2DpInfo.head)
+        return 0;
+    x = (short)(ss2DpInfo.x + tnRand(ss2DpInfo.w));
+    speed = ss2DpInfo.speed;
+    if (ss2DpInfo.speedRand != 0) {
+        speed = ss2DpRandomise(speed, ss2DpInfo.speedRand);
+        if (speed < SS_2DP_SPEED_MIN)
+            speed = SS_2DP_SPEED_MIN;
+        else if (speed > SS_2DP_SPEED_MAX)
+            speed = SS_2DP_SPEED_MAX;
+    }
+    size = ss2DpInfo.size;
+    if (ss2DpInfo.sizeRand != 0) {
+        size = ss2DpRandomise(size, ss2DpInfo.sizeRand);
+        if (size < SS_2DP_SIZE_MIN)
+            size = SS_2DP_SIZE_MIN;
+        else if (size > SS_2DP_SIZE_MAX)
+            size = SS_2DP_SIZE_MAX;
+    }
+    sway = ss2DpInfo.sway;
+    du = (float)(int)(sway * (u_int)(tnRand(SS_2DP_SWAY_RAND) - 100)) * SS_2DP_SWAY_SCALE;
+    dv = (float)(int)(sway * (u_int)(tnRand(SS_2DP_SWAY_RAND) - 100)) * SS_2DP_SWAY_SCALE;
+    r = &data[tail];
+    memcpy(r, SS_draw_diamond, sizeof(SS_draw_diamond));
+    r->du = du;
+    r->dv = dv;
+    r->x = x;
+    r->y = (short)(ss2DpInfo.y + ss2DpInfo.h);
+    r->age = 0;
+    r->speed = (u_char)speed;
+    r->size = (u_char)size;
+    /* XYZ2 x (y = 0 until ss2DParticleSetDrawData): centre, bottom and top share it */
+    r->vtx[0].x = ss2DpFix16((float)(x + SS_2DP_XYZ_OFFSET) * SS_2DP_SUBPIXEL);
+    r->vtx[0].y = 0;
+    r->vtx[2].x = ss2DpFix16((float)((int)x - (int)size + SS_2DP_XYZ_OFFSET) * SS_2DP_SUBPIXEL);
+    r->vtx[2].y = 0;
+    r->vtx[4].x = ss2DpFix16((float)((int)x + (int)size + SS_2DP_XYZ_OFFSET) * SS_2DP_SUBPIXEL);
+    r->vtx[4].y = 0;
+    r->vtx[1].x = r->vtx[3].x = r->vtx[5].x = r->vtx[0].x;
+    r->vtx[1].y = r->vtx[3].y = r->vtx[5].y = 0;
+    /* UV u (v = 0 until then): the screen x shifted by du */
+    r->vtx[0].u = ss2DpFix16(((float)x + du) * SS_2DP_SUBPIXEL);
+    r->vtx[0].v = 0;
+    r->vtx[2].u = ss2DpFix16((du + (float)((int)x - (int)size)) * SS_2DP_SUBPIXEL);
+    r->vtx[2].v = 0;
+    r->vtx[4].u = ss2DpFix16((du + (float)((int)x + (int)size)) * SS_2DP_SUBPIXEL);
+    r->vtx[4].v = 0;
+    r->vtx[1].u = r->vtx[3].u = r->vtx[5].u = r->vtx[0].u;
+    r->vtx[1].v = r->vtx[3].v = r->vtx[5].v = 0;
+    ss2DpInfo.tail = (u_short)next;
+    return 1;
+}
+
+// CT3 0x0189cc10
+// This frame's emission: max / life records a frame on average (the whole part of the running total's
+// step), until the ring is full.
+void ssGenerate2DParticle(void)
+{
+    float rate = (float)ss2DpInfo.max / (float)ss2DpInfo.life;
+    int old = ss2DpInfo.frame;
+    int n = (int)(rate * (float)(old + 1)) - (int)(rate * (float)old), i;
+    ss2DpInfo.frame = old + 1;
+    for (i = 0; i < n; i++) {
+        if (!ss2DParticlePush_Back(ss2DpData))
+            return;
+    }
+}
+
+// CT3 0x0189cd60
+// The wave pass's frame (ssWaveDrawAllObject): unless paused, the rectangle follows the object and the
+// size its depth (sizeScale / depth), then emission, expiry and the move.
 void ss2DParticle_main(void)
 {
-    ALYSSAPAN_STUB("ss2DParticle_main", 0x0189cd60);
+    float depth;
+    if (pause != 0 && !(pause & PAUSE_RUNNING))
+        return;
+    if (ss2DpInfo.obj != NULL) {
+        depth = ssGetScreenRange(ss2DpInfo.obj, &ss2DpInfo);
+        if (0.0f < depth)
+            ss2DpInfo.size = (u_char)ss2DpFloatToU(ss2DpInfo.sizeScale / depth);
+    }
+    ssGenerate2DParticle();
+    ssCalc2DParticleLifeSpan();
+    ssCalc2DParticleOrbit();
+}
+
+// ---- the screen passes' sprite (2026-11-12) ----
+
+SS_SPRITE_PACKET SS_draw_sprite = {     /* data 0x01938d80 */
+    {0x10000005, 0x00000000, 0x00000000, 0x00000000,
+     0x00000000, 0x00000000, 0x00000000, 0x50000004,
+     0x00008001, 0x64000000, 0x00434310, 0x00000000},
+    {0x00000006, 0x00000000},
+    {0x80808080, 0x3f800000},
+    {0x000f000f, 0x00000000},
+    {0x7ff87ff8, 0x00fffffe},
+    {0x1c0f200f, 0x00000000},
+    {0x9bf89ff8, 0x00fffffe},
+};
+
+// CT3 0x0189dfc0
+// The sprite's colour (Q 1.0).
+void ssSetSpriteCol(int r, int g, int b, int a)
+{
+    SS_draw_sprite.rgbaq[0] = (u_int)a << 24 | (u_int)b << 16 | (u_int)r | (u_int)g << 8;
+    SS_draw_sprite.rgbaq[1] = SS_SPRITE_Q_ONE;
+}
+
+// CT3 0x0189df70
+// The sprite's texels, corner to corner, each sampled at its centre (* 16 + 15).
+void ssSetSpriteUV(int u0, int v0, int u1, int v1)
+{
+    SS_draw_sprite.uv0[0] = ((u_int)(v0 * 16 + SS_SPRITE_UV_CENTRE) & 0xffff) << 16
+                          | ((u_int)(u0 * 16 + SS_SPRITE_UV_CENTRE) & 0xffff);
+    SS_draw_sprite.uv0[1] = 0;
+    SS_draw_sprite.uv1[0] = ((u_int)(v1 * 16 + SS_SPRITE_UV_CENTRE) & 0xffff) << 16
+                          | ((u_int)(u1 * 16 + SS_SPRITE_UV_CENTRE) & 0xffff);
+    SS_draw_sprite.uv1[1] = 0;
+}
+
+// The GS XY word of a screen point: (x + 0.45, y + 0.4) * 16 in doubles (the ROM's fptodp / dpmul),
+// truncated, offset by 2048.
+static u_int ssSpriteXY(float x, float y)
+{
+    long long fx = (long long)(((double)x + SS_SPRITE_X_BIAS) * 16.0);
+    long long fy = (long long)(((double)y + SS_SPRITE_Y_BIAS) * 16.0);
+    return ((u_int)(fx + SS_SPRITE_XY_OFFSET) & 0xffff) | ((u_int)(fy + SS_SPRITE_XY_OFFSET) & 0xffff) << 16;
+}
+
+// CT3 0x0189e010
+// The sprite's corners in screen pixels and its Z (both corners). PORT: a negative z (undefined in the
+// ROM's __fixunssfdi) gives 0.
+void ssSetSpritePos(float x0, float y0, float x1, float y1, float z)
+{
+    u_int zw = z > 0.0f ? (u_int)((unsigned long long)z & SS_SPRITE_Z_MASK) : 0;
+    SS_draw_sprite.xyz0[0] = ssSpriteXY(x0, y0);
+    SS_draw_sprite.xyz0[1] = zw;
+    SS_draw_sprite.xyz1[0] = ssSpriteXY(x1, y1);
+    SS_draw_sprite.xyz1[1] = zw;
 }
 
 // stub of CT3 0x0189d940
@@ -1475,7 +1819,7 @@ void ssTrigScreenBlurStart(int level)
     }
 }
 
-u_char *ss2DpData;                      /* 0x0193f778: the 2D particles' records (vaseline, wave), gHeapJunc */
+SS_2DP_REC *ss2DpData;                  /* 0x0193f778: the 2D particles' records (vaseline, wave), gHeapJunc */
 
 // CT3 0x0189b920
 // The trigger command's vaseline off: the 2D particle records go back to gHeapJunc and the normal pass is
@@ -1503,11 +1847,44 @@ void ssTrigWaveEnd(void)
     }
 }
 
-// stub of CT3 0x0189ce60
-void ssTrigWaveStart(int a, int b, int c, int d, int e, int f, int g, int h, int i, int j, int bank,
-                     int k)
+// CT3 0x0189ce60
+// The trigger command's wave on, if no other pass is: count records from gHeapJunc and ss2DpInfo set
+// up. With a part, the rectangle is the bounds of the bank's wave object (its matrix pointed at the
+// part's first) and sizeScale = size * its depth, so the diamonds shrink as it recedes; without one
+// (SS_2DP_NO_OBJECT) the rectangle is the arguments'. A diamond lives h * 10 / speed frames: the time
+// it takes to cross the rectangle.
+void ssTrigWaveStart(int x, int y, int w, int h, int size, int sizeRand, int speed, int speedRand,
+                     int sway, int count, int bank, int part)
 {
-    ALYSSAPAN_STUB("ssTrigWaveStart", 0x0189ce60);
+    if (DrawMode != DRAW_MODE_NORMAL)
+        return;
+    ss2DpData = (SS_2DP_REC *)_SunAlloc(&gHeapJunc, count * (int)sizeof(SS_2DP_REC), 0x10);
+    ss2DpInfo.bank = bank;
+    if ((u_char)part == SS_2DP_NO_OBJECT) {
+        ss2DpInfo.obj = NULL;
+        ss2DpInfo.sizeScale = 0.0f;
+        ss2DpInfo.x = (short)x;
+        ss2DpInfo.y = (short)y;
+        ss2DpInfo.w = (short)w;
+        ss2DpInfo.h = (short)h;
+    } else {
+        const u_int *waves = BANK_PTR(const u_int *, bank, All_table_TBL[bank]->waves);
+        SS_WAVE_OBJ *obj = BANK_PTR(SS_WAVE_OBJ *, bank, waves[(u_char)part]);
+        ss2DpInfo.obj = obj;
+        obj->matrix = BankEeAddr(bank, pModelPartsHeader[bank] + obj->part * PARTS_REC_SIZE + SS_WAVE_OBJ_MATRIX);
+        ss2DpInfo.sizeScale = (float)size * ssGetScreenRange(obj, &ss2DpInfo);
+    }
+    ss2DpInfo.max = (u_short)count;
+    ss2DpInfo.size = (u_char)size;
+    ss2DpInfo.frame = 0;
+    ss2DpInfo.speed = (u_char)speed;
+    ss2DpInfo.head = 0;
+    ss2DpInfo.tail = 0;
+    DrawMode = DRAW_MODE_WAVE;
+    ss2DpInfo.sway = (u_char)sway;
+    ss2DpInfo.life = (u_short)((int)((u_int)(u_short)h * 10) / speed);
+    ss2DpInfo.speedRand = (u_char)speedRand;
+    ss2DpInfo.sizeRand = (u_char)sizeRand;
 }
 
 // ---- the particle curve readers (declared from tiCalc_Orbit, 2026-11-11) ----
