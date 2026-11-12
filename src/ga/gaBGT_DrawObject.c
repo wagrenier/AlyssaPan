@@ -336,7 +336,11 @@ static void LocalViewPass(u_char *obj, u_int vertexOffset, u_int indexOffset, LO
         view(obj, spr->vertexPacketEE);
     spr->indexPacketEE = spr->stPacketEE + indexOffset;
     remakeIndex(obj, spr->indexPacketEE);
-    if (spr->drawPrimCount == 0)
+    // PORT: the host draws the whole object (DrawClipped: the GPU clips), so an object whose polygons all
+    // went to the big / near division lists (gaDrawObject.c's index passes) still goes; the ROM sends
+    // only the kept polygons here and redraws the divided ones (gaDrawObject_Redraw_Polygon).
+    if (spr->drawPrimCount == 0 && spr->bigDivIndexEE == GA_BIGDIV_INDEX_WORK_EE &&
+        spr->nearDivIndexEE == GA_NEARDIV_INDEX_WORK_EE)
         return;
     refTable(obj);
     setup(obj);

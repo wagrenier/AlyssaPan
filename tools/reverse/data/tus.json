@@ -180,12 +180,21 @@
    "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 5 unkeyed; file name from the names"
   },
   "ga/gaDrawObject.c": {
+   "notes": "Left: the two billboard views (VU0 0x0e9/0x112, 0x13b/0x148), gaDrawObject_SetBig and SetNear. gaBGT_DrawObject LocalViewPass now also hands over an object whose polygons all went to the division lists (PORT, the host draws whole objects). No smoke run reaches this code yet (gaObjectClippingCheck stub, title scene draws through nc2); title scene unchanged at 4:3 and in a 16:9 window. open-items ku..ky.",
    "ranges": [
     [
      "018a4fd8",
      "018a6b70"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-12 08:36",
+     "status": "partial",
+     "summary": "ga/gaDrawObject.c slice 1: the clipped and plain local views, the three index passes (clip flags, facing, big and near lists) and both vertex reference tables, from the disassembly and the VU0 micro routines"
+    }
+   ],
+   "status": "partial",
    "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 11 unkeyed; file name from the names"
   },
   "ga/gaDrawObject_Redraw_Polygon.c": {

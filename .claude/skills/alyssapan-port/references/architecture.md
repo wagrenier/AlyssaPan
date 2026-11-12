@@ -597,6 +597,37 @@ Read with `vudis.py 18ff430 335 --all` (mind hazards.md's vudis misprints). Micr
   (their local view is not read), light2 is lit as light1. The 15 s smoke run of 2026-11-10 reaches neither
   gaBGT_DrawObject nor the gaDrawObject stubs (gaObjectClippingCheck is a stub; ATLD draws through nc2).
 
+## The local view and index passes, ga/gaDrawObject.c (2026-11-12, slice 1)
+
+- A hand-written asm object (11 symtab functions); its first two words (nop, a stray j
+  gaDMAStopMessage_VIF1) are gaBGT_DrawObject.c's tail. It owns ga_bigdiv_index_work /
+  ga_neardiv_index_work (0x200 bytes each, 64 raw index entries).
+- **The vertex block** (vertexPacketEE): a 0x20-byte head (CNT 1 + n; UNPACK V4-32 n to VU1 0), then one
+  qword per vertex (GA_LOCAL_VERTEX). The views also store every vertex in VU0 memory from qword 4 (sqi;
+  the first four stores are the pipeline's warm-up), which RemakeIndex's facing micro reads at 4 + (vertex
+  & 0x7f). stPacketEE = head + n qwords. The views work 4 vertices a pass (vudis.py 18fe500 f3 79 a1 for
+  the clipped, c9 d9 for the plain one; vcallms imm = (word - 0x4a000038) >> 6).
+- **Clipped view**: p = v * M (v.w as 1, M = obj +0x58), then x, y * viewScale * work6 / max(z, 1e-13)
+  (scratchpad 0x30 / 0x3c; the 1e-13 is stored at 0x2cc each call), z * zScale + zOffset (near..far ->
+  -0.5..0.5). w = clip flags: CLIP against 1.0 then 0.5, FCGET, (~fc & 0x3f0) | (fc & 0xf): bits 0..3 x / y
+  beyond the screen (+-0.5), 4 / 5 Z not beyond far / not before near, 6..9 x / y inside the guard box (+-1).
+  **Plain view**: p = v * M, all four components, no projection.
+- **Index passes**: entries are 4 halfwords (three vertex offsets = vertex * 16, a fourth) sent >> 4 (PSRLH
+  4, MMI 0x70021136). Facing = dot((b - a) x (c - a), a) summed (x + y) + z (micro 0x155 / 0x161, 0x16d /
+  0x183), VU0's MAC Sx (0x80) / Zx (0x08). Clipped: AND of the three flags | Sx << 3 must equal 0x7f0
+  (0x3f0 with GA_OBJ_FLAGS bit 0, flipped faces; 0x3f0 with no facing test for bit 1, double-sided); else
+  if it equals with the guard bits forced (| 0x3c0), the raw entry goes to the big list (+0x28); _WithNear
+  first drops a polygon with no vertex past near and sends one that crosses near to the near list (+0x2c,
+  facing untested). Plain (RemakeIndex): Sx must be set (clear with bit 0), Zx drops a degenerate; a
+  double-sided object's entries are copied whole, unmarked, no zero entry. Kept polygons mark their
+  vertices (+0xe = 0xff); the block ends with a zero entry, drawPrimCount, CNT 1 + ceil(count / 2),
+  UNPACK V4-16 count to 0x17f, tailPacketEE = (end + 8) & ~0xf.
+- **Reference tables**: walking down, each marked vertex's index goes into the next slot down from the
+  block's end (its +0xc word); drawVertexCount = slots written. NoClip: a double-sided object references
+  every vertex in order.
+- Host: gaBGT_DrawObject's LocalViewPass now also hands over an object whose polygons all went to the
+  division lists (PORT: the GPU draws the whole object). The 15 s smoke run still reaches none of it.
+
 ## The file layer, game/ArtoolDebugOpen.c (2026-11-10)
 
 `IopLoadModules` reboots the IOP with `cdrom0:\IOP\IOPRP255.IMG;1` and loads the ten modules from

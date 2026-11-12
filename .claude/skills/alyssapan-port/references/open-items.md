@@ -1581,6 +1581,21 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    this one use: asMothOperate.c's TU names the states; MOTH_PAUSE_OFF / ON are not yet used by the
    callers (they pass 0 / 1).
 
+   **ga/gaDrawObject.c (partial, 2026-11-12, slice 1):** written: the clipped and plain local views, the
+   three index passes, both reference tables (architecture.md "The local view and index passes"). Left:
+   (ku) the billboard views (VertexLocalView*_Billboard, micro 0x0e9 / 0x112 and 0x13b / 0x148 with the
+   Z-roll rows at scratchpad 0x300; positions read 2 qwords a 0x40 stride?) -- until then a billboard's
+   index pass reads a stale vertex block (DrawClipped skips billboards anyway); (kv) gaDrawObject_SetBig /
+   SetNear (0x19c / 0x954 bytes) -- on the host the whole object is drawn, so they and
+   gaDrawObject_Redraw_Polygon must not draw the divided polygons again: decide when they are written
+   (Claude's call so far: the host draw covers them); (kw) GA_OBJ_FLAG_DOUBLE_SIDED (0x02) and
+   GA_OBJ_FLAG_FLIP (0x01) are named from the index passes: both are also the VU1 variant bits; (kx) the
+   VU0 floats are taken as IEEE (no denormals / inf on VU0), and the first vertex's max(z, zMin) assumes the
+   warm-up leaves vf3.z clean; (ky) no smoke run reaches this code (gaObjectClippingCheck is a stub, the
+   title scene draws through nc2): verify when a clipped object is on screen. The 16:9 window shot shows
+   the title scene pillarboxed at 4:3 (ALYSSAPAN_WINDOW_WIDTH / HEIGHT only; not this TU's: the aspect
+   mode decides).
+
 ## Decisions
 
 - 2026-11-11 (Claude, scheduled run 19:15, for the user to overrule): **the ga 2D frame stays 4:3.** The
