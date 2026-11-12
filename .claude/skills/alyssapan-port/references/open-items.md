@@ -1679,6 +1679,18 @@ apply here):
 
 ## Open questions
 
+- (2026-11-12, game/wideXcmd_TriggerInit.c slice 5) **partial, 3 more x commands**: LockToTargChara (the
+  bow's lock-on: now int (argc, argv, int bank), the ssXcmd_functions cast dropped), AXE_SetPath,
+  AXE_CheckHitAndCompDir; 1 stub left: test_ssXcmd_BrainSet4 (0x698 bytes). Doubts: (a) LockToTargChara
+  gates on CHARACTER_FLAG_SHADOW (0x40000000) as "active" -- the third reader that treats that bit as
+  "alive / operated", not a shadow (with (u)): rename when its writer is read; it reads BankInfo.drawOn
+  (not state) for a target's bank, as the ROM does; (b) HIT_ATK_REC gains attackObj (+0x14, an index
+  into attackBank's HIT_TABLE.attackObjs) and attackBank (+0x1a), named from AXE_CheckHitAndCompDir's
+  byObject-1 path only; (c) for a HIT_OBJ_REC of kind 1 the ROM reads chara (+0x1c) as a bank and id
+  (+0x18) as a HIT_DATA EE word in it (a surface hit): the record is a union by kind -- the collision TU
+  that writes it decides; (d) AXE_RESULT_* (0 stop .. 4 landed calm) and the materials the axe sticks in
+  (0 3 6 7 9) or glances off (1 2 5 8) are named from this one writer; the axe script reads them;
+  (e) the port guards asArrowInformation's NULL (the ROM reads it unchecked).
 - (2026-11-12, game/wideXcmd_TriggerInit.c slice 4) **partial, 7 more x commands** (AXE_SetStartPos,
   ForceIntoSearchMode, CheckAtkHitALYSSA, ArrowSetChild, SetArrowPath, ScnAtkRequest, test3); 4 stubs
   left: LockToTargChara (0x3f8), AXE_CheckHitAndCompDir (0x568), AXE_SetPath (0x42c), test_BrainSet4

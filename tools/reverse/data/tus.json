@@ -1587,7 +1587,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 141..141, 28 functions keyed by their statics, 80 unkeyed; file name from the names"
   },
   "game/wideXcmd_TriggerInit.c": {
-   "notes": "4 stubs left: LockToTargChara, AXE_CheckHitAndCompDir, AXE_SetPath, test_BrainSet4. ssAI_BrainInit is a static copy here until the AI TU exports it (open-items Open questions 2026-11-12 slice 4). Read every VU op in mipsdis.py: Ghidra hides the .xyz masks. Shot unchanged: title clock-tower backdrop; nothing here draws.",
+   "notes": "1 stub left: test_ssXcmd_BrainSet4 (0x698). HIT_ATK_REC gains attackObj and attackBank; AXE_RESULT values and the axe materials named from one writer (open-items Open questions slice 5). callcheck MISSING lines are the dp soft-double helpers and calls moved into AxeTurnDir and AxeYaw. Shot unchanged: title clock-tower backdrop; nothing here draws.",
    "ranges": [
     [
      "018dd550",
@@ -1614,6 +1614,11 @@
      "date": "2026-11-12 03:55",
      "status": "partial",
      "summary": "slice 4: AXE_SetStartPos, ForceIntoSearchMode (the ssAI_BrainInit table, six initialisers stubbed in three new brain TU headers), CheckAtkHitALYSSA, ArrowSetChild, SetArrowPath, ScnAtkRequest, test3: 7 functions"
+    },
+    {
+     "date": "2026-11-12 04:15",
+     "status": "partial",
+     "summary": "slice 5: LockToTargChara (the bow lock-on), AXE_SetPath, AXE_CheckHitAndCompDir; the test commands annotated one by one: 6 functions"
     }
    ],
    "status": "partial",

@@ -250,12 +250,16 @@ static_assert(offsetof(HIT_TABLE, scnHits) == 0x2bc, "HIT_TABLE.scnHits");
 typedef struct HIT_ATK_REC {
     float pos[4];                       /* 0x00: where it hit (ObjectSetHitPos moves there) */
     u_int object;                       /* 0x10: EE word of the bank: the HIT_DATA hit (its part at +0x198) */
-    u_char pad14[2];
+    short attackObj;                    /* 0x14: byObject 1: the attacker's index in attackBank's
+                                           HIT_TABLE.attackObjs (AXE_CheckHitAndCompDir, 2026-11-12) */
     short motion;                       /* 0x16: the attack's motion (GetAttackMotionID) */
     u_char byObject;                    /* 0x18: 0 = a character's attack (GetAttackMotionID answers motion) */
-    u_char pad19[7];
+    u_char pad19;
+    u_short attackBank;                 /* 0x1a: byObject 1: the attacking object's bank */
+    u_char pad1c[4];
 } HIT_ATK_REC;
 static_assert(sizeof(HIT_ATK_REC) == 0x20, "HIT_ATK_REC");
+static_assert(offsetof(HIT_ATK_REC, attackBank) == 0x1a, "HIT_ATK_REC.attackBank");
 static_assert(offsetof(HIT_ATK_REC, motion) == 0x16, "HIT_ATK_REC.motion");
 static_assert(offsetof(HIT_TABLE, objs) == 0x08, "HIT_TABLE.objs");
 static_assert(offsetof(HIT_TABLE, colCount) == 0x1a, "HIT_TABLE.colCount");

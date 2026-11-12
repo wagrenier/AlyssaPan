@@ -1605,7 +1605,7 @@ SS_XCMD ssXcmd_functions[TRIG_XCMD_COUNT] = {
     tiXcmd_VibrationEnd,                                    /*  26: 0x018e75b0 */
     tiXcmd___________Free1,                                 /*  27: 0x018e2020 */
     tiXcmd___________Free2,                                 /*  28: 0x018e1fc0 */
-    (SS_XCMD)ssXcmd_LockToTargChara,                        /*  29: 0x018dfd70 */
+    ssXcmd_LockToTargChara,                                 /*  29: 0x018dfd70 */
     ssXcmd_SetArrowPath2,                                   /*  30: 0x018e0590 */
     tiXcmd_StereoON_OFF,                                    /*  31: 0x018e75a0 */
     tiXcmd_StereoCheckFlg,                                  /*  32: 0x018e7590 */

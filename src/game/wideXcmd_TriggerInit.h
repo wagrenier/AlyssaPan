@@ -33,8 +33,8 @@ struct CHARACTER;
 int ssAI_AXE_IsThrowing(struct CHARACTER *chr);                                          // CT3 0x018dd680
 void ssAI_AXE_Init(void);                                                                // CT3 0x018de3e0
 
-// An xcmd: argv[0] (atoi) is read first; asYumi_Run_Check passes "0", "4" and Alyssa's bank.
-void ssXcmd_LockToTargChara(int argc, char **argv, short bank);                         // CT3 0x018dfd70
+// An xcmd ("<chara> <var>"): asYumi_Run_Check passes "0", "4" and Alyssa's bank.
+int ssXcmd_LockToTargChara(int argc, char **argv, int bank);                            // CT3 0x018dfd70
 
 // The x commands (ssXcmd_functions slots, ssTrigExecuteActCmd's command 0x514): declared with the
 // table's SS_XCMD shape (xcmd_tn.h) until this TU's session reads each one (2026-11-11).

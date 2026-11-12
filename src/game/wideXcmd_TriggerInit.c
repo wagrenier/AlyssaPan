@@ -9,6 +9,10 @@
 #include "game/Character_Init.h"
 #include "game/BRANCH_CLEAR.h"
 #include "game/asMothPause.h"
+#include "game/asXcmd.h"
+#include "game/asUseArrow.h"
+#include "game/LinkMatrixTree.h"
+#include "game/ahRelocateSunPs2ObjectArry.h"
 #include "game/sound.h"
 #include "game/ssGrpPortalCheck.h"
 #include "game/ssHitCheckAttackToScn.h"
@@ -470,22 +474,26 @@ int test_ssXcmd_BrainEnd(int argc, char **argv, int bank)
     return XCMD_DONE;
 }
 
-// CT3 0x018df5d0, 0x018df5e0, 0x018df5f0, 0x018df600: emptied test commands.
+// The emptied test commands: each only answers done.
+// CT3 0x018df5d0
 int test_ssXcmd_BrainSet3(int argc, char **argv, int bank)
 {
     return XCMD_DONE;
 }
 
+// CT3 0x018df5e0
 int test_ssXcmd_BrainSet2(int argc, char **argv, int bank)
 {
     return XCMD_DONE;
 }
 
+// CT3 0x018df5f0
 int test_ssXcmd_BrainSet(int argc, char **argv, int bank)
 {
     return XCMD_DONE;
 }
 
+// CT3 0x018df600
 int test_ssXcmd_ChangeGroupID(int argc, char **argv, int bank)
 {
     return XCMD_DONE;
@@ -1001,27 +1009,318 @@ int ssXcmd_test3(int argc, char **argv, int bank)
     return ssTrigCheckEvent(atoi(argv[0]), XCMD_SCOPE_BANK, bank) == 0 ? XCMD_DONE : XCMD_WAIT;
 }
 
-// ---- stubs (tools/reverse/stubgen.py) ----
+// The bow's lock-on (ssXcmd_LockToTargChara).
+#define LOCK_NONE 1e+08f                /* the nearest square distance before any candidate */
+#define LOCK_RANGE_SQ 250000.0f         /* outside the boss battle: lock within 500 units */
+#define LOCK_BOSS_SLOT 6                /* the boss battle never locks on stalker slot 6 */
+#define LOCK_TARGET_PART (-1)           /* the variable's value for a scripted part (or nothing) */
 
-// stub of CT3 0x018dfd70
-void ssXcmd_LockToTargChara(int argc, char **argv, short bank)
+// CT3 0x018dfd70: "LockToTargChara <chara> <var>": turns the character to its nearest target and
+// stores the target's Character[] slot in the global variable <var> (-1 for a scripted part, or when
+// nothing is in range). The candidates are the live stalkers (ssAtkCharaList2) and the parts the
+// scripts put on AttackTargetStack. In the boss battle (TRIG_EVENT_BOSS_BATTLE) any distance counts,
+// slot 6 is left out and stalkers marked CHARACTER_FLAG_NO_HIT count too; otherwise the target must be
+// within 500 units. A character that is not active (CHARACTER_FLAG_SHADOW clear) or has no hits locks
+// on nothing. The ROM asks for the event again at each test; so does this.
+int ssXcmd_LockToTargChara(int argc, char **argv, int bank)
 {
-    ALYSSAPAN_STUB("ssXcmd_LockToTargChara", 0x018dfd70);
+    CHARACTER *chr = &Character[atoi(argv[0])];
+    short target = LOCK_TARGET_PART;
+    float best = LOCK_NONE;
+    float to[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    float d[4];
+    float origin[4];
+    float dist;
+    int i, k;
+
+    if ((chr->flags & CHARACTER_FLAG_SHADOW) == 0 || (chr->flags & CHARACTER_FLAG_NO_HIT) != 0) {
+        ssTrigSetVariable(atoi(argv[1]) & 0xffff, -1, XCMD_SCOPE_GLOBAL, bank);
+        return XCMD_DONE;
+    }
+    memcpy(origin, chr->pos, sizeof(origin));
+
+    for (i = 0; i < ATK_CHARA_LIST2_COUNT; i++) {
+        int slot = ssAtkCharaList2[i];
+        CHARACTER *mon = &Character[slot];
+        if (ssTrigCheckEvent(TRIG_EVENT_BOSS_BATTLE, XCMD_SCOPE_GLOBAL, 0) != 0 && slot == LOCK_BOSS_SLOT) {
+            continue;
+        }
+        if ((mon->flags & CHARACTER_FLAG_NO_HIT) != 0
+            && ssTrigCheckEvent(TRIG_EVENT_BOSS_BATTLE, XCMD_SCOPE_GLOBAL, 0) == 0) {
+            continue;
+        }
+        if ((mon->flags & CHARACTER_FLAG_SHADOW) == 0) {
+            continue;
+        }
+        for (k = 0; k < 4; k++) {
+            d[k] = ((const float *)mon->pos)[k] - origin[k];
+        }
+        dist = gaInnerProductXYZ(d, d);
+        if (dist < best) {
+            target = (short)slot;
+            memcpy(to, d, sizeof(to));
+            best = dist;
+        }
+    }
+
+    for (i = 0; i < ATTACK_TARGET_MAX; i++) {
+        const ATTACK_TARGET *t = &AttackTargetStack[i];
+        MODEL_PARTS *part;
+        if (t->bank == 0 || BankInfo[t->bank].drawOn == 0) {
+            continue;
+        }
+        part = (MODEL_PARTS *)(pModelPartsHeader[t->bank] + t->target * PARTS_REC_SIZE);
+        if ((part->flags & PARTS_FLAG_HIDDEN) != 0) {
+            continue;
+        }
+        for (k = 0; k < 4; k++) {
+            d[k] = part->pos[k] - origin[k];
+        }
+        dist = gaInnerProductXYZ(d, d);
+        if (dist < best) {
+            target = LOCK_TARGET_PART;
+            memcpy(to, d, sizeof(to));
+            best = dist;
+        }
+    }
+
+    if ((ssTrigCheckEvent(TRIG_EVENT_BOSS_BATTLE, XCMD_SCOPE_GLOBAL, 0) != 0 && best != LOCK_NONE)
+        || (ssTrigCheckEvent(TRIG_EVENT_BOSS_BATTLE, XCMD_SCOPE_GLOBAL, 0) == 0 && best <= LOCK_RANGE_SQ)) {
+        int angle = (int)((ssRadianByO(to, 1) * 65536.0) / 6.283185307179586);
+        chr->rot = 0x10000 - (angle & 0xffff);
+        ssTrigSetVariable(atoi(argv[1]) & 0xffff, target, XCMD_SCOPE_GLOBAL, bank);
+    } else {
+        ssTrigSetVariable(atoi(argv[1]) & 0xffff, -1, XCMD_SCOPE_GLOBAL, bank);
+    }
+    return XCMD_DONE;
 }
 
-// stub of CT3 0x018dd760
-int ssXcmd_AXE_CheckHitAndCompDir(int argc, char **argv, int bank)
+// AxeInfo.dir turned about Y by angle (gaSetRotMatrixY's rows times dir: the ROM's vmula chain, xyzw).
+static void AxeTurnDir(int angle)
 {
-    ALYSSAPAN_STUB("ssXcmd_AXE_CheckHitAndCompDir", 0x018dd760);
-    return {};
+    float m[4][4];
+    float v[4];
+    gaSetRotMatrixY(m, angle);
+    for (int k = 0; k < 4; k++)
+        v[k] = m[0][k] * AxeInfo.dir[0] + m[1][k] * AxeInfo.dir[1] + m[2][k] * AxeInfo.dir[2] +
+               m[3][k] * AxeInfo.dir[3];
+    for (int k = 0; k < 4; k++)
+        AxeInfo.dir[k] = v[k];
 }
 
-// stub of CT3 0x018ddcd0
+// A yaw in turn units (65536 a turn) as the ROM computes it: dptoli of radians * 65536 / 2 pi.
+static int AxeYaw(const float *v)
+{
+    return (int)((ssRadianByO(v, 1) * 65536.0) / 6.283185307179586);
+}
+
+// CT3 0x018ddcd0: "AXE_SetPath <part> <fall> <turn> <home>": one frame of the thrown axe. turn != 0
+// turns the direction by turn * dt / 2 a frame; home != 0 steers it toward Alyssa by at most
+// home * dt / 2 (the short way round); the part (its drawOnPos) moves by dir * speed * dt, and with
+// fall != 0 also drops drop * (2 * (ticks / 5) + 1). dt is the global ticks / 5 (0 when negative);
+// the clock (AxeInfo.ticks) runs on the scene ticks.
 int ssXcmd_AXE_SetPath(int argc, char **argv, int bank)
 {
-    ALYSSAPAN_STUB("ssXcmd_AXE_SetPath", 0x018ddcd0);
-    return {};
+    MODEL_PARTS *part = (MODEL_PARTS *)(pModelPartsHeader[bank] + atoi(argv[0]) * PARTS_REC_SIZE);
+    float step[4];
+    float dt;
+    int arg;
+
+    arg = atoi(argv[2]);
+    if (arg != 0) {
+        dt = gGlobalNextTicksInterval < 0 ? 0.0f : (float)gGlobalNextTicksInterval / 5.0f;
+        AxeTurnDir(AxeWrapAngle((int)(((float)arg * dt) / 2.0f)));
+    }
+
+    arg = atoi(argv[3]);
+    if (arg != 0) {
+        // The unit vector from the part to Alyssa (xyz; w keeps her position's).
+        float to[4];
+        float len2, q;
+        memcpy(to, Character[0].pos, sizeof(to));
+        for (int k = 0; k < 3; k++)
+            to[k] -= part->drawOnPos[k];
+        len2 = to[0] * to[0] + to[1] * to[1] + to[2] * to[2];
+        q = 1.0f / sqrtf(len2);
+        for (int k = 0; k < 3; k++)
+            to[k] *= q;
+        int from = AxeYaw(AxeInfo.dir);
+        int want = AxeYaw(to);
+        dt = gGlobalNextTicksInterval < 0 ? 0.0f : (float)gGlobalNextTicksInterval / 5.0f;
+        int diff = (AXE_ANGLE_FULL - (want & 0xffff)) - (AXE_ANGLE_FULL - (from & 0xffff));
+        int limit = (int)(((float)arg * dt) / 2.0f);
+        int mag = diff < 0 ? -diff : diff;
+        int turn;
+        if (mag < limit || AXE_ANGLE_FULL - limit < mag) {
+            // Within one frame's turn: go straight there.
+            turn = diff < 1 ? diff + AXE_ANGLE_FULL : diff;
+        } else if (diff < 1) {
+            turn = diff < -0x8000 ? limit : AXE_ANGLE_FULL - limit;
+        } else {
+            turn = diff > 0x8000 ? AXE_ANGLE_FULL - limit : limit;
+        }
+        AxeTurnDir(turn);
+    }
+
+    dt = gGlobalNextTicksInterval < 0 ? 0.0f : (float)gGlobalNextTicksInterval / 5.0f;
+    float scale = AxeInfo.speed * dt;
+    for (int k = 0; k < 4; k++)
+        step[k] = AxeInfo.dir[k] * scale;
+    if (atoi(argv[1]) != 0)
+        step[1] -= AxeInfo.drop * (float)((AxeInfo.ticks / AXE_DROP_PERIOD) * 2 + 1);
+    for (int k = 0; k < 3; k++)
+        part->drawOnPos[k] += step[k];
+    part->flags43 = PARTS_FLAG43_WARPED | PARTS_FLAG43_TRANS;
+    AxeInfo.ticks += gNextTicksInterval;
+    return XCMD_DONE;
 }
+
+// AXE_CheckHitAndCompDir's answers in its variable (named from this one writer; the axe script reads them).
+#define AXE_RESULT_NONE (-1)            /* nothing hit this frame: fly on */
+#define AXE_RESULT_STOP 0               /* stuck in a surface (or no slot left to hide a part): speed 0 */
+#define AXE_RESULT_BOUNCE 1             /* glanced off a surface: reflected, the part hit hidden */
+#define AXE_RESULT_ARROW 2              /* struck by a strong arrow: it flies on along the arrow */
+#define AXE_RESULT_LANDED 3             /* it reached its target (speed 0) */
+#define AXE_RESULT_LANDED_CALM 4        /* it reached Alyssa outside a full panic (the speed kept) */
+#define AXE_ARROW_LEVEL_CUTS 1          /* an arrow above this level knocks the axe away */
+#define AXE_RESULT_VAR_UNSET (-1)       /* BOUNCE needs the variable still at -1 (one bounce a frame) */
+
+// The surface materials (HIT_DATA_MATERIAL) the axe sticks in or glances off.
+static int AxeSticksIn(int material)
+{
+    return material == 0 || material == 3 || material == 6 || material == 7 || material == 9;
+}
+static int AxeGlancesOff(int material)
+{
+    return material == 1 || material == 2 || material == 5 || material == 8;
+}
+
+// The parts the axe hid shown again (op 1, at once), every slot free.
+static void AxeShowHidden(void)
+{
+    for (int i = 0; i < AXE_HIT_MAX; i++) {
+        if (AxeInfo.hits[i].bank != 0) {
+            ssTrigSetEnable((u_short)AxeInfo.hits[i].part, 1, 0, AxeInfo.hits[i].bank);
+            AxeInfo.hits[i].bank = 0;
+        }
+    }
+}
+
+// CT3 0x018dd760: "AXE_CheckHitAndCompDir <axeId> <part> <var> <bounce>": the thrown axe's hits this
+// frame, answered in the bank variable var (AXE_RESULT_*), first match wins:
+//  1. a strong arrow (level > 1) struck the scene shape of part <part>: the axe takes the arrow's
+//     direction and speed and flies on (ARROW);
+//  2. outside the boss battle, the axe stalker's blow landed (CHARA_HIT_LANDED) while its brain's +0x181
+//     was set: that byte cleared, then LANDED in a full panic (speed 0), else LANDED_CALM; in the boss
+//     battle a landed blow is LANDED;
+//  3. the axe stalker was hit by an object of this bank: LANDED;
+//  4. the bank's object hit with HIT_OBJ_ID axeId (none: NONE): a surface hit (kind 1) sticks (STOP) or
+//     glances off (BOUNCE: dir reflected about the surface by 1 + bounce, speed scaled, the surface's part
+//     hidden in a free AxeInfo.hits slot and the previous slot's part shown again; no slot: STOP).
+int ssXcmd_AXE_CheckHitAndCompDir(int argc, char **argv, int bank)
+{
+    int axeId = atoi(argv[0]);
+    int target = atoi(argv[1]);
+    HIT_TABLE *hits = BankHits(bank);
+    CHARACTER *axe = &Character[HIT_CHARA_ONO];
+
+    const HIT_ATK_REC *scn = BANK_PTR(const HIT_ATK_REC *, bank, hits->scnHits);
+    for (int i = 0; i < hits->w2b8; i++) {
+        const HIT_ATK_REC *rec = &scn[i];
+        if (rec->byObject != 1 || HitObjShort(bank, rec->object, offsetof(HIT_DATA, part)) != (target & 0xffff))
+            continue;
+        HIT_TABLE *by = BankHits(rec->attackBank);
+        const u_int *objs = BANK_PTR(const u_int *, rec->attackBank, by->attackObjs);
+        const ARROW *arrow = asArrowInformation(HitObjShort(rec->attackBank, objs[rec->attackObj], HIT_OBJ_ID));
+        // PORT: the ROM reads the answer unchecked; the host's is NULL without an arrow list.
+        if (arrow != NULL && arrow->level > AXE_ARROW_LEVEL_CUTS) {
+            memcpy(AxeInfo.dir, arrow->dir, sizeof(AxeInfo.dir));
+            AxeInfo.ticks = 0;
+            AxeInfo.speed = (float)arrow->shootArg1;
+            AxeInfo.drop = 0.0f;
+            AxeShowHidden();
+            ssTrigSetVariable(atoi(argv[2]) & 0xffff, AXE_RESULT_ARROW, XCMD_SCOPE_BANK, bank);
+            return XCMD_DONE;
+        }
+        break;
+    }
+
+    int landed = *(int *)((u_char *)axe + CHARA_HIT_LANDED) == 1;
+    if (ssTrigCheckEvent(TRIG_EVENT_BOSS_BATTLE, XCMD_SCOPE_GLOBAL, -1) == 0) {
+        // PORT: brain is an EE word nothing on the host sets yet (open-items.md 1 am).
+        u_char *brain = CharaBrain(HIT_CHARA_ONO);
+        if (brain != NULL && (s_char)brain[BRAIN_AXE_181] != -1 && landed) {
+            brain[BRAIN_AXE_181] = 0xff;
+            if (ssTrigCheckEvent(TRIG_EVENT_PANIC_FULL, XCMD_SCOPE_GLOBAL, -1) == 0) {
+                ssTrigSetVariable(atoi(argv[2]) & 0xffff, AXE_RESULT_LANDED_CALM, XCMD_SCOPE_BANK, bank);
+                return XCMD_DONE;
+            }
+            AxeInfo.speed = 0.0f;
+            ssTrigSetVariable(atoi(argv[2]) & 0xffff, AXE_RESULT_LANDED, XCMD_SCOPE_BANK, bank);
+            return XCMD_DONE;
+        }
+    } else if (landed) {
+        AxeInfo.speed = 0.0f;
+        ssTrigSetVariable(atoi(argv[2]) & 0xffff, AXE_RESULT_LANDED, XCMD_SCOPE_BANK, bank);
+        return XCMD_DONE;
+    }
+
+    HIT_TABLE *axeHits = BankHits(axe->bank);
+    if (axeHits->count != 0) {
+        const HIT_REC *recs = BANK_PTR(const HIT_REC *, axe->bank, axeHits->recs);
+        for (int i = 0; i < axeHits->count; i++) {
+            if (recs[i].isObject == 1 && recs[i].bank == (u_char)bank) {
+                ssTrigSetVariable(atoi(argv[2]) & 0xffff, AXE_RESULT_LANDED, XCMD_SCOPE_BANK, bank);
+                return XCMD_DONE;
+            }
+        }
+    }
+
+    const HIT_OBJ_REC *objs = BANK_PTR(const HIT_OBJ_REC *, bank, hits->objHits);
+    const HIT_OBJ_REC *rec = NULL;
+    for (int i = 0; i < hits->objHitCount; i++) {
+        if ((axeId & 0xffff) == HitObjShort(bank, objs[i].object, HIT_OBJ_ID)) {
+            rec = &objs[i];
+            break;
+        }
+    }
+    if (rec == NULL) {
+        ssTrigSetVariable(atoi(argv[2]) & 0xffff, AXE_RESULT_NONE, XCMD_SCOPE_BANK, bank);
+        return XCMD_DONE;
+    }
+    if (rec->kind != 1)
+        return XCMD_DONE;
+    // A surface hit: id is the HIT_DATA's EE word in the bank chara names (the ROM hides the part there).
+    int surfBank = rec->chara;
+    HIT_DATA *surf = BANK_PTR(HIT_DATA *, surfBank, (u_int)rec->id);
+    int material = ((const u_char *)surf)[HIT_DATA_MATERIAL];
+    if (AxeSticksIn(material)) {
+        AxeInfo.speed = 0.0f;
+        ssTrigSetVariable(atoi(argv[2]) & 0xffff, AXE_RESULT_STOP, XCMD_SCOPE_BANK, bank);
+    } else if (AxeGlancesOff(material)
+               && ssTrigCheckVariable(atoi(argv[2]), AXE_RESULT_VAR_UNSET, XCMD_SCOPE_BANK, 1, bank) != 0) {
+        AxeInfo.speed *= ssGetReflectVector3(atoff(argv[3]) + 1.0f, AxeInfo.dir, surf->worldN, AxeInfo.dir);
+        int i;
+        for (i = 0; i < AXE_HIT_MAX; i++) {
+            if (AxeInfo.hits[i].bank == 0) {
+                AxeInfo.hits[i].bank = surfBank;
+                AxeInfo.hits[i].part = surf->part;
+                ssTrigSetEnable((u_short)surf->part, 0, 0, surfBank);
+                if (i > 0)
+                    ssTrigSetEnable((u_short)AxeInfo.hits[i - 1].part, 1, 0, AxeInfo.hits[i - 1].bank);
+                break;
+            }
+        }
+        ssTrigSetVariable(atoi(argv[2]) & 0xffff, AXE_RESULT_BOUNCE, XCMD_SCOPE_BANK, bank);
+        if (i == AXE_HIT_MAX) {
+            AxeInfo.speed = 0.0f;
+            ssTrigSetVariable(atoi(argv[2]) & 0xffff, AXE_RESULT_STOP, XCMD_SCOPE_BANK, bank);
+        }
+    }
+    return XCMD_DONE;
+}
+
+// ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x018def30
 int test_ssXcmd_BrainSet4(int argc, char **argv, int bank)
