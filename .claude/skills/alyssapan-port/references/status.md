@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-12 00:34 at commit `5c64456` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-12 01:00 at commit `784042b` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1318**; stubs: **197**
+- reconstructed CT3 functions: **1332**; stubs: **190**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -86,7 +86,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/ssCalcInversMatrix2.c` | 0 | 5 |
 | `src/game/ssGrpPortalCheck.c` | 74 | 0 |
 | `src/game/ssHitCheckAttackToScn.c` | 37 | 0 |
-| `src/game/ssSetTexUVforCubeMap.c` | 12 | 45 |
+| `src/game/ssSetTexUVforCubeMap.c` | 26 | 38 |
 | `src/game/tiAvoidObject.c` | 0 | 10 |
 | `src/game/tiXcmd_TransItem.c` | 85 | 8 |
 | `src/game/tkXDTrg_GetSceneHash.c` | 50 | 0 |
@@ -102,7 +102,7 @@ Least-named game-code regions (64 KB blocks):
 - next: **game/ssSetTexUVforCubeMap.c** (pinned in the queue)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp, game/ssSetTexUVforCubeMap.c
 - partial: `game/BRANCH_CLEAR.c` 173/173 -- 15 s smoke run: no fault, shot black (no host draw module yet). callcheck: GetAreaFloor's memcmp and ssTrigRemoveEvent come through ROOM_IS and AreaFloorClear (
-- partial: `game/ssSetTexUVforCubeMap.c` 12/96 -- Slice 1: ssSetAmbientColor, the part motion blur counters (ssGetNumBlurDrawObj, ssGetNumBlurDrawObjForScene), ssPartMotionBlurUpdate, UpdateAlpha, AllEnd, Globa
+- partial: `game/ssSetTexUVforCubeMap.c` 26/96 -- Slice 2: ReflectMapUpdate with ssCalcReflectPlaneMap, ssCalcReflectCubeMap, ssGetReflectVector, ssGetReflectFace, ssCalcCubeMapUVfromFace, ssSetTexUVforCubeMap 
 - partial: `game/tiXcmd_TransItem.c` 85/93 -- Slice 10. Written: tiXcmd_UseItem (ITEM_USE_* modes from argv[4], ITEM_KIND_* from the row byte +0: give-take, signal, heal Character[0].hp up to hpMax, calm vi
 - partial: `game/wideXcmd_TriggerInit.c` 1/46 -- Title draws at 4:3 and 16:9 after 40 s (logo, 3, menu, copyright). Fix in SunTexEePtr, BankOfEeAddr, HitObjectId: free slot banks shared EE addresses with the G
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
@@ -146,6 +146,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-12 01:00 `game/ssSetTexUVforCubeMap.c` partial: reconstruct 13 functions (reflection maps, ambient change, particle init, small triggers)
 - 2026-11-12 00:34 `game/ssSetTexUVforCubeMap.c` partial: reconstruct 11 functions, stub 2
 - 2026-11-12 00:15 `game/ssHitCheckAttackToScn.c` verify: slice 6: the slide (ssHitCheckAllObject, ssHitReCheckAllObject, ssHitCalcSlidePos2, ssHitCheckAndProcess) and ssCollisionCheck with ssColCheckChar_Chara: the TU
 - 2026-11-11 23:52 `game/ssHitCheckAttackToScn.c` partial: slice 5: the character box and the scene grid: ssMakeCharOBB, ssGetCharSpaceCell, ssDivideHitDataToSpaceCell, ssAddHitDataToCheckList (4 functions)
@@ -153,12 +154,11 @@ Recent sessions:
 - 2026-11-11 23:13 `game/ssHitCheckAttackToScn.c` partial: slice 3: the attack checks ssHitCheckSceneAttack, ssHitCheckCharacterAttack, ssHitCheckAttack, ssHitCheckAttackToScn, and ssGetReflectVector3 (5 functions)
 - 2026-11-11 22:52 `game/ssHitCheckAttackToScn.c` partial: slice 2: CheckLOS and CheckLOS_Multi (the scene grid walk and the inside-polygon test), ssTransScnAtkHitDataL2W, ssTransAtkHitDataL2W, ssTransDmgHitDataL2W (5 f
 - 2026-11-11 22:33 `game/BRANCH_CLEAR.c` partial: marked partial -> partial: split from game/QuatSlerp.c on 2026-11-11: one CodeWarrior object 0x01851f00..0x0185e9d0 (symtab locals 1088..1162 one inseparable ru
-- 2026-11-11 22:33 `game/QuatSlerp.c` verify: split game/QuatSlerp.c: the symtab proves 0x01851f00..0x0185e9d0 is one CodeWarrior object, now game/BRANCH_CLEAR.c (173 functions, code moved unchanged); QuatS
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
 | `game/CpDivideEECom.c` | todo | 0/10/18 | 3.3 | 80 | 10 |
-| `game/ssSetTexUVforCubeMap.c` | partial | 12/45/96 | 35.3 | 78 | 4 |
+| `game/ssSetTexUVforCubeMap.c` | partial | 26/38/96 | 35.3 | 49 | 1 |
 | `ga/gaDrawObject.c` | todo | 0/11/11 | 6.9 | 39 | 0 |
 | `game/tiAvoidObject.c` | todo | 0/10/82 | 30.5 | 31 | 4 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
@@ -183,12 +183,10 @@ Recent sessions:
 | `018a4fe0` | gaDrawObject_VertexLocalViewWithClippingFlagSet | 6 | sym | stub | ga/gaDrawObject.c |
 | `018a51e8` | gaDrawObject_VertexLocalViewWithClippingFlagSet_Billboard | 6 | sym | stub | ga/gaDrawObject.c |
 | `018a5fe0` | gaDrawObject_MakeVertexReferenceTable | 6 | sym | stub | ga/gaDrawObject.c |
-| `01899070` | ssParticleCashClear | 5 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `01896a90` | ssPartMotionBlurInsertObjToDrawTable | 4 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `018a7538` | gaSearchNearLight4 | 4 | sym | stub | ga/gaSearchNearLight4.c |
 | `018bd830` | AA_clearGsMem | 4 | sym | stub | game/AA_GetDataWord.c |
 | `018a8690` | gaDMAStopMessage_VIF1 | 4 | sym | stub | ga/wait.c |
-| `018962a0` | tnChangeCharAmbientColorSet | 4 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `018c1ce0` | AA_videoDecAbort | 3 | sym | stub | game/AA_mpegTS.c |
 | `018a53c8` | gaDrawObject_RemakeIndexWithClippingCheck | 3 | sym | stub | ga/gaDrawObject.c |
 | `018a5730` | gaDrawObject_RemakeIndexWithClippingCheck_WithNear | 3 | sym | stub | ga/gaDrawObject.c |
@@ -214,4 +212,6 @@ Recent sessions:
 | `018a91d0` | ssHit_information | 1 | sym | stub | game/ssCalcInversMatrix2.c |
 | `01860d00` | ssAI_IsDoorOpenPlaying | 1 | sym | stub | game/tiAvoidObject.c |
 | `018bbeb0` | AA_audioDecSendToIOP | 1 | sym | stub | game/AA_SoundMonoSoart.c |
+| `018bfde0` | AA_readBufDelete | 1 | sym | stub | game/AA_videoCallback.c |
+| `018c2080` | AA_voBufDelete | 1 | sym | stub | game/AA_mpegTS.c |
 

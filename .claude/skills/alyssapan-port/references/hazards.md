@@ -7,6 +7,12 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-12, ssSetTexUVforCubeMap.c slice 2) **ssTrigHQDOFEnd ends the wrong mode**: it clears DrawMode
+  only when it is 7 (DRAW_MODE_VASELINE), while ssTrigHQDOFStart sets 8 (HQDOF). Kept as the ROM has it;
+  an HQDOF that never ends is the game's, not the port's. Also: an edit whose old text starts inside a
+  struct (after its typedef line) and whose new text repeats the typedef duplicates it -- the compiler then
+  reports every later declaration as a member of that struct.
+
 - (2026-11-11, ssHitCheckAttackToScn.c slice 2) **The EE FPU never makes inf or NaN: x / 0 is +-FLT_MAX
   and overflow clamps.** CheckLOS divides by the segment's x extent to pick grid cells; a vertical segment
   (tiCharaFootAdjust's foot probe) gives 0 / 0, which the EE turns into a huge slope that still selects the

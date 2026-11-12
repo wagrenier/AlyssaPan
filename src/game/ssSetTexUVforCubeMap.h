@@ -38,6 +38,66 @@ static_assert(offsetof(PART_BLUR_MAX_OBJ, prevMatrix) == 0x80, "PART_BLUR_MAX_OB
 static_assert(offsetof(PART_BLUR_MAX_OBJ, color) == 0xc0, "PART_BLUR_MAX_OBJ.color");
 static_assert(offsetof(PART_BLUR_MAX_OBJ, alphaPercent) == 0xd0, "PART_BLUR_MAX_OBJ.alphaPercent");
 
+// ---- reflection maps (2026-11-12) --------------------------------------------------------------------------
+// ALL_TABLE.reflects: a 0-ended list of EE addresses of REFLECT_ENTRY, one per reflective part. Each frame
+// ReflectMapUpdate rewrites the texture coordinates of its meshes' packets from the eye: a plane map (one
+// texture, the reflected vector's x / y) or a cube map (six faces in one texture, laid out as a cross of
+// 0.25 x 0.2 cells). Every word below is an EE address in the bank (BankEePtr).
+#define REFLECT_FLAG_PLANE 0x1          /* REFLECT_ENTRY.flags: a plane map (else a cube map) */
+#define REFLECT_FLAG_ALWAYS 0x2         /* updated even when the part's pos is off screen */
+typedef struct REFLECT_ENTRY {
+    u_short part;                       /* 0x00: the MODEL_PARTS record (ssTrigCheckEnable's part too) */
+    u_char count;                       /* 0x02: maps' length */
+    u_char flags;                       /* 0x03: REFLECT_FLAG_* */
+    u_int maps;                         /* 0x04: REFLECT_MAP[count] */
+} REFLECT_ENTRY;
+static_assert(sizeof(REFLECT_ENTRY) == 0x08, "REFLECT_ENTRY");
+
+// One mesh of the entry and the rectangle of the texture its coordinates map into.
+typedef struct REFLECT_MAP {
+    u_int obj;                          /* 0x00: the ga draw object (REFLECT_OBJ_*, DRAW_OBJ_PACKET) */
+    float u0, v0;                       /* 0x04: the rectangle's corner in the texture */
+    float w, h;                         /* 0x0c: its size */
+    u_int tris;                         /* 0x14: cube maps: REFLECT_TRI[triCount] */
+    u_short triCount;                   /* 0x18 */
+    u_char pad1a[2];
+} REFLECT_MAP;
+static_assert(sizeof(REFLECT_MAP) == 0x1c, "REFLECT_MAP");
+
+// A cube-mapped triangle: its face is chosen once from the reflection at its centre.
+typedef struct REFLECT_TRI {
+    float center[4];                    /* 0x00 */
+    float normal[4];                    /* 0x10 */
+    u_short vert[3];                    /* 0x20: indices into the object's vertices */
+    u_char pad26[0xa];
+} REFLECT_TRI;
+static_assert(sizeof(REFLECT_TRI) == 0x30, "REFLECT_TRI");
+
+// The draw object words the reflection reads (DRAW_OBJ_PACKET holds the ST pairs: 8 bytes per vertex after
+// the packet's first qword; the normals have a qword before them too).
+#define REFLECT_OBJ_VERTS 0x48          /* int: the plane map's vertex count */
+#define REFLECT_OBJ_POS 0x60            /* u_int: float[verts][4], the vertices in the part's frame */
+#define REFLECT_OBJ_NORMAL 0x64         /* u_int: a qword, then float[verts][4] */
+#define REFLECT_PACKET_ST 0x10          /* the ST pairs' offset in the packet (and the normals' in theirs) */
+
+// The cube's faces (ssGetReflectFace: the reflected vector's longest axis and its sign).
+#define CUBE_FACE_NEG_Z 0
+#define CUBE_FACE_NEG_X 1
+#define CUBE_FACE_POS_Y 2
+#define CUBE_FACE_POS_X 3
+#define CUBE_FACE_NEG_Y 4
+#define CUBE_FACE_POS_Z 5
+#define CUBE_FACE_MAX 6
+
+#define PARTS_KIND_REFLECT_ROOT 1       /* MODEL_PARTS.kind: ReflectMapUpdate maps the part in part 0's frame */
+
+void ssSetTexUVforCubeMap(float u, float v, float u0, float v0, float w, float h, float *st, int face); // CT3 0x018951d0
+void ssCalcCubeMapUVfromFace(const float *r, float *u, float *v, int face);           // CT3 0x018952f0
+int ssGetReflectFace(const float *r);                                                    // CT3 0x018954a0
+int ssGetReflectVector(float *out, float *normal, float *incident);                      // CT3 0x018955c0
+void ssCalcReflectPlaneMap(int bank, const REFLECT_ENTRY *ent, const float *eye);        // CT3 0x01895680
+void ssCalcReflectCubeMap(int bank, const REFLECT_ENTRY *ent, const float *eye, float (*m)[4]); // CT3 0x01895820
+
 extern PART_BLUR_MAX_OBJ *PartBlurMaxObj[BANK_MAX][PART_BLUR_MAX_OBJ_MAX]; /* bss 0x01a42280 */
 extern u_char **ParticleData[BANK_MAX];         /* sbss 0x01940a10: per particle list entry, its records */
 

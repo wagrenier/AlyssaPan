@@ -148,13 +148,22 @@ typedef struct CHARA_JUNC {
 // CharAmbChangeFlag[3] (0x0193fc00, 0x1c bytes each): a character's ambient colour change in progress
 // (ssChangeCharAmbientColor's; a warp into a BANK_TYPE_SHADOW room ends the character's).
 #define CHAR_AMB_CHANGE_MAX 3
+// tnChangeCharAmbientColorSet fills a slot from its set array (the same fields as shorts); each frame
+// ssChangeCharAmbientColor moves the character's bank 1/frames of the way to the target and counts down.
+#define CHAR_AMB_FLAG_COLOR 0x1         /* flags: the target is color (else the room bank's ALL_TABLE.ambient);
+                                           a negative alpha takes the character's light bank's (truncated) */
+#define CHAR_AMB_FLAG_SHADOW 0x2        /* flags: the bank's shadow value eases to shadow too */
 typedef struct CHAR_AMB_CHANGE {
     u_short chara;                      /* 0x00: the character (0 = none: the player's also clears) */
-    u_short h02, h04, h06;
-    int w08, w0c, w10, w14;
-    u_char pad18[4];
+    u_short bank;                       /* 0x02: the room bank whose ambient is the target */
+    u_short frames;                     /* 0x04: frames left, 0 = the slot is free */
+    u_short flags;                      /* 0x06: CHAR_AMB_FLAG_* */
+    float color[4];                     /* 0x08: the target RGBA (CHAR_AMB_FLAG_COLOR) */
+    signed char shadow;                 /* 0x18: the target shadow value (CHAR_AMB_FLAG_SHADOW) */
+    u_char pad19[3];
 } CHAR_AMB_CHANGE;
 static_assert(sizeof(CHAR_AMB_CHANGE) == 0x1c, "CHAR_AMB_CHANGE");
+static_assert(offsetof(CHAR_AMB_CHANGE, shadow) == 0x18, "CHAR_AMB_CHANGE.shadow");
 
 #define CHARACTER_MAX 35                /* 0x23: Character[], AI_flag[], DirectLightCharaCounter[] */
 #define CHARACTER_FLAG_REFRACTION 0x80000000u /* DrawObjectRefraction: with _SHADOW, the character's bank
@@ -380,8 +389,9 @@ static_assert(offsetof(GA_LIGHT_WORK, omniPos) == 0x150, "GA_LIGHT_WORK.omniPos"
 // are counts. The other words (0x20..0x24, 0x30..0x50, 0x5c, 0x64..0x6c, 0x74, 0x80..0xb4) are lists
 // no written TU reads yet: named by their readers.
 typedef struct ALL_TABLE {
-    u_char pad00[0x10];
-    u_int partsPos;                     /* 0x10: float[parts][4]; main_rtn draws a part only while
+    float ambient[4];                   /* 0x00: the bank's ambient RGBA: a character entering the room takes
+                                           it (tnChangeCharAmbientColorSet, ssChangeCharAmbientColor) */
+    u_int partsPos;                    /* 0x10: float[parts][4]; main_rtn draws a part only while
                                            its w > PARTS_POS_HIDDEN_W; main_rtn_Particle2 starts from it */
     int baseobjCount;                   /* 0x14: scene_init -> BaseobjCount[bank] */
     u_int objOpaque;                    /* 0x18: list: GlobalDrawObject's first main_rtn list */
@@ -406,7 +416,8 @@ typedef struct ALL_TABLE {
     u_int straw;                       /* 0x50: asMakeStraw's first argument (with partsHeader) */
     u_int sound;                       /* 0x54: SOUND_OBJ_TABLE (sound.c's SSFindSoundObj) */
     u_int particles;                    /* 0x58: list of PARTICLE_ENTRY: main_rtn_Particle's */
-    u_int pad5c;
+    u_int reflects;                     /* 0x5c: list of REFLECT_ENTRY (ssSetTexUVforCubeMap.h): the reflective
+                                           parts ReflectMapUpdate re-maps each frame */
     u_int objAfter;                     /* 0x60: list: after the particles; non-empty -> ExportDrawToTex */
     u_int bumps;                        /* 0x64: short[] ended by -1: objOpaque indices of the bump-mapped
                                            entries (tiBumpSTValueUpdate) */
@@ -684,12 +695,28 @@ static_assert(sizeof(DRAW_OBJ_ENTRY) == 0x1c, "DRAW_OBJ_ENTRY");
 
 // A particle system's ring state (PARTICLE_ENTRY.state; the particle TU owns it). main_rtn_Particle
 // draws the live slots head .. tail, wrapping at ringSize.
+// The words ssParticleInit sets are named (2026-11-12); the times are in ticks, 30 per tenth of a second.
 typedef struct PARTICLE_STATE {
-    u_char pad00[0x46];
+    u_char pad00[0x20];
+    u_int partRec;                      /* 0x20: EE address of the part's record (header + 0x40 + part * 0x380) */
+    int idleTicks;                      /* 0x24: -100 at init */
+    float emitRate;                     /* 0x28: 0 in the data: ringSize / (lifeTenths * 6) */
+    u_int emitter;                      /* 0x2c: 0 or an emitter: its word 0 gets the EE address of the
+                                           matrix200 of the part in its u16 at +0xc */
+    u_char pad30[0x10];
+    int lifeTicks;                      /* 0x40: lifeTenths * 30 */
+    u_short lifeTenths;                 /* 0x44 */
     u_short ringSize;                   /* 0x46 */
     u_short head;                       /* 0x48: the oldest live slot */
     u_short tail;                       /* 0x4a: one past the newest; head == tail: none live */
+    u_char pad4c[8];
+    int part2;                          /* 0x54: 0 or a second part */
+    u_int partPos;                      /* 0x58: EE address of part2's MODEL_PARTS.pos */
+    int ticks5c;                        /* 0x5c: tenths in the data, ticks after init (x 30) */
 } PARTICLE_STATE;
+static_assert(offsetof(PARTICLE_STATE, partRec) == 0x20, "PARTICLE_STATE.partRec");
+static_assert(offsetof(PARTICLE_STATE, lifeTicks) == 0x40, "PARTICLE_STATE.lifeTicks");
+static_assert(offsetof(PARTICLE_STATE, ticks5c) == 0x5c, "PARTICLE_STATE.ticks5c");
 static_assert(offsetof(PARTICLE_STATE, ringSize) == 0x46, "PARTICLE_STATE.ringSize");
 static_assert(offsetof(PARTICLE_STATE, tail) == 0x4a, "PARTICLE_STATE.tail");
 
@@ -701,7 +728,10 @@ typedef struct PARTICLE_ENTRY {
                                            probably GA_DRAWCTRL_ARGS, open-items.md 1 s) */
     u_int tex;                          /* 0x08: TEX_INFO */
     u_int state;                        /* 0x0c: PARTICLE_STATE */
-    u_char pad10[0x10];
+    int parts;                          /* 0x10: the part it is placed at (MODEL_PARTS, ALL_TABLE.partsPos) */
+    u_int objs;                         /* 0x14: its ring slots' draw objects (-> ParticleObject[bank][i]) */
+    u_int data;                         /* 0x18: its ring records (-> ParticleData[bank][i]) */
+    u_char pad1c[4];
     u_int tbuffer;                      /* 0x20: the texture's upload packet */
     u_int drawCtrl;                     /* 0x24: GA_DRAWCTRL_DATA */
 } PARTICLE_ENTRY;

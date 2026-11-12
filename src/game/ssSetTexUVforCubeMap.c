@@ -1,14 +1,21 @@
 // game/ssSetTexUVforCubeMap.c -- Clock Tower 3 module (file from the inference in alyssapan_functions.txt).
 // Reconstructed: the ambient colour, the part motion blur's counters, init, update and end, the particle
-// tables' end, the screen blur off and the Z clear (2026-11-12); the rest are stubs (tools/reverse/stage.py).
+// tables' end, the screen blur off and the Z clear (2026-11-12); the reflection maps, a character's ambient
+// change, the particle init and stop, HQDOF end, DOF clip range and the curve cache clear (2026-11-12, slice 2); the
+// rest are stubs (tools/reverse/stage.py).
 
+#include <math.h>
 #include <stddef.h>
 #include <string.h>
 
 #include "common/alyssapan_stub.h"
 #include "game/ssSetTexUVforCubeMap.h"
+#include "ga/gaInit3dlib.h"
 #include "ga/gaInitDrawObject.h"
+#include "game/BRANCH_CLEAR.h"
+#include "game/ahRelocateSunPs2ObjectArry.h"
 #include "game/ahalloc.h"
+#include "game/ssGrpPortalCheck.h"
 #include "game/ct3_types.h"
 #include "game/main.h"
 #include "game/unassigned_data.h"
@@ -238,7 +245,7 @@ void ssPartMotionBlurGlobalInit(void)
         PartBlurMaxObj[bank][0] = NULL;
     }
     for (i = 0; i < CHAR_AMB_CHANGE_MAX; i++) {
-        memset(&CharAmbChangeFlag[i], 0, offsetof(CHAR_AMB_CHANGE, pad18));
+        memset(&CharAmbChangeFlag[i], 0, offsetof(CHAR_AMB_CHANGE, shadow));
         CharAmbChangeColor[i] = 0;
     }
 }
@@ -333,10 +340,296 @@ void tiOneFrameMotionBlurUpdate(int bank, PART_BLUR_MAX_OBJ *max)
     ALYSSAPAN_STUB("tiOneFrameMotionBlurUpdate", 0x01897430);
 }
 
-// stub of CT3 0x01895c10
+// ---- reflection maps --------------------------------------------------------------------------------------
+
+#define CUBE_CELL_U 0.25f               /* one face's cell in the cube texture */
+#define CUBE_CELL_V 0.2f
+#define REFLECT_SCREEN_MARGIN 100.0f    /* ssPointCheckWithinScreen's margin for the part's pos */
+
+// v.xyz scaled to length 1 (VU0: vrsqrt Q, vf0w, sum; vmulq.xyz); w kept.
+static void NormalizeXYZ(float *v)
+{
+    float q = 1.0f / sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+
+    v[0] *= q;
+    v[1] *= q;
+    v[2] *= q;
+}
+
+// out = m * v, the four rows of m weighted by v's x, y, z, w (VU0 vmula / vmadda / vmaddw).
+static void ApplyMatrix4(float *out, float (*m)[4], const float *v)
+{
+    float r[4];
+    int i;
+
+    for (i = 0; i < 4; i++)
+        r[i] = m[0][i] * v[0] + m[1][i] * v[1] + m[2][i] * v[2] + m[3][i] * v[3];
+    memcpy(out, r, sizeof(r));
+}
+
+// The unit vector from the eye to p (xyz; w is p's).
+static void EyeToPoint(float *out, const float *p, const float *eye)
+{
+    out[0] = p[0] - eye[0];
+    out[1] = p[1] - eye[1];
+    out[2] = p[2] - eye[2];
+    out[3] = p[3];
+    NormalizeXYZ(out);
+}
+
+// CT3 0x018951d0
+// The texture coordinates of a point (u, v in 0..1 on its face) in the cube texture: the face's cell of the
+// cross (CUBE_CELL_U x CUBE_CELL_V), mapped into the map's rectangle; st: the vertex's ST pair.
+void ssSetTexUVforCubeMap(float u, float v, float u0, float v0, float w, float h, float *st, int face)
+{
+    float cu, cv;
+
+    switch (face) {
+    case CUBE_FACE_NEG_Z:
+        cu = 0.25f;
+        cv = 0.4f;
+        break;
+    case CUBE_FACE_NEG_X:
+        cu = 0.5f;
+        cv = 0.4f;
+        break;
+    case CUBE_FACE_POS_Y:
+        cu = 0.25f;
+        cv = 0.6f;
+        break;
+    case CUBE_FACE_POS_X:
+        cu = 0.0f;
+        cv = 0.4f;
+        break;
+    case CUBE_FACE_NEG_Y:
+        cu = 0.25f;
+        cv = 0.2f;
+        break;
+    case CUBE_FACE_POS_Z:
+        cu = 0.75f;
+        cv = 0.4f;
+        break;
+    default:
+        cu = 0.0f;
+        cv = 0.0f;
+        break;
+    }
+    st[0] = u0 + w * (cu + u * CUBE_CELL_U);
+    st[1] = v0 + h * (cv + v * CUBE_CELL_V);
+}
+
+// CT3 0x018952f0
+// Where the reflected vector r meets its face, 0..1 each way: the two other axes over the face's axis.
+void ssCalcCubeMapUVfromFace(const float *r, float *u, float *v, int face)
+{
+    float s;
+
+    switch (face) {
+    case CUBE_FACE_NEG_Z:
+        s = 0.5f / fabsf(r[2]);
+        *u = 0.5f - s * r[0];
+        *v = 0.5f + s * r[1];
+        break;
+    case CUBE_FACE_NEG_X:
+        s = 0.5f / fabsf(r[0]);
+        *u = 0.5f + s * r[2];
+        *v = 0.5f + s * r[1];
+        break;
+    case CUBE_FACE_POS_Y:
+        s = 0.5f / fabsf(r[1]);
+        *u = 0.5f - s * r[0];
+        *v = 0.5f + s * r[2];
+        break;
+    case CUBE_FACE_POS_X:
+        s = 0.5f / fabsf(r[0]);
+        *u = 0.5f - s * r[2];
+        *v = 0.5f + s * r[1];
+        break;
+    case CUBE_FACE_NEG_Y:
+        s = 0.5f / fabsf(r[1]);
+        *u = 0.5f - s * r[0];
+        *v = 0.5f - s * r[2];
+        break;
+    case CUBE_FACE_POS_Z:
+        s = 0.5f / fabsf(r[2]);
+        *u = 0.5f + s * r[0];
+        *v = 0.5f + s * r[1];
+        break;
+    default:
+        break;                          // the ROM leaves u, v as they were
+    }
+}
+
+// CT3 0x018954a0
+// The face the vector r points at: its longest axis (ties go to z, then y), by its sign.
+int ssGetReflectFace(const float *r)
+{
+    float ax = fabsf(r[0]);
+    float ay = fabsf(r[1]);
+    float az = fabsf(r[2]);
+
+    if (ay < ax) {
+        if (az < ax)
+            return r[0] < 0.0f ? CUBE_FACE_NEG_X : CUBE_FACE_POS_X;
+        return r[2] < 0.0f ? CUBE_FACE_NEG_Z : CUBE_FACE_POS_Z;
+    }
+    if (az < ay)
+        return r[1] < 0.0f ? CUBE_FACE_NEG_Y : CUBE_FACE_POS_Y;
+    return r[2] < 0.0f ? CUBE_FACE_NEG_Z : CUBE_FACE_POS_Z;
+}
+
+// CT3 0x018955c0
+// The reflection of the eye ray `incident` (unit, eye to surface) about `normal`: out.xyz = unit(normal *
+// 2(normal . incident) - incident), out.w = normal.w. Only for a surface facing the eye (the dot <= 0);
+// returns 0, out untouched, otherwise.
+int ssGetReflectVector(float *out, float *normal, float *incident)
+{
+    float d = gaInnerProductXYZ(normal, incident) * 2.0f;
+    float r[4];
+
+    if (!(d <= 0.0f))
+        return 0;
+    r[0] = normal[0] * d - incident[0];
+    r[1] = normal[1] * d - incident[1];
+    r[2] = normal[2] * d - incident[2];
+    r[3] = normal[3];
+    NormalizeXYZ(r);
+    memcpy(out, r, sizeof(r));
+    return 1;
+}
+
+// CT3 0x01895680
+// A plane map: every vertex facing the eye (in the part's frame) gets ST from its reflected vector's x and y,
+// mapped from -1..1 into the map's rectangle (x mirrored). PORT: bank, to read the entry's EE words.
+void ssCalcReflectPlaneMap(int bank, const REFLECT_ENTRY *ent, const float *eye)
+{
+    const REFLECT_MAP *maps = BANK_PTR(const REFLECT_MAP *, bank, ent->maps);
+    int count = ent->count;
+    int i;
+
+    for (i = 0; i < count; i++) {
+        const REFLECT_MAP *map = &maps[i];
+        u_char *obj = BANK_PTR(u_char *, bank, map->obj);
+        float (*pos)[4] = BANK_PTR(float (*)[4], bank, *(u_int *)(obj + REFLECT_OBJ_POS));
+        float (*nrm)[4] = (float (*)[4])(BANK_PTR(u_char *, bank, *(u_int *)(obj + REFLECT_OBJ_NORMAL))
+                                         + REFLECT_PACKET_ST);
+        float (*st)[2] = (float (*)[2])(BANK_PTR(u_char *, bank, *(u_int *)(obj + DRAW_OBJ_PACKET))
+                                        + REFLECT_PACKET_ST);
+        int verts = *(int *)(obj + REFLECT_OBJ_VERTS);
+        int v;
+
+        for (v = 0; v < verts; v++) {
+            float inc[4], r[4];
+
+            EyeToPoint(inc, pos[v], eye);
+            if (!ssGetReflectVector(r, nrm[v], inc))
+                continue;
+            st[v][0] = map->u0 + (1.0f - r[0]) * 0.5f * map->w;
+            st[v][1] = map->v0 + (r[1] + 1.0f) * 0.5f * map->h;
+        }
+    }
+}
+
+// CT3 0x01895820
+// A cube map: each triangle facing the eye picks its face from the reflection at its centre (turned into the
+// world by m, the part's matrix); its three vertices facing the eye get ST on that face. PORT: bank.
+void ssCalcReflectCubeMap(int bank, const REFLECT_ENTRY *ent, const float *eye, float (*m)[4])
+{
+    const REFLECT_MAP *maps = BANK_PTR(const REFLECT_MAP *, bank, ent->maps);
+    int count = ent->count;
+    int i;
+
+    for (i = 0; i < count; i++) {
+        const REFLECT_MAP *map = &maps[i];
+        u_char *obj = BANK_PTR(u_char *, bank, map->obj);
+        REFLECT_TRI *tris = BANK_PTR(REFLECT_TRI *, bank, map->tris);
+        float (*pos)[4] = BANK_PTR(float (*)[4], bank, *(u_int *)(obj + REFLECT_OBJ_POS));
+        float (*nrm)[4] = (float (*)[4])(BANK_PTR(u_char *, bank, *(u_int *)(obj + REFLECT_OBJ_NORMAL))
+                                         + REFLECT_PACKET_ST);
+        float (*st)[2] = (float (*)[2])(BANK_PTR(u_char *, bank, *(u_int *)(obj + DRAW_OBJ_PACKET))
+                                        + REFLECT_PACKET_ST);
+        int t;
+
+        for (t = 0; t < map->triCount; t++) {
+            REFLECT_TRI *tri = &tris[t];
+            float inc[4], r[4];
+            int face;
+            int k;
+
+            EyeToPoint(inc, tri->center, eye);
+            if (!ssGetReflectVector(r, tri->normal, inc))
+                continue;
+            ApplyMatrix4(r, m, r);
+            face = ssGetReflectFace(r);
+            for (k = 0; k < 3; k++) {
+                u_int vi = tri->vert[k];
+                float u, v;
+
+                EyeToPoint(inc, pos[vi], eye);
+                if (!ssGetReflectVector(r, nrm[vi], inc))
+                    continue;
+                ApplyMatrix4(r, m, r);
+                ssCalcCubeMapUVfromFace(r, &u, &v, face);
+                ssSetTexUVforCubeMap(u, v, map->u0, map->v0, map->w, map->h, st[vi], face);
+            }
+        }
+    }
+}
+
+// CT3 0x01895c10
+// Per frame (main): the reflective parts of every drawn bank (only the global ones while paused, unless
+// PAUSE_RUNNING), not behaviour banks, a group once. A part enabled by its trigger and on screen (or
+// REFLECT_FLAG_ALWAYS) has its maps re-mapped from the eye in its frame: the bank's own camera for a type 0
+// bank, the shared camera's for the others.
 void ReflectMapUpdate(void)
 {
-    ALYSSAPAN_STUB("ReflectMapUpdate", 0x01895c10);
+    float sharedEye[4], bankEye[4], localEye[4];
+    float inv[4][4];
+    int banks;
+    int bank;
+
+    banks = (pause == 0 || (pause & PAUSE_RUNNING) != 0) ? BANK_MAX : BANK_SCENE_MAX;
+    asViewMatrix2PosRUF(&Cam[CAMERA_SHARED].view[0][0], sharedEye, NULL, NULL, NULL);
+    for (bank = 0; bank < banks; bank++) {
+        const u_int *list;
+        const float *eye;
+        CAMERA *cam;
+        int i;
+
+        if (BankInfo[bank].drawOn == 0 || BankInfo[bank].type == BANK_TYPE_BEHAVIOR)
+            continue;
+        list = BANK_PTR(const u_int *, bank, All_table_TBL[bank]->reflects);
+        cam = &Cam[asCheckBankID(bank)];
+        if (BankInfo[bank].type == BANK_TYPE_0) {
+            asViewMatrix2PosRUF(&cam->view[0][0], bankEye, NULL, NULL, NULL);
+            eye = bankEye;
+        } else {
+            eye = sharedEye;
+        }
+        for (i = 0; list != NULL && list[i] != 0; i++) {   // PORT: a 0 list word (the ROM reads EE 0)
+            const REFLECT_ENTRY *ent = BANK_PTR(const REFLECT_ENTRY *, bank, list[i]);
+            u_char *header = pModelPartsHeader[bank];
+            MODEL_PARTS *part = (MODEL_PARTS *)(header + ent->part * (int)sizeof(MODEL_PARTS));
+            float (*m)[4];
+
+            if (!ssTrigCheckEnable(ent->part, bank))
+                continue;
+            if ((ent->flags & REFLECT_FLAG_ALWAYS) == 0
+                && !ssPointCheckWithinScreen(REFLECT_SCREEN_MARGIN, part->pos, cam->view))
+                continue;
+            if (part->kind == PARTS_KIND_REFLECT_ROOT)
+                m = ((MODEL_PARTS *)header)->matrix200;
+            else
+                m = part->matrix200;
+            gaInversMatrix(inv, m);
+            ApplyMatrix4(localEye, inv, eye);
+            if (ent->flags & REFLECT_FLAG_PLANE)
+                ssCalcReflectPlaneMap(bank, ent, localEye);
+            else
+                ssCalcReflectCubeMap(bank, ent, localEye, m);
+        }
+        bank += BankInfo[bank].groupCount - 1;
+    }
 }
 
 // stub of CT3 0x0189cd60
@@ -423,10 +716,47 @@ void ssBGT_WaveSetDrawEnvPostRend(void)
     ALYSSAPAN_STUB("ssBGT_WaveSetDrawEnvPostRend", 0x0189c070);
 }
 
-// stub of CT3 0x01895fb0
+// CT3 0x01895fb0
+// Per frame (main): each ambient change in progress moves its character's bank 1/frames of the way from its
+// part 0's ambient to the target (and, with CHAR_AMB_FLAG_SHADOW, its shadow value), then counts a frame.
+// A character without a bank ends its change; an unloaded bank (its own or the room's) ends it and the
+// whole pass for this frame (ROM: return, not continue).
 void ssChangeCharAmbientColor(void)
 {
-    ALYSSAPAN_STUB("ssChangeCharAmbientColor", 0x01895fb0);
+    int i;
+
+    for (i = 0; i < CHAR_AMB_CHANGE_MAX; i++) {
+        CHAR_AMB_CHANGE *c = &CharAmbChangeFlag[i];
+        const float *from;
+        const float *to;
+        float cur[4];
+        int bank;
+        int k;
+
+        if (c->frames == 0)
+            continue;
+        bank = Character[c->chara].bank;
+        if (bank < 0) {
+            c->frames = 0;
+            continue;
+        }
+        if (BankInfo[bank].state < 1 || BankInfo[c->bank].state < 1) {
+            c->frames = 0;
+            return;
+        }
+        from = BANK_PTR(const float *, bank, All_table_TBL[bank]->partsPos);
+        to = (c->flags & CHAR_AMB_FLAG_COLOR) ? c->color : All_table_TBL[c->bank]->ambient;
+        for (k = 0; k < 4; k++)
+            cur[k] = from[k] + (to[k] - from[k]) / (float)c->frames;
+        ssSetAmbientColor(cur[0], cur[1], cur[2], cur[3], bank);
+        if (c->flags & CHAR_AMB_FLAG_SHADOW) {
+            s_char now = BankInfo[bank].shadowOrder;
+
+            asShadowDrawing_SetShadowValue(bank, (s_char)(now + (s_char)(((int)c->shadow - (int)now)
+                                                                         / (int)c->frames)));
+        }
+        c->frames--;
+    }
 }
 
 // stub of CT3 0x0189ae30
@@ -460,16 +790,145 @@ void ssBGT_HQDOF_WriteBackFB(int alpha)
     ALYSSAPAN_STUB("ssBGT_HQDOF_WriteBackFB", 0x0189b390);
 }
 
-// stub of CT3 0x0189a9d0
-void ssParticleInit(int scene)
+#define CAM_EE 0x01ae7c40u              /* Cam[]'s EE address (bss), for the words that hold one */
+#define PARTICLE_TICKS_PER_TENTH 30     /* 300 ticks a second (the ROM's x * 300 / 10) */
+#define PARTICLE_IDLE_INIT (-100)       /* PARTICLE_STATE.idleTicks at init */
+
+int ParticlePassTicks[BANK_MAX];        /* sbss 0x019408b0 */
+
+// The EE address of a field of bank `scene`'s part record `part` (tiParticleInit's PartFieldEE).
+static u_int ParticlePartEE(int scene, int part, size_t offset)
 {
-    ALYSSAPAN_STUB("ssParticleInit", 0x0189a9d0);
+    return BankEeAddr(scene, pModelPartsHeader[scene] + part * (int)sizeof(MODEL_PARTS) + offset);
 }
 
-// stub of CT3 0x018962a0
+// CT3 0x0189a9d0
+// scene_init: bank `scene`'s particle list (ALL_TABLE.particles) gets its per-entry tables (ParticleObject,
+// ParticleData, from gHeapJunc) and each entry's state its times in ticks, its default emit rate and the EE
+// addresses of its parts; its draw object views through its camera's view2 (+0x58, +0x5c), its draw control
+// and texture are set up.
+// PORT: the draw object's two view words hold Cam's EE address (CAM_EE + ...): no reader is written yet.
+void ssParticleInit(int scene)
+{
+    int count = ssGetNumParticleEmit(scene);
+    const u_int *list;
+    int i;
+
+    if (count == 0)
+        return;
+    ParticlePassTicks[scene] = 0;
+    ParticleObject[scene] = (u_char **)_SunAlloc(&gHeapJunc, count * 4, 0x10);
+    ParticleData[scene] = (u_char **)_SunAlloc(&gHeapJunc, count * 4, 0x10);
+    list = BANK_PTR(const u_int *, scene, All_table_TBL[scene]->particles);
+    if (list == NULL)
+        return;
+    for (i = 0; list[i] != 0; i++) {
+        PARTICLE_ENTRY *ent = BANK_PTR(PARTICLE_ENTRY *, scene, list[i]);
+        PARTICLE_STATE *st = BANK_PTR(PARTICLE_STATE *, scene, ent->state);
+        u_char *obj = BANK_PTR(u_char *, scene, ent->obj);
+        GA_DRAWCTRL_ARGS *args = BANK_PTR(GA_DRAWCTRL_ARGS *, scene, ent->drawCtrlId);
+        TEX_INFO *tex = BANK_PTR(TEX_INFO *, scene, ent->tex);
+        u_int view;
+
+        st->head = 0;
+        st->tail = 0;
+        st->idleTicks = PARTICLE_IDLE_INIT;
+        st->lifeTicks = (int)st->lifeTenths * (PARTICLE_TICKS_PER_TENTH * 10) / 10;
+        st->ticks5c = st->ticks5c * (PARTICLE_TICKS_PER_TENTH * 10) / 10;
+        if (st->emitRate == 0.0f)
+            st->emitRate = (float)st->ringSize / ((float)st->lifeTenths * 6.0f);
+        st->partRec = ParticlePartEE(scene, ent->parts, PARTS_RECORDS);
+        if (st->emitter != 0) {
+            u_char *em = BANK_PTR(u_char *, scene, st->emitter);
+            u_int m = ParticlePartEE(scene, *(u_short *)(em + 0xc), offsetof(MODEL_PARTS, matrix200));
+
+            memcpy(em, &m, sizeof(m));
+        }
+        view = CAM_EE + (u_int)asCheckBankID(scene) * (u_int)sizeof(CAMERA) + offsetof(CAMERA, view2);
+        memcpy(obj + DRAW_OBJ_W58, &view, sizeof(view));
+        view = CAM_EE + (u_int)asCheckBankID(scene) * (u_int)sizeof(CAMERA) + offsetof(CAMERA, view2);
+        memcpy(obj + DRAW_OBJ_W5C, &view, sizeof(view));
+        if (st->part2 != 0)
+            st->partPos = ParticlePartEE(scene, st->part2, offsetof(MODEL_PARTS, pos));
+        view = All_table_TBL[scene]->partsPos + (u_int)ent->parts * 0x10;
+        memcpy(obj + DRAW_OBJ_POS, &view, sizeof(view));
+        if (args != NULL)
+            gaSetupDrawCtrlData(BANK_PTR(GA_DRAWCTRL_DATA *, scene, ent->drawCtrl), *args);
+        if (tex != NULL)
+            sunSetupTBufferData(BANK_PTR(void *, scene, ent->tbuffer), *tex);
+        ParticleObject[scene][i] = BANK_PTR(u_char *, scene, ent->objs);
+        ParticleData[scene][i] = BANK_PTR(u_char *, scene, ent->data);
+    }
+}
+
+// tnChangeCharAmbientColorSet's set: CHAR_AMB_CHANGE's fields as shorts (the colour's floats two each).
+#define AMB_SET_CHARA 0
+#define AMB_SET_BANK 1
+#define AMB_SET_FRAMES 2
+#define AMB_SET_FLAGS 3
+#define AMB_SET_COLOR 4
+#define AMB_SET_ALPHA 10
+#define AMB_SET_SHADOW 12
+
+// The float as the ROM's float -> u_int -> float conversion leaves it (truncated; a negative wraps).
+static float TruncToUnsigned(float f)
+{
+    u_int u;
+
+    if (f < 2147483648.0f)
+        u = (u_int)(int)f;
+    else
+        u = (u_int)(int)(f - 2147483648.0f) | 0x80000000u;
+    return (float)u;
+}
+
+// CT3 0x018962a0
+// A character's ambient changes (the warps, ssScnPortalCheck, the xcmd): with frames, it is queued in the
+// first free slot (or the character's own) for ssChangeCharAmbientColor; without (or with no slot free),
+// the character's bank takes the target at once. A CHAR_AMB_FLAG_COLOR target with a negative alpha takes
+// the character's light bank's ambient alpha, written back into set. The shadow value goes to set's bank.
 void tnChangeCharAmbientColorSet(short *set)
 {
-    ALYSSAPAN_STUB("tnChangeCharAmbientColorSet", 0x018962a0);
+    u_short chara = (u_short)set[AMB_SET_CHARA];
+    u_short flags = (u_short)set[AMB_SET_FLAGS];
+    float color[4];
+    int now = 1;
+    int i;
+
+    memcpy(color, &set[AMB_SET_COLOR], sizeof(color));
+    if ((flags & CHAR_AMB_FLAG_COLOR) && color[3] < 0.0f) {
+        short lb = Character[chara].lightBank;
+
+        if (lb >= 0) {
+            color[3] = TruncToUnsigned(All_table_TBL[lb]->ambient[3]);
+            memcpy(&set[AMB_SET_ALPHA], &color[3], sizeof(float));
+        }
+    }
+    if (set[AMB_SET_FRAMES] != 0) {
+        for (i = 0; i < CHAR_AMB_CHANGE_MAX; i++) {
+            CHAR_AMB_CHANGE *c = &CharAmbChangeFlag[i];
+
+            if (c->frames == 0 || c->chara == chara) {
+                c->chara = chara;
+                c->bank = (u_short)set[AMB_SET_BANK];
+                c->frames = (u_short)set[AMB_SET_FRAMES];
+                c->flags = flags;
+                memcpy(c->color, color, sizeof(color));
+                c->shadow = (s_char)set[AMB_SET_SHADOW];
+                now = 0;
+                break;
+            }
+        }
+    }
+    if (now) {
+        int bank = Character[chara].bank;
+        const float *to = (flags & CHAR_AMB_FLAG_COLOR) ? color
+                                                        : All_table_TBL[(u_short)set[AMB_SET_BANK]]->ambient;
+
+        ssSetAmbientColor(to[0], to[1], to[2], to[3], bank);
+        if (flags & CHAR_AMB_FLAG_SHADOW)
+            asShadowDrawing_SetShadowValue((u_short)set[AMB_SET_BANK], (s_char)set[AMB_SET_SHADOW]);
+    }
 }
 
 // stub of CT3 0x01897140
@@ -484,10 +943,13 @@ void ssPartMotionBlurStart(int part, int a, int bank, int b, int c)
     ALYSSAPAN_STUB("ssPartMotionBlurStart", 0x018976d0);
 }
 
-// stub of CT3 0x0189b580
+// CT3 0x0189b580
+// The trigger command's HQDOF end. ROM: it ends DRAW_MODE_VASELINE (7), not the DRAW_MODE_HQDOF (8)
+// ssTrigHQDOFStart sets -- kept (hazards.md, 2026-11-12).
 void ssTrigHQDOFEnd(void)
 {
-    ALYSSAPAN_STUB("ssTrigHQDOFEnd", 0x0189b580);
+    if (DrawMode == DRAW_MODE_VASELINE)
+        DrawMode = DRAW_MODE_NORMAL;
 }
 
 // stub of CT3 0x0189b5a0
@@ -520,10 +982,11 @@ void ssTrigParticleStart(int particle, int bank, int arg)
     ALYSSAPAN_STUB("ssTrigParticleStart", 0x018988b0);
 }
 
-// stub of CT3 0x018988a0
+// CT3 0x018988a0
+// The trigger command's particle stop: the particle's trigger part disabled at once.
 void ssTrigParticleStop(int particle, int bank)
 {
-    ALYSSAPAN_STUB("ssTrigParticleStop", 0x018988a0);
+    ssTrigSetEnable(particle, 0, 0, bank);
 }
 
 // stub of CT3 0x0189d920
@@ -559,10 +1022,42 @@ void ssTrigWaveStart(int a, int b, int c, int d, int e, int f, int g, int h, int
 
 // ---- the particle curve readers (declared from tiCalc_Orbit, 2026-11-11) ----
 
-// stub of CT3 0x01899070
+// The curve readers' cache: the last values they computed (ssParticleCashClear empties it before each pass
+// over a ring). Names and addresses are the symtab's; their roles come with the readers.
+static float cashVECval0[4];            /* sbss 0x0193e020 */
+static float cashFval1;                 /* sbss 0x0193e030 */
+static float cashFval0;                 /* sbss 0x0193e034 */
+static s_char cashIval3;                /* sbss 0x0193e038 */
+static s_char cashIval2;                /* sbss 0x0193e03c */
+static s_char cashIval1;                /* sbss 0x0193e040 */
+static short cashIval0;                 /* sbss 0x0193e044 */
+static int cashTicks;                   /* sbss 0x0193e048: -1 = nothing cached */
+
+// CT3 0x01899070
 void ssParticleCashClear(void)
 {
-    ALYSSAPAN_STUB("ssParticleCashClear", 0x01899070);
+    cashIval0 = 0;
+    cashTicks = -1;
+    cashIval1 = 0;
+    cashIval2 = 0;
+    cashIval3 = 0;
+    cashFval0 = 0.0f;
+    cashFval1 = 0.0f;
+    cashVECval0[0] = 0.0f;              // vf0: (0, 0, 0, 1)
+    cashVECval0[1] = 0.0f;
+    cashVECval0[2] = 0.0f;
+    cashVECval0[3] = 1.0f;
+}
+
+// The depth-of-field slice main_rtn_DOF draws (ssBGT_DOFSetDrawEnvPreRend sets it per pass).
+static float DOF_NearClip;              /* sbss 0x01940e3c */
+static float DOF_FarClip;               /* sbss 0x01940e40 */
+
+// CT3 0x0189deb0
+void ssSetDOFClipRange(float nearClip, float farClip)
+{
+    DOF_NearClip = nearClip;
+    DOF_FarClip = farClip;
 }
 
 // stub of CT3 0x01898a60

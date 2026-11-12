@@ -1825,7 +1825,7 @@ static void WarpEnterRoom(int chara, int bank)
     if (BankInfo[bank].type == BANK_TYPE_SHADOW) {
         for (i = 0; i < CHAR_AMB_CHANGE_MAX; i++) {
             if (chara == CharAmbChangeFlag[i].chara) {
-                memset(&CharAmbChangeFlag[i], 0, offsetof(CHAR_AMB_CHANGE, pad18));
+                memset(&CharAmbChangeFlag[i], 0, offsetof(CHAR_AMB_CHANGE, shadow));
                 CharAmbChangeColor[i] = 0;
             }
         }

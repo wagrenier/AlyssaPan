@@ -1679,6 +1679,17 @@ apply here):
 
 ## Open questions
 
+- (2026-11-12, game/ssSetTexUVforCubeMap.c slice 2) 21 functions written, still **partial**: the
+  reflection maps (7), the ambient change pair, ssParticleInit, ssTrigParticleStop, ssTrigHQDOFEnd,
+  ssSetDOFClipRange, ssParticleCashClear. Next: ssParticle_main (reached each frame) with
+  ssGenerateParticle, the Push_Back / Pop_Front / LifeCheck helpers, then ssDOF_ClipObjectFromZRange.
+  **Decision (port):** ssParticleInit writes Cam's EE address (CAM_EE + id * 0x1c0 + view2) into the draw
+  object's +0x58 / +0x5c words, as the ROM does, since they are bank EE words; whoever reads them (the
+  particle draw, ssDOF_ClipObjectFromZRange reads +0x58 as a matrix) must map CAM_EE back to Cam[] --
+  not yet written. **Unverified on screen:** the title room has no reflective part, so the reflection
+  maps' ST writes are proven by reading only; whether the host draw module reads the packet's ST words
+  (DRAW_OBJ_PACKET + 0x10) after relocation is to check when a room with a mirror or a polished floor loads.
+
 - (2026-11-12, game/ssSetTexUVforCubeMap.c slice 1) 11 functions written, the TU is **partial** (its
   slice's 23 functions: the cube / plane reflection maps, ReflectMapUpdate, ssChangeCharAmbientColor,
   ssParticleInit and ssParticle_main are next; then the 72 left). **Decision (port):** PART_BLUR_MAX_OBJ

@@ -1232,6 +1232,36 @@ the branch scene tables and a few tk x commands.
   channel. **ssParticleDeInit** frees ParticleObject[bank] and ParticleData[bank] (sbss 0x01940a10).
 - **ssTrigScreenBlurEnd**: DRAW_MODE_BLUR -> NORMAL.
 
+### Slice 2 (2026-11-12): reflection maps, the ambient change, small triggers
+
+- **ALL_TABLE +0x5c = reflects**: 0-ended list of REFLECT_ENTRY {u16 part, u8 count, u8 flags (1 plane
+  map, 2 always / no screen check), u32 maps}; REFLECT_MAP (0x1c) {obj, u0, v0, w, h, tris, u16
+  triCount}; REFLECT_TRI (0x30) {center, normal, u16 vert[3]}. The mesh is a ga draw object: +0x48 its
+  vertex count, +0x60 positions, +0x64 normals (after one qword), DRAW_OBJ_PACKET (+0x68) the ST pairs
+  (8 bytes per vertex after the first qword). All EE words in the bank.
+- **ReflectMapUpdate** (main, per frame): every drawn bank not BANK_TYPE_BEHAVIOR (only 0..5 while paused
+  without PAUSE_RUNNING), a group once; eye = the bank's camera for type 0, Cam[6]'s otherwise; per entry
+  enabled by ssTrigCheckEnable and on screen (ssPointCheckWithinScreen margin 100 on the part's pos, its
+  own Cam[asCheckBankID]) the eye goes into the part's frame (inverse of matrix200; part 0's when the
+  part's kind is 1). Plane: ST = (u0 + (1 - r.x) / 2 * w, v0 + (r.y + 1) / 2 * h). Cube: the face from
+  each triangle's centre reflection (turned by matrix200), cells of 0.25 x 0.2: +x (0, .4), -z (.25, .4),
+  -x (.5, .4), +z (.75, .4), -y (.25, .2), +y (.25, .6). The reflection is unit(n * 2(n.i) - i), i the
+  unit eye-to-point ray, only where n.i <= 0.
+- **ALL_TABLE +0x00 = ambient[4]**: the bank's ambient RGBA. **CharAmbChangeFlag[3]** (0x0193fc00):
+  {chara, bank (the room), frames, flags (1 colour given, 2 shadow too), color[4], s8 shadow}.
+  tnChangeCharAmbientColorSet takes a slot (free or the character's) when frames != 0, else sets at once;
+  ssChangeCharAmbientColor eases 1/frames per frame from the bank's partsPos[0] and returns from the
+  whole pass when a bank is unloaded. The shadow value is BANK_INFO +0x6c (shadowOrder's byte).
+- **ssParticleInit** (scene_init): ParticlePassTicks[bank] (0x019408b0) = 0; ParticleObject /
+  ParticleData get count words from gHeapJunc; per PARTICLE_ENTRY (+0x10 part, +0x14 objs, +0x18 data)
+  its PARTICLE_STATE: head = tail = 0, +0x24 = -100, +0x40 = u16 +0x44 * 30, +0x5c *= 30, +0x28 (0) =
+  ringSize / (lifeTenths * 6), +0x20 = the part's record EE, emitter (+0x2c) word 0 = matrix200 EE of its
+  part (u16 +0xc), +0x58 = pos EE of part2 (+0x54); the draw object: +0x58 / +0x5c = &Cam[id].view2,
+  DRAW_OBJ_POS = partsPos + part * 16.
+- **ssTrigParticleStop** = ssTrigSetEnable(part, 0, 0, bank). **ssSetDOFClipRange**: DOF_NearClip /
+  DOF_FarClip (0x01940e3c / e40). **ssParticleCashClear**: the curve readers' cache (0x0193e020..e048;
+  cashTicks -1).
+
 ## The IOP side (2026-11-09)
 
 The EE loads `cdrom0:\IOP\IOPRP255.IMG;1` (an IOP reboot), then `SIO2MAN`, `PADMAN`, `MCMAN`, `MCSERV`,
