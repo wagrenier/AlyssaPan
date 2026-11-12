@@ -1767,3 +1767,21 @@ The auto-load at boot (MemorycardAutoLoad, xcmd_tn.c) has its own states (mcMain
 - The host's drive stream (sdk/libcdvd.cpp, 2026-11-12): StInit / StStart / StStop answer 1, StRead reads
   the disc image at the stream's cursor inside the call.
 - AA_videoDecPutTs answers AA_viBufPutTs's result (0 = stamp ring full -> "pts buffer overflow").
+
+## The movie's video stream ring, game/AA_viBuf.c (2026-11-12)
+
+- The object (0x018c0440..0x018c1340, symtab local chunk 114) is ezmpegstr's **vibuf.c**, AA_-prefixed,
+  all 13 functions. ViBuf (VideoDec +0x48, 0x60 bytes): n blocks of 0x800 (CT3: n = 0x100, a 512 KB ring),
+  a DMA tag list of n + 1 qwords (REF per block; past them a NEXT back to the first), the time-stamp queue
+  (0x200 TimeStamps of 0x18). BeginPut keeps two blocks free; AddDMA (libmpeg's Nodata) retires the blocks
+  before the one D4 MADR points into, then chains the whole blocks written since (REFE on the last; the
+  restart's CHCR carries TAG id 3 so the chain resumes at TADR). Stop / RestartDMA save and rebuild D4 / D3,
+  IPU_BP and IPU_CTRL; Restart backs MADR up by the quadwords left in the IPU FIFO (IPU_BP IFC + FP) and
+  BCLRs at the saved bit pointer. GetTs finds the stamp whose byte range holds the IPU's position.
+- The host (PORT): no IPU. MpegStream feeds its own decoder each payload the callback accepts, so
+  ViBufHostIpu sets D4 MADR from the decoder's unparsed bytes (AlyssaPanMpegVideoPending): the ring's
+  unretired bytes less those, at most the blocks held. DMA addresses are a host DMA space
+  (VIBUF_DMA_DATA 0x10000000 + ring offset, VIBUF_DMA_TAG 0x20000000 + tag offset; AA_viBuf.h).
+  sdk/eeregs.h gained D4 TADR, D3 MADR / QWC / CHCR, IPU_CMD / CTRL / BP and D_ENABLER (all read 0).
+  MpegStream never raises the TimeStamp, StopDMA or RestartDMA callbacks, so only AddDMA, Begin/EndPut,
+  PutTs, Count, Flush, Reset, Create and Delete run on the host.

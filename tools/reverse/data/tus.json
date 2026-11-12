@@ -456,12 +456,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 115..115, 2 functions keyed by their statics, 5 unkeyed; file name from the names"
   },
   "game/AA_viBuf.c": {
+   "notes": "ezmpegstr vibuf.c, all 13 written. Host: no IPU; ViBufHostIpu moves D4 MADR to what MpegStream's decoder has parsed (AlyssaPanMpegVideoPending), DMA addresses in a host DMA space (VIBUF_DMA_DATA / VIBUF_DMA_TAG). eeregs.h gained D3/D4/IPU registers. Smoke run skips the movies: shot is the same clock-tower scene. Next for the movie: AA_scTag2.c (its 5 helpers are stubs, so AddDMA retires nothing yet; getFIFOindex must use the host DMA space), open-items (hs)-(hv).",
    "ranges": [
     [
      "018c0440",
      "018c1340"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-12 11:34",
+     "status": "verify",
+     "summary": "reconstruct 13 functions (verify)"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 114..114, 1 functions keyed by their statics, 12 unkeyed; file name from the names"
   },
   "game/AA_videoCallback.c": {

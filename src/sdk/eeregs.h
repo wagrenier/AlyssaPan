@@ -37,6 +37,14 @@ inline volatile u_int g_regDStat;
 inline volatile u_int g_regIpuToChcr;
 inline volatile u_int g_regIpuToMadr;
 inline volatile u_int g_regIpuToQwc;
+inline volatile u_int g_regIpuToTadr;   // D4_TADR 0x1000b430 } the movie ring's toIPU chain (AA_viBuf.c): kept as
+inline volatile u_int g_regIpuFromMadr; // D3_MADR 0x1000b010 } written; MADR is moved by the host's stand-in for
+inline volatile u_int g_regIpuFromQwc;  // D3_QWC 0x1000b020  } the IPU (AA_viBuf.c ViBufHostIpu)
+inline volatile u_int g_regIpuFromChcr; // D3_CHCR 0x1000b000
+inline volatile u_int g_regIpuCmd;      // IPU_CMD 0x10002000: kept as written
+inline volatile u_int g_regIpuCtrl;     // IPU_CTRL 0x10002010: no IPU on the host, so never busy (0)
+inline volatile u_int g_regIpuBp;       // IPU_BP 0x10002020: its FIFO always reads empty (0)
+inline volatile u_int g_regDEnableR;    // D_ENABLER 0x1000f520: reads 0 (channels enabled); D_ENABLEW is not mirrored into it
 inline volatile u_int g_regDCtrl;    // D_CTRL 0x1000e000: kept as written, nothing reads its bits on the host
 inline volatile u_int g_regDEnableW; // D_ENABLEW 0x1000f590: the DMAC never runs on its own here
 inline volatile u_int g_regVif0Stat; // VIF0_STAT 0x10003800: no VIF on the host, so it always reads idle (0)
@@ -62,6 +70,14 @@ inline volatile u_long g_regGsCsr;
 #define REG_DMAC_4_IPU_TO_CHCR g_regIpuToChcr
 #define REG_DMAC_4_IPU_TO_MADR g_regIpuToMadr
 #define REG_DMAC_4_IPU_TO_QWC g_regIpuToQwc
+#define REG_DMAC_4_IPU_TO_TADR g_regIpuToTadr
+#define REG_DMAC_3_IPU_FROM_MADR g_regIpuFromMadr
+#define REG_DMAC_3_IPU_FROM_QWC g_regIpuFromQwc
+#define REG_DMAC_3_IPU_FROM_CHCR g_regIpuFromChcr
+#define REG_IPU_CMD g_regIpuCmd
+#define REG_IPU_CTRL g_regIpuCtrl
+#define REG_IPU_BP g_regIpuBp
+#define REG_DMAC_ENABLER g_regDEnableR
 #define REG_DMAC_CTRL g_regDCtrl
 #define REG_DMAC_ENABLEW g_regDEnableW
 #define REG_VIF0_STAT g_regVif0Stat

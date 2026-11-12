@@ -973,6 +973,21 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    run with movies on should check that Disc::find answers the converted "\DATA\MOVIE2\M_CAPCOM.MOV;1"
    (else 255 retries, then openError and "File Open Error!!").
    **Next for the movie: AA_viBuf.c, AA_scTag2.c, copy2area.c, AA_cpuCycles.c, then a run with movies on.**
+   **game/AA_viBuf.c (2026-11-12, verify: smoke runs skip the movies): all 13 written** (ezmpegstr's
+   vibuf.c; architecture.md "The movie's video stream ring"). sdk/eeregs.h gained the D3 / D4 / IPU
+   registers it touches. AddDMA / RestartDMA / StopDMA now answer int, Flush is void (the ROM's). Claude's
+   calls and doubts (the user may overrule): (hs) the host IPU's position comes from the decoder's
+   unparsed bytes (ViBufHostIpu, AlyssaPanMpegVideoPending) -- it assumes the ring's bytes and the
+   decoder's feed are the same payloads (AA_videoCallback copies exactly the payload MpegStream feeds); if
+   a played movie stalls with a full ring, log dmaN / readBytes / pending at AddDMA; (ht) DMA addresses are
+   a host DMA space (VIBUF_DMA_DATA / VIBUF_DMA_TAG, AA_viBuf.h): **AA_scTag2.c's AA_getFIFOindex must
+   compare against VIBUF_DMA_TAG + (n + 1) * 0x10 and subtract VIBUF_DMA_DATA**, and AA_scTag2 must store
+   addr as given; (hu) **the ring cannot retire a block until AA_scTag2.c is written**: its 5 helpers
+   (AA_scTag2, AA_setD4_CHCR, AA_setD3_CHCR, AA_getFIFOindex, AA_IsPtsInRegion) are stubs answering 0, so
+   AddDMA retires nothing while dmaStart is 0 and a played movie would stall once the ring fills: that TU
+   is the movie's next step (with (hf)); (hv) AA_viBufModifyPts is declared in AA_viBuf.h (only PutTs
+   calls it; its symtab binding was not checked). **Next for the movie: AA_scTag2.c, copy2area.c,
+   AA_cpuCycles.c, then a run with movies on.**
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
    class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~
