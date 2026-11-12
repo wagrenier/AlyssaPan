@@ -1852,6 +1852,22 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    smoke run's frame counter reached about 38,000 frames in 50 s (633 shots): the game loop is not
    paced to 60 Hz on this path -- check with (mp3), the black-frame flicker.
 
+   **alyssa_pose.cpp (partial, 2026-11-12 16:09, scheduled run): the T-pose's cause found and fixed.**
+   Probing every trigger command after NEW showed the global script, right after tiXcmd_SetPlayerChara(0),
+   runs a TRIG_CMD_ANIM_PLAY whose real target is 2 (Alyssa, hash c1830bfb6fed, toEnd 1). TrigAnimStart read
+   PLAY's flag bytes in RANGE's order (hazards.md), so the target came out 0 and nothing played. Fixed in
+   ssGrpPortalCheck.c (ROM 0x018d62b0). With it she gets motion 0 (table index 0 via the motion table), then
+   200, and the motion's time advances. **New blocker (nq4): the screen stays black after the title** (90 s
+   runs at --shot-every 30: before the fix the room drew from about present 18,000 on, T-pose; with it no
+   frame after the title is drawn, also when only the target-2 PLAY is let through, so her motion causes
+   it). A probe counting main's loop (before ControllerMain) saw ~1050 iterations, then none, while frames
+   kept being presented: the frames come from an inner loop. Caution: the title also presents outside that
+   loop (under gdb it sat at iteration 301 through the title), so this is a lead, not proof of a hang.
+   Alyssa's asCharacterMortionFunctionOperation ran fewer than 400 times in 40 s. Next: name the loop that
+   presents the black frames (gdbrun.py needs more than 150 s to reach the room: run it with a 400 s limit,
+   then --break and --cmd "bt 30"), check her motion 0 record (camera facing, MOTION_FACING_STOCK_CAMERA) and
+   the motion-end requests (modes 1 / 2 on index 0 came just before the stop), then head / arms, then (mp3).
+
 ## Decisions
 
 - 2026-11-11 (Claude, scheduled run 19:15, for the user to overrule): **the ga 2D frame stays 4:3.** The

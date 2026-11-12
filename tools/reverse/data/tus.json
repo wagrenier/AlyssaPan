@@ -11,12 +11,17 @@
  },
  "tus": {
   "alyssapan/core/alyssa_pose.cpp": {
-   "notes": "Probes on the NEW path: motions 66/67 (blink, bank 44 behaviour on bank 47) are the only ones; slot 0 stays -1, her parts are a plain tree with no link parts, so every bone keeps the bind pose. camera_main requests motion 0 at frame 2, before her init at frame 975 clears the queue (ROM init identical). No target-2 asSceneAnimationStart and no hash request is ever made. Next: find the ROM path giving her first body motion after NEW (first room trigger acts, ComeHere / SetAllControlDisable, asCharacterMortionFunctionOperation request sites), then head/arms in close shots, then the black-frame flicker; the loop also ran about 38000 frames in 50 s (open-items nq3, mq3). Screenshot unchanged: rooms at 4:3, Alyssa in a T-pose.",
+   "notes": "ROM 0x018d62b0: PLAY reads pose, other, byPart, target, toEnd, stepFromRuns, chara (RANGE: started, stepFromRuns, target). With the fix, motion 0 then 200 start (time advances, finite position), but no frame after the title draws in 90 s runs with --pad 600:START*10,800:START*10 (before the fix the room drew from present 18000 on, T-pose); letting only the target-2 PLAY through gives the same black, so her motion causes it. A main-loop probe saw about 1050 iterations then none while frames kept presenting (the title also presents outside that loop, so a lead, not proof of a hang). Next (open-items nq4): gdbrun.py with a 400 s limit, --break, bt 30 in the room; check motion 0 record (camera facing) and the motion-end requests (modes 1 and 2 on index 0 just before the stop). Then head and arms, then mp3.",
    "sessions": [
     {
      "date": "2026-11-12 16:08",
      "status": "partial",
      "summary": "T-pose traced: Alyssa body slot never gets a motion (only the eye blink, slot 4, plays); fixed ExecuteAnimation resolving the character table through the behaviour bank (TblBank) and the two stale NULL motion-table stubs"
+    },
+    {
+     "date": "2026-11-12 16:42",
+     "status": "partial",
+     "summary": "T-pose cause fixed: TrigAnimStart read TRIG_CMD_ANIM_PLAY flag bytes in RANGE order, so the PLAY that gives Alyssa her first body motion (target 2, hash c1830bfb6fed, after tiXcmd_SetPlayerChara) had target 0 and never played; now she gets motion 0 and it advances, but the screen stays black after the title"
     }
    ],
    "status": "partial",

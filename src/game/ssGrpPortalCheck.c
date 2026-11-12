@@ -1859,7 +1859,12 @@ static void TrigSetCameraScene(int scene)
 }
 
 // TRIG_CMD_ANIM_RANGE / _PLAY: start the bank's animation, and the same on a second bank (part 0) when one
-// is named and loaded.
+// is named and loaded. The two forms order their flag bytes differently (ROM 0x018d60a0 / 0x018d62b0):
+//   RANGE  hash, from, to, speed, part, pose, other, byPart, started, stepFromRuns, target, chara, bank2, hash2
+//   PLAY   hash,       to, speed, part, pose, other, byPart, target, toEnd, stepFromRuns,   chara, bank2, hash2
+// (RANGE passes toEnd 0, PLAY started 0.) Read in RANGE's order, a PLAY's target was its stepFromRuns
+// byte: Alyssa's first motion (the global script's PLAY of target 2 after tiXcmd_SetPlayerChara) and every
+// PLAY of a scene went nowhere (hazards.md, 2026-11-12).
 static void TrigAnimStart(int *pos, const u_char *data, int range, int bank)
 {
     u_long hash = ssTrigRead8Byte(pos, data);
@@ -1870,21 +1875,28 @@ static void TrigAnimStart(int *pos, const u_char *data, int range, int bank)
     s_char pose = (s_char)ssTrigRead1Byte(pos, data);
     s_char other = (s_char)ssTrigRead1Byte(pos, data);
     s_char byPart = (s_char)ssTrigRead1Byte(pos, data);
-    s_char e4 = (s_char)ssTrigRead1Byte(pos, data);
-    s_char e5 = (s_char)ssTrigRead1Byte(pos, data);
-    u_char target = ssTrigRead1Byte(pos, data);
+    int started = 0;
+    int toEnd = 0;
+    s_char stepFromRuns;
+    u_char target;
+    if (range) {
+        started = (s_char)ssTrigRead1Byte(pos, data);
+        stepFromRuns = (s_char)ssTrigRead1Byte(pos, data);
+        target = ssTrigRead1Byte(pos, data);
+    } else {
+        target = ssTrigRead1Byte(pos, data);
+        toEnd = (s_char)ssTrigRead1Byte(pos, data);
+        stepFromRuns = (s_char)ssTrigRead1Byte(pos, data);
+    }
     u_char chara = ssTrigRead1Byte(pos, data);
     u_short bank2 = ssTrigRead2Byte(pos, data);
     u_long hash2 = ssTrigRead8Byte(pos, data);
-    // RANGE passes e4 as `started` (toEnd 0); PLAY passes it as `toEnd` (started 0): the ROM's stack slots.
-    int started = range ? e4 : 0;
-    int toEnd = range ? 0 : e4;
 
     asSceneAnimationStart(speed, hash, All_table_TBL[bank], from, to, part, pose, other, byPart, started,
-                          toEnd, e5, target, chara);
+                          toEnd, stepFromRuns, target, chara);
     if (bank2 != 0xffff && BankInfo[bank2].state > 0) {
         asSceneAnimationStart(speed, hash2, All_table_TBL[bank2], from, to, 0, pose, other, byPart, started,
-                              toEnd, e5, target, chara);
+                              toEnd, stepFromRuns, target, chara);
     }
 }
 

@@ -7,6 +7,14 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-12, alyssa_pose host task) **The trigger script's two animation commands order their flag
+  bytes differently.** TRIG_CMD_ANIM_RANGE reads pose, other, byPart, started, stepFromRuns, target,
+  chara; TRIG_CMD_ANIM_PLAY reads pose, other, byPart, **target, toEnd, stepFromRuns**, chara (ROM
+  ssTrigExecuteActCmd 0x018d60a0 / 0x018d62b0: the byte reads land in different stack slots). TrigAnimStart
+  read both in RANGE's order, so every PLAY's target was its stepFromRuns byte (0 or 1): Alyssa's first
+  body motion (the global script's PLAY of target 2, hash c1830bfb6fed, right after tiXcmd_SetPlayerChara)
+  and every scene PLAY went nowhere -- the T-pose. Rule: when one reader serves two commands, check each
+  command's byte-to-argument mapping in the ROM, not only the operand length.
 - (2026-11-12, alyssa_pose host task) **A behaviour of one bank animates the table of another.** A
   character's motion (asCharacterAnimationExecute) passes ExecuteAnimation the behaviour's bank (Alyssa:
   bank 44, her eye blink) with her own ALL_TABLE (bank 47); EA_100 / EA_010 / EA_001 / the general body /
