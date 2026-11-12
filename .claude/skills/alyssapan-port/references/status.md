@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-12 14:27 at commit `fe87006` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-12 14:52 at commit `9826356` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1713**; stubs: **98**
+- reconstructed CT3 functions: **1717**; stubs: **94**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -51,7 +51,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/ga/wait.c` | 4 | 0 |
 | `src/game/AA_GetDataWord.c` | 16 | 0 |
 | `src/game/AA_SoundMonoSoart.c` | 20 | 0 |
-| `src/game/AA_cpuCycles.c` | 0 | 4 |
+| `src/game/AA_cpuCycles.c` | 4 | 0 |
 | `src/game/AA_mpegTS.c` | 31 | 0 |
 | `src/game/AA_scTag2.c` | 7 | 0 |
 | `src/game/AA_viBuf.c` | 13 | 0 |
@@ -103,8 +103,8 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 8, verify 58, done 10, blocked 1
-- next: **game/AA_cpuCycles.c** (frontier score 6)
+- 65 TUs: todo 7, verify 59, done 10, blocked 1
+- next: **game/copy2area.c** (frontier score 2)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
@@ -124,6 +124,7 @@ Least-named game-code regions (64 KB blocks):
 - verify: `ga/wait.c` 4/20 -- Complete code, nothing on screen shows it: the release build compiled out every body but wait, so a DMA timeout says nothing in the ROM either. The dumps have n
 - verify: `game/AA_GetDataWord.c` 15/15 -- GIF chains are host AA_IMAGE_TAG records drawn at the vblank send (DrawUiMovie picture, captions as a 4-bit TIM2 with the CLUT dt, fade as FrameScale plus addit
 - verify: `game/AA_SoundMonoSoart.c` 20/20 -- verify: smoke runs skip movies, so no audio path runs; the 30 s run still reaches the title screen. callcheck lists fptodp / dpmul / __fixdfdi missing: the soft
+- verify: `game/AA_cpuCycles.c` 4/4 -- Complete code, nothing on screen shows it: smoke runs skip the movies (skip_intro), so the clock never runs; the shot is the same as the runs before (memory car
 - verify: `game/AA_mpegTS.c` 31/31 -- verify: no smoke run plays a movie (shot unchanged: the clock-tower scene). VideoDec / ViBuf / VoBuf are layout host; movie bank EE addresses resolved by AA_Mov
 - verify: `game/AA_scTag2.c` 7/7 -- Smoke runs skip the movies, so nothing on screen shows this code; the shot is the same clock-tower scene. The ring can now retire blocks (open-items ht, hu done
 - verify: `game/AA_viBuf.c` 13/13 -- ezmpegstr vibuf.c, all 13 written. Host: no IPU; ViBufHostIpu moves D4 MADR to what MpegStream's decoder has parsed (AlyssaPanMpegVideoPending), DMA addresses i
@@ -168,6 +169,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-12 14:52 `game/AA_cpuCycles.c` verify: the movie player's audio / video clock (ezmpegstr): Count, the skew in 90 kHz ticks, the two stream stamps (4 of 4)
 - 2026-11-12 14:27 `ga/wait.c` verify: the ga debug object: wait (busy delay), 17 empty dumps, the two DMA stop messages (empty in the release ROM; 20 of 20)
 - 2026-11-12 14:21 `ga/gaDrawObject_Redraw_Polygon.c` verify: all 6 functions: trans_for_gs (VU0 screen transform, lit kind with 4 directional + 4 point lights and the alpha highlight), the guard-band clipper and DivSub, b
 - 2026-11-12 13:54 `game/ssCalcInversMatrix2.c` verify: all 5 functions: ssCalcInversMatrix2 (4x4 inverse), ssHitMakeAttackOBB and ssHitMakeDamageOBB (the attack and body boxes), ssHit_information and ssHit_informati
@@ -175,11 +177,9 @@ Recent sessions:
 - 2026-11-12 13:18 `game/asMothOperate.c` verify: asMothOperate written: the moths state machine (rest, wait, fly the route, circle Alyssa, land and rattle, hit, dead), the three-part moves through asMothRouteS
 - 2026-11-12 12:47 `game/Character_Init.c` verify: Character_Init written, the TU's last stub: room join (hash, light bank, room-in flag, ambient), the place modes (keep, the scene's start part, the light bank's
 - 2026-11-12 12:40 `alyssapan/core/junc_heap.cpp` done: gHeapJunc was corrupted, not exhausted: ssParticleInit sized ParticleObject and ParticleData as count * 4 and stored 8-byte host pointers, overwriting the next 
-- 2026-11-12 12:39 `game/Character_Init.c` partial: marked verify -> partial: Character_Init (CT3 0x018b3a60) is still a stub and the NEW path now reaches it (junc_heap.cpp run, 2026-11-12): the room scene 0A02 s
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `game/AA_cpuCycles.c` | todo | 0/4/4 | 0.3 | 6 | 0 |
 | `game/copy2area.c` | todo | 0/2/2 | 0.5 | 2 | 0 |
 | `game/ssBrain_ChgHideAtk1.c` | todo | 0/15/34 | 29.6 | 1 | 0 |
 
@@ -187,10 +187,6 @@ Recent sessions:
 
 | CT3 addr | name | call sites | provenance | state | inferred file |
 |---|---|---|---|---|---|
-| `018c0310` | AA_cpuCycles | 2 | sym | stub | game/AA_cpuCycles.c |
-| `018c0320` | AA_syncGetSkew | 2 | sym | stub | game/AA_cpuCycles.c |
 | `018817b0` | ssAI_SetTraceMode | 1 | sym | stub | game/ssBrain_ChgHideAtk1.c |
-| `018c03c0` | AA_syncClockInVideo | 1 | sym | stub | game/AA_cpuCycles.c |
 | `018bf9d0` | copy2area | 1 | sym | stub | game/copy2area.c |
-| `018c0400` | AA_syncClockInAudio | 1 | sym | stub | game/AA_cpuCycles.c |
 

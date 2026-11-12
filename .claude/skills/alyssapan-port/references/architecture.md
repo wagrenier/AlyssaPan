@@ -1860,6 +1860,19 @@ The auto-load at boot (MemorycardAutoLoad, xcmd_tn.c) has its own states (mcMain
   the disc image at the stream's cursor inside the call.
 - AA_videoDecPutTs answers AA_viBufPutTs's result (0 = stamp ring full -> "pts buffer overflow").
 
+## The movie's audio / video clock, game/AA_cpuCycles.c (2026-11-12)
+
+- The object (0x018c0310..0x018c0440, symtab local chunk 113: lastAudio 0x0193f720, lastVideo 0x0193f710)
+  is ezmpegstr's clock: AA_cpuCycles (mfc0 Count), AA_syncGetSkew, AA_syncClockInVideo / Audio.
+  lastVideo / lastAudio are 16 bytes each: the signed pts dword at +0, the Count word at +8
+  (AA_SYNC_CLOCK); a negative pts is not recorded.
+- AA_syncGetSkew = (audio pts + cycles since it) - (video pts + cycles since it), cycles to ticks by
+  1.25 / 4096 (double 0x3f34000000000000; 294.912 MHz * 1.25 / 4096 = 90 kHz), each difference a signed
+  int through a float (cvt.s.w, fptodp), truncated by __fixdfdi; the answer is the low word. **Positive:
+  the picture lags the sound** (AA_shouldSkip drops pictures while its six answers are positive;
+  shouldDelay holds one after six at or under -6000, ~67 ms ahead).
+- The host: Count is GetCop0(9) from the host clock at the console's rate, so the units hold.
+
 ## The movie's video stream ring, game/AA_viBuf.c (2026-11-12)
 
 - The object (0x018c0440..0x018c1340, symtab local chunk 114) is ezmpegstr's **vibuf.c**, AA_-prefixed,

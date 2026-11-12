@@ -471,12 +471,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 106..106, 14 functions keyed by their statics, 6 unkeyed; file name from the names"
   },
   "game/AA_cpuCycles.c": {
+   "notes": "Complete code, nothing on screen shows it: smoke runs skip the movies (skip_intro), so the clock never runs; the shot is the same as the runs before (memory card check at frame 6000, black after the skipped movies). AA_SYNC_CLOCK (lastVideo / lastAudio, 16 bytes: pts dword +0, Count word +8) is asserted. callcheck lists fptodp / dpmul / __fixdfdi and AA_cpuCycles as missing in AA_syncGetSkew: the soft double is host arithmetic and the two Count reads sit in the AA_cyclesToPts helper. Positive skew = the picture lags the sound. Seen in passing: progress/20261112-1427 and -1331 pictures are 0 bytes.",
    "ranges": [
     [
      "018c0310",
      "018c0440"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-12 14:52",
+     "status": "verify",
+     "summary": "the movie player's audio / video clock (ezmpegstr): Count, the skew in 90 kHz ticks, the two stream stamps (4 of 4)"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 113..113, 3 functions keyed by their statics, 1 unkeyed; file name from the names"
   },
   "game/AA_mpegTS.c": {
