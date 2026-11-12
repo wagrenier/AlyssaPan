@@ -1401,7 +1401,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 89..89, 13 functions keyed by their statics, 83 unkeyed; file name from the names"
   },
   "game/tiAvoidObject.c": {
-   "notes": "Next: SetMonsterPos, LetMonsterInFromShadow, then the rest (36 functions). No stubs left in the TU. Open: open-items.md tiAvoidObject.c slice 4 (n) the hide pole group record, (o) the goal y at CHARACTER +0xd0 and the turn sides, (p) the track frame word, (q) the stalker kinds. callcheck: the missing calls sit in static helpers (ssAI_RotY for gaSetRotMatrixY, ssAI_PartID for ahGetHash and asFindModelPartsID, ssAI_PartSteps and ssAI_EndTail): explained. Smoke shot: the same clock-tower title scene; nothing of slice 4 runs at the title.",
+   "notes": "Next: LetMonsterInFromShadow, SetMonsterPos, BarrierCheck, SerchCheck, IsTrgWithinAngle, IsGetToGLinkPole, SetNextGLinkPolePoint, GetScnLinkPoleID, then the last 4. Open: open-items.md tiAvoidObject.c slice 5 (r) GRP_LINK is the segment flag, (s) the door number byte is shadowPol, (t) the brain words named from one reader, (u) IsWarpChara argument order, (v) PORT brainless answers 0. callcheck: tnRand sits in the static helper ssAI_RandomPole; the other missing calls are the earlier explained helpers. Smoke shot: the same clock-tower title scene; nothing of slice 5 runs at the title.",
    "ranges": [
     [
      "0185e9d0",
@@ -1428,6 +1428,11 @@
      "date": "2026-11-12 07:18",
      "status": "partial",
      "summary": "slice 4: 6 functions -- tiAvoidObject (the obstacle steering: LOS probes, the 15/30 degree fan, wall following off the hit polygon), ssAI_IsMortionFramePassed, ssAI_IsNextGroup, ssAI_IsNextScene, ssAI_AxeThrowReset, ssAI_BrainEndSpecialProc (per-stalker part tables); HIDE_POLE_LIST grows its group table"
+    },
+    {
+     "date": "2026-11-12 07:32",
+     "status": "partial",
+     "summary": "slice 5: 24 functions -- the kinds motion predicates (Forward, Wait, FarAttack, PostAttack, Attack, PreAttack, Find, Action), IsWarpChara, the five IsGetTo arrivals, the group links (GetGLinkPolID, GetGLinkPolPos, GetPairGrpLinkPoleID), GetNextTargPoleRandom and Random2, GetPoleDoorNo and the route ring (GRS PopFront, PushRear, PushFront, GetTargDistance); HIDE_POLE_LIST grows to 0x18 with the ring"
     }
    ],
    "status": "partial",

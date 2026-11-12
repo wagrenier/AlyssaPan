@@ -4,6 +4,7 @@
 // hide poles and the scene init. Slice 3: the frame's driver (ssAI_main), the mode tables and dispatch,
 // the facing, the panic rise, the hearing / hide / door checks, the motion predicates. Slice 4: the
 // obstacle steering (tiAvoidObject), the frame / group / scene predicates, the axe reset and BrainEndSpecialProc.
+// Slice 5: the kinds' motion predicates, the warp test, the arrivals, the group links and the route ring.
 
 #include "common/alyssapan_stub.h"
 #include "game/tiAvoidObject.h"
@@ -1513,4 +1514,424 @@ void ssAI_BrainEndSpecialProc(CHARACTER *chr)
     default:
         break;
     }
+}
+
+// ---- slice 5 (2026-11-12): the kinds' motion predicates, the group links, the route ring, the arrivals ----
+
+// CT3 0x018606c0: 1 while a stalker plays one of its kind's forward (walk / run) motions.
+int ssAI_IsForwardPlaying(CHARACTER *chr)
+{
+    static const short st3456[] = { 0x0c, 0x08, 0x05, 0x02 };
+    static const short st5[] = { 0x0c, 0x08, 0x4d, 0x02 };
+    static const short st2[] = { 0x72, 0x50, 0x4e, 0x05, 0x31 };
+
+    switch (chr->id) {
+    case STALKER_ID_6:
+    case STALKER_ID_4:
+    case STALKER_ID_3:
+        return ssAI_MotionIn(chr, st3456, 4);
+    case STALKER_ID_5:
+        return ssAI_MotionIn(chr, st5, 4);
+    case STALKER_ID_2:
+        return ssAI_MotionIn(chr, st2, 5);
+    default:
+        return 0;
+    }
+}
+
+// CT3 0x01860f40: 1 while the character stands waiting: motion 0 for every kind it knows, and also motion 1
+// for the 0x1d kinds and 0x51 for STALKER_ID_5 (the ROM tests the extra one, then falls into the 0 test).
+int ssAI_IsWaitPlaying(CHARACTER *chr)
+{
+    short m = ssAI_Motion(chr);
+
+    switch (chr->id) {
+    case AI_ID_1F:
+    case AI_ID_1E:
+    case AI_ID_1D:
+        return m == 1 || m == 0;
+    case STALKER_ID_5:
+        return m == 0x51 || m == 0;
+    case STALKER_ID_6:
+    case STALKER_ID_4:
+    case STALKER_ID_3:
+    case STALKER_ID_2:
+        return m == 0;
+    default:
+        return 0;
+    }
+}
+
+// CT3 0x01861070: 1 while STALKER_ID_4 plays one of its two far attacks (the axe throw); 0 for every other
+// kind.
+int ssAI_IsFarAttackPlaying(CHARACTER *chr)
+{
+    static const short st4[] = { 0x2f, 0x2b };
+
+    return chr->id == STALKER_ID_4 && ssAI_MotionIn(chr, st4, 2);
+}
+
+// CT3 0x01861110: 1 while the character plays one of its kind's after-attack motions.
+int ssAI_IsPostAttackPlaying(CHARACTER *chr)
+{
+    static const short kind1d[] = { 0x0a, 0x08 };
+    static const short st6[] = { 0x30, 0x43, 0x2d, 0x42, 0x2a, 0x41 };
+    static const short st5[] = { 0x2a, 0x2b, 0x2d, 0x2e, 0x30, 0x31 };
+    static const short st4[] = { 0x2d, 0x2e, 0x31, 0x32, 0x34, 0x35 };
+    static const short st3[] = { 0x29, 0x2a, 0x2c, 0x2d, 0x2f, 0x30 };
+    static const short st2[] = { 0x58, 0x59, 0x5a, 0x5b, 0x5d, 0x5e };
+
+    switch (chr->id) {
+    case AI_ID_1F:
+    case AI_ID_1E:
+    case AI_ID_1D:
+        return ssAI_MotionIn(chr, kind1d, 2);
+    case STALKER_ID_6:
+        return ssAI_MotionIn(chr, st6, 6);
+    case STALKER_ID_5:
+        return ssAI_MotionIn(chr, st5, 6);
+    case STALKER_ID_4:
+        return ssAI_MotionIn(chr, st4, 6);
+    case STALKER_ID_3:
+        return ssAI_MotionIn(chr, st3, 6);
+    case STALKER_ID_2:
+        return ssAI_MotionIn(chr, st2, 6);
+    default:
+        return 0;
+    }
+}
+
+// CT3 0x018612d0: 1 while the character plays one of its kind's attack motions.
+int ssAI_IsAttackPlaying(CHARACTER *chr)
+{
+    static const short kind1d[] = { 0x07, 0x0c };
+    static const short st6[] = { 0x26, 0x31, 0x2e, 0x2b, 0x28 };
+    static const short st5[] = { 0x25, 0x32, 0x2f, 0x2c, 0x29 };
+    static const short st4[] = { 0x27, 0x36, 0x33, 0x30, 0x2f, 0x2c, 0x2b };
+    static const short st3[] = { 0x1e, 0x25, 0x32, 0x31, 0x2e, 0x2b, 0x28 };
+    static const short st2[] = { 0x61, 0x5c, 0x40, 0x1d, 0x27, 0x02 };
+
+    switch (chr->id) {
+    case AI_ID_1F:
+    case AI_ID_1E:
+    case AI_ID_1D:
+        return ssAI_MotionIn(chr, kind1d, 2);
+    case STALKER_ID_6:
+        return ssAI_MotionIn(chr, st6, 5);
+    case STALKER_ID_5:
+        return ssAI_MotionIn(chr, st5, 5);
+    case STALKER_ID_4:
+        return ssAI_MotionIn(chr, st4, 7);
+    case STALKER_ID_3:
+        return ssAI_MotionIn(chr, st3, 7);
+    case STALKER_ID_2:
+        return ssAI_MotionIn(chr, st2, 6);
+    default:
+        return 0;
+    }
+}
+
+// CT3 0x01861510: 1 while the character plays one of its kind's wind-up (before the attack) motions.
+int ssAI_IsPreAttackPlaying(CHARACTER *chr)
+{
+    static const short kind1d[] = { 0x06 };
+    static const short st6[] = { 0x43, 0x42, 0x41 };
+    static const short st5[] = { 0x30, 0x2d, 0x2a };
+    static const short st4[] = { 0x34, 0x31, 0x2d };
+    static const short st3[] = { 0x2f, 0x2c, 0x29 };
+    static const short st2[] = { 0x15, 0x14 };
+
+    switch (chr->id) {
+    case AI_ID_1F:
+    case AI_ID_1E:
+    case AI_ID_1D:
+        return ssAI_MotionIn(chr, kind1d, 1);
+    case STALKER_ID_6:
+        return ssAI_MotionIn(chr, st6, 3);
+    case STALKER_ID_5:
+        return ssAI_MotionIn(chr, st5, 3);
+    case STALKER_ID_4:
+        return ssAI_MotionIn(chr, st4, 3);
+    case STALKER_ID_3:
+        return ssAI_MotionIn(chr, st3, 3);
+    case STALKER_ID_2:
+        return ssAI_MotionIn(chr, st2, 2);
+    default:
+        return 0;
+    }
+}
+
+// CT3 0x018616b0: 1 while the character plays one of its kind's "found her" motions.
+int ssAI_IsFindPlaying(CHARACTER *chr)
+{
+    static const short kind1d[] = { 0x0e };
+    static const short st356[] = { 0x26, 0x25 };
+    static const short st4[] = { 0x28, 0x27 };
+    static const short st2[] = { 0x4c, 0x3e, 0x3c };
+
+    switch (chr->id) {
+    case AI_ID_1F:
+    case AI_ID_1E:
+    case AI_ID_1D:
+        return ssAI_MotionIn(chr, kind1d, 1);
+    case STALKER_ID_6:
+    case STALKER_ID_5:
+    case STALKER_ID_3:
+        return ssAI_MotionIn(chr, st356, 2);
+    case STALKER_ID_4:
+        return ssAI_MotionIn(chr, st4, 2);
+    case STALKER_ID_2:
+        return ssAI_MotionIn(chr, st2, 3);
+    default:
+        return 0;
+    }
+}
+
+// CT3 0x01861a00: 1 while the character plays one of its kind's action motions.
+int ssAI_IsActionPlaying(CHARACTER *chr)
+{
+    static const short kind1d[] = { 0x0c, 0x0d };
+    static const short st36[] = { 0x24, 0x23 };
+    static const short st5[] = { 0x24, 0x21 };
+    static const short st4[] = { 0x26, 0x23 };
+    static const short st2[] = { 0x3b, 0x3a, 0x16 };
+
+    switch (chr->id) {
+    case AI_ID_1F:
+    case AI_ID_1E:
+    case AI_ID_1D:
+        return ssAI_MotionIn(chr, kind1d, 2);
+    case STALKER_ID_6:
+    case STALKER_ID_3:
+        return ssAI_MotionIn(chr, st36, 2);
+    case STALKER_ID_5:
+        return ssAI_MotionIn(chr, st5, 2);
+    case STALKER_ID_4:
+        return ssAI_MotionIn(chr, st4, 2);
+    case STALKER_ID_2:
+        return ssAI_MotionIn(chr, st2, 3);
+    default:
+        return 0;
+    }
+}
+
+// A brain's short / qword-position words (the brain is host memory: CharaBrainPtr).
+static void ssAI_BrainVec(float *out, const u_char *brain, int off)
+{
+    memcpy(out, brain + off, 4 * sizeof(float));
+}
+
+// CT3 0x01860540: 1 when target (Alyssa) is out of chr's reach without a warp: chr's brain crossing a scene
+// link (BRAIN_SUBMODE_SCN_LINK, two different rooms) reaches her only in either room; otherwise only when
+// a shown shadow pole of her bank leads to chr's room.
+int ssAI_IsWarpChara(CHARACTER *target, CHARACTER *chr)
+{
+    const u_char *brain = CharaBrainPtr(chr);
+    u_int room, linkRoom;
+
+    if (brain == NULL)
+        return 0;                       /* PORT: the ROM reads the brain unguarded */
+    memcpy(&room, brain + BRAIN_ROOM, sizeof(room));
+    memcpy(&linkRoom, brain + BRAIN_LINK_ROOM, sizeof(linkRoom));
+    if (brain[BRAIN_SUBMODE] == BRAIN_SUBMODE_SCN_LINK && linkRoom != room) {
+        if ((u_long)linkRoom == target->roomHash || (u_long)room == target->roomHash)
+            return 0;
+        return 1;
+    }
+    return ssAI_IsNextScene(target->lightBank, room) == 0;
+}
+
+// CT3 0x01861e70: 1 when chr stands within dist of pos.
+int ssAI_IsGetToPoint(float dist, CHARACTER *chr, const float *pos)
+{
+    return ssAI_Dist(pos, (const float *)&chr->pos) < dist;
+}
+
+// CT3 0x01861ef0: 1 when chr stands within AI_ARRIVE_DIST of the bank's pole.
+int ssAI_IsGetToPole(CHARACTER *chr, short pole, int bank)
+{
+    float pos[4];
+
+    ssAI_GetPolePos(pos, pole, bank);
+    return ssAI_Dist(pos, (const float *)&chr->pos) < AI_ARRIVE_DIST;
+}
+
+// CT3 0x01861fa0: 1 when chr stands within AI_ARRIVE_DIST of its brain's scene-end pole (in its own bank).
+int ssAI_IsGetToScnEndPole(CHARACTER *chr)
+{
+    const u_char *brain = CharaBrainPtr(chr);
+    float pos[4];
+
+    if (brain == NULL)
+        return 0;                       /* PORT: the ROM reads the brain unguarded */
+    ssAI_GetPolePos(pos, ssAI_BrainShort(brain, BRAIN_SCN_END_POLE), chr->lightBank);
+    return ssAI_Dist(pos, (const float *)&chr->pos) < AI_ARRIVE_DIST;
+}
+
+// CT3 0x01862050 / 0x018620e0: 1 when chr stands within AI_ARRIVE_DIST of its brain's point at off.
+static int ssAI_IsGetToBrainPoint(CHARACTER *chr, int off)
+{
+    const u_char *brain = CharaBrainPtr(chr);
+    float pos[4];
+
+    if (brain == NULL)
+        return 0;                       /* PORT: the ROM reads the brain unguarded */
+    ssAI_BrainVec(pos, brain, off);
+    return ssAI_Dist(pos, (const float *)&chr->pos) < AI_ARRIVE_DIST;
+}
+
+// CT3 0x01862050
+int ssAI_IsGetToScnNextPoint(CHARACTER *chr)
+{
+    return ssAI_IsGetToBrainPoint(chr, BRAIN_SCN_NEXT_POINT);
+}
+
+// CT3 0x018620e0
+int ssAI_IsGetToNextPoint(CHARACTER *chr)
+{
+    return ssAI_IsGetToBrainPoint(chr, BRAIN_NEXT_POINT);
+}
+
+// CT3 0x01862940: the group-link pole from group `group` to group `other`; -1 for none.
+short ssAI_GetGLinkPolID(short group, short other, int bank)
+{
+    HIDE_POLE_LIST *list = ssAI_PoleList(bank);
+    HIDE_POLE *poles = BANK_PTR(HIDE_POLE *, bank, list->poles);
+    short i;
+
+    for (i = 0; i < list->count; i++) {
+        HIDE_POLE *p = &poles[i];
+        if ((p->flags & HIDE_POLE_FLAG_GRP_LINK) != 0 && group == p->group && other == poles[p->pair].group)
+            return i;
+    }
+    return -1;
+}
+
+// CT3 0x01862bd0: the pole this one pairs with, -1 when the pair is not a group link.
+short ssAI_GetPairGrpLinkPoleID(short pole, int bank)
+{
+    short pair = ssAI_Pole(pole, bank)->pair;
+
+    if ((ssAI_Pole(pair, bank)->flags & HIDE_POLE_FLAG_GRP_LINK) == 0)
+        pair = -1;
+    return pair;
+}
+
+// CT3 0x01862cb0 / 0x01862dd0 (the two are the same code): the bank's poles other than `except` whose part
+// is shown and whose flags share a bit with `flags`, at most 256 of them; one answers itself, several one
+// at random (tnRand), none -1.
+static short ssAI_RandomPole(int bank, short except, u_char flags)
+{
+    HIDE_POLE_LIST *list = ssAI_PoleList(bank);
+    HIDE_POLE *poles = BANK_PTR(HIDE_POLE *, bank, list->poles);
+    short found[AI_RANDOM_POLE_MAX];
+    int n = 0;
+    short i;
+
+    for (i = 0; i < list->count; i++) {
+        HIDE_POLE *p = &poles[i];
+        MODEL_PARTS *part = (MODEL_PARTS *)(pModelPartsHeader[bank] + p->parts * PARTS_REC_SIZE);
+
+        if (i != except && (part->flags & PARTS_FLAG_HIDDEN) == 0 && (flags & p->flags) != 0) {
+            found[n++] = i;
+            if (n >= AI_RANDOM_POLE_MAX)
+                break;
+        }
+    }
+    if (n == 0)
+        return -1;
+    if (n == 1)
+        return found[0];
+    return found[tnRand(n)];
+}
+
+// CT3 0x01862cb0
+short ssAI_GetNextTargPoleRandom2(int bank, short except, u_char flags)
+{
+    return ssAI_RandomPole(bank, except, flags);
+}
+
+// CT3 0x01862dd0
+short ssAI_GetNextTargPoleRandom(int bank, short except, u_char flags)
+{
+    return ssAI_RandomPole(bank, except, flags);
+}
+
+// CT3 0x01862ef0: the pole's door number (the byte HIDE_POLE.shadowPol holds for a shadow pole).
+u_char ssAI_GetPoleDoorNo(int pole, int bank)
+{
+    return ssAI_Pole(pole, bank)->shadowPol;
+}
+
+// CT3 0x01862f50: the middle of the group-link pole from group `group` to group `other`; 0, or -1 for none
+// (pos untouched).
+int ssAI_GetGLinkPolPos(float *pos, short group, short other, int bank)
+{
+    HIDE_POLE_LIST *list = ssAI_PoleList(bank);
+    HIDE_POLE *poles = BANK_PTR(HIDE_POLE *, bank, list->poles);
+    int i;
+
+    for (i = 0; i < list->count; i++) {
+        HIDE_POLE *p = &poles[i];
+        if ((p->flags & HIDE_POLE_FLAG_GRP_LINK) != 0 && p->group == group && other == poles[p->pair].group) {
+            gaInterVectorXYZ(pos, p->posA, p->posB, 0.5f);
+            return 0;
+        }
+    }
+    return -1;
+}
+
+// The route ring (HIDE_POLE_LIST.route: groupCount shorts, head .. tail; one slot always stays free).
+// CT3 0x01863080: the front entry, taken off; -1 when the ring is empty.
+short ssAI_GRS_PopFront(int bank)
+{
+    HIDE_POLE_LIST *list = ssAI_PoleList(bank);
+    short *ring = BANK_PTR(short *, bank, list->route);
+    short head = list->routeHead;
+
+    if (head == list->routeTail)
+        return -1;
+    list->routeHead = (short)((head + 1) % list->groupCount);
+    return ring[head];
+}
+
+// CT3 0x018630f0: v onto the back; 0 when the ring is full.
+int ssAI_GRS_PushRear(short v, int bank)
+{
+    HIDE_POLE_LIST *list = ssAI_PoleList(bank);
+    short *ring = BANK_PTR(short *, bank, list->route);
+    short next = (short)((list->routeTail + 1) % list->groupCount);
+
+    if (next == list->routeHead)
+        return 0;
+    ring[list->routeTail] = v;
+    list->routeTail = next;
+    return 1;
+}
+
+// CT3 0x01863160: v onto the front; 0 when the ring is full.
+int ssAI_GRS_PushFront(short v, int bank)
+{
+    HIDE_POLE_LIST *list = ssAI_PoleList(bank);
+    short *ring = BANK_PTR(short *, bank, list->route);
+    short prev = (short)((list->routeHead + list->groupCount - 1) % list->groupCount);
+
+    if (prev == list->routeTail)
+        return 0;
+    ring[prev] = v;
+    list->routeHead = prev;
+    return 1;
+}
+
+// CT3 0x01863330: the distance from pos to the group link between group records `from` and `to` (indices
+// into HIDE_POLE_LIST.groups); 0 when the groups have no link.
+float ssAI_GRS_GetTargDistance(short from, short to, const float *pos, int bank)
+{
+    HIDE_POLE_LIST *list = ssAI_PoleList(bank);
+    HIDE_POLE_GROUP *groups = BANK_PTR(HIDE_POLE_GROUP *, bank, list->groups);
+    float link[4];
+
+    if (ssAI_GetGLinkPolPos(link, groups[from].id, groups[to].id, bank) == -1)
+        return 0.0f;
+    return ssAI_Dist(pos, link);
 }

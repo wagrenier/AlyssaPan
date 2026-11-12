@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-12 07:18 at commit `0d94d82` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-12 07:32 at commit `dd76e12` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1537**; stubs: **158**
+- reconstructed CT3 functions: **1561**; stubs: **158**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -88,7 +88,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/ssGrpPortalCheck.c` | 74 | 0 |
 | `src/game/ssHitCheckAttackToScn.c` | 37 | 0 |
 | `src/game/ssSetTexUVforCubeMap.c` | 96 | 0 |
-| `src/game/tiAvoidObject.c` | 59 | 0 |
+| `src/game/tiAvoidObject.c` | 83 | 0 |
 | `src/game/tiBrain_ChgTrace_BOSS_BALOWS.c` | 0 | 34 |
 | `src/game/tiBrain_ChgTrace_Ghost.c` | 0 | 29 |
 | `src/game/tiXcmd_TransItem.c` | 93 | 0 |
@@ -104,7 +104,7 @@ Least-named game-code regions (64 KB blocks):
 - 65 TUs: todo 23, partial 1, verify 42, done 8, blocked 1
 - next: **game/tiAvoidObject.c** (continuing a partial TU)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp
-- partial: `game/tiAvoidObject.c` 46/82 -- Next: SetMonsterPos, LetMonsterInFromShadow, then the rest (36 functions). No stubs left in the TU. Open: open-items.md tiAvoidObject.c slice 4 (n) the hide pol
+- partial: `game/tiAvoidObject.c` 70/82 -- Next: LetMonsterInFromShadow, SetMonsterPos, BarrierCheck, SerchCheck, IsTrgWithinAngle, IsGetToGLinkPole, SetNextGLinkPolePoint, GetScnLinkPoleID, then the las
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
@@ -151,6 +151,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-12 07:32 `game/tiAvoidObject.c` partial: slice 5: 24 functions -- the kinds motion predicates (Forward, Wait, FarAttack, PostAttack, Attack, PreAttack, Find, Action), IsWarpChara, the five IsGetTo arri
 - 2026-11-12 07:18 `game/tiAvoidObject.c` partial: slice 4: 6 functions -- tiAvoidObject (the obstacle steering: LOS probes, the 15/30 degree fan, wall following off the hit polygon), ssAI_IsMortionFramePassed, 
 - 2026-11-12 06:58 `game/tiAvoidObject.c` partial: slice 3: 17 functions -- ssAI_main, ssAI_charaMain with the 13 mode tables (64 brain functions declared and stubbed in the three brain TUs), CompCharaDir, SetPa
 - 2026-11-12 06:31 `game/tiAvoidObject.c` partial: slice 2: the hide poles and the scene init (10 functions): ssAI_SceneInit, TransAllPoleData, GetPolePos, GetPoleGroupID, GetPoleScnName, GetPoleScnBnkID, GetSha
@@ -158,7 +159,6 @@ Recent sessions:
 - 2026-11-12 05:54 `game/CpDivideEECom.c` verify: all 17 functions: the two driver RPC clients (CpCall_IOPSndDriver, _2 with its end callbacks and CpCheckEE_IOPComEnd), the EE server and receive thread, SIF DMA
 - 2026-11-12 05:34 `game/wideXcmd_TriggerInit.c` verify: slice 6: test_ssXcmd_BrainSet4, the last stub: the brain set-up (BRAIN_SET, BRAIN_STATE_REF, the 0x280-byte brain); CHARACTER.brain host form decided (handle in
 - 2026-11-12 05:11 `game/tiXcmd_TransItem.c` verify: slice 12: the SCISSORS_MAN attack (init, per-frame streams homing on the player, end); the TU has no stubs left
-- 2026-11-12 04:55 `game/tiXcmd_TransItem.c` partial: the boss info host form and five boss commands: battle start, both chain sets, warp points, blood attack part
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
@@ -173,7 +173,7 @@ Recent sessions:
 | `game/ssCalcInversMatrix2.c` | todo | 0/5/5 | 5.7 | 7 | 0 |
 | `ga/wait.c` | todo | 0/2/20 | 0.1 | 5 | 0 |
 | `ga/gaSearchNearLight4.c` | todo | 0/1/1 | 0.4 | 4 | 0 |
-| `ga/gaDrawObject_Redraw_Polygon.c` | todo | 0/1/6 | 4.3 | 2 | 0 |
+| `game/AA_cpuCycles.c` | todo | 0/1/4 | 0.3 | 2 | 0 |
 
 ## Frontier (called by reconstructed code, not written yet)
 

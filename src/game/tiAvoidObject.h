@@ -114,9 +114,13 @@ typedef struct HIDE_POLE_LIST {
     u_int poles;                        /* 0x0: HIDE_POLE[count] (EE address in the bank) */
     int count;                          /* 0x4 */
     u_int groups;                       /* 0x8: HIDE_POLE_GROUP[groupCount] (slice 4, ssAI_IsNextGroup) */
-    int groupCount;                     /* 0xc */
+    int groupCount;                     /* 0xc: also the route ring's length */
+    u_int route;                        /* 0x10: short[groupCount]: the route ring (EE address; ssAI_GRS_*) */
+    short routeHead;                    /* 0x14: the ring's front (PopFront / PushFront) */
+    short routeTail;                    /* 0x16: one past its back (PushRear); head == tail: empty */
 } HIDE_POLE_LIST;
-static_assert(sizeof(HIDE_POLE_LIST) == 0x10, "HIDE_POLE_LIST");
+static_assert(sizeof(HIDE_POLE_LIST) == 0x18, "HIDE_POLE_LIST");
+static_assert(offsetof(HIDE_POLE_LIST, routeTail) == 0x16, "HIDE_POLE_LIST.routeTail");
 // A group of hide poles and the groups it links to (ssAI_IsNextGroup; layout: ee, bank data). The record
 // is 0x14 bytes; the bytes past id are unread so far.
 typedef struct HIDE_POLE_GROUP {
@@ -251,3 +255,42 @@ int ssAI_IsMortionFramePassed(struct CHARACTER *chr, int index, u_int frame);   
 int ssAI_IsNextGroup(short group, short other, int bank);                                // CT3 0x018603d0
 // 1 when a shown shadow pole of bank leads to room.
 int ssAI_IsNextScene(int bank, u_int room);                                              // CT3 0x01860490
+
+// ---- slice 5 (2026-11-12): the kinds' motion predicates, the group links, the route ring, the arrivals ----
+// Brain words read by slice 5 (named from these readers only: open-items.md tiAvoidObject.c slice 5).
+#define BRAIN_SUBMODE 0x001             /* u_char: BRAIN_SUBMODE_* (ssAI_IsWarpChara) */
+#define BRAIN_SUBMODE_SCN_LINK 2        /* crossing a scene link: BRAIN_LINK_ROOM and BRAIN_ROOM both count */
+#define BRAIN_ROOM 0x02c                /* u_int: the brain's room (a GetRoomName_file word) */
+#define BRAIN_SCN_NEXT_POINT 0x050      /* float[4]: the next point in the next scene */
+#define BRAIN_NEXT_POINT 0x060          /* float[4]: the next point */
+#define BRAIN_LINK_ROOM 0x078           /* u_int: the room on the scene link's other side */
+#define BRAIN_SCN_END_POLE 0x07c        /* short: the pole the scene ends at (in chr->lightBank) */
+#define AI_ARRIVE_DIST 20.0f            /* the IsGetTo* predicates: arrived within this distance */
+#define AI_RANDOM_POLE_MAX 256          /* GetNextTargPoleRandom's candidates (a short[256] on the stack) */
+// A group link pole joins two hide-pole groups (its pair lies in the other group); the flag is the
+// segment flag: a link's position is its middle.
+#define HIDE_POLE_FLAG_GRP_LINK HIDE_POLE_FLAG_SEGMENT
+int ssAI_IsForwardPlaying(struct CHARACTER *chr);                                        // CT3 0x018606c0
+int ssAI_IsWaitPlaying(struct CHARACTER *chr);                                           // CT3 0x01860f40
+int ssAI_IsFarAttackPlaying(struct CHARACTER *chr);                                      // CT3 0x01861070
+int ssAI_IsPostAttackPlaying(struct CHARACTER *chr);                                     // CT3 0x01861110
+int ssAI_IsAttackPlaying(struct CHARACTER *chr);                                         // CT3 0x018612d0
+int ssAI_IsPreAttackPlaying(struct CHARACTER *chr);                                      // CT3 0x01861510
+int ssAI_IsFindPlaying(struct CHARACTER *chr);                                           // CT3 0x018616b0
+int ssAI_IsActionPlaying(struct CHARACTER *chr);                                         // CT3 0x01861a00
+int ssAI_IsWarpChara(struct CHARACTER *target, struct CHARACTER *chr);                   // CT3 0x01860540
+int ssAI_IsGetToPoint(float dist, struct CHARACTER *chr, const float *pos);              // CT3 0x01861e70
+int ssAI_IsGetToPole(struct CHARACTER *chr, short pole, int bank);                       // CT3 0x01861ef0
+int ssAI_IsGetToScnEndPole(struct CHARACTER *chr);                                       // CT3 0x01861fa0
+int ssAI_IsGetToScnNextPoint(struct CHARACTER *chr);                                     // CT3 0x01862050
+int ssAI_IsGetToNextPoint(struct CHARACTER *chr);                                        // CT3 0x018620e0
+short ssAI_GetGLinkPolID(short group, short other, int bank);                            // CT3 0x01862940
+short ssAI_GetPairGrpLinkPoleID(short pole, int bank);                                   // CT3 0x01862bd0
+short ssAI_GetNextTargPoleRandom2(int bank, short except, u_char flags);                 // CT3 0x01862cb0
+short ssAI_GetNextTargPoleRandom(int bank, short except, u_char flags);                  // CT3 0x01862dd0
+u_char ssAI_GetPoleDoorNo(int pole, int bank);                                           // CT3 0x01862ef0
+int ssAI_GetGLinkPolPos(float *pos, short group, short other, int bank);                 // CT3 0x01862f50
+short ssAI_GRS_PopFront(int bank);                                                       // CT3 0x01863080
+int ssAI_GRS_PushRear(short v, int bank);                                                // CT3 0x018630f0
+int ssAI_GRS_PushFront(short v, int bank);                                               // CT3 0x01863160
+float ssAI_GRS_GetTargDistance(short from, short to, const float *pos, int bank);        // CT3 0x01863330

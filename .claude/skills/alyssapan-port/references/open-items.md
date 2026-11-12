@@ -1753,6 +1753,26 @@ apply here):
   E_14), 3 the acid one (E_RYUSAN SE), 5 and 6 share E_05 (scissors: n_hasami*, N_HASAMI*), 2 the hammer
   (E_02). None of slice 4 runs at the title (no stalker). Next: SetMonsterPos, LetMonsterInFromShadow, then
   the rest of the 82.
+- (2026-11-12, game/tiAvoidObject.c slice 5) **partial**: 24 functions -- the kinds' motion predicates
+  (IsForward / Wait / FarAttack / PostAttack / Attack / PreAttack / Find / ActionPlaying), IsWarpChara, the
+  arrivals (IsGetToPoint / Pole / ScnEndPole / ScnNextPoint / NextPoint, AI_ARRIVE_DIST 20), the group links
+  (GetGLinkPolID, GetGLinkPolPos, GetPairGrpLinkPoleID), GetNextTargPoleRandom / Random2 (the same code: one
+  helper), GetPoleDoorNo and the route ring (GRS_PopFront / PushRear / PushFront / GetTargDistance).
+  (n) settled in part: HIDE_POLE_LIST is 0x18 bytes -- +0x10 the route ring (an EE word the relocator
+  relocates), +0x14 / +0x16 its head / tail, groupCount its length; HIDE_POLE_GROUP +0xc is a relocated
+  pointer, still unnamed. Doubts: (r) HIDE_POLE_FLAG_SEGMENT (0x02) is also the group-link mark
+  (HIDE_POLE_FLAG_GRP_LINK, an alias): one flag, two readings, kept both; (s) GetPoleDoorNo answers the byte
+  at +0x49, which the shadow code reads as shadowPol: for a door pole it is the door number -- a union, or
+  a better name, when the door TU reads it; (t) the brain words BRAIN_SUBMODE (+1, 2 = crossing a scene
+  link), BRAIN_ROOM (+0x2c), BRAIN_LINK_ROOM (+0x78), BRAIN_SCN_END_POLE (+0x7c), BRAIN_SCN_NEXT_POINT
+  (+0x50), BRAIN_NEXT_POINT (+0x60) are named from these readers only: the brain TUs (ssBrain_ChgHideAtk1.c)
+  confirm; (u) IsWarpChara takes (target, chr) -- target's roomHash / lightBank, chr's brain: the caller
+  passes Alyssa first (to confirm); (v) PORT: the brain readers answer 0 for a character with no brain (the
+  ROM reads EE address 0); (w) IsWaitPlaying's extra motions (1 for the 0x1d kinds, 0x51 for STALKER_ID_5)
+  are the ROM's (disassembly 0x01861034 / 0x01860ff0: either motion answers 1). callcheck:
+  tnRand sits in the static helper ssAI_RandomPole. Left (8): LetMonsterInFromShadow, SetMonsterPos,
+  BarrierCheck, SerchCheck, IsTrgWithinAngle, IsGetToGLinkPole, SetNextGLinkPolePoint, GetScnLinkPoleID,
+  then the 4 past the slice.
 
 - (2026-11-12, game/wideXcmd_TriggerInit.c slice 6) **code complete, verify**: test_ssXcmd_BrainSet4, the
   last stub. **(1 am) decided, Claude's call (the user may overrule):** CHARACTER.brain stays the EE word
