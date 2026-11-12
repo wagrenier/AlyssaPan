@@ -289,12 +289,21 @@
    "why": "symtab: a GCC object (.text section symbol, __gnu_compiled_c / gcc2_compiled. at 0x018a8810, .data at 0x0192e798 holding ga_range_timer, cpu_time_count, gs_time_count) in the ga library run after ga/gaInitInterrupt.c; renamed from game/gaInitMeter.c (2026-11-09)"
   },
   "ga/gaObjectClippingCheck.c": {
+   "notes": "Title scene unchanged at 4:3 and 16:9. Doubts in open-items: the 4:3 side planes must widen with the 3D pass; MAC flag timing; BankOfHostPtr for objects outside banks; objects touching a side plane now take the clipped path.",
    "ranges": [
     [
      "018a3078",
      "018a3148"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-12 11:13",
+     "status": "verify",
+     "summary": "gaObjectClippingCheck written: bounding sphere vs near/far and VU0 micro 0x068 side planes, done natively"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 1 unkeyed; file name from the names"
   },
   "ga/gaSearchNearLight4.c": {

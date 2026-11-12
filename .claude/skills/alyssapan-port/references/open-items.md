@@ -1811,6 +1811,18 @@ apply here):
 
 ## Open questions
 
+- (2026-11-12, ga/gaObjectClippingCheck.c) **verify**: the one function written (with VU0 micro 0x068 done
+  natively); the title scene draws the same at 4:3 and 16:9 (pillarboxed, as before). Doubts: (a) **wide
+  aspect**: the cull uses the 3dlib work's 4:3 side planes; when the 3D pass is widened from
+  DisplayGeometry (item 8 "For 3D after it"), objects in the widened margins would be culled here --
+  widen planeSec / planeTan (gaSet3dlibStruct's t over the wider screen) in the same change, or the
+  margins stay empty; (b) the micro's FMAND reads are taken as 0x071's and 0x072's MAC flags (4-cycle
+  latency, the nops' evident intent) and a zero difference as not negative; (c) the matrix word is read
+  through BankOfHostPtr(obj) like gaBGT_DrawObject's, which is wrong for an object outside every bank
+  image (blur copies live in their own blocks: both TUs share the doubt); (d) objects that touch a side
+  plane now take gaBGT_DrawObject's clipped path (before: all took nc2), so gaDrawObject's clipped passes
+  ((ky)) are now reached by the smoke run -- the title scene still looks right.
+
 - (2026-11-12, game/tiAvoidObject.c slice 1) **partial**: written 16 of 82 -- the timers
   (ssAI_SetAppearanceTimer / _SetNoReactionTimer / _CountAppearanceTimer, AppearanceTimer 0x0193ce94 and
   ssNoReactionTimer 0x0193ce90 defined here), ssAI_GlobalInit, ssAI_MemSaveData / _MemLoadInit (save image

@@ -701,7 +701,7 @@ static_assert(sizeof(DRAW_OBJ_ENTRY) == 0x1c, "DRAW_OBJ_ENTRY");
 #define DRAW_OBJ_POS 0x38               /* u_int: EE address of the part's ALL_TABLE.partsPos qword (BankEePtr): the
                                            ambient RGB the VU1 light0 program adds (vf20), alpha in w */
 #define DRAW_OBJ_PACKET_QWC 0x48        /* u_int: the object's packet is this + 1 qwords (tiXcmd_CopySunPs2Object) */
-#define DRAW_OBJ_W58 0x58               /* u_int: a particle record's PARTICLE2_MATS.localView (tiParticleInit; unread) */
+#define DRAW_OBJ_W58 0x58               /* u_int: a particle record's PARTICLE2_MATS.localView (tiParticleInit; = GA_OBJ_MATRIX) */
 #define DRAW_OBJ_W5C 0x5c               /* u_int: a particle record's PARTICLE2_MATS.rotView (tiParticleInit; unread) */
 #define DRAW_OBJ_W78 0x78               /* two words a new particle record clears (tiGenerateParticle; unread) */
 #define DRAW_OBJ_PACKET 0x68            /* u_int: EE address of the object's packet (relocated) */

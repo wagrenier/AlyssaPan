@@ -361,6 +361,16 @@ the TU map's evidence.
   left, right, top, bottom with t = cx / sx, (w - cx) / sx, (h - cy) / sy, cy / sy), Z and fog scales,
   the subpixel scales (+-16) and the GS offsets ((ofs + 2048 + centre) * 16). screen_0's twelve floats
   are named GA_SCREEN_* from this use.
+- **gaObjectClippingCheck(obj)** (0x018a3078, its own object; 2026-11-12): the ga draw object's bounding
+  sphere (centre obj +0x10, radius obj +0x20 x) against the 3dlib work's frustum. Centre to view space by
+  the matrix at obj +0x58 (v * m, w = 1), stored at the scratchpad's 0x2c0; z +- r against zNear / zFar
+  (+0x28 / +0x2c); then VU0 micro 0x068 (`vudis.py 18fe500 f3 68`; Ghidra prints `_vcallms(0x340)`, the
+  byte address): vf1 = (x, x, y, y), vf10 = planeSec * r, vf11 = planeTan * z; vf13 = the edges moved
+  outward (+ on x / z: left, top; - on y / w: right, bottom), vf12 inward; FMAND 0xf0 of vf11 - vf13 ->
+  vi2 and of vf11 - vf12 -> vi3, each compared with 0xa0 (Sx | Sz). Answer: -1 outside; 0 inside;
+  bit 1 a side plane crossed, 2 the far plane, 6 the near plane (4 = GA_OBJ_FLAG2_NEAR). main_rtn and
+  kin store it in obj +2 and send 0 (and no DRAW_OBJ_FLAG_CLIP) to NoClippingCheck2, the rest to
+  gaBGT_DrawObject (GA_CLIP_*, gaObjectClippingCheck.h).
 - **gaSetLight(lightWork, view)**: GA_LIGHT_WORK +0x10 `dirView` = the four directional lights (dirPos)
   under the view's rotation (row 3's xyz cleared), stored as columns, rows x, y, z, -w; +0x50 `omniView`
   = the four point lights' xyz under the whole view, columns, row 3 = their own w. The point-light

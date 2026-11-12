@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-12 10:53 at commit `998c91f` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-12 11:13 at commit `682b124` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1670**; stubs: **124**
+- reconstructed CT3 functions: **1671**; stubs: **123**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -43,7 +43,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/ga/gaInitDrawObject.c` | 24 | 0 |
 | `src/ga/gaInitInterrupt.c` | 3 | 0 |
 | `src/ga/gaInitMeter.c` | 6 | 0 |
-| `src/ga/gaObjectClippingCheck.c` | 0 | 1 |
+| `src/ga/gaObjectClippingCheck.c` | 1 | 0 |
 | `src/ga/gaSearchNearLight4.c` | 0 | 1 |
 | `src/ga/gaSinCos.c` | 14 | 0 |
 | `src/ga/gaVifInit.c` | 6 | 0 |
@@ -103,8 +103,8 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 16, verify 50, done 8, blocked 1
-- next: **ga/gaObjectClippingCheck.c** (frontier score 12)
+- 65 TUs: todo 15, verify 51, done 8, blocked 1
+- next: **game/AA_viBuf.c** (frontier score 12)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
@@ -115,6 +115,7 @@ Least-named game-code regions (64 KB blocks):
 - verify: `ga/gaInitDrawObject.c` 24/24 -- No ROM caller for the texture three (the game uses its sun* copies in QuatSlerp.c): complete, nothing on screen can show them. Shot black as before: packets go 
 - verify: `ga/gaInitInterrupt.c` 3/3 -- GCC object; wait_vsync_state (data 0x0192e790), ga_main_timer, ga_down_timer defined here. gaWaitVSync takes no argument and returns the CSR FIELD bit; main.c c
 - verify: `ga/gaInitMeter.c` 6/6 -- Complete code, nothing on screen shows it (shot black as before; the meter stubs no longer appear in the run log). Host: T1/T0 mode writes now reach the host ti
+- verify: `ga/gaObjectClippingCheck.c` 1/1 -- Title scene unchanged at 4:3 and 16:9. Doubts in open-items: the 4:3 side planes must widen with the 3D pass; MAC flag timing; BankOfHostPtr for objects outside
 - verify: `ga/gaSinCos.c` 13/13 -- 15 s smoke run: no fault, about 26700 frames, shot black (no host draw module yet). ga_sincos_table.inc generated from the ELF (the ROM floats differ from sinf)
 - verify: `ga/gaVifInit.c` 6/6 -- GCC object. VIF0/VIF1 STAT are host variables that read idle (sdk/eeregs.h), so the polls return at once and main frame loop passes the FLUSH wait. gaDmaSendN_V
 - verify: `ga/pad_button_read.c` 4/4 -- Complete; callcheck clean. 15 s smoke: flat grey as before (attract cycle). 40 s run with scripted START at reads 500..1100: no TITL in the log, but the shot is
@@ -160,6 +161,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-12 11:13 `ga/gaObjectClippingCheck.c` verify: gaObjectClippingCheck written: bounding sphere vs near/far and VU0 micro 0x068 side planes, done natively
 - 2026-11-12 10:53 `game/AA_videoCallback.c` verify: all 11 functions: ezmpegstr videoCallback, readbuf.c and strfile.c with CT3's packed rows and retry counter; new host drive stream sceCdStInit/StStart/StRead/St
 - 2026-11-12 10:36 `game/AA_SoundMonoSoart.c` verify: all 20 functions: ezmpegstr audiodec.c with CT3's EE / IOP time-stamp rings (the audio clock via AA_syncClockInAudio) and the monaural mode; new sceSdRemote shi
 - 2026-11-12 10:19 `game/AA_mpegTS.c` verify: all 31 functions: ezmpegstr videodec.c + vobuf.c (libmpeg callbacks, AA_decBs0 decode loop with captions and fade-in, AA_videoDecMain, VideoDec accessors, the v
@@ -167,17 +169,15 @@ Recent sessions:
 - 2026-11-12 09:32 `game/AA_GetDataWord.c` partial: slice 1: caption readers, caption picture, shouldDelay, display start/end, image-end handler (10 of 15)
 - 2026-11-12 09:06 `game/Convert.c` verify: ConvertMatrix2Quat and ConvertQuat2Matrix rewritten from the VU0 macro code in scalar C (const_vector_A = 1, 2, 0, 0.5; matUnit for w == 1; divide by 0 answers 
 - 2026-11-12 09:00 `ga/gaDrawObject.c` verify: slices 2-3: the billboard local views, SetBig and SetNear (near-plane cut, facing cull); the clipped view packet corrected to view space
-- 2026-11-12 08:36 `ga/gaDrawObject.c` partial: ga/gaDrawObject.c slice 1: the clipped and plain local views, the three index passes (clip flags, facing, big and near lists) and both vertex reference tables, 
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `ga/gaObjectClippingCheck.c` | todo | 0/1/1 | 0.2 | 12 | 1 |
 | `game/AA_viBuf.c` | todo | 0/12/13 | 3.7 | 12 | 0 |
 | `game/ssCalcInversMatrix2.c` | todo | 0/5/5 | 5.7 | 7 | 0 |
+| `ga/gaDrawObject_Redraw_Polygon.c` | todo | 0/1/6 | 4.3 | 7 | 1 |
+| `ga/wait.c` | todo | 0/2/20 | 0.1 | 6 | 0 |
 | `game/AA_cpuCycles.c` | todo | 0/4/4 | 0.3 | 5 | 0 |
-| `ga/wait.c` | todo | 0/2/20 | 0.1 | 5 | 0 |
 | `ga/gaSearchNearLight4.c` | todo | 0/1/1 | 0.4 | 4 | 0 |
-| `ga/gaDrawObject_Redraw_Polygon.c` | todo | 0/1/6 | 4.3 | 2 | 0 |
 | `game/AA_scTag2.c` | todo | 0/2/7 | 0.8 | 2 | 0 |
 | `game/copy2area.c` | todo | 0/2/2 | 0.5 | 2 | 0 |
 | `game/asMothOperate.c` | todo | 0/1/1 | 3.8 | 1 | 0 |
@@ -187,9 +187,8 @@ Recent sessions:
 
 | CT3 addr | name | call sites | provenance | state | inferred file |
 |---|---|---|---|---|---|
-| `018a3078` | gaObjectClippingCheck | 7 | sym | stub | ga/gaObjectClippingCheck.c |
+| `018a8690` | gaDMAStopMessage_VIF1 | 5 | sym | stub | ga/wait.c |
 | `018a7538` | gaSearchNearLight4 | 4 | sym | stub | ga/gaSearchNearLight4.c |
-| `018a8690` | gaDMAStopMessage_VIF1 | 4 | sym | stub | ga/wait.c |
 | `018a9570` | ssHitMakeAttackOBB | 2 | sym | stub | game/ssCalcInversMatrix2.c |
 | `018a9390` | ssHitMakeDamageOBB | 2 | sym | stub | game/ssCalcInversMatrix2.c |
 | `018c0310` | AA_cpuCycles | 2 | sym | stub | game/AA_cpuCycles.c |

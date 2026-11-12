@@ -7,6 +7,9 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-12, gaObjectClippingCheck.c) **Ghidra's `_vcallms(n)` is the byte address, vudis.py's micro
+  address is n / 8.** gaObjectClippingCheck's `_vcallms(0x340)` is micro 0x068 (the word 0x4a001a38:
+  (word - 0x4a000038) >> 6). Reading vudis.py at 0x340 lands in the middle of another routine.
 - (2026-11-12, AA_videoCallback.c) **A callee written void may be read for a result by another TU**:
   AA_videoDecPutTs (AA_mpegTS.c) was written void, but AA_videoCallback tests its answer; mipsdis showed
   it ends in `jal AA_viBufPutTs` with v0 untouched. When a caller's decompilation tests a value from a
