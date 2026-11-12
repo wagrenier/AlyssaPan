@@ -38,6 +38,9 @@
 #define AA_THREAD_STACK_SIZE 0x10800
 #define AA_HEAP_ALIGN 0x40
 #define AA_GS_TAG_STRIDE 0x20000        /* a VoTag's second tag block follows its first */
+#define AA_MOVIE_ROW_DECODE_WORK 0     /* AA_MovieUseBank's row of AA_mpegWork (libmpeg's work area) */
+#define AA_MOVIE_ROW_PICTURE0 1         /* the row of AA_voBufData[0]'s picture buffer (then [1]) */
+#define AA_MOVIE_ROW_VIDEO_STREAM 3     /* the row of AA_viBufData (the stream ring) */
 #define AA_MOVIE_ROW_GS_TAG0 4          /* AA_MovieUseBank's row of AA_voBufTag[0]'s tag blocks (then [1]) */
 #define AA_IOP_AUDIO_BUFF 0x6000        /* audioDecInit's IOP buffer */
 #define AA_CAPTION_ADDR 0x200000        /* AA_MojiData: the EE address the caption file is read to */
@@ -72,6 +75,7 @@ extern int AA_FadeInCount;                                  /* sbss 0x0193f324 *
 extern int AA_MvFedeOut2Md;                                 /* sbss 0x0193f328: AA_MV_FADE2_* */
 extern int AA_WaitCount;                                    /* sbss 0x0193f32c */
 extern u_int AA_MojiData;                                   /* sbss 0x0193f330: EE address of the captions, 0 = none */
+extern u_char AA_MojiImage[];                               /* PORT: the caption file's host block (AA_MojiData != 0) */
 extern int AA_Moive_Skip;                                   /* sbss 0x0193f334 */
 extern int controller_val;                                  /* sbss 0x0193f338: AA_movie's answer */
 extern int AA_frd;                                          /* sbss 0x0193f33c */

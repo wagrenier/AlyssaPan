@@ -411,12 +411,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 113..113, 3 functions keyed by their statics, 1 unkeyed; file name from the names"
   },
   "game/AA_mpegTS.c": {
+   "notes": "verify: no smoke run plays a movie (shot unchanged: the clock-tower scene). VideoDec / ViBuf / VoBuf are layout host; movie bank EE addresses resolved by AA_MovieUseBank row. Boundary doubt (hf): AA_cpy2area, AA_shouldSkip, lastVideo/lastAudio are in this object's local run, so AA_scTag2.c is probably this file's head. Next for the movie: AA_viBuf.c, AA_scTag2.c, AA_videoCallback.c, AA_cpuCycles.c.",
    "ranges": [
     [
      "018c1680",
      "018c2170"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-12 10:19",
+     "status": "verify",
+     "summary": "all 31 functions: ezmpegstr videodec.c + vobuf.c (libmpeg callbacks, AA_decBs0 decode loop with captions and fade-in, AA_videoDecMain, VideoDec accessors, the voBuf ring); new AA_viBuf.h / AA_scTag2.h; libmpeg SetDecodeMode / IsRefBuffEmpty; MpegStream numbers pictures from 0"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 117..117, 4 functions keyed by their statics, 26 unkeyed; file name from the names"
   },
   "game/AA_scTag2.c": {

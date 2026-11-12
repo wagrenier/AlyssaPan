@@ -1684,3 +1684,29 @@ The auto-load at boot (MemorycardAutoLoad, xcmd_tn.c) has its own states (mcMain
   brain's far range, rise by near / mid / far band (ranges tripled while she hides), cut by height
   difference; threat source 2, 1 while hiding (x1.4), 0 for approach / attack (x3). `ssAI_BrainEnd` parks a
   character at (1e7, -1e7, 0) with its scene banks and hides it.
+
+## The movie's video decoder, game/AA_mpegTS.c (2026-11-12)
+
+- The object is SCE's ezmpegstr **videodec.c + vobuf.c**, AA_-prefixed: the five libmpeg callbacks
+  (AA_mpegTS / RestartDMA / StopDMA / Nodata / Error), the decode loop AA_decBs0, the decoder thread body
+  AA_videoDecMain, the VideoDec accessors, then the voBuf ring (0x018c1ea0..). CT3's additions:
+  AA_ChangeFedeInPlene (static) writes the fade-in into four fade-sprite RGBAQ words, AA_ReTagSet builds
+  the fade-out's block, AA_decBs0 plays captions (AA_TestRead) per picture.
+- **Its boundary is probably wrong on the low side**: the symtab's hash-ordered local run 2533..2544 holds
+  lastAudio / lastVideo (sbss 0x0193f710 / 0x0193f720), AA_cpy2area and AA_shouldSkip (both LOCAL FUNCs at
+  0x018c1540 / 0x018c14b0, tumap gave them to `game/AA_scTag2.c`), @48 (the sequence end code 00 00 01 b7),
+  @174 / @213 / @214 (this TU's strings), w_image_w / w_image_h and AA_ChangeFedeInPlene: one object. In
+  ezmpegstr, videodec.c also holds setD3_CHCR, setD4_CHCR, getFIFOindex, isPtsInRegion, shouldSkip and
+  cpy2area -- exactly AA_scTag2.c's functions. vobuf.c has no statics, so nothing proves the voBuf tail is
+  a second object. Not re-pinned (open-items.md (hf)).
+- VideoDec (0xd8): sceMpeg 0x00, ViBuf 0x48 (0x60, ezmpegstr's: data, tag, n, dmaStart, dmaN, readBytes,
+  buffSize, the IPU DMA env 0x1c, sema 0x40, isActive, totalBytes 0x48, ts ring 0x50..0x5c), state 0xa8,
+  the B-picture skip flag 0xb0 (0xb0..0xcc cleared by AA_videoDecReset), handler ids 0xd0 / 0xd4.
+  AA_videoDecInputCount / BeginPut / EndPut are 8-byte tail jumps into AA_viBufCount / BeginPut / EndPut
+  (Ghidra shows the callees inlined; the bodies are noted in AA_viBuf.h).
+- VoBuf (0x48): data 0, tag 4, write 8, count 0xc, size 0x10, the display's pacing 0x14..0x30, then
+  fadeReady 0x34 and four fade-word pointers 0x38..0x44 (picture 0's even / odd block, picture 1's).
+  AA_decBs0 builds both pictures' GS records only when the decoded picture's frameCount is 0 (the first),
+  with the size from that picture (w_image_w / _h, which AA_ReTagSet reuses).
+- sceMpegGetPicture's room is 0x400 macroblocks (512 x 512); sceMpegSetDecodeMode(-1, -1, 0) drops B
+  pictures while AA_shouldSkip says the video lags, (-1, -1, -1) restores them.

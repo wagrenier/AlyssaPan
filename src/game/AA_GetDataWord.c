@@ -419,7 +419,7 @@ int AA_vblankHandler(int cause)
             }
         }
     }
-    if (voBuf.w34[0] != 0 && AA_FadeInCount > 0)
+    if (voBuf.fadeReady != 0 && AA_FadeInCount > 0)
         AA_FadeInCount--;
     if (AA_WaitCount > 0)
         AA_WaitCount--;

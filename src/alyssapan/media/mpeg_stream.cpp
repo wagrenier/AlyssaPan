@@ -60,6 +60,7 @@ void MpegStream::clearPlayback()
     m_programEnded = false;
     m_pictureCleared = false;
     m_endStall = 0;
+    m_pictures = 0;
     m_decoder.reset();
 }
 
@@ -279,7 +280,9 @@ void MpegStream::getPicture(sceMpeg &mpeg, sceIpuRGB32 *picture, int blocks)
     {
         mpeg.width = width;
         mpeg.height = height;
-        mpeg.frameCount++;
+        // libmpeg numbers the picture just decoded from 0: ezmpegstr's decBs0 (CT3's AA_decBs0) builds
+        // its GS records when frameCount is 0 right after sceMpegGetPicture.
+        mpeg.frameCount = m_pictures++;
     }
 
     requestData(mpeg);

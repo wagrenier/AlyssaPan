@@ -7,6 +7,12 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-12, AA_mpegTS.c) **An 8-byte function that decompiles to a whole body is a tail jump**:
+  Ghidra shows `j callee; addiu a0,a0,0x48` (AA_videoDecBeginPut -> AA_viBufBeginPut) with the callee
+  inlined, semaphores and all. callcheck flags it (missing the callee, extra WaitSema): read any
+  size-8 function with `mipsdis.py` and write it as the forward it is, the callee's body in its header.
+  And `last.png` is still 0 bytes after a check run (gv): open the newest `shot_*.png` by time.
+
 - (2026-11-12, AA_GetDataWord.c slice 2) **A 15 s smoke run now ends on a black last.png.** AA_clearGsMem
   kicks a black frame after each skipped movie (the ROM's clear), and a 15 s run stops right after the
   title movie's skip; the title screen follows a few frames later (a 30 s run shows it). Read the numbered

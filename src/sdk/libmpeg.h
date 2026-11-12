@@ -134,3 +134,11 @@ int  sceMpegAddCallback(sceMpeg *mp, sceMpegCbType type,
 int  sceMpegAddStrCallback(sceMpeg *mp, sceMpegStrType type, int ch,
                            sceMpegCallback func, void *arg);
 
+
+/* Which picture types to decode (-1 all, 0 none): CT3's decoder drops B
+ * pictures while the video lags.  The host decodes every picture: a no-op. */
+int  sceMpegSetDecodeMode(sceMpeg *mp, int ni, int np, int nb);
+
+/* Non-zero when no reference picture is held back for output.  The host
+ * decoder outputs each picture as it decodes it: always 1. */
+int  sceMpegIsRefBuffEmpty(sceMpeg *mp);

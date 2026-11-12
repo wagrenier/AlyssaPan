@@ -929,6 +929,23 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    (VOBUF_STATUS_*), +8 pts named from the vblank, after ezmpegstr: AA_mpegTS.c confirms. **Next for the
    movie: AA_mpegTS.c** (AA_voBufGetTag, AA_decBs0, AA_ReTagSet, the ring) and AA_cpuCycles.c, then a run
    with movies on.
+   **game/AA_mpegTS.c (2026-11-12, verify: no smoke run plays a movie): all 31 written** (ezmpegstr's
+   videodec.c + vobuf.c; architecture.md "The movie's video decoder"). VoBuf's w34 is now fadeReady +
+   fade[4] (movie.c, AA_GetDataWord.c follow). New headers AA_viBuf.h (ViBuf, TimeStamp, 12 prototypes)
+   and AA_scTag2.h (AA_shouldSkip, AA_cpy2area): their functions are stubs. sdk/libmpeg gained
+   sceMpegSetDecodeMode (no-op) and sceMpegIsRefBuffEmpty (1). Claude's calls (the user may overrule):
+   (he) VideoDec, ViBuf and VoBuf are layout: host -- ViBuf.data / tag / ts and VoBuf.data / tag / fade
+   are host pointers; AA_videoDecCreate resolves the stream ring and the work area from their
+   AA_MovieUseBank rows (new AA_MOVIE_ROW_DECODE_WORK 0, _PICTURE0 1, _VIDEO_STREAM 3), AA_decBs0 the
+   picture buffers and the tag blocks; (hf) **boundary doubt**: AA_cpy2area, AA_shouldSkip and
+   lastVideo / lastAudio sit in this object's local-symbol run, and ezmpegstr's videodec.c holds all of
+   AA_scTag2.c's functions: the session that claims AA_scTag2.c should check 0x018c1340..0x018c1680
+   against it and likely merge it into this file (tus.py define); (hg) the caption cursor is a static
+   host cursor started at AA_MojiImage per movie ((gx) done); (hh) fixed in this session: the host decoder bumped frameCount after each picture, so AA_decBs0's frameCount == 0 test (ezmpegstr's) never held; MpegStream now numbers the picture just decoded from 0 (alyssapan/media/mpeg_stream.cpp, as the EE library must for ezmpegstr to work) -- confirm when a movie first plays; (hi) AA_videoDecMain spins on voBuf.count as the ROM does (the vblank empties
+   it on the interrupt thread); (hj) AA_videoDecFlush's locals start at NULL / 0 (a stubbed ring answers
+   no room). **Next for the movie: AA_viBuf.c** (the ring: on the host the IPU DMA has no meaning; feed
+   MpegStream and free room by AlyssaPanMpegVideoPending), AA_scTag2.c (with (hf)), AA_videoCallback.c,
+   AA_cpuCycles.c, then a run with movies on.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
    class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~

@@ -71,3 +71,13 @@ int AlyssaPanMpegVideoPending()
 {
     return MpegStream::instance().pendingVideoBytes();
 }
+
+int sceMpegSetDecodeMode(sceMpeg *, int, int, int)
+{
+    return 0;
+}
+
+int sceMpegIsRefBuffEmpty(sceMpeg *)
+{
+    return 1;
+}

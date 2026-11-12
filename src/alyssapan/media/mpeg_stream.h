@@ -62,6 +62,7 @@ private:
     bool m_pictureCleared = false;
     bool m_warnedResync = false;
     int m_endStall = 0;
+    int m_pictures = 0; // pictures decoded since the reset: the next one's frameCount
 };
 
 } // namespace alyssapan::media

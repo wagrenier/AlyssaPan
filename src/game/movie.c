@@ -853,7 +853,7 @@ void AA_MovieProc(void)
 // CT3 0x018bf6f0: give the decoder's gHeapSound blocks back.
 void AA_MemoryMapFree(void)
 {
-    voBuf.w34[0] = 0;
+    voBuf.fadeReady = 0;
     if (AA_defStack != NULL) {
         _SunFree(&gHeapSound, &AA_defStack);
         AA_defStack = NULL;
@@ -894,12 +894,12 @@ int AA_MemoryMapSet(void)
 {
     int failed = 0;
 
-    voBuf.w34[0] = 0;
-    voBuf.w34[1] = 0;
-    voBuf.w34[2] = 0;
+    voBuf.fadeReady = 0;
+    voBuf.fade[0] = NULL;
+    voBuf.fade[1] = NULL;
     AA_voBufTag[0].tag[1] = AA_voBufTag[0].tag[0] + AA_GS_TAG_STRIDE;
-    voBuf.w34[3] = 0;
-    voBuf.w34[4] = 0;
+    voBuf.fade[2] = NULL;
+    voBuf.fade[3] = NULL;
     AA_voBufTag[1].tag[1] = AA_voBufTag[1].tag[0] + AA_GS_TAG_STRIDE;
     if (AA_readBuf.data == NULL
         && (AA_readBuf.data = (u_char *)_SunAlloc(&gHeapSound, AA_READBUF_SIZE, AA_HEAP_ALIGN)) == NULL)
@@ -919,11 +919,11 @@ int AA_MemoryMapSet(void)
     if ((AA_defStack = _SunAlloc(&gHeapSound, AA_THREAD_STACK_SIZE, AA_HEAP_ALIGN)) == NULL)
         failed = 1;
     if (!failed) {
-        voBuf.w34[0] = 0;
-        voBuf.w34[1] = 0;
-        voBuf.w34[2] = 0;
-        voBuf.w34[3] = 0;
-        voBuf.w34[4] = 0;
+        voBuf.fadeReady = 0;
+        voBuf.fade[0] = NULL;
+        voBuf.fade[1] = NULL;
+        voBuf.fade[2] = NULL;
+        voBuf.fade[3] = NULL;
     } else {
         AA_MemoryMapFree();
     }
