@@ -53,10 +53,14 @@ typedef struct HIT_DATA {
     float worldN[4];                    /* 0x090: the plane's normal (CheckLOS: a segment crosses from its front) */
     float vel[4];                       /* 0x0a0: kind 2: how far the corners' sum moved this frame, / 4 (/ 3) */
     float localV[6][4];                 /* 0x0b0: the shape's vectors (3 used: 0, 3, 4; all 6 with HIT_DATA_FLAG_TRIANGLE) */
-    u_int w110[3];                      /* 0x110: copied to w180 (2 words; 3 with _TRIANGLE) */
+    float localHalf[3];                 /* 0x110: copied to half (2 floats; 3 with _TRIANGLE) */
     u_char pad11c[4];
     float worldV[6][4];                 /* 0x120: localV in the world */
-    u_int w180[3];                      /* 0x180 */
+    float half[3];                      /* 0x180: the half sizes the box tests read (slice 4, 2026-11-11):
+                                           a quad's along worldV[3] / [4] about its centre worldV[0]
+                                           (ssHitCheckOBB_Plane, from the call); a triangle's sides' half
+                                           lengths, side i centred on worldV[i] along the unit worldV[3 + i]
+                                           (ssHitCheckOBB_TriangleSides) */
     u_char pad18c[4];
     float planeD;                       /* 0x190: worldN . world[0] (xyz): the plane's distance along its normal */
     u_int flags;                        /* 0x194: HIT_DATA_FLAG_* (LOS_HIT_FLAGS) */
@@ -126,7 +130,8 @@ static_assert(offsetof(HIT_DMG, part) == 0x1a0, "HIT_DMG.part");
 // ssHitMakeAttackOBB fills it), a damage shape's world matrices (HIT_DMG +0xd0: centre and axes are
 // world[2], the half sizes w190) or a body box (HIT_TABLE.bodyObb). layout: ee -- bank data.
 typedef struct SS_OBB {
-    u_char pad00[0x80];                 /* the record's own data before the box */
+    float corner[8][4];                 /* 0x00: the box's eight corners (ssHitCheckOneObject walks them as
+                                           a path 0-1-..-7: the first edge that crosses a shape's plane) */
     float center[4];                    /* 0x80 */
     float axis[3][4];                   /* 0x90: unit axes */
     float half[3];                      /* 0xc0: half sizes along them */
@@ -139,8 +144,20 @@ int ssHitCheckOBB_OBB(const SS_OBB *a, const SS_OBB *b);                        
 // drawOnPos, copied by ssHitCheck*Attack before the box is made).
 extern float ssHitNPos[4];                      /* bss 0x0193ef50 */
 extern float ssHitBPos[4];                      /* bss 0x0193ef60 */
-// Does the attack object touch the shape? (a..c: 0 from ssHitCheckAttackToScn; the other callers pass more)
-int ssHitCheckOneObject(HIT_OBJ *obj, HIT_DATA *h, void *a, void *b, void *c);          // CT3 0x018b0350
+// != 0 when the box obj (its corners and axes, SS_OBB) touches the shape h: its corners' path must cross
+// h's plane, then the box must meet the quad (ssHitCheckOBB_Plane) or a triangle's sides
+// (ssHitCheckOBB_TriangleSides), or the crossing edge pierce the triangle. On a hit with v != NULL, out =
+// v less its part along h's normal (the motion slid along the surface; out w = the normal's w). self == h
+// (the shape the caller stands on) widens h by SS_HIT_SELF_GROW for the test. ssHitCheckAttackToScn
+// passes NULLs; ssHitCheckAllObject / ssHitReCheckAllObject the rest (slice 4, 2026-11-11).
+#define SS_HIT_SELF_GROW 5.0f
+int ssHitCheckOneObject(HIT_OBJ *obj, HIT_DATA *h, const float *v, float *out, HIT_DATA *self); // CT3 0x018b0350
+// != 0 when the box meets one of the triangle h's three sides (h->worldV, h->half). PORT: the ROM passes
+// &h->worldV and reads the half lengths 0x60 past it; here the shape itself.
+int ssHitCheckOBB_TriangleSides(const SS_OBB *box, const HIT_DATA *h);                   // CT3 0x018ad7a0
+// != 0 when the box meets the quad h (centre worldV[0], axes worldV[3] / [4], half sizes h->half; the
+// same PORT as TriangleSides).
+int ssHitCheckOBB_Plane(const SS_OBB *box, const HIT_DATA *h);                           // CT3 0x018af580
 // != 0 when the scene attack / character attack `obj` strikes a damage shape of the scene bank `scn`
 // (whose part is not PARTS_FLAG10_NO_HIT and that faces the attack, or moves); the first one goes to
 // ssHit_informationScn with the point where the attack crosses its plane.

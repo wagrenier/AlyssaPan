@@ -1298,7 +1298,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 124..125, 24 functions keyed by their statics, 31 unkeyed; file name from the names"
   },
   "game/ssHitCheckAttackToScn.c": {
-   "notes": "Left: ssHitCheckOneObject, ssHitCheckOBB_OBB, ssHitCheckOBB_TriangleSides, ssHitCheckOBB_Plane, ssCollisionCheck, ssColCheckChar_Chara, ssMakeCharOBB, ssDivideHitDataToSpaceCell, ssHitCheckAndProcess, ssGetCharSpaceCell, ssAddHitDataToCheckList, ssHitCheckAllObject (stubs now: ssHitCheckOneObject, ssHitCheckOBB_OBB via stubgen, ssCollisionCheck). SS_OBB names the box ssHitCheckOBB_OBB reads (centre +0x80, axes +0x90, half sizes +0xc0): an attack object (HIT_OBJ +0), a damage shape (HIT_DMG +0xd0: world[2] and w190) or HIT_TABLE.bodyObb (was pad04, built by ssHitMakeDamageOBB). ssHitNPos / ssHitBPos (bss 0x0193ef50 / 0x0193ef60) are copied from the attack part transInit / drawOnPos (hazards.md). charaAttr (data 0x01939d90, int per slot, low byte read: 0 player side, 1 stalkers, 0xff none) and ssAtkCharaList1 ({0}) added to unassigned_data; a stalker strikes list 1, the player list 2. ssHitMakeAttackOBB, ssHitMakeDamageOBB, ssHit_information, ssHit_informationScn declared in ssCalcInversMatrix2.h with their prototypes from these call sites (stubs there). The title shot is the same clock-tower scene: no attack runs on the title.",
+   "notes": "Left: ssCollisionCheck (stub; needs CHARACTER +0x2f1 / +0x2f2 / +0x300..0x30c named, calls ssColCheckChar_Chara, ssHitCheckAndProcess, ssDivideHitDataToSpaceCell, ssAI_IsHaiHaiPlaying, asCharacterPositioningOnlyDeltaPos), ssColCheckChar_Chara, ssMakeCharOBB, ssDivideHitDataToSpaceCell, ssHitCheckAndProcess, ssGetCharSpaceCell, ssAddHitDataToCheckList, ssHitCheckAllObject. HIT_DATA +0x110 / +0x180 are now float localHalf / half (quad half sizes or triangle side half lengths); SS_OBB +0x00 is corner[8][4]. ssHitCheckOneObject is (obj, h, v, out, self): self == h widens h by 5; on a hit with v, out = v less its normal part. The Plane and TriangleSides tests take the HIT_DATA (PORT: the ROM passes h+0x120). The title shot is the same clock-tower scene: no attack or collision runs on the title.",
    "ranges": [
     [
      "018a9fe0",
@@ -1320,6 +1320,11 @@
      "date": "2026-11-11 23:13",
      "status": "partial",
      "summary": "slice 3: the attack checks ssHitCheckSceneAttack, ssHitCheckCharacterAttack, ssHitCheckAttack, ssHitCheckAttackToScn, and ssGetReflectVector3 (5 functions)"
+    },
+    {
+     "date": "2026-11-11 23:32",
+     "status": "partial",
+     "summary": "slice 4: the box tests ssHitCheckOBB_OBB, ssHitCheckOBB_Plane, ssHitCheckOBB_TriangleSides (separating axes) and ssHitCheckOneObject (4 functions)"
     }
    ],
    "status": "partial",

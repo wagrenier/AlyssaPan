@@ -1169,6 +1169,18 @@ the branch scene tables and a few tk x commands.
   (0: y over z, 1: x over z, 2: x over y), in [0, 2pi) for axes 1 and 2 and (-pi/2, pi/2] for 0; when the
   first component is within 0.01 of the vector's length, a quarter turn by the second's sign (beyond
   0.1), else 0. The thresholds are float literals promoted to double.
+- **The box tests (slice 4, 2026-11-11)** are separating-axis tests with VU0 cross products and
+  gaInnerProductXYZ: ssHitCheckOBB_OBB (15 axes: a's faces, b's faces, a_i x b_j, i major; 1 = overlap),
+  ssHitCheckOBB_Plane (11: the box's 3, box axis x quad axis, the quad's 2 -- never the quad's normal),
+  ssHitCheckOBB_TriangleSides (per side, a segment on 7 axes: the box's 3, box axis x side, the side). A
+  box (SS_OBB) is 8 corners at +0x00, centre +0x80, unit axes +0x90, half sizes +0xc0. A shape's +0x180
+  (HIT_DATA.half, copied from +0x110) is 2 half sizes of a quad (centre worldV[0], axes worldV[3] / [4])
+  or 3 half lengths of a triangle's sides (side i centred on worldV[i] along the unit worldV[3+i]).
+  **ssHitCheckOneObject** first walks the box's corners as a path 0..7 and needs an edge whose ends lie on
+  both sides of the shape's plane (planeD - n.p; a distance above the running maximum is raised by 0.3,
+  which never flips a sign); then the quad / sides test, and for a triangle whose sides miss, the crossing
+  edge must pierce it (the CheckLOS angle sum, >= 65014). The shape the caller stands on (5th argument) is
+  tested 5 wider; with a motion vector, out = v - (v.n) n (w = n's).
 
 ## The IOP side (2026-11-09)
 

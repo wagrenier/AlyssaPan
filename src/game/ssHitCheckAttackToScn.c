@@ -2,7 +2,9 @@
 // CheckLOS). Slice 1 (2026-11-11): the frame's collision pass (ssProcessHit), the attack request list,
 // ssHitInit and the hit shapes' local -> world (ssTrans*HitDataL2W), the small hit-data helpers and
 // ssRadianByO. Slice 2 (2026-11-11): the line-of-sight tests CheckLOS and CheckLOS_Multi, and the attack
-// and damage objects' local -> world (ssTrans*AtkHitDataL2W, ssTransDmgHitDataL2W).
+// and damage objects' local -> world (ssTrans*AtkHitDataL2W, ssTransDmgHitDataL2W). Slice 3 (2026-11-11):
+// the attack checks. Slice 4 (2026-11-11): the box tests -- ssHitCheckOBB_OBB, ssHitCheckOBB_Plane,
+// ssHitCheckOBB_TriangleSides (separating axes) and ssHitCheckOneObject.
 
 #include <float.h>
 #include <math.h>
@@ -84,14 +86,14 @@ static void ssTransOneHitData(MODEL_PARTS *part, HIT_DATA *h, int mode, float (*
         ssApplyMatrix(h->worldV[0], part->matrix180, h->localV[0]);
         ssApplyMatrix(h->worldV[3], part->matrix180, h->localV[3]);
         ssApplyMatrix(h->worldV[4], part->matrix180, h->localV[4]);
-        h->w180[1] = h->w110[1];
-        h->w180[0] = h->w110[0];
+        h->half[1] = h->localHalf[1];
+        h->half[0] = h->localHalf[0];
     } else {
         for (int i = 0; i < 6; i++)
             ssApplyMatrix(h->worldV[i], part->matrix180, h->localV[i]);
-        h->w180[0] = h->w110[0];
-        h->w180[1] = h->w110[1];
-        h->w180[2] = h->w110[2];
+        h->half[0] = h->localHalf[0];
+        h->half[1] = h->localHalf[1];
+        h->half[2] = h->localHalf[2];
     }
     h->planeD = gaInnerProductXYZ(h->worldN, h->world[0]);
 }
@@ -777,27 +779,223 @@ float ssGetReflectVector3(float k, float *out, const float *n, const float *v)
     return len;                         // 1 / (1 / |r|): VDIV of the VRSQRT
 }
 
+
+// ---- the box tests (slice 4, 2026-11-11): separating-axis tests of an attack / body box ----
+
+// |a . b| over xyz (the ROM calls gaInnerProductXYZ, and again for the sign).
+static float ssAbsDot(const float *a, const float *b)
+{
+    float d = gaInnerProductXYZ((float *)a, (float *)b);
+    return d < 0.0f ? -d : d;
+}
+
+// VOPMULA.xyz / VOPMSUB.xyz: out = a x b (xyz; the sign never matters, every use is an |.|).
+static void ssCross(float *out, const float *a, const float *b)
+{
+    out[0] = a[1] * b[2] - b[1] * a[2];
+    out[1] = a[2] * b[0] - b[2] * a[0];
+    out[2] = a[0] * b[1] - b[0] * a[1];
+    out[3] = 0.0f;
+}
+
+// The box's axes scaled by its half sizes (VMULbc of each axis by its half).
+static void ssObbScaledAxes(float (*s)[4], const SS_OBB *o)
+{
+    for (int i = 0; i < 3; i++)
+        for (int k = 0; k < 4; k++)
+            s[i][k] = o->axis[i][k] * o->half[i];
+}
+
+// CT3 0x018adf30
+// callcheck: gaInnerProductXYZ
+// The fifteen axes in the ROM's order: a's faces, b's faces, then a_i x b_j (i major). Each sum is added
+// in the ROM's order; the first separating axis answers 0.
+int ssHitCheckOBB_OBB(const SS_OBB *a, const SS_OBB *b)
+{
+    float t[4], as[3][4], bs[3][4], l[4];
+    for (int k = 0; k < 4; k++)
+        t[k] = b->center[k] - a->center[k];
+    ssObbScaledAxes(as, a);
+    ssObbScaledAxes(bs, b);
+    for (int i = 0; i < 3; i++) {
+        const float *ax = a->axis[i];
+        float r = ssAbsDot(bs[2], ax) + a->half[i] + ssAbsDot(bs[0], ax) + ssAbsDot(bs[1], ax);
+        if (r < ssAbsDot(t, ax))
+            return 0;
+    }
+    for (int j = 0; j < 3; j++) {
+        const float *ax = b->axis[j];
+        float r = b->half[j] + ssAbsDot(as[2], ax) + ssAbsDot(as[0], ax) + ssAbsDot(as[1], ax);
+        if (r < ssAbsDot(t, ax))
+            return 0;
+    }
+    for (int i = 0; i < 3; i++) {
+        int ilo = i == 0 ? 1 : 0, ihi = i == 2 ? 1 : 2;     // a's other two axes
+        for (int j = 0; j < 3; j++) {
+            int jlo = j == 0 ? 1 : 0, jhi = j == 2 ? 1 : 2; // b's other two
+            ssCross(l, a->axis[i], b->axis[j]);
+            float r = ssAbsDot(bs[jhi], l) + ssAbsDot(bs[jlo], l) + ssAbsDot(as[ilo], l) + ssAbsDot(as[ihi], l);
+            if (r < ssAbsDot(t, l))
+                return 0;
+        }
+    }
+    return 1;
+}
+
+// CT3 0x018ad7a0
+// callcheck: gaInnerProductXYZ
+// Each side is a segment (centre worldV[i], unit direction worldV[3 + i], half length half[i]) tested
+// against the box on seven axes: the box's three, box axis x side (three), the side itself. The first
+// side no axis separates answers 1.
+int ssHitCheckOBB_TriangleSides(const SS_OBB *box, const HIT_DATA *h)
+{
+    float bs[3][4], t[4], seg[4], l[4];
+    ssObbScaledAxes(bs, box);
+    for (int i = 0; i < 3; i++) {
+        const float *dir = h->worldV[3 + i];
+        for (int k = 0; k < 4; k++) {
+            t[k] = h->worldV[i][k] - box->center[k];
+            seg[k] = dir[k] * h->half[i];
+        }
+        int apart = 0;
+        for (int a = 0; a < 3 && !apart; a++)
+            apart = !(ssAbsDot(t, box->axis[a]) <= box->half[a] + ssAbsDot(seg, box->axis[a]));
+        for (int a = 0; a < 3 && !apart; a++) {
+            int alo = a == 0 ? 1 : 0, ahi = a == 2 ? 1 : 2;
+            ssCross(l, box->axis[a], dir);
+            apart = !(ssAbsDot(t, l) <= ssAbsDot(bs[alo], l) + ssAbsDot(bs[ahi], l));
+        }
+        if (apart)
+            continue;
+        float r = h->half[i] + ssAbsDot(bs[2], dir) + ssAbsDot(bs[0], dir) + ssAbsDot(bs[1], dir);
+        if (ssAbsDot(t, dir) <= r)
+            return 1;
+    }
+    return 0;
+}
+
+// CT3 0x018af580
+// callcheck: gaInnerProductXYZ
+// The quad as a flat box (centre worldV[0], axes worldV[3] / [4] by half[0] / half[1]) on eleven axes, in
+// the ROM's order: the box's three, box axis i x quad axis (i major), the quad's two. Its normal is not
+// one of them: ssHitCheckOneObject has already seen the corners cross the plane.
+int ssHitCheckOBB_Plane(const SS_OBB *box, const HIT_DATA *h)
+{
+    float t[4], bs[3][4], qs[2][4], l[4];
+    for (int k = 0; k < 4; k++) {
+        t[k] = h->worldV[0][k] - box->center[k];
+        qs[0][k] = h->worldV[3][k] * h->half[0];
+        qs[1][k] = h->worldV[4][k] * h->half[1];
+    }
+    ssObbScaledAxes(bs, box);
+    for (int a = 0; a < 3; a++) {
+        const float *ax = box->axis[a];
+        if (box->half[a] + ssAbsDot(qs[0], ax) + ssAbsDot(qs[1], ax) < ssAbsDot(t, ax))
+            return 0;
+    }
+    for (int a = 0; a < 3; a++) {
+        int alo = a == 0 ? 1 : 0, ahi = a == 2 ? 1 : 2;
+        for (int q = 0; q < 2; q++) {
+            ssCross(l, box->axis[a], h->worldV[3 + q]);
+            if (ssAbsDot(qs[1 - q], l) + ssAbsDot(bs[alo], l) + ssAbsDot(bs[ahi], l) < ssAbsDot(t, l))
+                return 0;
+        }
+    }
+    for (int q = 0; q < 2; q++) {
+        const float *ax = h->worldV[3 + q];
+        if (h->half[q] + ssAbsDot(bs[2], ax) + ssAbsDot(bs[0], ax) + ssAbsDot(bs[1], ax) < ssAbsDot(t, ax))
+            return 0;
+    }
+    return 1;
+}
+
+// Above the running maximum, a corner's distance is pushed up by this (the ROM keeps it in the list the
+// edge search and the crossing read; it never changes a sign).
+#define SS_HIT_PLANE_BIAS 0.3f
+
+// The shape the caller stands on is tested `grow` wider along its first n half sizes.
+static void ssHitGrowShape(HIT_DATA *h, int n, float grow)
+{
+    for (int k = 0; k < n; k++)
+        h->half[k] += grow;
+}
+
+// CT3 0x018b0350
+// callcheck: gaInnerProductXYZ, ssHitCheckOBB_TriangleSides, ahAcos, ssHitCheckOBB_Plane
+int ssHitCheckOneObject(HIT_OBJ *obj, HIT_DATA *h, const float *v, float *out, HIT_DATA *self)
+{
+    const SS_OBB *box = HIT_OBJ_OBB(obj);
+    // d[i + 1]: corner i's distance below h's plane; edge: the first i whose step from corner i - 1
+    // changes side (d[0] is 0, so a path starting on the plane does not count).
+    float d[9];
+    float top = 0.0f;
+    int edge = 0;
+    d[0] = 0.0f;
+    for (int i = 0; i < 8; i++) {
+        d[i + 1] = h->planeD - gaInnerProductXYZ(h->worldN, (float *)box->corner[i]);
+        if (edge == 0 && d[i] * d[i + 1] < 0.0f)
+            edge = i;
+        if (top < d[i + 1]) {
+            top = d[i + 1] + SS_HIT_PLANE_BIAS;
+            d[i + 1] = top;
+        }
+    }
+    if (edge == 0)
+        return 0;
+    if ((h->flags & HIT_DATA_FLAG_TRIANGLE) == 0) {
+        if (h == self)
+            ssHitGrowShape(h, 2, SS_HIT_SELF_GROW);
+        int met = ssHitCheckOBB_Plane(box, h);
+        if (h == self)
+            ssHitGrowShape(h, 2, -SS_HIT_SELF_GROW);
+        if (!met)
+            return 0;
+    } else {
+        if (h == self)
+            ssHitGrowShape(h, 3, SS_HIT_SELF_GROW);
+        int met = ssHitCheckOBB_TriangleSides(box, h);
+        if (h == self)
+            ssHitGrowShape(h, 3, -SS_HIT_SELF_GROW);
+        if (!met) {
+            // Does the crossing edge pierce the triangle? Where it meets the plane, the corners must be
+            // seen all round (the CheckLOS angle test).
+            const float *p0 = box->corner[edge - 1];
+            float e[4], x[4], u[3][4];
+            for (int k = 0; k < 3; k++)
+                e[k] = box->corner[edge][k] - p0[k];
+            e[3] = box->corner[edge][3];
+            float t = (float)LosEeDiv(d[edge], gaInnerProductXYZ(h->worldN, e));
+            if (t < 0.0f || 1.0f < t)
+                return 0;
+            for (int k = 0; k < 3; k++)
+                x[k] = e[k] * t + p0[k];
+            x[3] = e[3];
+            for (int c = 0; c < 3; c++) {
+                for (int k = 0; k < 3; k++)
+                    u[c][k] = h->world[c][k] - x[k];
+                u[c][3] = h->world[c][3];
+                ssVuUnitXYZ(u[c]);
+            }
+            int seen = ahAcos(gaInnerProductXYZ(u[0], u[1]));
+            seen += ahAcos(gaInnerProductXYZ(u[1], u[2]));
+            seen += ahAcos(gaInnerProductXYZ(u[2], u[0]));
+            if (!(LOS_INSIDE_ANGLE <= (float)seen))
+                return 0;
+        }
+    }
+    if (v != NULL) {
+        float k = gaInnerProductXYZ((float *)v, h->worldN);
+        for (int i = 0; i < 3; i++)
+            out[i] = h->worldN[i] * -k + v[i];
+        out[3] = h->worldN[3];          // vmulx.xyz / vadd.xyz on the loaded normal: its w
+    }
+    return 1;
+}
+
 // ---- stubs (tools/reverse/stubgen.py) ----
-
-
 
 // stub of CT3 0x018b1a40
 void ssCollisionCheck(struct CHARACTER *chara, int bank, SS_HIT_CHARA *list, int count)
 {
     ALYSSAPAN_STUB("ssCollisionCheck", 0x018b1a40);
-}
-
-
-// stub of CT3 0x018adf30
-int ssHitCheckOBB_OBB(const SS_OBB *a, const SS_OBB *b)
-{
-    ALYSSAPAN_STUB("ssHitCheckOBB_OBB", 0x018adf30);
-    return {};
-}
-
-// stub of CT3 0x018b0350
-int ssHitCheckOneObject(HIT_OBJ *obj, HIT_DATA *h, void *a, void *b, void *c)
-{
-    ALYSSAPAN_STUB("ssHitCheckOneObject", 0x018b0350);
-    return {};
 }
