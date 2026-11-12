@@ -34,6 +34,9 @@ below; anything here that CT3 proves wrong is fixed here.
   shot with the last run's `progress/` picture. **The `@<n>` numbers alone do not order an object's
   functions** (strings and float pools are numbered on different passes; they also repeat across
   objects, hazards.md).
+- **Nops inside a tight loop are the compiler's, not the source's** (2026-11-12, ga/wait.c): a loop body
+  under six instructions gets nops padded before its branch (the R5900 short-loop erratum). Write the
+  plain loop; make the counter `volatile` only when the loop is a delay the host would otherwise delete.
 
 How a function goes from Ghidra into `src/`. Accuracy to the ROM beats elegance: this is a
 reconstruction, not a rewrite. The rules come from ReiPan (FF3, GCC 3, ported from FF2's code) and

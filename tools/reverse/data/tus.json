@@ -412,12 +412,21 @@
    "why": "symtab local run 1607..1618 holds pad_button_read's statics and gaPadInit's pad_dma_buf0/1, closed by the next GCC object's .text at 0x018a1188: gaPadInit is this object's tail (ga/gaPadInit.c retired, 2026-11-11)"
   },
   "ga/wait.c": {
+   "notes": "Complete code, nothing on screen shows it: the release build compiled out every body but wait, so a DMA timeout says nothing in the ROM either. The dumps have no callers, so their arguments are unknown (declared void). Smoke shot unchanged: the clock-tower scene. The pinned queue holds only ui_canvas (blocked): runs keep taking the frontier.",
    "ranges": [
     [
      "018a85c8",
      "018a86a8"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-12 14:27",
+     "status": "verify",
+     "summary": "the ga debug object: wait (busy delay), 17 empty dumps, the two DMA stop messages (empty in the release ROM; 20 of 20)"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 20 unkeyed; file name from the names"
   },
   "game/AA_GetDataWord.c": {
