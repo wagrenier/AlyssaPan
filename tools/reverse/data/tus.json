@@ -1340,7 +1340,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 103..103, 3 functions keyed by their statics, 33 unkeyed; file name from the names"
   },
   "game/ssSetTexUVforCubeMap.c": {
-   "notes": "Slice 6: the 2D particles as one unit: ss2DParticle_main, ssGenerate2DParticle, ss2DParticlePush_Back, _Pop_Front, _LifeCheck, ssCalc2DParticleLifeSpan, ssCalc2DParticleOrbit, ss2DParticleSetDrawData, ssGetScreenRange (clamps read from the disassembly, hazards.md), ssTrigWaveStart (12 named arguments), plus ssSetSpriteCol, ssSetSpriteUV, ssSetSpritePos. SS_2DP_INFO (host, PORT bank), SS_2DP_REC (EE 0x160: SS_draw_diamond packet copy + du dv x y age speed size), SS_WAVE_OBJ, SS_SPRITE_PACKET; SS_draw_diamond and SS_draw_sprite defined here with the ROM bytes; ALL_TABLE +0x94 named waves. Host draw form decided (open-items.md): the packets stay as the ROM writes them and the host BGT passes read them. callcheck MISSING lines for the new functions are calls inside static helpers (ss2DpFix16, ss2DParticleStep): explained. Smoke run: the title clock-tower scene as before, no wave trigger there. Next: ss2DParticleSetDrawData2 and ssVaselineGetScreenPos from the disassembly (Ghidra garbles their clamps), then ssTrigVaselineStart, then the BGT passes (WaveDrawDiamond first) as host draws.",
+   "notes": "Slice 7: ssVaselineGetScreenPos (SS_SCREEN_RECT by value, three-band outside pick, ROM off-by-one kept, PORT guard for w 0), ss2DParticleSetDrawData2 (UV clamps on four sides from the disassembly), ssTrigVaselineStart (9 named arguments, DrawMode 7), ssBGT_VaselineDrawDiamond, ssBGT_WaveDrawDiamond, ssBGT_Vaseline and Wave SetDrawEnvPostRend (shared static ssDiamondSetDrawEnv; ssTexbuffer, drawctrl_ssSprite and a host copy of ssDOFtexture_attr). callcheck MISSING for the PostRends and Data2 are calls inside the static helpers: explained. Smoke run: the title clock-tower scene as before; no vaseline or wave trigger there. The host draws none of the diamond fans yet: gaBGT_ExecDrawCommandData_VIF1 drops them and the host has no frame copy to texture them with (open-items kt); that is host work. Next: the remaining BGT passes (HQDOF WriteBackFB and SetDrawEnvPreRend, Hazy, Ultima, Blur, DOF) from the disassembly, reusing ssTexbuffer and drawctrl_ssSprite.",
    "ranges": [
     [
      "018951d0",
@@ -1377,6 +1377,11 @@
      "date": "2026-11-12 02:17",
      "status": "partial",
      "summary": "reconstruct 13 functions (2D particle simulation, wave start, screen sprite setters)"
+    },
+    {
+     "date": "2026-11-12 02:33",
+     "status": "partial",
+     "summary": "reconstruct 7 functions (vaseline trigger, screen-position picker and draw data; vaseline and wave diamond passes and their draw environment)"
     }
    ],
    "status": "partial",

@@ -1287,6 +1287,26 @@ the branch scene tables and a few tk x commands.
   ssSetSpritePos ((x + 0.45, y + 0.4) * 16 in doubles + 0x8000; Z the low 24 bits) fill it for the BGT
   screen passes.
 
+### Slice 7 (2026-11-12): the vaseline pass's diamonds
+
+- **ssTrigVaselineStart** (9 arguments: x, y, w, h, size, sizeRand, sway, count, inside; DrawMode 7)
+  fills count ss2DpData records once: the same SS_draw_diamond packet as the wave, still (no ring, no age
+  or speed; ss2DpInfo keeps only max). Size randomised and clamped 10..100 as the wave's; du, dv = sway *
+  (tnRand(200) - 100) / 1000.
+- **ssVaselineGetScreenPos** takes the rectangle as 4 u16 in one 64-bit register and returns a point
+  (an 8-byte struct, w h zero from sbss 0x0193e018): inside = uniform over the rectangle; otherwise
+  uniform over the rest of 512 x 448 in three bands (rows above row-major, the h rows beside it
+  column-major, rows below row-major). ROM off-by-one: a beside-column equal to x is not shifted.
+- **ss2DParticleSetDrawData2** (vtx, x, y, size, du f12, dv f13) writes all six vertices' XYZ2 and UV;
+  the UVs are kept a texel inside the frame on all four sides (1, 2, 3 texels from the low edge; U up to
+  texel 511, V up to 447), where the wave's ss2DParticleSetDrawData clamps only the top.
+- **The diamond passes**: ssBGT_Vaseline/WaveDrawDiamond send each record (all max for the vaseline,
+  head..tail round the ring for the wave) through gaBGT_ExecDrawCommandData_VIF1. Their PostRend set-ups
+  are byte-identical: sunSetupTBufferData(ssTexbuffer 0x01941900, {ssDOFtexture_attr 0x01938f80 = 512 x
+  448 CT32 log2 9 x 9, tbp ga_draw_fbuf_address, cbp 0xfa800}) -- the frame just drawn is the texture --
+  then gaSetupDrawCtrlData(drawctrl_ssSprite 0x01941bc0: IIP TME ABE FST, ZTE ZTST 1, ALPHA (Cs-Cd)*As+Cd,
+  FBA 1, LCM 1, bilinear). The host draws nothing of it yet: the fan packets need the host's frame copy.
+
 ## The IOP side (2026-11-09)
 
 The EE loads `cdrom0:\IOP\IOPRP255.IMG;1` (an IOP reboot), then `SIO2MAN`, `PADMAN`, `MCMAN`, `MCSERV`,

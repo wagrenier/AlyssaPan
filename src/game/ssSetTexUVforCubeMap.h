@@ -136,7 +136,12 @@ extern u_char **ParticleData[BANK_MAX];         /* sbss 0x01940a10: per particle
 #define SS_2DP_SWAY_RAND 200            /* du, dv = sway * (tnRand(200) - 100) / 1000 */
 #define SS_2DP_SWAY_SCALE 0.001f
 #define SS_2DP_NO_OBJECT 0xff           /* ssTrigWaveStart's part: the rectangle comes from the arguments */
-#define SS_WAVE_OBJ_MATRIX 0x140        /* ssTrigWaveStart: the object's matrix is parts header + part * 0x380
+#define SS_2DP_SCREEN_W 512             /* the ROM's screen the diamonds live in (ssGetScreenRange, vaseline) */
+#define SS_2DP_SCREEN_H 448
+#define SS_2DP_UV_EDGE 16.0f            /* ss2DParticleSetDrawData2: a UV within a texel of an edge is pushed */
+#define SS_2DP_U_MAX 8176.0f            /* in to 1, 2, 3 texels from it; U up to texel 511, */
+#define SS_2DP_V_MAX 7152.0f            /* V up to texel 447 */
+#define SS_WAVE_OBJ_MATRIX 0x140       /* ssTrigWaveStart: the object's matrix is parts header + part * 0x380
                                            + 0x140 (MODEL_PARTS +0x100 by PARTS_REC; open-items.md) */
 
 typedef struct SS_DIAMOND_VERTEX {      /* one vertex of the packet, 3 PACKED qwords */
@@ -192,6 +197,13 @@ typedef struct SS_2DP_INFO {
     u_char sway;                        /* EE 0x20: the UV shift's range, thousandths of a pixel per step */
     int bank;                           /* PORT: the bank obj's EE words resolve in */
 } SS_2DP_INFO;
+
+// A rectangle of the 512 x 448 screen as ssVaselineGetScreenPos takes it (8 bytes in one 64-bit register,
+// read as unsigned halves) and returns its point in (x, y); w and h of the result are 0 (layout: ee).
+typedef struct SS_SCREEN_RECT {
+    u_short x, y, w, h;
+} SS_SCREEN_RECT;
+static_assert(sizeof(SS_SCREEN_RECT) == 8, "SS_SCREEN_RECT");
 
 extern SS_2DP_INFO ss2DpInfo;                   /* data 0x01939c90 */
 extern SS_2DP_REC *ss2DpData;                   /* 0x0193f778: the 2D particles' records (ssTrigVaselineStart, _WaveStart) */
@@ -292,7 +304,12 @@ void ssTrigHazyScreenEnd(void);                                                 
 void ssTrigWaveStart(int x, int y, int w, int h, int size, int sizeRand, int speed, int speedRand,
                      int sway, int count, int bank, int part);                           // CT3 0x0189ce60
 void ssTrigWaveEnd(void);                                                                // CT3 0x0189ce30
-void ssTrigVaselineStart(int a, int b, int c, int d, int e, int f, int g, int h, int i); // CT3 0x0189bd40
+// x, y, w, h: the rectangle; size and its +-percent; sway: the UV shift; count: the diamonds; inside: 1
+// scatters them inside the rectangle, 0 over the rest of the screen.
+void ssTrigVaselineStart(int x, int y, int w, int h, int size, int sizeRand, int sway, int count,
+                         int inside);                                                    // CT3 0x0189bd40
+SS_SCREEN_RECT ssVaselineGetScreenPos(SS_SCREEN_RECT range, int inside);                 // CT3 0x0189b640
+void ss2DParticleSetDrawData2(SS_DIAMOND_VERTEX *vtx, int x, int y, int size, float du, float dv); // CT3 0x0189b950
 void ssTrigVaselineEnd(void);                                                            // CT3 0x0189b920
 void ssTrigHQDOFStart(int cameraOffset, int opacity);                                    // CT3 0x0189b5a0
 void ssTrigHQDOFEnd(void);                                                               // CT3 0x0189b580

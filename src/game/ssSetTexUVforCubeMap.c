@@ -1118,28 +1118,75 @@ void ssBGT_UltimaSetDrawEnvPostRend(void)
     ALYSSAPAN_STUB("ssBGT_UltimaSetDrawEnvPostRend", 0x0189d820);
 }
 
-// stub of CT3 0x0189b7e0
+// ---- the diamond passes' draw environment (2026-11-12) ----
+
+alignas(16) static u_char ssTexbuffer[0x200];           /* bss 0x01941900: the screen passes' texture buffer */
+alignas(16) static GA_DRAWCTRL_DATA drawctrl_ssSprite;  /* 0x01941bc0: the screen passes' draw control */
+
+// PORT: ssDOFtexture_attr (data 0x01938f80, 0x80 bytes, the first 0x34 a SUN_TEX_ATTR): the frame buffer
+// read as a texture, 512 x 448 32-bit, log2 9 x 9, no mips (the same record as tex_attr_A$2750).
+static const SUN_TEX_ATTR ssDOFtexture_attr = {512, 448, 9, 9, SCE_GS_PSMCT32, 0, 0x000e0000u, {0, 0, 0, 0}, 0, 0};
+#define SS_DOF_TEXTURE_CBP 0xfa800u     /* the ROM's TEX_INFO.cbp for it (no CLUT is read for PSMCT32) */
+
+// The diamonds' draw control: Gouraud, textured, alpha blended, UV; alpha test always passes, depth
+// test on (ZTST 1 always); ALPHA_1 (Cs - Cd) * As + Cd; FBA 1; TEX1 LCM 1, bilinear both ways.
+static const GA_DRAWCTRL_ARGS SS_DIAMOND_DRAWCTRL_ARGS = {
+    1, 1, 0, 1, 0, 1, 0, 0, /* PRMODE: IIP, TME, ABE, FST */
+    0, 1, 0, 0, 0, 0, 1, 1, /* TEST_1: ATST 1, ZTE, ZTST 1 */
+    0, 1, 0, 1, 0,          /* ALPHA_1: A 0 (Cs), B 1 (Cd), C 0 (As), D 1 (Cd) */
+    1,                      /* FBA_1 */
+    1, 0, 1, 1, 0, 0,       /* TEX1_1: LCM 1, MMAG 1, MMIN 1 */
+    0};                     /* TEXA */
+
+// The PostRend set-up both diamond passes share (the ROM repeats it in each): the frame just drawn
+// (ga_draw_fbuf_address) becomes the texture, then the draw control. PORT: the record is the host copy.
+static void ssDiamondSetDrawEnv(void)
+{
+    TEX_INFO tex;
+    memset(&tex, 0, sizeof(tex));
+    tex.tim = 0x01938f80u;              /* ssDOFtexture_attr */
+    tex.tbp = (u_int)ga_draw_fbuf_address;
+    tex.cbp = SS_DOF_TEXTURE_CBP;
+    sunSetupTBufferDataFrom(ssTexbuffer, tex, &ssDOFtexture_attr);
+    sunBGT_ExecTBufferData_VIF1(ssTexbuffer);
+    gaSetupDrawCtrlData(&drawctrl_ssSprite, SS_DIAMOND_DRAWCTRL_ARGS);
+    gaBGT_ExecDrawCtrlData_VIF1(&drawctrl_ssSprite);
+}
+
+// CT3 0x0189b7e0
+// The vaseline diamonds: every record's packet, in order (they are not a ring).
 void ssBGT_VaselineDrawDiamond(void)
 {
-    ALYSSAPAN_STUB("ssBGT_VaselineDrawDiamond", 0x0189b7e0);
+    int i, n = ss2DpInfo.max;
+    for (i = 0; i < n; i++)
+        gaBGT_ExecDrawCommandData_VIF1((GA_DRAWCOMMAND_DATA *)&ss2DpData[i]);
 }
 
-// stub of CT3 0x0189b840
+// CT3 0x0189b840
+// The vaseline pass's draw environment after the scene (ssDiamondSetDrawEnv).
 void ssBGT_VaselineSetDrawEnvPostRend(void)
 {
-    ALYSSAPAN_STUB("ssBGT_VaselineSetDrawEnvPostRend", 0x0189b840);
+    ssDiamondSetDrawEnv();
 }
 
-// stub of CT3 0x0189bff0
+// CT3 0x0189bff0
+// The wave diamonds: the live records' packets, head to tail round the ring.
 void ssBGT_WaveDrawDiamond(void)
 {
-    ALYSSAPAN_STUB("ssBGT_WaveDrawDiamond", 0x0189bff0);
+    u_int i = ss2DpInfo.head, tail = ss2DpInfo.tail, max = ss2DpInfo.max;
+    while (i != tail) {
+        gaBGT_ExecDrawCommandData_VIF1((GA_DRAWCOMMAND_DATA *)&ss2DpData[i]);
+        i++;
+        if (i == max)
+            i = 0;
+    }
 }
 
-// stub of CT3 0x0189c070
+// CT3 0x0189c070
+// The wave pass's draw environment after the scene (ssDiamondSetDrawEnv).
 void ssBGT_WaveSetDrawEnvPostRend(void)
 {
-    ALYSSAPAN_STUB("ssBGT_WaveSetDrawEnvPostRend", 0x0189c070);
+    ssDiamondSetDrawEnv();
 }
 
 // CT3 0x01895fb0
@@ -1830,10 +1877,161 @@ void ssTrigVaselineEnd(void)
     DrawMode = DRAW_MODE_NORMAL;
 }
 
-// stub of CT3 0x0189bd40
-void ssTrigVaselineStart(int a, int b, int c, int d, int e, int f, int g, int h, int i)
+static const SS_SCREEN_RECT ssScreenRectZero; /* sbss 0x0193e018 (symtab __529): the result's start */
+
+// CT3 0x0189b640
+// A random screen point for a vaseline diamond. inside: uniform over the rectangle. Otherwise uniform over
+// the rest of the 512 x 448 screen, counted in three bands: the rows above it (row-major), the rows beside
+// it (column-major, height h, the columns left of it then right of it), the rows below it (row-major).
+// ROM: a beside-column equal to range.x is not shifted past the rectangle, so it lands in its left column
+// (and column x + w is never drawn); kept. PORT: an empty rectangle with inside set returns its corner
+// (the ROM divides by 0 w).
+SS_SCREEN_RECT ssVaselineGetScreenPos(SS_SCREEN_RECT range, int inside)
 {
-    ALYSSAPAN_STUB("ssTrigVaselineStart", 0x0189bd40);
+    SS_SCREEN_RECT p = ssScreenRectZero;
+    int x = range.x, y = range.y, w = range.w, h = range.h, r, beside, below;
+    if (inside) {
+        if (w == 0) {
+            p.x = (u_short)x;
+            p.y = (u_short)y;
+            return p;
+        }
+        r = tnRand(w * h);
+        p.x = (u_short)(x + r % w);
+        p.y = (u_short)(y + r / w);
+        return p;
+    }
+    r = tnRand(SS_2DP_SCREEN_W * SS_2DP_SCREEN_H - w * h);
+    beside = r - y * SS_2DP_SCREEN_W;
+    if (beside < 0) {
+        p.x = (u_short)(r % SS_2DP_SCREEN_W);
+        p.y = (u_short)(r / SS_2DP_SCREEN_W);
+        return p;
+    }
+    below = beside - (SS_2DP_SCREEN_W - w) * h;
+    if (below < 0) {
+        p.x = (u_short)(beside / h);
+        p.y = (u_short)(y + beside % h);
+        if (x < (int)p.x)
+            p.x = (u_short)(p.x + w);
+        return p;
+    }
+    p.x = (u_short)(below % SS_2DP_SCREEN_W);
+    p.y = (u_short)(y + h + below / SS_2DP_SCREEN_W);
+    return p;
+}
+
+// One axis of ss2DParticleSetDrawData2's UVs (lo < mid < hi, 16 * size apart): one that comes within a
+// texel of the texture's edge is pushed in, with those beyond it, to 1, 2, 3 texels from that edge.
+static void ss2DpClampUV(float *lo, float *mid, float *hi, float max)
+{
+    if (*hi < SS_2DP_UV_EDGE) {
+        *hi = 3.0f * SS_2DP_UV_EDGE;
+        *mid = 2.0f * SS_2DP_UV_EDGE;
+        *lo = SS_2DP_UV_EDGE;
+    } else if (*mid < SS_2DP_UV_EDGE) {
+        *mid = 2.0f * SS_2DP_UV_EDGE;
+        *lo = SS_2DP_UV_EDGE;
+    } else if (*lo < SS_2DP_UV_EDGE) {
+        *lo = SS_2DP_UV_EDGE;
+    }
+    if (!(*lo <= max)) {
+        *mid = max - SS_2DP_UV_EDGE;
+        *lo = max - 2.0f * SS_2DP_UV_EDGE;
+        *hi = max;
+    } else if (!(*mid <= max)) {
+        *mid = max - SS_2DP_UV_EDGE;
+        *hi = max;
+    } else if (!(*hi <= max)) {
+        *hi = max;
+    }
+}
+
+// CT3 0x0189b950
+// A vaseline diamond's packet, written once (it does not move): the fan about (x, y) with the
+// half-diagonal size, and its UVs the same points shifted by (du, dv), kept a texel inside the 512 x 448
+// frame on all four sides (ss2DParticleSetDrawData clamps only the top). From the disassembly.
+void ss2DParticleSetDrawData2(SS_DIAMOND_VERTEX *vtx, int x, int y, int size, float du, float dv)
+{
+    u_int xc = ss2DpFix16((float)(x + SS_2DP_XYZ_OFFSET) * SS_2DP_SUBPIXEL);
+    u_int yc = ss2DpFix16((float)(y + SS_2DP_XYZ_OFFSET) * SS_2DP_SUBPIXEL);
+    float uc = SS_2DP_SUBPIXEL * ((float)x + du), vc = SS_2DP_SUBPIXEL * ((float)y + dv);
+    float s = SS_2DP_SUBPIXEL * (float)size;
+    float ul = uc - s, ur = uc + s, vt = vc - s, vb = vc + s;
+    u_int u, v;
+
+    vtx[0].x = xc;
+    vtx[0].y = yc;
+    vtx[1].x = xc;
+    vtx[1].y = ss2DpFix16((float)(y + size + SS_2DP_XYZ_OFFSET) * SS_2DP_SUBPIXEL);
+    vtx[2].x = ss2DpFix16((float)(x - size + SS_2DP_XYZ_OFFSET) * SS_2DP_SUBPIXEL);
+    vtx[2].y = yc;
+    vtx[3].x = xc;
+    vtx[3].y = ss2DpFix16((float)(y - size + SS_2DP_XYZ_OFFSET) * SS_2DP_SUBPIXEL);
+    vtx[4].x = ss2DpFix16((float)(x + size + SS_2DP_XYZ_OFFSET) * SS_2DP_SUBPIXEL);
+    vtx[4].y = yc;
+    vtx[5].x = vtx[1].x;
+    vtx[5].y = vtx[1].y;
+
+    ss2DpClampUV(&vt, &vc, &vb, SS_2DP_V_MAX);
+    ss2DpClampUV(&ul, &uc, &ur, SS_2DP_U_MAX);
+    u = ss2DpFix16(uc);
+    v = ss2DpFix16(vc);
+    vtx[0].u = u;
+    vtx[0].v = v;
+    vtx[1].u = u;
+    vtx[1].v = ss2DpFix16(vb);
+    vtx[2].u = ss2DpFix16(ul);
+    vtx[2].v = v;
+    vtx[3].u = u;
+    vtx[3].v = ss2DpFix16(vt);
+    vtx[4].u = ss2DpFix16(ur);
+    vtx[4].v = v;
+    vtx[5].u = vtx[1].u;
+    vtx[5].v = vtx[1].v;
+}
+
+// CT3 0x0189bd40
+// The trigger command's vaseline on, if no other pass is: count still diamonds from gHeapJunc, each at a
+// random point (ssVaselineGetScreenPos), its size randomised by sizeRand percent and clamped, its UV shift
+// random within +-sway / 1000 pixels, its packet written once. Unlike the wave, nothing moves or expires:
+// the records are not a ring (ss2DpInfo keeps only max).
+void ssTrigVaselineStart(int x, int y, int w, int h, int size, int sizeRand, int sway, int count, int inside)
+{
+    SS_SCREEN_RECT range, p;
+    int i;
+    if (DrawMode != DRAW_MODE_NORMAL)
+        return;
+    ss2DpData = (SS_2DP_REC *)_SunAlloc(&gHeapJunc, count * (int)sizeof(SS_2DP_REC), 0x10);
+    range.x = (u_short)x;
+    range.y = (u_short)y;
+    range.w = (u_short)w;
+    range.h = (u_short)h;
+    for (i = 0; i < count; i++) {
+        SS_2DP_REC *r;
+        u_int s = (u_int)size;
+        float du, dv;
+        p = ssVaselineGetScreenPos(range, inside);
+        if (sizeRand != 0) {
+            s = ss2DpRandomise(s, (u_int)sizeRand);
+            if (s < SS_2DP_SIZE_MIN)
+                s = SS_2DP_SIZE_MIN;
+            else if (s > SS_2DP_SIZE_MAX)
+                s = SS_2DP_SIZE_MAX;
+        }
+        du = (float)(sway * (tnRand(SS_2DP_SWAY_RAND) - 100)) * SS_2DP_SWAY_SCALE;
+        dv = (float)(sway * (tnRand(SS_2DP_SWAY_RAND) - 100)) * SS_2DP_SWAY_SCALE;
+        ss2DpInfo.max = (u_short)count;
+        r = &ss2DpData[i];
+        memcpy(r, SS_draw_diamond, sizeof(SS_draw_diamond));
+        r->du = du;
+        r->dv = dv;
+        r->x = (short)p.x;
+        r->y = (short)p.y;
+        r->size = (u_char)s;
+        ss2DParticleSetDrawData2(r->vtx, p.x, p.y, (int)s, du, dv);
+    }
+    DrawMode = DRAW_MODE_VASELINE;
 }
 
 // CT3 0x0189ce30
