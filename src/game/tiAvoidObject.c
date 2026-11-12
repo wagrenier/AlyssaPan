@@ -54,3 +54,9 @@ void ssAI_MonsterDraw(struct CHARACTER *chr, int draw)
 {
     ALYSSAPAN_STUB("ssAI_MonsterDraw", 0x0185f710);
 }
+
+// stub of CT3 0x018642b0
+void ssAI_AxeThrowReset(void)
+{
+    ALYSSAPAN_STUB("ssAI_AxeThrowReset", 0x018642b0);
+}

@@ -214,11 +214,16 @@ typedef struct HIT_TABLE {
     u_char pad00[0x24];
     int count;                          /* 0x24: records in recs */
     u_int recs;                         /* 0x28: HIT_REC[count] (EE word of the bank) */
-    u_char pad2c[0x2b0 - 0x2c];
+    u_char pad2c[0x2a0 - 0x2c];
+    u_int attackObjs;                   /* 0x2a0: EE word of the bank: u_int[attackObjCount], EE words of
+                                           objects (HIT_OBJ_ID at +0xda); asArrowOperate's attackers */
+    int attackObjCount;                 /* 0x2a4 */
+    u_char pad2a8[8];
     int objHitCount;                    /* 0x2b0: records in objHits (asUseArrow.c, 2026-11-11) */
     u_int objHits;                      /* 0x2b4: HIT_OBJ_REC[objHitCount] (EE word of the bank) */
 } HIT_TABLE;
 static_assert(offsetof(HIT_TABLE, objHits) == 0x2b4, "HIT_TABLE.objHits");
+static_assert(offsetof(HIT_TABLE, attackObjCount) == 0x2a4, "HIT_TABLE.attackObjCount");
 // What a bank's objects hit this frame (asUseArrow.c's readers name it; the collision TU writes it).
 typedef struct HIT_OBJ_REC {
     u_char pad00[0x10];
@@ -227,7 +232,7 @@ typedef struct HIT_OBJ_REC {
     u_char pad14[4];
     int id;                             /* 0x18: asAttackedArrowInformation's key */
     short chara;                        /* 0x1c: the Character[] it hit (asArrowOperate) */
-    u_char kind;                        /* 0x1e: asArrowOperate: 0 places the arrow, 1 (ARROW_HIT_KIND*) */
+    u_char kind;                        /* 0x1e: asArrowOperate: 0 leaves the arrow stuck (ARROW_HIT_STUCK), 1 ends it (ARROW_HIT_END) */
     u_char pad1f;
 } HIT_OBJ_REC;
 static_assert(sizeof(HIT_OBJ_REC) == 0x20, "HIT_OBJ_REC");

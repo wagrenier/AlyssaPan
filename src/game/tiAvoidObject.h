@@ -16,3 +16,5 @@ void ssAI_BrainEnd(struct CHARACTER *chara, int brain);                         
 int ssAI_IsDoorOpenPlaying(struct CHARACTER *chr);                                       // CT3 0x01860d00
 // From tkXDTrg_MonDraw (tkXDTrg_GetSceneHash.c, 2026-11-11): shows (1) or hides (0) a stalker.
 void ssAI_MonsterDraw(struct CHARACTER *chr, int draw);                                  // CT3 0x0185f710
+// From asArrowOperate (asUseArrow.c, 2026-11-11): on stage 3, an arrow first pointing up.
+void ssAI_AxeThrowReset(void);                                                           // CT3 0x018642b0

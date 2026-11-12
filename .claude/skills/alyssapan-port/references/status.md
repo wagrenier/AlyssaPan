@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-11 21:35 at commit `3c1405f` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-11 21:47 at commit `fc491a1` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1245**; stubs: **227**
+- reconstructed CT3 functions: **1246**; stubs: **227**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -72,7 +72,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/asMothOperate.c` | 0 | 1 |
 | `src/game/asMothPause.c` | 0 | 1 |
 | `src/game/asMothRouteSearch.c` | 0 | 2 |
-| `src/game/asUseArrow.c` | 10 | 1 |
+| `src/game/asUseArrow.c` | 11 | 0 |
 | `src/game/asXcmd.c` | 0 | 20 |
 | `src/game/copy2area.c` | 0 | 1 |
 | `src/game/fileio.c` | 40 | 0 |
@@ -86,7 +86,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/ssGrpPortalCheck.c` | 74 | 0 |
 | `src/game/ssHitCheckAttackToScn.c` | 0 | 8 |
 | `src/game/ssSetTexUVforCubeMap.c` | 1 | 50 |
-| `src/game/tiAvoidObject.c` | 0 | 8 |
+| `src/game/tiAvoidObject.c` | 0 | 9 |
 | `src/game/tiXcmd_TransItem.c` | 85 | 8 |
 | `src/game/tkXDTrg_GetSceneHash.c` | 50 | 0 |
 | `src/game/tnXcmd.c` | 0 | 8 |
@@ -97,10 +97,9 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 64 TUs: todo 28, partial 4, verify 33, done 8, blocked 1
-- next: **game/asUseArrow.c** (pinned in the queue)
-- pinned queue: alyssapan/rendering/ui_canvas.cpp, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
-- partial: `game/asUseArrow.c` 10/11 -- asArrowOperate (CT3 0x01866d80, 0x1230 bytes) is the next slice and the only stub left; field uses tallied in open-items.md Open questions (2026-11-11 asUseArro
+- 64 TUs: todo 28, partial 3, verify 34, done 8, blocked 1
+- next: **game/asMothRouteSearch.c** (pinned in the queue)
+- pinned queue: alyssapan/rendering/ui_canvas.cpp, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
 - partial: `game/tiXcmd_TransItem.c` 85/93 -- Slice 10. Written: tiXcmd_UseItem (ITEM_USE_* modes from argv[4], ITEM_KIND_* from the row byte +0: give-take, signal, heal Character[0].hp up to hpMax, calm vi
 - partial: `game/wideXcmd_TriggerInit.c` 1/46 -- Title draws at 4:3 and 16:9 after 40 s (logo, 3, menu, copyright). Fix in SunTexEePtr, BankOfEeAddr, HitObjectId: free slot banks shared EE addresses with the G
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
@@ -126,6 +125,7 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/ahRelocateSunPs2ObjectArry.c` 93/93 -- All 93 functions written; nothing reaches the general body yet (the two written callers pass one flag each; asCharacterAnimationExecute and asResetCharacterPosi
 - verify: `game/ahalloc.c` 7/7 -- Host block header is 0x20 bytes (EE 0x10). SunAllocInit runs at boot; nothing calls _SunAlloc yet. AlignedNum is a stub answering 0, so game/AlignedNum.c is que
 - verify: `game/asEyeForcusUP2CamMat.c` 30/30 -- The smoke run calls camera_main with CAMERA_MODE_SCENE each frame; the debug modes and the cut step are not reached. Shot still black: the first object lands at
+- verify: `game/asUseArrow.c` 11/11 -- No arrow on screen until a stage with the bow runs. States renamed by use (4 CHARGE, 5 FLYING, 7 RETURN; ARROW_HIT_STUCK and _END). HIT_TABLE +0x2a0/+0x2a4 atta
 - verify: `game/fileio.c` 40/40 -- All 40 functions written. Round2ChangeChar keeps the ROM order of its 150 Round2ChangeSectInfo pairs as three tables; round values named from the file names onl
 - verify: `game/hhXcmd_DressUp.c` 22/22 -- A smoke run now passes hhXcmd_LoadSE and stops in the m_capcom.mov decode loop (shots end at frame 420, flat grey): the movie skip host task is the next blocker
 - verify: `game/main.c` 29/29 -- Smoke run: build green, layoutcheck OK, callcheck: main_rtn_Particle2 matches the ROM (extra BankEePtr only); AllDrawObject / GlobalDrawObject / DrawObjectRefra
@@ -140,6 +140,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-11 21:47 `game/asUseArrow.c` verify: slice 2: asArrowOperate (the arrow state machine: on the bow, charge, flight, hits, return; the trigger variables); the file is complete
 - 2026-11-11 21:35 `game/asUseArrow.c` partial: slice 1: 10 of 11 functions (arrow records, shoot, aim, state, lookups); ARROW and ARROW_INFO types; HIT_TABLE object hits
 - 2026-11-11 21:26 `game/tkXDTrg_GetSceneHash.c` verify: slice 4: tkXDTrg_ActorProc_Ini, the old-form door record that finds its camera cut and parts by name (Cam_Dor, TDS_Dor, CP_Dor, HT_Dor, SE_Dor plus the room and
 - 2026-11-11 21:20 `game/tkXDTrg_GetSceneHash.c` partial: slice 3: the DoorTrigger x command and its actor dispatcher (code parser, scene heads, door records), the Ini_New and IniMon parsers, Alyssa's door open and clo
@@ -147,15 +148,14 @@ Recent sessions:
 - 2026-11-11 20:56 `game/tkXDTrg_GetSceneHash.c` partial: slice 1: the branch scene tables (ScnTbl and the Br tables), scene ids, door flags, the door-trigger state init, CloseCancel, the door bridge draw (tkBri_DoorDr
 - 2026-11-11 20:33 `game/wideXcmd_DebugPrint.c` verify: slice 10: asCharacterMortionFunctionOperation (attack and no-hit windows, per-character run events, Alyssa's stairs and panic triggers, turn speed, lever mash e
 - 2026-11-11 20:11 `game/Clipping_Portal.c` verify: slice 15: tiCalc_HurikoOPEN and tiCalc_HurikoCLOSED, one pendulum solver (pull to rest pose, normal drag, springs, accel clamp, damping, length constraint, caps
-- 2026-11-11 19:54 `game/Clipping_Portal.c` partial: slice 14: tiCalc_Leaf, tiCalc_Twist (turn about the velocity around startPos less radius along unit (vel+1) x vel), tiGetTransRotMatrix, tiGetDegFromVec, tiPart
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
 | `game/ssSetTexUVforCubeMap.c` | partial | 1/50/96 | 35.3 | 117 | 10 |
 | `game/CpDivideEECom.c` | todo | 0/10/18 | 3.3 | 80 | 10 |
 | `ga/gaDrawObject.c` | todo | 0/11/11 | 6.9 | 39 | 0 |
-| `game/tiAvoidObject.c` | todo | 0/8/82 | 30.5 | 28 | 4 |
-| `game/ssHitCheckAttackToScn.c` | todo | 0/8/37 | 32.0 | 28 | 3 |
+| `game/ssHitCheckAttackToScn.c` | todo | 0/8/37 | 32.0 | 34 | 3 |
+| `game/tiAvoidObject.c` | todo | 0/9/82 | 30.5 | 29 | 4 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/AA_GetDataWord.c` | todo | 0/8/15 | 4.9 | 21 | 2 |
 | `game/AA_SoundMonoSoart.c` | todo | 0/8/20 | 4.0 | 18 | 2 |
@@ -171,6 +171,7 @@ Recent sessions:
 | `01851b10` | ConvertQuat2Matrix | 17 | sym | stub | game/Convert.c |
 | `018d1e70` | CpGetEEIOPStatus | 14 | sym | stub | game/CpDivideEECom.c |
 | `01883ca0` | asMothPause | 10 | sym | stub | game/asMothPause.c |
+| `018aa8e0` | ssHitAddAttackRequest | 8 | sym | stub | game/ssHitCheckAttackToScn.c |
 | `018a3078` | gaObjectClippingCheck | 7 | sym | stub | ga/gaObjectClippingCheck.c |
 | `018518d0` | ConvertMatrix2Quat | 6 | sym | stub | game/Convert.c |
 | `018d1fa0` | CpSifDmaTransEEToIOP | 6 | sym | stub | game/CpDivideEECom.c |
@@ -206,6 +207,5 @@ Recent sessions:
 | `0189f720` | gaDrawObject_Redraw_Polygon | 2 | sym | stub | ga/gaDrawObject_Redraw_Polygon.c |
 | `0189dec0` | ssBGT_ZBufferClear | 2 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `0189d900` | ssTrigScreenBlurEnd | 2 | sym | stub | game/ssSetTexUVforCubeMap.c |
-| `018aa8e0` | ssHitAddAttackRequest | 2 | sym | stub | game/ssHitCheckAttackToScn.c |
 | `01882c10` | asInitMothInfo | 2 | sym | stub | game/asMothRouteSearch.c |
 

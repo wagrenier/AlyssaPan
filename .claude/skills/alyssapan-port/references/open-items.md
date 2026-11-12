@@ -1660,6 +1660,23 @@ apply here):
 
 ## Open questions
 
+- (2026-11-11, game/asUseArrow.c slice 2) asArrowOperate written: **the file is complete (verify: no
+  arrow on screen until a stage with the bow runs)**. The states were renamed by what this function does
+  with them: 4 ARROW_STATE_CHARGE (MOTION_BOW_DRAW raises a kind 0 arrow's level past 0x95 / 299 ticks),
+  5 ARROW_STATE_FLYING (released on MOTION_BOW_SHOOT or _HOLD), 7 ARROW_STATE_RETURN (hidden, then READY);
+  ARROW_HIT_STUCK / _END replace ARROW_HIT_KIND0 / 1 (END also when the arrow passes its mark). **To
+  confirm:** (a) HIT_TABLE +0x2a0 / +0x2a4 (attackObjs, attackObjCount: EE words of objects whose +0xda id
+  is an arrow's hitId) are named from this reader; (b) the ssHitAddAttackRequest arguments here are
+  (object index, the arrow bank, 1, attack 2..6 / 0x20 by TRIG_VAR_STAGE, the target character, 0 or 1,
+  0, -1 or 0x12): they do not fit the prototype's names (chara, atk, a2, power, a4, a5, motion, bank) from
+  the one earlier call site -- the collision TU names them; (c) the target is the first character 1..34
+  with CHARACTER_FLAG_SHADOW set and CHARACTER_FLAG_NO_HIT clear; (d) trigger variables 3 / 0x33 / 0x35
+  (TRIG_VAR_ARROW_LEVEL / _STATES / _LEVELS, a nibble an arrow) and event 0x65 (TRIG_EVENT_ARROW_LANDED)
+  named from these writes; (e) **PORT:** pSrcMPstock / pDstMPstock are EE words with no bank: ArrowStockPos
+  takes the loaded bank image with the highest BankImageEE at or below the word -- a BankOfEe helper in
+  ct3_types.h would serve every such reader; (f) shootArg1 / shootArg2 are the speed and the power (scaled
+  at the release); the power has no reader here.
+
 - (2026-11-11, game/asUseArrow.c slice 1) 10 of 11 functions written; **asArrowOperate (0x1230 bytes,
   CT3 0x01866d80) is the next slice** (stage: work/stage/tu_game_asUseArrow.c). ARROW (0x50) and
   ARROW_INFO (host layout) are in asUseArrow.h; HIT_TABLE gained objHitCount / objHits (+0x2b0 / +0x2b4)

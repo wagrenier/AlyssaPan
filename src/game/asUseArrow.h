@@ -17,14 +17,17 @@ typedef struct ARROW {
                                            asGetTheArrowRad sets ARROW_KIND_STEEP */
     u_char pad03;
     short timer;                        /* 0x04: frames in the state (0 on entry) */
-    u_short shootArg1;                  /* 0x06: asShootArrowSetting's second argument (low byte) */
-    u_short shootArg2;                  /* 0x08: its third (low byte) */
+    u_short shootArg1;                  /* 0x06: asShootArrowSetting's second argument (low byte); on the
+                                           release asArrowOperate scales it by ARROW_SPEED_*: the speed
+                                           (dir * speed * ticks / 5 a frame) */
+    u_short shootArg2;                  /* 0x08: its third (low byte), scaled with it (ARROW_POWER_*; no
+                                           reader in this TU) */
     u_short part;                       /* 0x0a: the arrow's own part in ArrowInfo.bank (the script's 1st number) */
     u_short markPart;                   /* 0x0c: the part placed ARROW_MARK_DIST ahead of the bow along dir
                                            (the 2nd number) */
     short hitId;                        /* 0x0e: the id a scene hit's object carries at +0xda (the 3rd number) */
-    int counter;                        /* 0x10: cleared with the state; asArrowOperate's */
-    int hitKind;                        /* 0x14: asArrowOperate: ARROW_HIT_* when a scene hit took the arrow */
+    int counter;                        /* 0x10: ticks in the state (gGlobalNextTicksInterval a frame) */
+    int hitKind;                        /* 0x14: ARROW_HIT_*: why the arrow stopped (asArrowOperate) */
     u_char pad18[8];
     float dir[4];                       /* 0x20: the flight direction, xyz unit, w 1 */
     float pos[4];                       /* 0x30: the arrow's position */
@@ -38,14 +41,20 @@ static_assert(offsetof(ARROW, posPrev) == 0x40, "ARROW.posPrev");
 enum {
     ARROW_STATE_ASK = 1,                /* asChangeTheArrowState: only ask (never a record's state) */
     ARROW_STATE_READY = 2,              /* asXcmd_I_have_x_Arrows: free for asShootArrowSetting */
-    ARROW_STATE_SHOT = 3,               /* asShootArrowSetting: nocked / in flight (asArrowOperate) */
-    ARROW_STATE_FLYING = 4,             /* asArrowOperate on MOTION_BOW_DRAW; 3 and 4 are "the arrow out" */
-    ARROW_STATE_5 = 5,                  /* asArrowOperate on MOTION_BOW_SHOOT (role unread) */
-    ARROW_STATE_HIT = 6,                /* asArrowOperate: a scene hit's object matched hitId */
+    ARROW_STATE_SHOT = 3,               /* asShootArrowSetting: nocked, on the bow (asArrowOperate) */
+    ARROW_STATE_CHARGE = 4,             /* MOTION_BOW_DRAW: the draw raises the level with time (kind 0);
+                                           3 and 4 are "the arrow out" (on the bow) */
+    ARROW_STATE_FLYING = 5,             /* MOTION_BOW_SHOOT / MOTION_BOW_HOLD: released, moves each frame */
+    ARROW_STATE_HIT = 6,                /* stopped: a scene hit's object matched hitId, or it passed its
+                                           mark; ARROW_HIT_LINGER frames, then _RETURN */
+    ARROW_STATE_RETURN = 7,             /* put away (bow lowered or the arrow done): hidden, then READY */
 };
 #define ARROW_KIND_STEEP 3              /* asGetTheArrowRad: dir . up >= ARROW_STEEP_DOT */
-#define ARROW_HIT_KIND0 1               /* asArrowOperate: hit record kind 0 (the arrow is placed at the plane) */
-#define ARROW_HIT_KIND1 2               /* hit record kind 1 */
+#define ARROW_HIT_STUCK 1               /* a hit record of kind 0: the arrow is left at the struck plane */
+#define ARROW_HIT_END 2                 /* a hit record of kind 1, or the arrow passed its mark: on the HIT
+                                           state's first frame (kind != 3) the global event
+                                           TRIG_EVENT_ARROW_LANDED */
+#define ARROW_HIT_LINGER 24             /* frames in ARROW_STATE_HIT (the timer past it: _RETURN) */
 
 // ArrowInfo (sbss 0x0193cea0, 0x18 bytes in the symtab). layout: host (list is a pointer; EE offsets).
 typedef struct ARROW_INFO {
