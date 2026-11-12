@@ -447,12 +447,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 117..117, 4 functions keyed by their statics, 26 unkeyed; file name from the names"
   },
   "game/AA_scTag2.c": {
+   "notes": "Smoke runs skip the movies, so nothing on screen shows this code; the shot is the same clock-tower scene. The ring can now retire blocks (open-items ht, hu done). VideoDec 0xb4..0xcc is skew[6] and skewIndex. Symtab: AA_shouldSkip and AA_cpy2area are LOCAL in AA_mpegTS.c's run, the five DMA helpers GLOBAL and unproven (open-items hw); file left as cut. Next: copy2area.c, AA_cpuCycles.c, then a run with movies on.",
    "ranges": [
     [
      "018c1340",
      "018c1680"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-12 11:50",
+     "status": "verify",
+     "summary": "all 7 functions written: the movie ring's DMA tag, D3 and D4 CHCR writes, FIFO index, pts region test, B-picture skip history, two-span copy"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 115..115, 2 functions keyed by their statics, 5 unkeyed; file name from the names"
   },
   "game/AA_viBuf.c": {

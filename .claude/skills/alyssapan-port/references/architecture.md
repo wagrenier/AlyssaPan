@@ -1708,10 +1708,16 @@ The auto-load at boot (MemorycardAutoLoad, xcmd_tn.c) has its own states (mcMain
   @174 / @213 / @214 (this TU's strings), w_image_w / w_image_h and AA_ChangeFedeInPlene: one object. In
   ezmpegstr, videodec.c also holds setD3_CHCR, setD4_CHCR, getFIFOindex, isPtsInRegion, shouldSkip and
   cpy2area -- exactly AA_scTag2.c's functions. vobuf.c has no statics, so nothing proves the voBuf tail is
-  a second object. Not re-pinned (open-items.md (hf)).
+  a second object. Not re-pinned (open-items.md (hf)). **Bindings read 2026-11-12 (AA_scTag2.c's
+  session, work/symtab_ct3.json):** AA_shouldSkip (2537) and AA_cpy2area (2536) are LOCAL in this run, so
+  0x018c14b0..0x018c1680 is surely this object's head; AA_scTag2, AA_setD4_CHCR, AA_setD3_CHCR,
+  AA_getFIFOindex and AA_IsPtsInRegion (0x018c1340..0x018c14b0) are GLOBAL with no local tie, so no
+  symbol says whether they end AA_viBuf.c's object or start this one.
 - VideoDec (0xd8): sceMpeg 0x00, ViBuf 0x48 (0x60, ezmpegstr's: data, tag, n, dmaStart, dmaN, readBytes,
   buffSize, the IPU DMA env 0x1c, sema 0x40, isActive, totalBytes 0x48, ts ring 0x50..0x5c), state 0xa8,
-  the B-picture skip flag 0xb0 (0xb0..0xcc cleared by AA_videoDecReset), handler ids 0xd0 / 0xd4.
+  the B-picture skip flag 0xb0, AA_shouldSkip's skew history 0xb4..0xc8 (six AA_syncGetSkew answers;
+  all positive = skip) and its next slot 0xcc (0xb0..0xcc cleared by AA_videoDecReset), handler ids
+  0xd0 / 0xd4.
   AA_videoDecInputCount / BeginPut / EndPut are 8-byte tail jumps into AA_viBufCount / BeginPut / EndPut
   (Ghidra shows the callees inlined; the bodies are noted in AA_viBuf.h).
 - VoBuf (0x48): data 0, tag 4, write 8, count 0xc, size 0x10, the display's pacing 0x14..0x30, then

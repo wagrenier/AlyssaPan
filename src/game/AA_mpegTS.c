@@ -283,8 +283,9 @@ void AA_videoDecReset(VideoDec *vd)
 
     vd->state = VD_STATE_NORMAL;
     vd->skipping = 0;
-    for (k = 0; k < VD_RESET_WORDS - 1; k++)
-        vd->wB4[k] = 0;
+    for (k = 0; k < VD_SKEWS; k++)
+        vd->skew[k] = 0;
+    vd->skewIndex = 0;
 }
 
 // CT3 0x018c1d60: `size` bytes were written where AA_videoDecBeginPut said (a tail jump into the ring).

@@ -988,6 +988,17 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    is the movie's next step (with (hf)); (hv) AA_viBufModifyPts is declared in AA_viBuf.h (only PutTs
    calls it; its symtab binding was not checked). **Next for the movie: AA_scTag2.c, copy2area.c,
    AA_cpuCycles.c, then a run with movies on.**
+   **game/AA_scTag2.c (2026-11-12, verify: smoke runs skip the movies): all 7 written** ((ht) and (hu)
+   done: AA_getFIFOindex compares with (VIBUF_DMA_TAG + (n + 1) * 0x10) & 0x0fffffff and subtracts
+   VIBUF_DMA_DATA, AA_scTag2 stores addr as given, so the ring now retires blocks). VideoDec's 0xb4..0xcc
+   is now skew[6] + skewIndex (AA_shouldSkip's), replacing wB4. (hw) **(hf) half settled by the symtab**
+   (architecture.md, the AA_mpegTS bullet): AA_shouldSkip / AA_cpy2area are LOCAL in AA_mpegTS.c's run, so
+   they belong to that object; the five DMA helpers are GLOBAL and unproven either way. Claude's call: the
+   file stays as tumap cut it (tus.py define cannot empty a TU, and moving code between files proves
+   nothing on screen); a later session may move AA_shouldSkip / AA_cpy2area into AA_mpegTS.c and the five
+   helpers into AA_viBuf.c (ezmpegstr's vibuf.c, from memory), then retire the key. (hx) AA_syncGetSkew's
+   sign (positive = video late) is read from AA_shouldSkip's use only: AA_cpuCycles.c confirms it.
+   **Next for the movie: copy2area.c, AA_cpuCycles.c, then a run with movies on.**
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
    class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~

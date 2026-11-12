@@ -15,7 +15,7 @@
 #define VD_STATE_FLUSH 2                /* AA_videoDecFlush wrote the sequence end */
 #define VD_STATE_END 3                  /* AA_videoDecMain is through; readMpeg's loops stop on it */
 
-#define VD_RESET_WORDS 8                /* AA_videoDecReset clears 0xb0..0xcc */
+#define VD_SKEWS 6                      /* AA_shouldSkip's history of AA_syncGetSkew answers */
 
 // The video decoder (AA_videoDec, sbss 0x0193f410: 0xd8 bytes in the symtab): the libmpeg context, the
 // stream ring, the state. initAll / termAll keep the two interrupt handler ids at +0xd0 / +0xd4.
@@ -26,7 +26,8 @@ typedef struct VideoDec {
     int state;              /* EE 0xa8: VD_STATE_* */
     int wAC;                /* EE 0xac: never read here */
     int skipping;           /* EE 0xb0: AA_decBs0 told libmpeg to drop B pictures (first word of the reset) */
-    int wB4[VD_RESET_WORDS - 1]; /* EE 0xb4..0xcc: cleared by AA_videoDecReset, not read here */
+    int skew[VD_SKEWS];     /* EE 0xb4: AA_shouldSkip's last AA_syncGetSkew answers (AA_videoDecReset */
+    int skewIndex;          /* EE 0xcc:  clears them with `skipping`); the slot written next */
     int hid_endimage;       /* EE 0xd0: AddDmacHandler(DMAC_GIF, AA_handler_endimage) */
     int hid_vblank;         /* EE 0xd4: AddIntcHandler(INTC_VBLANK_S, AA_vblankHandler) */
 } VideoDec;

@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-12 11:34 at commit `44484c5` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-12 11:50 at commit `c348de1` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1684**; stubs: **116**
+- reconstructed CT3 functions: **1691**; stubs: **109**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -53,7 +53,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/AA_SoundMonoSoart.c` | 20 | 0 |
 | `src/game/AA_cpuCycles.c` | 0 | 4 |
 | `src/game/AA_mpegTS.c` | 31 | 0 |
-| `src/game/AA_scTag2.c` | 0 | 7 |
+| `src/game/AA_scTag2.c` | 7 | 0 |
 | `src/game/AA_viBuf.c` | 13 | 0 |
 | `src/game/AA_videoCallback.c` | 11 | 0 |
 | `src/game/AlignedNum.c` | 4 | 0 |
@@ -103,8 +103,8 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 14, verify 52, done 8, blocked 1
-- next: **game/AA_scTag2.c** (frontier score 19)
+- 65 TUs: todo 13, verify 53, done 8, blocked 1
+- next: **ga/gaDrawObject_Redraw_Polygon.c** (frontier score 7)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
@@ -122,6 +122,7 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/AA_GetDataWord.c` 15/15 -- GIF chains are host AA_IMAGE_TAG records drawn at the vblank send (DrawUiMovie picture, captions as a 4-bit TIM2 with the CLUT dt, fade as FrameScale plus addit
 - verify: `game/AA_SoundMonoSoart.c` 20/20 -- verify: smoke runs skip movies, so no audio path runs; the 30 s run still reaches the title screen. callcheck lists fptodp / dpmul / __fixdfdi missing: the soft
 - verify: `game/AA_mpegTS.c` 31/31 -- verify: no smoke run plays a movie (shot unchanged: the clock-tower scene). VideoDec / ViBuf / VoBuf are layout host; movie bank EE addresses resolved by AA_Mov
+- verify: `game/AA_scTag2.c` 7/7 -- Smoke runs skip the movies, so nothing on screen shows this code; the shot is the same clock-tower scene. The ring can now retire blocks (open-items ht, hu done
 - verify: `game/AA_viBuf.c` 13/13 -- ezmpegstr vibuf.c, all 13 written. Host: no IPU; ViBufHostIpu moves D4 MADR to what MpegStream's decoder has parsed (AlyssaPanMpegVideoPending), DMA addresses i
 - verify: `game/AA_videoCallback.c` 11/11 -- verify: smoke runs skip the movies, so no shot shows the stream; the 25 s run still reaches the title scene. AA_videoDecPutTs now answers int (the ROM tests it)
 - verify: `game/AlignedNum.c` 4/4 -- WaitLoop is split in Ghidra: WaitLoop 0x0189f650 plus WaitLoop_body 0x0189f680 (game-inferred), one C function. The j at 0x0189f718 belongs to the next object (
@@ -162,6 +163,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-12 11:50 `game/AA_scTag2.c` verify: all 7 functions written: the movie ring's DMA tag, D3 and D4 CHCR writes, FIFO index, pts region test, B-picture skip history, two-span copy
 - 2026-11-12 11:34 `game/AA_viBuf.c` verify: reconstruct 13 functions (verify)
 - 2026-11-12 11:13 `ga/gaObjectClippingCheck.c` verify: gaObjectClippingCheck written: bounding sphere vs near/far and VU0 micro 0x068 side planes, done natively
 - 2026-11-12 10:53 `game/AA_videoCallback.c` verify: all 11 functions: ezmpegstr videoCallback, readbuf.c and strfile.c with CT3's packed rows and retry counter; new host drive stream sceCdStInit/StStart/StRead/St
@@ -169,15 +171,13 @@ Recent sessions:
 - 2026-11-12 10:19 `game/AA_mpegTS.c` verify: all 31 functions: ezmpegstr videodec.c + vobuf.c (libmpeg callbacks, AA_decBs0 decode loop with captions and fade-in, AA_videoDecMain, VideoDec accessors, the v
 - 2026-11-12 10:01 `game/AA_GetDataWord.c` verify: slice 2: the GS side - AA_GS_SetClut, AA_clearGsMem, AA_setImageTag, AA_setImageTag2, AA_vblankHandler (15 of 15)
 - 2026-11-12 09:32 `game/AA_GetDataWord.c` partial: slice 1: caption readers, caption picture, shouldDelay, display start/end, image-end handler (10 of 15)
-- 2026-11-12 09:06 `game/Convert.c` verify: ConvertMatrix2Quat and ConvertQuat2Matrix rewritten from the VU0 macro code in scalar C (const_vector_A = 1, 2, 0, 0.5; matUnit for w == 1; divide by 0 answers 
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `game/AA_scTag2.c` | todo | 0/7/7 | 0.8 | 19 | 0 |
-| `ga/gaDrawObject_Redraw_Polygon.c` | todo | 0/1/6 | 4.3 | 7 | 1 |
 | `game/ssCalcInversMatrix2.c` | todo | 0/5/5 | 5.7 | 7 | 0 |
+| `ga/gaDrawObject_Redraw_Polygon.c` | todo | 0/1/6 | 4.3 | 7 | 1 |
 | `ga/wait.c` | todo | 0/2/20 | 0.1 | 6 | 0 |
-| `game/AA_cpuCycles.c` | todo | 0/4/4 | 0.3 | 5 | 0 |
+| `game/AA_cpuCycles.c` | todo | 0/4/4 | 0.3 | 6 | 0 |
 | `ga/gaSearchNearLight4.c` | todo | 0/1/1 | 0.4 | 4 | 0 |
 | `game/copy2area.c` | todo | 0/2/2 | 0.5 | 2 | 0 |
 | `game/asMothOperate.c` | todo | 0/1/1 | 3.8 | 1 | 0 |
@@ -187,27 +187,20 @@ Recent sessions:
 
 | CT3 addr | name | call sites | provenance | state | inferred file |
 |---|---|---|---|---|---|
-| `018c1370` | AA_setD4_CHCR | 6 | sym | stub | game/AA_scTag2.c |
 | `018a8690` | gaDMAStopMessage_VIF1 | 5 | sym | stub | ga/wait.c |
 | `018a7538` | gaSearchNearLight4 | 4 | sym | stub | ga/gaSearchNearLight4.c |
-| `018c1340` | AA_scTag2 | 4 | sym | stub | game/AA_scTag2.c |
-| `018c1450` | AA_getFIFOindex | 3 | sym | stub | game/AA_scTag2.c |
 | `018a9570` | ssHitMakeAttackOBB | 2 | sym | stub | game/ssCalcInversMatrix2.c |
 | `018a9390` | ssHitMakeDamageOBB | 2 | sym | stub | game/ssCalcInversMatrix2.c |
-| `018c1490` | AA_IsPtsInRegion | 2 | sym | stub | game/AA_scTag2.c |
 | `018c0310` | AA_cpuCycles | 2 | sym | stub | game/AA_cpuCycles.c |
-| `018c13e0` | AA_setD3_CHCR | 2 | sym | stub | game/AA_scTag2.c |
+| `018c0320` | AA_syncGetSkew | 2 | sym | stub | game/AA_cpuCycles.c |
 | `0189f720` | gaDrawObject_Redraw_Polygon | 2 | sym | stub | ga/gaDrawObject_Redraw_Polygon.c |
 | `018817b0` | ssAI_SetTraceMode | 1 | sym | stub | game/ssBrain_ChgHideAtk1.c |
 | `018a91d0` | ssHit_information | 1 | sym | stub | game/ssCalcInversMatrix2.c |
 | `018b3a60` | Character_Init | 1 | sym | stub | game/Character_Init.c |
-| `018c0320` | AA_syncGetSkew | 1 | sym | stub | game/AA_cpuCycles.c |
 | `018c03c0` | AA_syncClockInVideo | 1 | sym | stub | game/AA_cpuCycles.c |
 | `01882d60` | asMothOperate | 1 | sym | stub | game/asMothOperate.c |
-| `018c14b0` | AA_shouldSkip | 1 | sym | stub | game/AA_scTag2.c |
 | `018a88e0` | ssCalcInversMatrix2 | 1 | sym | stub | game/ssCalcInversMatrix2.c |
 | `018a8698` | gaDMAStopMessage_GIF | 1 | sym | stub | ga/wait.c |
-| `018c1540` | AA_cpy2area | 1 | sym | stub | game/AA_scTag2.c |
 | `018bf9d0` | copy2area | 1 | sym | stub | game/copy2area.c |
 | `018c0400` | AA_syncClockInAudio | 1 | sym | stub | game/AA_cpuCycles.c |
 | `018a8e00` | ssHit_informationScn | 1 | sym | stub | game/ssCalcInversMatrix2.c |
