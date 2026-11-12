@@ -11,6 +11,15 @@
  },
  "tus": {
   "alyssapan/core/alyssa_pose.cpp": {
+   "notes": "Probes on the NEW path: motions 66/67 (blink, bank 44 behaviour on bank 47) are the only ones; slot 0 stays -1, her parts are a plain tree with no link parts, so every bone keeps the bind pose. camera_main requests motion 0 at frame 2, before her init at frame 975 clears the queue (ROM init identical). No target-2 asSceneAnimationStart and no hash request is ever made. Next: find the ROM path giving her first body motion after NEW (first room trigger acts, ComeHere / SetAllControlDisable, asCharacterMortionFunctionOperation request sites), then head/arms in close shots, then the black-frame flicker; the loop also ran about 38000 frames in 50 s (open-items nq3, mq3). Screenshot unchanged: rooms at 4:3, Alyssa in a T-pose.",
+   "sessions": [
+    {
+     "date": "2026-11-12 16:08",
+     "status": "partial",
+     "summary": "T-pose traced: Alyssa body slot never gets a motion (only the eye blink, slot 4, plays); fixed ExecuteAnimation resolving the character table through the behaviour bank (TblBank) and the two stale NULL motion-table stubs"
+    }
+   ],
+   "status": "partial",
    "task": "Alyssa draws after NEW but wrong (open-items.md item 8, mn3 / mp3): in close shots no head, arms or skirt; in wide shots a T-pose. Find why those parts keep their bind pose (log MODEL_PARTS matrices of her bank per frame against the behaviour tracks: BuildMatrixTree, asUpDateGAobjectsAnimation), fix it in the TU that owns it, then the black frames between room shots. Done when the shot shows her posed with head and arms at 4:3 and wide."
   },
   "alyssapan/core/junc_heap.cpp": {

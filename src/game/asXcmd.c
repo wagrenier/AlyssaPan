@@ -6,9 +6,8 @@
 // ssTrigExecuteActCmd (ssGrpPortalCheck.c) calls them through ssXcmd_functions and each answers
 // XCMD_DONE. Written 2026-11-11: all 20 functions.
 //
-// PORT: the character's motion table (CHARACTER +CHARA_MOTION_TABLE) is an EE word that
-// asInitPlayerBehaviorControler's TU (wideXcmd_DebugPrint.c) has not given a host form yet: like
-// ahRelocateSunPs2ObjectArry.c, PlayMotionByNowMotion sees no table (the ROM's "table 0" path).
+// PORT: the character's motion table (CHARACTER +CHARA_MOTION_TABLE) is an EE word of the character's
+// bank (asInitPlayerBehaviorControler, wideXcmd_DebugPrint.c); XcmdCharaMotionTable resolves it.
 
 #include <stdlib.h>
 #include <string.h>
@@ -596,11 +595,15 @@ int asXcmd_CameraGuriGuriSetting(int argc, char **argv, int bank)
     return XCMD_DONE;
 }
 
-// PORT: CHARACTER +CHARA_MOTION_TABLE is an EE word with no host form yet (the file comment).
+// PORT: CHARACTER +CHARA_MOTION_TABLE is an EE word of the character's bank (asInitPlayerBehaviorControler
+// writes it); NULL without one.
 static const u_char *XcmdCharaMotionTable(const CHARACTER *ch)
 {
-    (void)ch;
-    return NULL;
+    u_int ee;
+    if (ch->bank < 0)
+        return NULL;
+    memcpy(&ee, (const u_char *)ch + CHARA_MOTION_TABLE, sizeof(ee));
+    return (const u_char *)BankEePtr(ch->bank, ee);
 }
 
 // CT3 0x018dc050: Character[argv[0]] (operated: CHARACTER_FLAG_REFRACTION): the pairs (argv[1], argv[2]),

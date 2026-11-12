@@ -7,6 +7,21 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-12, alyssa_pose host task) **A behaviour of one bank animates the table of another.** A
+  character's motion (asCharacterAnimationExecute) passes ExecuteAnimation the behaviour's bank (Alyssa:
+  bank 44, her eye blink) with her own ALL_TABLE (bank 47); EA_100 / EA_010 / EA_001 / the general body /
+  Execute_ExecuteAnimationHistory / ReplayTrack turned `tbl->partsHeader` (and ctrl, the object lists)
+  into host pointers through the behaviour's bank, so the pose writes landed outside her parts header
+  (the ROM has one address space and never sees the difference). Fix: TblBank(tbl) (the bank whose
+  All_table_TBL entry is tbl) for every table word, the call's `bank` only for the behaviour's own words
+  (tracks, keys, sub->data). Rule: a host pointer from an EE word goes through the bank that owns the
+  structure the word sits in, never through a bank another argument names.
+- (2026-11-12, alyssa_pose) **Stale "no host form yet" stubs outlive their reason.** CharaMotionTable
+  (ahRelocateSunPs2ObjectArry.c) and XcmdCharaMotionTable (asXcmd.c) still returned NULL after
+  asInitPlayerBehaviorControler had given CHARA_MOTION_TABLE its host form (an EE word of the character's
+  bank, BankEePtr): the character branch of asSceneAnimationStart and asXcmd_PlayMotionByNowMotion saw no
+  table. When a TU gives a word its host form, grep for the PORT stubs that waited on it.
+
 - (2026-11-12, junc_heap.cpp) **A SunAlloc of `count * 4` for a pointer table overruns on the host.**
   ssParticleInit asked gHeapJunc for ParticleObject / ParticleData as count * 4 (the ROM's pointer size);
   the host writes 8-byte pointers, so 0A02's three entries (12 bytes each) ran into the next block

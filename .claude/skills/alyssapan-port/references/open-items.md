@@ -1829,6 +1829,29 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    why the arm and head parts keep their bind pose (log the MODEL_PARTS matrices of Alyssa's bank per
    frame against the behaviour's tracks), then (mp3).
 
+   **alyssapan/core/alyssa_pose.cpp (partial, 2026-11-12 15:49, scheduled run):** probes on the NEW path
+   (build.py --run 40/50 --pad "600:START*10,800:START*10") show **why she is in a T-pose: her body slot
+   (CHARA_MOTION_SLOTS[0]) never gets a motion.** The only motions Alyssa ever plays are the eye blink
+   (slot 4, motions 66 / 67, a behaviour of bank 44 on her bank 47); her 108+ parts are a plain tree
+   (no PARTS_KIND_LINK, every REC_BLEND 1), so with nothing in slot 0 every bone keeps its file pose (the
+   bind T-pose). The one body request seen (motion 0, camera_main's iCameraMode != GlobalCameraMode)
+   fires at frame 2, before her Character_Init (frame 975) whose asInitPlayerBehaviorControler empties the
+   queue -- the ROM does the same (0x018fe380 disassembled: identical), so that is not the path. No
+   asCharacterMortionChangeRequestHash call, no asSceneAnimationStart with target SCENE_ANIM_CHARACTER (2)
+   is ever made (target 1 scene animations do run), and asPlayerInputAnalyze returns at group -1
+   (PlayerControlUpdate2(1)) as the ROM does. Fixed on the way (real bugs, the picture unchanged): (1)
+   TblBank -- ExecuteAnimation and its helpers resolved the character's table through the behaviour's
+   bank (hazards.md); (2) CharaMotionTable / XcmdCharaMotionTable returned NULL though the motion table
+   has its host form. **Next for this task** (nq3): find what in the ROM gives Alyssa her first body
+   motion after NEW -- candidates: a trigger act of the opening room that the host never reaches (the
+   trigger blocks of the first room: which act commands run, ssTrigExecuteActCmd, against the script's
+   list of TrigAnimStart entries with target 2), ssXcmd_SetAllControlDisable / asXcmd_ALYSSA_ComeHere,
+   or asCharacterMortionFunctionOperation's Alyssa branch (MOTION_STAND, the idle picks: its
+   request sites: which conditions the host never meets). Then the missing head / arms / skirt in close
+   shots (probably the same unposed bones, the parts behind the near plane), then (mp3). (mq3) The
+   smoke run's frame counter reached about 38,000 frames in 50 s (633 shots): the game loop is not
+   paced to 60 Hz on this path -- check with (mp3), the black-frame flicker.
+
 ## Decisions
 
 - 2026-11-11 (Claude, scheduled run 19:15, for the user to overrule): **the ga 2D frame stays 4:3.** The

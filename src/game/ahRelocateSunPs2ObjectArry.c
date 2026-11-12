@@ -765,6 +765,8 @@ void ExecuteAnimationHistory_init(void)
 // whose animation's first doubleword is all ones (a camera animation), copies each cut's eye part's
 // animated focal length into the cut (ALL_TABLE.ctrl +0's records); frees the records. FrameCounter counts every call.
 // iEASidx is left as it is (the ROM's: the history adder sets it).
+static int TblBank(const ALL_TABLE *tbl);
+
 void Execute_ExecuteAnimationHistory(void)
 {
     EAS_RECORD *base = (EAS_RECORD *)lpEAS;
@@ -775,14 +777,14 @@ void Execute_ExecuteAnimationHistory(void)
         return;
     for (rec = base, n = iEASidx; n != 0; n--, rec++) {
         int bank = rec->bank;
-        u_char *hdr = BANK_PTR(u_char *, bank, rec->tbl->partsHeader);
+        u_char *hdr = BANK_PTR(u_char *, TblBank(rec->tbl), rec->tbl->partsHeader);
         u_char *ctrl;
         u_long animWord;
         AbsSignI32(rec->sign, (int *)(hdr + PARTS_HDR_ANIM_ABS), (int *)(hdr + PARTS_HDR_ANIM_SIGN));
         *(u_int *)(hdr + PARTS_HDR_ANIM_STEP) = rec->step;
         ExecuteAnimation(bank, rec->anim, rec->tbl, 0, 0, 1, 0, 0);
         *(u_int *)(hdr + PARTS_HDR_ANIM_STEP) = 0;
-        ctrl = BANK_PTR(u_char *, bank, rec->tbl->ctrl);
+        ctrl = BANK_PTR(u_char *, TblBank(rec->tbl), rec->tbl->ctrl);
         if (ctrl == NULL)
             continue;
         memcpy(&animWord, BANK_PTR(u_char *, bank, rec->anim), sizeof(animWord));
@@ -1372,6 +1374,19 @@ int BankOfHostPtr(const void *host)
             best = bank;
     }
     return best;
+}
+
+// PORT (2026-11-12, alyssa_pose): the bank an ALL_TABLE belongs to. A character's motion is a
+// behaviour of another bank (Alyssa: bank 44's behaviour on bank 47's table), so the table's words
+// (partsHeader, ctrl, the object lists) must go through the table's bank, not the behaviour's -- the ROM
+// has one address space and never needs the difference (hazards.md "AlyssaPan").
+static int TblBank(const ALL_TABLE *tbl)
+{
+    int i;
+    for (i = 0; i < BANK_MAX; i++)
+        if (All_table_TBL[i] == tbl)
+            return i;
+    return BankOfHostPtr(tbl);
 }
 
 // The track `t` of group `g` of a behaviour of bank `bank`.
@@ -2233,7 +2248,7 @@ int EA_001(void *behavior, ALL_TABLE *tbl, float (*out)[4])
 {
     BEHAVIOR *bhv = (BEHAVIOR *)behavior;
     int bank = BankOfHostPtr(bhv);
-    u_char *header = BANK_PTR(u_char *, bank, tbl->partsHeader);
+    u_char *header = BANK_PTR(u_char *, TblBank(tbl), tbl->partsHeader);
     alignas(16) float local[4][4] = { { 1, 0, 0, 0 }, { 0, 1, 0, 0 }, { 0, 0, 1, 0 }, { 0, 0, 0, 1 } };
     alignas(16) float base[4][4] = { { 1, 0, 0, 0 }, { 0, 1, 0, 0 }, { 0, 0, 1, 0 }, { 0, 0, 0, 1 } };
     alignas(16) float rot[4][4];
@@ -2521,7 +2536,7 @@ static void MatKey(int bank, BEHAVIOR_TRACK *tr, float (*base)[4], float (*local
 int EA_100(int bank, u_int anim, ALL_TABLE *tbl, float (*mat)[4], int atKey)
 {
     BEHAVIOR *bhv = BANK_PTR(BEHAVIOR *, bank, anim);
-    u_char *hdr = BANK_PTR(u_char *, bank, tbl->partsHeader);
+    u_char *hdr = BANK_PTR(u_char *, TblBank(tbl), tbl->partsHeader);
     int ticks = *(int *)(hdr + PARTS_HDR_ANIM_ABS);
     int dir = *(int *)(hdr + PARTS_HDR_ANIM_SIGN);
     int total = *(int *)(hdr + PARTS_HDR_ANIM_STEP);
@@ -2614,7 +2629,7 @@ int ExecuteAnimation(int bank, u_int anim, ALL_TABLE *tbl, float (*mat)[4], int 
         return EA_001(BANK_PTR(void *, bank, anim), tbl, mat);
     {
         BEHAVIOR *bhv = BANK_PTR(BEHAVIOR *, bank, anim);
-        u_char *hdr = BANK_PTR(u_char *, bank, tbl->partsHeader);
+        u_char *hdr = BANK_PTR(u_char *, TblBank(tbl), tbl->partsHeader);
         int ticks = *(int *)(hdr + PARTS_HDR_ANIM_ABS);
         int dir = *(int *)(hdr + PARTS_HDR_ANIM_SIGN);
         int total = *(int *)(hdr + PARTS_HDR_ANIM_STEP);
@@ -2735,13 +2750,15 @@ void asUpdateAnimation_Matrix(void)
     asResetCharacterRotation(0, 0, 0);
 }
 
-// PORT: CHARACTER +CHARA_MOTION_TABLE holds the EE address of the character's motion table, written
-// by asInitPlayerBehaviorControler (wideXcmd_DebugPrint.c, still a stub), whose TU decides its host
-// form; until then no character has one here (an empty table: the walk ends at once, index 0).
+// PORT: CHARACTER +CHARA_MOTION_TABLE holds the EE address of the character's motion table in its own
+// bank, written by asInitPlayerBehaviorControler (wideXcmd_DebugPrint.c); NULL without one.
 static const u_char *CharaMotionTable(const CHARACTER *ch)
 {
-    (void)ch;
-    return NULL;
+    u_int ee;
+    if (ch->bank < 0)
+        return NULL;
+    memcpy(&ee, (const u_char *)ch + CHARA_MOTION_TABLE, sizeof(ee));
+    return (const u_char *)BankEePtr(ch->bank, ee);
 }
 
 // CT3 0x018483d0
@@ -5207,6 +5224,7 @@ static void ReplayTrack(int bank, const ALL_TABLE *tbl, u_char *part, BEHAVIOR_T
                         float *w, float *held)
 {
     const u_char *keys = BANK_PTR(const u_char *, bank, tr->keys);
+    int tb = TblBank(tbl);              /* PORT: the table's own bank (the track's is `bank`) */
     if (set) {
         /* set */
         switch (tr->kind) {
@@ -5218,9 +5236,9 @@ static void ReplayTrack(int bank, const ALL_TABLE *tbl, u_char *part, BEHAVIOR_T
             short group;
             memcpy(&held[0], keys + 8, 8);
             memcpy(&group, keys + 0x1c, sizeof(group));
-            ObjGroup(bank, tbl, group, &first, &count);
+            ObjGroup(tb, tbl, group, &first, &count);
             for (i = 0; i < count; i++)
-                memcpy(ObjOpaqueObject(bank, tbl, ObjGroupIndex(bank, tbl, first + i)) + GA_OBJ_UV_OFFSET,
+                memcpy(ObjOpaqueObject(tb, tbl, ObjGroupIndex(tb, tbl, first + i)) + GA_OBJ_UV_OFFSET,
                        held, 8);
             break;
         }
@@ -5229,8 +5247,8 @@ static void ReplayTrack(int bank, const ALL_TABLE *tbl, u_char *part, BEHAVIOR_T
             int n = (int)(tr->length & TRACK_KEY_STRIDE);
             if (n != 0) {
                 do {
-                    u_char *obj = ObjOpaqueObject(bank, tbl, sub->obj);
-                    asContZipNormal2Normal_XYZ0((float *)(ObjWord(bank, obj, GA_OBJ_NORMALS) + 0x10),
+                    u_char *obj = ObjOpaqueObject(tb, tbl, sub->obj);
+                    asContZipNormal2Normal_XYZ0((float *)(ObjWord(tb, obj, GA_OBJ_NORMALS) + 0x10),
                                                 BANK_PTR(const short *, bank, sub->data), sub->count);
                     n -= sub->size;
                     sub++;
@@ -5244,8 +5262,8 @@ static void ReplayTrack(int bank, const ALL_TABLE *tbl, u_char *part, BEHAVIOR_T
             int n = (int)(len & TRACK_KEY_STRIDE);
             if (n != 0) {
                 do {
-                    u_char *obj = ObjOpaqueObject(bank, tbl, sub->obj);
-                    float *dst = (float *)ObjWord(bank, obj, GA_OBJ_POSITIONS);
+                    u_char *obj = ObjOpaqueObject(tb, tbl, sub->obj);
+                    float *dst = (float *)ObjWord(tb, obj, GA_OBJ_POSITIONS);
                     const void *src = BankEePtr(bank, sub->data);
                     if (len & TRACK_KEY_RAW) {
                         if (len & TRACK_KEY_SPARSE)
@@ -5268,7 +5286,7 @@ static void ReplayTrack(int bank, const ALL_TABLE *tbl, u_char *part, BEHAVIOR_T
             const ANIM_SUBKEY *sub = (const ANIM_SUBKEY *)keys;
             int n;
             for (n = (int)tr->length; n > 0; n -= sub->size, sub++) {
-                u_char *colors = ObjWord(bank, ObjOpaqueObject(bank, tbl, sub->obj), GA_OBJ_COLORS);
+                u_char *colors = ObjWord(tb, ObjOpaqueObject(tb, tbl, sub->obj), GA_OBJ_COLORS);
                 const signed char *pct = BANK_PTR(const signed char *, bank, sub->data);
                 int i;
                 for (i = 0; i < sub->count; i++) {
@@ -5304,9 +5322,9 @@ static void ReplayTrack(int bank, const ALL_TABLE *tbl, u_char *part, BEHAVIOR_T
             short group;
             memcpy(&held[0], keys + 8, 8);
             memcpy(&group, keys + 0x1c, sizeof(group));
-            ObjGroup(bank, tbl, group, &first, &count);
+            ObjGroup(tb, tbl, group, &first, &count);
             for (i = 0; i < count; i++) {
-                u_char *obj = ObjOpaqueObject(bank, tbl, ObjGroupIndex(bank, tbl, first + i));
+                u_char *obj = ObjOpaqueObject(tb, tbl, ObjGroupIndex(tb, tbl, first + i));
                 alignas(16) float cur[4] = { 0, 0, 0, 0 }, out[4];
                 memcpy(cur, obj + GA_OBJ_UV_OFFSET, 8);
                 asInterpolateVector(out, cur, held, w);
@@ -5318,8 +5336,8 @@ static void ReplayTrack(int bank, const ALL_TABLE *tbl, u_char *part, BEHAVIOR_T
             const ANIM_SUBKEY *sub = (const ANIM_SUBKEY *)keys;
             int n;
             for (n = (int)tr->length; n > 0; n -= sub->size, sub++) {
-                u_char *obj = ObjOpaqueObject(bank, tbl, sub->obj);
-                float *dst = (float *)(ObjWord(bank, obj, GA_OBJ_NORMALS) + 0x10);
+                u_char *obj = ObjOpaqueObject(tb, tbl, sub->obj);
+                float *dst = (float *)(ObjWord(tb, obj, GA_OBJ_NORMALS) + 0x10);
                 asContInterpolateGA_VECTORZipNormal_XYZ0(dst, dst, BANK_PTR(const short *, bank, sub->data), w,
                                                          sub->count);
             }
@@ -5331,8 +5349,8 @@ static void ReplayTrack(int bank, const ALL_TABLE *tbl, u_char *part, BEHAVIOR_T
             int n = (int)(len & TRACK_KEY_STRIDE);
             if (n != 0) {
                 do {
-                    u_char *obj = ObjOpaqueObject(bank, tbl, sub->obj);
-                    float *dst = (float *)ObjWord(bank, obj, GA_OBJ_POSITIONS);
+                    u_char *obj = ObjOpaqueObject(tb, tbl, sub->obj);
+                    float *dst = (float *)ObjWord(tb, obj, GA_OBJ_POSITIONS);
                     const void *src = BankEePtr(bank, sub->data);
                     if (len & TRACK_KEY_RAW) {
                         if (len & TRACK_KEY_SPARSE)
@@ -5356,7 +5374,7 @@ static void ReplayTrack(int bank, const ALL_TABLE *tbl, u_char *part, BEHAVIOR_T
             const ANIM_SUBKEY *sub = (const ANIM_SUBKEY *)keys;
             int n;
             for (n = (int)tr->length; n > 0; n -= sub->size, sub++) {
-                u_char *colors = ObjWord(bank, ObjOpaqueObject(bank, tbl, sub->obj), GA_OBJ_COLORS);
+                u_char *colors = ObjWord(tb, ObjOpaqueObject(tb, tbl, sub->obj), GA_OBJ_COLORS);
                 const signed char *pct = BANK_PTR(const signed char *, bank, sub->data);
                 int i;
                 for (i = 0; i < sub->count; i++) {
@@ -5398,16 +5416,16 @@ static void ReplayTrack(int bank, const ALL_TABLE *tbl, u_char *part, BEHAVIOR_T
         int first, count, i;
         memcpy(&which, keys + 8, 2);
         memcpy(&group, keys + 0xa, 2);
-        word = BANK_PTR(const u_int *, bank, tbl->copyWords)[which];
+        word = BANK_PTR(const u_int *, tb, tbl->copyWords)[which];
         {
-            const u_short *pair = BANK_PTR(const u_short *, bank, tbl->objGroups) + group * 2;
+            const u_short *pair = BANK_PTR(const u_short *, tb, tbl->objGroups) + group * 2;
             first = pair[0];
             count = pair[1];
         }
         for (i = 0; i < count; i++) {
-            const u_int *list = BANK_PTR(const u_int *, bank, tbl->objOpaque);
-            const u_int *entry = BANK_PTR(const u_int *, bank, list[ObjGroupIndex(bank, tbl, first + i)]);
-            *BANK_PTR(u_int *, bank, entry[SUN_OBJ_COPY_TARGET]) = word;
+            const u_int *list = BANK_PTR(const u_int *, tb, tbl->objOpaque);
+            const u_int *entry = BANK_PTR(const u_int *, tb, list[ObjGroupIndex(tb, tbl, first + i)]);
+            *BANK_PTR(u_int *, tb, entry[SUN_OBJ_COPY_TARGET]) = word;
         }
     }
     if (tr->playing == TRACK_ACT_END && IsReplayKind(tr->kind))
@@ -5431,7 +5449,7 @@ static void ReplayTrack(int bank, const ALL_TABLE *tbl, u_char *part, BEHAVIOR_T
 int EA_010(int bank, u_int anim, ALL_TABLE *tbl)
 {
     BEHAVIOR *bhv = BANK_PTR(BEHAVIOR *, bank, anim);
-    u_char *hdr = BANK_PTR(u_char *, bank, tbl->partsHeader);
+    u_char *hdr = BANK_PTR(u_char *, TblBank(tbl), tbl->partsHeader);
     int ticks = *(int *)(hdr + PARTS_HDR_ANIM_ABS);
     int dir = *(int *)(hdr + PARTS_HDR_ANIM_SIGN);
     int total = *(int *)(hdr + PARTS_HDR_ANIM_STEP);
