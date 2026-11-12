@@ -1660,6 +1660,22 @@ apply here):
 
 ## Open questions
 
+- (2026-11-11, game/asXcmd.c) all 20 functions written: **verify** (script commands; no smoke run
+  reaches a scene script yet; main.c's AttackTargetStack clears run). To confirm: (a) AttackTargetStack
+  (0x0193fa30, now defined in asXcmd.c) is pairs {bank, target}; its reader is not written, and
+  "target" as a Character[] slot is a guess from the name LockToTargChara; only the bank half is ever
+  cleared (kept as the ROM). (b) asXcmd_SetMoth names MOTH by use without renaming: w20 = the route's
+  point count, mem = the route (short[w20], gHeapJunc), w22 = the route step, w02 2 = following a route,
+  w14..w18 = its three numbers; rename them in asMothOperate's TU. (c) PanicSet's source 8
+  ("PanicValuePriority") is the ROM's rise[8], i.e. PANIC_INFO.gauge: PanicSet (QuatSlerp.c) now adds
+  to gauge for PANIC_RISE_GAUGE instead of indexing past the array. (d) CHARA_BHV_W518 is the motion
+  ALYSSA_ComeHere plays (CHARA_COME_HERE_MOTION, -1 none); CHARA_AIM_SPEED / _BANK / _PART are also the
+  auto-aim command's. (e) asXcmd_AttachObject writes a short record over MODEL_PARTS 0x70..0x75 (the
+  omniChanging / omniSteps words): PARTS_KIND_ATTACHED 0x1e parts; the reader (the attached part's
+  update) is not written. (f) CAM_QUAKE.h08 is the hold (duration = fadeIn + hold + fadeOut). (g)
+  PlayMotionByNowMotion sees no motion table until CHARA_MOTION_TABLE has a host form (as
+  ahRelocateSunPs2ObjectArry.c); SeekBarSetting returns when the host SeekBarX[bank] is NULL; SetHitPoint
+  skips a division by 0 (the EE does not trap).
 - (2026-11-11, game/asMothRouteSearch.c) the whole TU written (asInitMothInfo, asDestroyMothInfo,
   asMothRouteSearch): **verify** (the route search runs only from asMothOperate, still a stub). MothInfo
   moved out of unassigned_data into MOTH_INFO (asMothRouteSearch.h; wideXcmd_DebugPrint.c reads

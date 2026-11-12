@@ -1789,7 +1789,7 @@ SS_XCMD ssXcmd_functions[TRIG_XCMD_COUNT] = {
     tiXcmd_BOSS_SetWarp,                                    /* 210: 0x018e2e90 */
     tiXcmd_ShadeOff,                                        /* 211: 0x018e41f0 */
     tnXcmd_TexFileInitPageStop,                             /* 212: 0x018ef1b0 */
-    (SS_XCMD)asXcmd_AddForLockToTargChara,                  /* 213: 0x018db340 */
+    asXcmd_AddForLockToTargChara,                           /* 213: 0x018db340 */
     ssXcmd_AXE_ThrowEnd,                                    /* 214: 0x018dd6b0 */
     ssXcmd_ForceIntoSearchMode,                             /* 215: 0x018de5e0 */
     asXcmd_I_have_x_Mothes,                                 /* 216: 0x018db160 */

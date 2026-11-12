@@ -569,6 +569,7 @@ static_assert(offsetof(MODEL_PARTS, initRot) == 0x0c0, "MODEL_PARTS.initRot");
 #define PANIC_RISE_THREAT_COUNT 3
 #define PANIC_RISE_CONST 4              /* 4..5: summed, the rise when no threat or attack is */
 #define PANIC_RISE_ATTACK 6             /* 6..7: summed onto the threat; registers TRIG_EVENT_PANIC_ATTACKED */
+#define PANIC_RISE_GAUGE 8              /* PanicSet's source 8 ("PanicValuePriority"): rise[8] is the gauge */
 typedef struct PANIC_INFO {
     u_char mode;                        /* 0x00: PANIC_MODE_* bits */
     s_char recoveryItem;                /* 0x01: PanicRecoveryTbl row of the calming item in use, -1 none */

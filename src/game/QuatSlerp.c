@@ -3862,12 +3862,17 @@ float asVectorDistance(const float *a, const float *b)
 // ---- slice 8 (2026-11-10): panic setters, the movie break, bank lookup, part and stick helpers ------
 
 // CT3 0x01854110: add rise to this frame's panic source; sources 4 and 5 always count, the others only
-// while PanicCheck answers 0. Nothing rises in full panic.
+// while PanicCheck answers 0. Nothing rises in full panic. Source PANIC_RISE_GAUGE (asXcmd_PanicSet's
+// "PanicValuePriority") is the ROM's rise[8]: the word after the array, the gauge itself.
 void PanicSet(float rise, int source)
 {
     if ((source == PANIC_SET_ALWAYS_LO || source == PANIC_SET_ALWAYS_HI || PanicCheck() == 0)
-        && (PanicInfoData.mode & PANIC_MODE_FULL) == 0)
-        PanicInfoData.rise[source] += rise;
+        && (PanicInfoData.mode & PANIC_MODE_FULL) == 0) {
+        if (source == PANIC_RISE_GAUGE)
+            PanicInfoData.gauge += rise;
+        else
+            PanicInfoData.rise[source] += rise;
+    }
 }
 
 // CT3 0x019381a0 (PanicOffMovieFile, sdata, NULL-ended): the movies that end a panic.

@@ -1,7 +1,6 @@
 {
  "queue": [
   "alyssapan/rendering/ui_canvas.cpp",
-  "game/asXcmd.c",
   "game/ssHitCheckAttackToScn.c",
   "game/ssSetTexUVforCubeMap.c"
  ],
@@ -944,12 +943,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 79..79, 2 functions keyed by their statics, 9 unkeyed; file name from the names"
   },
   "game/asXcmd.c": {
+   "notes": "Smoke run unchanged (the content-warning screen; no scene script runs yet). PanicSet source 8 now adds to PANIC_INFO.gauge (the ROM indexes rise[8]); AttackTargetStack defined here; CAM_QUAKE.h08 renamed hold; MOTH route fields named by use in open-items (not renamed); motion table still has no host form.",
    "ranges": [
     [
      "018dab60",
      "018dc1e0"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-11 22:09",
+     "status": "verify",
+     "summary": "all 20 x commands written: panic sources, moths, arrows, hit points, slow motion, camera quake / reset / look-around, attach, auto-aim, seek bars, motion by motion, shadow order, the attack-target list"
+    }
+   ],
+   "status": "verify",
    "why": "starts at asXcmd_PanicSet 0x018dab60: 0x018dab3c..0x018dab60 is aa_to_big's loop tail (game/PicPaz.c)"
   },
   "game/copy2area.c": {

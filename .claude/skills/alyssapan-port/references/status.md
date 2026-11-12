@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-11 21:55 at commit `d3277a1` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-11 22:09 at commit `d60dd66` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1249**; stubs: **225**
+- reconstructed CT3 functions: **1270**; stubs: **205**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -73,7 +73,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/asMothPause.c` | 0 | 1 |
 | `src/game/asMothRouteSearch.c` | 3 | 0 |
 | `src/game/asUseArrow.c` | 11 | 0 |
-| `src/game/asXcmd.c` | 0 | 20 |
+| `src/game/asXcmd.c` | 21 | 0 |
 | `src/game/copy2area.c` | 0 | 1 |
 | `src/game/fileio.c` | 40 | 0 |
 | `src/game/hhXcmd_BGM_SE_VOLUME.c` | 0 | 1 |
@@ -97,9 +97,9 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 64 TUs: todo 27, partial 3, verify 35, done 8, blocked 1
-- next: **game/asXcmd.c** (pinned in the queue)
-- pinned queue: alyssapan/rendering/ui_canvas.cpp, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
+- 64 TUs: todo 26, partial 3, verify 36, done 8, blocked 1
+- next: **game/ssHitCheckAttackToScn.c** (pinned in the queue)
+- pinned queue: alyssapan/rendering/ui_canvas.cpp, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
 - partial: `game/tiXcmd_TransItem.c` 85/93 -- Slice 10. Written: tiXcmd_UseItem (ITEM_USE_* modes from argv[4], ITEM_KIND_* from the row byte +0: give-take, signal, heal Character[0].hp up to hpMax, calm vi
 - partial: `game/wideXcmd_TriggerInit.c` 1/46 -- Title draws at 4:3 and 16:9 after 40 s (logo, 3, menu, copyright). Fix in SunTexEePtr, BankOfEeAddr, HitObjectId: free slot banks shared EE addresses with the G
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
@@ -127,6 +127,7 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/asEyeForcusUP2CamMat.c` 30/30 -- The smoke run calls camera_main with CAMERA_MODE_SCENE each frame; the debug modes and the cut step are not reached. Shot still black: the first object lands at
 - verify: `game/asMothRouteSearch.c` 3/3 -- The route search runs only from asMothOperate (a stub); MOTH is layout host with most fields still wNN; open-items has the doubts (stage and endTicks, the twice
 - verify: `game/asUseArrow.c` 11/11 -- No arrow on screen until a stage with the bow runs. States renamed by use (4 CHARGE, 5 FLYING, 7 RETURN; ARROW_HIT_STUCK and _END). HIT_TABLE +0x2a0/+0x2a4 atta
+- verify: `game/asXcmd.c` 20/20 -- Smoke run unchanged (the content-warning screen; no scene script runs yet). PanicSet source 8 now adds to PANIC_INFO.gauge (the ROM indexes rise[8]); AttackTarg
 - verify: `game/fileio.c` 40/40 -- All 40 functions written. Round2ChangeChar keeps the ROM order of its 150 Round2ChangeSectInfo pairs as three tables; round values named from the file names onl
 - verify: `game/hhXcmd_DressUp.c` 22/22 -- A smoke run now passes hhXcmd_LoadSE and stops in the m_capcom.mov decode loop (shots end at frame 420, flat grey): the movie skip host task is the next blocker
 - verify: `game/main.c` 29/29 -- Smoke run: build green, layoutcheck OK, callcheck: main_rtn_Particle2 matches the ROM (extra BankEePtr only); AllDrawObject / GlobalDrawObject / DrawObjectRefra
@@ -141,6 +142,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-11 22:09 `game/asXcmd.c` verify: all 20 x commands written: panic sources, moths, arrows, hit points, slow motion, camera quake / reset / look-around, attach, auto-aim, seek bars, motion by mot
 - 2026-11-11 21:55 `game/asMothRouteSearch.c` verify: MothInfo init and destroy, and the moth route search around scene collision; MothInfo moved out of unassigned data into MOTH_INFO
 - 2026-11-11 21:47 `game/asUseArrow.c` verify: slice 2: asArrowOperate (the arrow state machine: on the bow, charge, flight, hits, return; the trigger variables); the file is complete
 - 2026-11-11 21:35 `game/asUseArrow.c` partial: slice 1: 10 of 11 functions (arrow records, shoot, aim, state, lookups); ARROW and ARROW_INFO types; HIT_TABLE object hits
@@ -148,7 +150,6 @@ Recent sessions:
 - 2026-11-11 21:20 `game/tkXDTrg_GetSceneHash.c` partial: slice 3: the DoorTrigger x command and its actor dispatcher (code parser, scene heads, door records), the Ini_New and IniMon parsers, Alyssa's door open and clo
 - 2026-11-11 21:08 `game/tkXDTrg_GetSceneHash.c` partial: slice 2: the door actor procs (AnimToFrameDoor, AnimRangeDoor, ChangeCamera, CmnClo, the ScW / ScM / Axe / Vit / Ham Opn, OpnOut and Clo, Sht, HitPtl, AlsCam, I
 - 2026-11-11 20:56 `game/tkXDTrg_GetSceneHash.c` partial: slice 1: the branch scene tables (ScnTbl and the Br tables), scene ids, door flags, the door-trigger state init, CloseCancel, the door bridge draw (tkBri_DoorDr
-- 2026-11-11 20:33 `game/wideXcmd_DebugPrint.c` verify: slice 10: asCharacterMortionFunctionOperation (attack and no-hit windows, per-character run events, Alyssa's stairs and panic triggers, turn speed, lever mash e
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
@@ -188,7 +189,6 @@ Recent sessions:
 | `018a8690` | gaDMAStopMessage_VIF1 | 4 | sym | stub | ga/wait.c |
 | `018962a0` | tnChangeCharAmbientColorSet | 4 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `018c1ce0` | AA_videoDecAbort | 3 | sym | stub | game/AA_mpegTS.c |
-| `018db340` | asXcmd_AddForLockToTargChara | 3 | sym | stub | game/asXcmd.c |
 | `018a53c8` | gaDrawObject_RemakeIndexWithClippingCheck | 3 | sym | stub | ga/gaDrawObject.c |
 | `018a5730` | gaDrawObject_RemakeIndexWithClippingCheck_WithNear | 3 | sym | stub | ga/gaDrawObject.c |
 | `018a5100` | gaDrawObject_VertexLocalView | 3 | sym | stub | ga/gaDrawObject.c |
@@ -209,4 +209,5 @@ Recent sessions:
 | `0189dec0` | ssBGT_ZBufferClear | 2 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `0189d900` | ssTrigScreenBlurEnd | 2 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `01860d00` | ssAI_IsDoorOpenPlaying | 1 | sym | stub | game/tiAvoidObject.c |
+| `018bbeb0` | AA_audioDecSendToIOP | 1 | sym | stub | game/AA_SoundMonoSoart.c |
 

@@ -63,7 +63,7 @@ typedef struct CAM_QUAKE {
     float amp;                              /* 0x00: the shake's amplitude */
     u_short period;                         /* 0x04: ticks per sine period */
     u_short fadeIn;                         /* 0x06: ticks to full amplitude */
-    u_short h08;
+    u_short hold;                           /* 0x08: ticks at full amplitude (asXcmd_CameraQuake: duration = fadeIn + hold + fadeOut) */
     u_short fadeOut;                        /* 0x0a: ticks back to 0 at the end */
     u_short duration;                       /* 0x0c: 0 = off */
     u_short time;                           /* 0x0e: ticks run (gGlobalNextTicksInterval a frame) */
