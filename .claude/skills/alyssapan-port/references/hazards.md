@@ -498,6 +498,14 @@ callcheck takes any `CT3 0x...` comment as a function annotation: a TU header wr
 `-- CT3 0x018a88e0..0x018a9fe0` made it check the first static helper below it as that function. Write
 the range without the `CT3 0x` prefix (`0x018a88e0..0x018a9fe0 of CT3`).
 
+### gdbrun.py played the movies, and --help started the game (2026-11-12)
+build.py skips the movies (ALYSSAPAN_SKIP_INTRO=1) but gdbrun.py did not: a held run sat 270 s in the boot
+logo m_capcom.mov (AA_movie / readMpeg) and never reached the title. gdbrun.py now sets it too, and
+`--help` prints the usage instead of launching. A black screen is not a hang: break once, then print
+fFade / Fade_Type / FadeEndTicks before hunting loops -- FADE_TYPE_OUT2_* fades stay covered until the
+script starts another fade. Hardware watchpoints work through the cmd channel (`watch -l ... if ...`,
+then `continue`: a hit is dumped and held like a break); one that never fires means the value is frozen.
+
 ## From the siblings (2026-11-09 digest of MioPan, ReiPan, RosePan, MikuPan)
 
 - **Ghidra misses functions even with symbols**: code reached only through data (dispatch tables,

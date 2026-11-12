@@ -1868,6 +1868,30 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    then --break and --cmd "bt 30"), check her motion 0 record (camera facing, MOTION_FACING_STOCK_CAMERA) and
    the motion-end requests (modes 1 / 2 on index 0 came just before the stop), then head / arms, then (mp3).
 
+   **alyssa_pose.cpp (partial, 2026-11-12 17:12, scheduled run): the black frames named -- a held fade, not
+   a hang.** Under gdb (now with the movies skipped, as smoke runs do) the game thread sits in main's room
+   loop (main.c gaWaitVSync, every break); there is no inner loop. Shots (every 60 frames, 210 s): title,
+   then at frame 24,600 **Alyssa stands posed, arms down, seen from behind** (no T-pose any more) but the
+   room is not drawn and her skirt hangs in a column to the floor; from 24,720 on every frame is black.
+   State while black: fFade 1, Fade_Type 4 (FADE_TYPE_OUT2_BLACK, held until another fade), FadeEndTicks 0
+   -- the fade the skipped opening movie s_open.mov leaves (movie.c AA_movieSkipped, as the ROM's movie end
+   does); the script's fade-in never comes. pause 0, pause_reservation 0, Alyssa's bank 47 (type 2, flags
+   0x1: asCheckAnimationExecutable_Scene passes; asCheckNowMoving and _Scene match the ROM). Her slots
+   {0, -1, -1, 206, 66, -1}, slot times (0x458) {10, 0, 900, 610, 20, 0}, playable (0x470) {600, 0, 0,
+   900, 900, 0}; queue {206} mode 0 (probably the per-frame request caught between request and execute).
+   A watchpoint on slot 0's time "== 0" never fired in 2 min: **motion 0's time is frozen at 10, not
+   restarted**, so it never ends. Reading (nq5): the global script's PLAY of motion 0 (target 2, toEnd 1) is
+   followed by a TRIG_CMD_WAIT_ANIM (701, matches the ROM; asCheckAnimationState_S's character branch
+   matches too: 6 slots at 0x398, queue 0x3b0 / modes 0x404, table 0x350) that waits while motion 0's hash
+   is in a slot -- before the PLAY fix nothing played, the wait passed at once and the room faded in.
+   **Next (nq5):** why slot 0's behaviour stops at playing ticks 1000 (asCharacterAnimationExecute sets
+   the slot time from asGetBehaviorPlayingTicks / 100): ExecuteAnimation's tick advance for motion 0's
+   behaviour (the one asFindBehaviorByCharacter(0, hash) answers -- the same one TrigAnimStart started?),
+   its play rate (MOTION_REC_PLAY_RATE, asChangeBehaviorAnimationPlayRate: a rate of 0 would freeze it),
+   and whether slot 3 / 4 advance (sample twice). Not proven yet: that the stuck wait is that WAIT_ANIM
+   (probe ssTrigExecuteActCmd's 701 answers for hash c1830bfb6fed). Then the skirt column, the room
+   draw, head / arms in close shots, then (mp3).
+
 ## Decisions
 
 - 2026-11-11 (Claude, scheduled run 19:15, for the user to overrule): **the ga 2D frame stays 4:3.** The

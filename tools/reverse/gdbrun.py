@@ -9,7 +9,7 @@ gdb (CLion's, `$ALYSSAPAN_GDB` overrides) runs gdbdrive.py: first-chance faults 
 a fault in AlyssaPan.exe (or a repeat in a DLL) writes registers, disassembly and every thread's
 backtrace to work/gdb/crash.txt and holds the stopped game; --cmd then talks to it through
 work/gdb/cmd.txt -> out.txt. Game and gdb output: work/gdb/log.txt. Host input unless --pad
-(build.py's scripted pad syntax). Build first (build.py); -O2 -g, so some locals are optimized out.
+(build.py's scripted pad syntax). Movies are skipped (ALYSSAPAN_SKIP_INTRO=1 unless set). Build first (build.py); -O2 -g, so some locals are optimized out.
 """
 import ctypes
 import os
@@ -83,6 +83,8 @@ def play():
                PATH=alyssapan.MINGW_BIN + os.pathsep + os.environ.get('PATH', ''))
     # As build.py does: without the data folder the game never starts, and the held process shows no game frames.
     env.setdefault('ALYSSAPAN_DATA_DIR', str(alyssapan.GAME_DATA))
+    # As build.py does: skip the movies, or a held run sits in the boot logo (m_capcom.mov) for minutes.
+    env.setdefault('ALYSSAPAN_SKIP_INTRO', '1')
     env.pop('ALYSSAPAN_AUTOPAD', None)
     if opt('--pad'):
         env['ALYSSAPAN_AUTOPAD'] = opt('--pad')
@@ -99,7 +101,9 @@ def play():
 
 if __name__ == '__main__':
     DIR.mkdir(parents=True, exist_ok=True)
-    if '--cmd' in sys.argv:
+    if '--help' in sys.argv or '-h' in sys.argv:
+        print(__doc__)     # without this, --help started the game
+    elif '--cmd' in sys.argv:
         command(sys.argv[sys.argv.index('--cmd') + 1:])
     elif '--break' in sys.argv:
         brk()

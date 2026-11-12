@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-12 16:42 at commit `3d70d1e` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-12 17:13 at commit `51a0467` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -105,7 +105,7 @@ Least-named game-code regions (64 KB blocks):
 - 65 TUs: todo 6, partial 1, verify 61, done 10, blocked 1
 - next: **alyssapan/core/alyssa_pose.cpp** (pinned in the queue)
 - pinned queue: alyssapan/core/alyssa_pose.cpp, alyssapan/rendering/ui_canvas.cpp
-- partial: `alyssapan/core/alyssa_pose.cpp` 0/0 -- ROM 0x018d62b0: PLAY reads pose, other, byPart, target, toEnd, stepFromRuns, chara (RANGE: started, stepFromRuns, target). With the fix, motion 0 then 200 start
+- partial: `alyssapan/core/alyssa_pose.cpp` 0/0 -- gdb (movies skipped): game thread in main room loop, no inner loop. Shot 24360-24600: Alyssa posed from behind (arms down; one frame headless/armless), room not
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
@@ -171,6 +171,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-12 17:13 `alyssapan/core/alyssa_pose.cpp` partial: Black frames after NEW named: a held OUT2_BLACK fade from the skipped opening movie; the script fade-in never comes because Alyssa motion 0 (slot 0) is frozen a
 - 2026-11-12 16:42 `alyssapan/core/alyssa_pose.cpp` partial: T-pose cause fixed: TrigAnimStart read TRIG_CMD_ANIM_PLAY flag bytes in RANGE order, so the PLAY that gives Alyssa her first body motion (target 2, hash c1830bf
 - 2026-11-12 16:08 `alyssapan/core/alyssa_pose.cpp` partial: T-pose traced: Alyssa body slot never gets a motion (only the eye blink, slot 4, plays); fixed ExecuteAnimation resolving the character table through the behavi
 - 2026-11-12 15:48 `sdk/libgraph.cpp` verify: sceGsSetDefDBuff, the NEW path's last reached stub, written in the host SDK; queue refilled after a probe found no game stub on the NEW path
@@ -178,7 +179,6 @@ Recent sessions:
 - 2026-11-12 14:52 `game/AA_cpuCycles.c` verify: the movie player's audio / video clock (ezmpegstr): Count, the skew in 90 kHz ticks, the two stream stamps (4 of 4)
 - 2026-11-12 14:27 `ga/wait.c` verify: the ga debug object: wait (busy delay), 17 empty dumps, the two DMA stop messages (empty in the release ROM; 20 of 20)
 - 2026-11-12 14:21 `ga/gaDrawObject_Redraw_Polygon.c` verify: all 6 functions: trans_for_gs (VU0 screen transform, lit kind with 4 directional + 4 point lights and the alpha highlight), the guard-band clipper and DivSub, b
-- 2026-11-12 13:54 `game/ssCalcInversMatrix2.c` verify: all 5 functions: ssCalcInversMatrix2 (4x4 inverse), ssHitMakeAttackOBB and ssHitMakeDamageOBB (the attack and body boxes), ssHit_information and ssHit_informati
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
