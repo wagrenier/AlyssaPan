@@ -1679,6 +1679,22 @@ apply here):
 
 ## Open questions
 
+- (2026-11-12, game/wideXcmd_TriggerInit.c slice 4) **partial, 7 more x commands** (AXE_SetStartPos,
+  ForceIntoSearchMode, CheckAtkHitALYSSA, ArrowSetChild, SetArrowPath, ScnAtkRequest, test3); 4 stubs
+  left: LockToTargChara (0x3f8), AXE_CheckHitAndCompDir (0x568), AXE_SetPath (0x42c), test_BrainSet4
+  (0x698). Claude's calls, the user may overrule: (a) **the ssAI_BrainInit table (0x01938580, six
+  slots: ssBrain_Init1, tiBrain_Init1, _Init2, _Init_BOSS1, _Init_BOSS_SCISSORS_W, _Init3) is a static
+  copy in wideXcmd_TriggerInit.c** until the AI TU owns and exports it; the initialisers take the
+  character only (tiBrain_Init2 reads a0 alone); three new headers declare them
+  (ssBrain_ChgHideAtk1.h, tiBrain_ChgTrace_BOSS_BALOWS.h, tiBrain_ChgTrace_Ghost.h), stubgen stubbed
+  them in new .c files; (b) brain bytes named from one use: +0x230 BRAIN_KIND (the table slot), +0x23e
+  BRAIN_MOTION (tiBrain_Init2 starts it), +0x240 BRAIN_SEARCH_MOTION; (c) ArrowSetChild with an arrow id
+  other than 0x0b / 0x0c runs on its caller's s0 / s1 in the ROM: the host uses arrow 0x0b's state;
+  (d) AXE_SetStartPos with a name the stalker lacks reads EE low memory (rec + 0xf0): the host keeps
+  drawOnPos; (e) ScnAtkRequest's ssHitAddAttackRequest arguments map as (chara = the attack object's
+  index, atk = the script's bank, kind 1, power, target = chara, b0d, motion, bank = Character[chara]
+  .lightBank) -- SS_HIT_ATTACK's names fit loosely: the collision TU confirms; (f) SetArrowPath leaves
+  the arrow's pos.w = the turned direction's w (vadd.xyz keeps the register's w), as the ROM.
 - (2026-11-12, game/wideXcmd_TriggerInit.c slice 3) **partial, 11 more x commands** (the hit-record
   queries GetAtkHitInfoID / CheckAtkHitChara / CheckAtkHitMaterial / GetAttackMotionID, ObjectSetHitPos,
   ArrowSetHitPos / ArrowSetStartPos / SetArrowPath2 / SetArwRotMaxID, SetDurabilityToVar,

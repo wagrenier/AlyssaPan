@@ -1,7 +1,8 @@
 // game/wideXcmd_TriggerInit.c -- Clock Tower 3 module (file from the inference in alyssapan_functions.txt).
 // ssXcmd_SetAllControlDisable is reconstructed (2026-11-11); slice 2 (2026-11-12): the wide triggers,
 // the axe's state, the stalkers' AI commands and the test commands; slice 3 (2026-11-12): the hit-record
-// queries and the arrow commands. The rest are stubs until reconstructed.
+// queries and the arrow commands; slice 4 (2026-11-12): the axe's start, the arrows' homing, Alyssa's hits and
+// the scene attacks. The rest are stubs until reconstructed.
 
 #include "common/alyssapan_stub.h"
 #include "game/wideXcmd_TriggerInit.h"
@@ -16,10 +17,18 @@
 #include "game/xcmd_tn.h"
 #include "game/tiAvoidObject.h"
 #include "game/tiXcmd_TransItem.h"
+#include "game/ssBrain_ChgHideAtk1.h"
+#include "game/tiBrain_ChgTrace_BOSS_BALOWS.h"
+#include "game/tiBrain_ChgTrace_Ghost.h"
+#include "game/QuatSlerp.h"
+#include "ga/gaInit3dlib.h"
 #include "ga/gaSinCos.h"
 
+#include <float.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 // The AI brain's bytes these x commands read (CHARACTER.brain; the AI TU, tiAvoidObject.c, owns the
 // record: 2026-11-12, from these uses only).
@@ -724,6 +733,274 @@ int ssXcmd_SetDurabilityToVar(int argc, char **argv, int bank)
     return XCMD_DONE;
 }
 
+// ---- slice 4 (2026-11-12): the axe's start, the arrows' homing, Alyssa's hits, scene attacks ----
+
+#define AXE_PART_NAME "wo_R_axe"        /* AXE_SetStartPos: the axe stalker's part that also turns the axe */
+#define AXE_START_ROLL 0x4000           /* a quarter turn about Z (gaSetRotMatrixZ) for that part */
+#define AXE_BOSS_ACTION_START 1         /* TRIG_VAR_BOSS_ACTION in a boss battle once the axe flies */
+#define ARROW_CHARA_0 0x0b              /* ArrowSetChild: the two arrow characters, each with its own state */
+#define ARROW_CHARA_1 0x0c
+#define ARROW_TURN_MAX 400              /* SetArrowPath: the most the arrow turns per run (ahAcos units) */
+#define ARROW_STEP 60.0f                /* SetArrowPath: the move along the turned direction */
+#define CHECK_ALYSSA_ARGC_KEKKAI 2      /* "<var> <ticks>": the kekkai's ticks are tested too */
+
+// The brain's bytes ForceIntoSearchMode touches (from this use and tiBrain_Init2's).
+#define BRAIN_KIND 0x230                /* u_char: the ssAI_BrainInit slot */
+#define BRAIN_MOTION 0x23e              /* short: the motion the brain starts (tiBrain_Init2 requests it) */
+#define BRAIN_SEARCH_MOTION 0x240       /* short: the motion ForceIntoSearchMode puts back */
+
+// The ssAI_BrainInit table (0x01938580: ssAI_BrainInit[brain kind](chr); slots 6.. are 0).
+// PORT: a copy of the ROM's six slots until the AI TU (tiAvoidObject.c) owns and exports it.
+#define BRAIN_KIND_MAX 6
+typedef int (*BRAIN_INIT)(CHARACTER *chr);
+static BRAIN_INIT const ssAI_BrainInit[BRAIN_KIND_MAX] = {
+    ssBrain_Init1, tiBrain_Init1, tiBrain_Init2, tiBrain_Init_BOSS1, tiBrain_Init_BOSS_SCISSORS_W, tiBrain_Init3,
+};
+
+// vmul / vaddy / vaddz, vrsqrt, vmulq.xyz: xyz by 1 / |xyz|, w kept (the VU's RSQRT of 0: the largest float).
+static void XyzNormalize(float *dst, const float *src)
+{
+    float len2 = src[0] * src[0] + src[1] * src[1] + src[2] * src[2];
+    float q = len2 > 0.0f ? 1.0f / sqrtf(len2) : FLT_MAX;
+    dst[0] = src[0] * q;
+    dst[1] = src[1] * q;
+    dst[2] = src[2] * q;
+    dst[3] = src[3];
+}
+
+// VU0 OPMULA / OPMSUB .xyz: out = u x v, w u's.
+static void XyzCross(float *out, const float *u, const float *v)
+{
+    float x = u[1] * v[2] - u[2] * v[1];
+    float y = u[2] * v[0] - u[0] * v[2];
+    float z = u[0] * v[1] - u[1] * v[0];
+    out[0] = x;
+    out[1] = y;
+    out[2] = z;
+    out[3] = u[3];
+}
+
+// The 4x4 placement matrix of a part: placeRot's three rows and drawOnPos.
+static float (*PartPlacement(MODEL_PARTS *part))[4]
+{
+    return (float (*)[4])part->placeRot;
+}
+
+// CT3 0x018de100: "AXE_SetStartPos <part> <axe>": the axe (part `axe` of the script's bank) armed
+// (flags43 3) and placed on the axe stalker's part named argv[0]; when that part is AXE_PART_NAME the
+// axe also takes the stalker's yaw and a quarter roll. In a boss battle the global TRIG_VAR_BOSS_ACTION
+// becomes 1. The throw starts (AxeInfo.throwing).
+int ssXcmd_AXE_SetStartPos(int argc, char **argv, int bank)
+{
+    CHARACTER *axe = &Character[HIT_CHARA_ONO];
+    u_char *rec = asFindModelParts(pModelPartsHeader[axe->bank], ahGetHash(argv[0]));
+    int rot = axe->rot;
+    MODEL_PARTS *part = &((MODEL_PARTS *)pModelPartsHeader[bank])[atoi(argv[1])];
+
+    part->flags43 = PARTS_FLAG43_WARPED | PARTS_FLAG43_TRANS;
+    if (strcmp(AXE_PART_NAME, argv[0]) == 0) {
+        alignas(16) float ry[4][4], rz[4][4];
+        gaSetRotMatrixY(ry, rot);
+        gaSetRotMatrixZ(rz, AXE_START_ROLL);
+        gaMulMatrix(PartPlacement(part), ry, rz);
+    }
+    // PORT: the ROM reads the position at rec + 0xf0 even when no part has the name (EE low memory);
+    // the host leaves drawOnPos as it was then.
+    if (rec != NULL) {
+        const MODEL_PARTS *from = (const MODEL_PARTS *)(rec - PARTS_HDR_RECORDS);
+        for (int k = 0; k < 4; k++)
+            part->drawOnPos[k] = from->pos[k];
+    }
+    if (ssTrigCheckEvent(TRIG_EVENT_BOSS_BATTLE, XCMD_SCOPE_GLOBAL, -1) != 0)
+        ssTrigSetVariable(TRIG_VAR_BOSS_ACTION, AXE_BOSS_ACTION_START, XCMD_SCOPE_GLOBAL, bank);
+    AxeInfo.throwing = 1;
+    return XCMD_DONE;
+}
+
+// CT3 0x018de5e0: "ForceIntoSearchMode <chara>": a stalker with a brain back to AI_MODE_SEARCH, its
+// search motion restored, and its brain kind's initialiser run again (its answer is not used).
+int ssXcmd_ForceIntoSearchMode(int argc, char **argv, int bank)
+{
+    int chara = atoi(argv[0]);
+    u_char *brain = CharaBrain(chara);
+
+    if (brain != NULL) {
+        brain[BRAIN_AI_MODE] = AI_MODE_SEARCH;
+        *(short *)(brain + BRAIN_MOTION) = *(short *)(brain + BRAIN_SEARCH_MOTION);
+        // PORT: the ROM indexes the table with no bound (slots past the six are 0 there).
+        u_char kind = brain[BRAIN_KIND];
+        if (kind < BRAIN_KIND_MAX)
+            ssAI_BrainInit[kind](&Character[chara]);
+    }
+    return XCMD_DONE;
+}
+
+// CT3 0x018df6c0: "CheckAtkHitALYSSA <var> [ticks]": the bank variable var = the attack (HIT_REC.attack)
+// of the first hit on Alyssa this frame by a HIT_KIND_PANIC attacker of the script's bank (a character
+// whose bank it is, or a part of it), -1 for none; with ticks, -1 as well while asKatchuKekkaiCheck(ticks).
+int ssXcmd_CheckAtkHitALYSSA(int argc, char **argv, int bank)
+{
+    int alyssa = Character[0].bank;
+    HIT_TABLE *hits = BankHits(alyssa);
+
+    if (hits->count != 0) {
+        const HIT_REC *recs = BANK_PTR(const HIT_REC *, alyssa, hits->recs);
+        for (int i = 0; i < hits->count; i++) {
+            const HIT_REC *rec = &recs[i];
+            if (BANK_PTR(const u_char *, alyssa, rec->attacker)[HIT_ATTACKER_KIND] != HIT_KIND_PANIC)
+                continue;
+            int mine = rec->isObject == 0 ? (u_short)Character[rec->who].bank == (u_short)bank
+                                          : rec->bank == (u_short)bank;
+            if (!mine)
+                continue;
+            if (argc == CHECK_ALYSSA_ARGC_KEKKAI && asKatchuKekkaiCheck(atoi(argv[1])) != 0) {
+                ssTrigSetVariable(atoi(argv[0]) & 0xffff, HIT_VAR_NONE, XCMD_SCOPE_BANK, bank);
+                return XCMD_DONE;
+            }
+            ssTrigSetVariable(atoi(argv[0]) & 0xffff, rec->attack, XCMD_SCOPE_BANK, bank);
+            return XCMD_DONE;
+        }
+    }
+    ssTrigSetVariable(atoi(argv[0]) & 0xffff, HIT_VAR_NONE, XCMD_SCOPE_BANK, bank);
+    return XCMD_DONE;
+}
+
+// ArrowSetChild's state per arrow (statics of this object).
+static int flag0_190;                   /* CT3 0x019447e8: ARROW_CHARA_0 has a last direction */
+static int flag1_191;                   /* CT3 0x019447ec: ARROW_CHARA_1 */
+alignas(16) static float lastTargDir0_192[4]; /* CT3 0x01944850 */
+alignas(16) static float lastTargDir1_193[4]; /* CT3 0x01944840 */
+
+// CT3 0x018e01d0: "ArrowSetChild <charaVar> <partVar> <arrow> <event> <arrowPart>": the arrow character
+// (ARROW_CHARA_0 / _1) follows the part (bank variables partVar of the character charaVar names): its
+// position the part's, and its part arrowPart turned by the turn of the part's X axis since the last run
+// (asMakeRotMatrixByQuartanion about now x last). The first run only notes the direction. The command
+// waits while the bank event is set; when it clears the arrow forgets its direction and it is done.
+int ssXcmd_ArrowSetChild(int argc, char **argv, int bank)
+{
+    int arrow = atoi(argv[2]);
+    CHARACTER *chr = &Character[arrow];
+    int target = ssTrigGetVariable(atoi(argv[0]), XCMD_SCOPE_BANK, bank);
+    int index = ssTrigGetVariable(atoi(argv[1]), XCMD_SCOPE_BANK, bank);
+    MODEL_PARTS *part = &((MODEL_PARTS *)pModelPartsHeader[Character[target].bank])[index];
+    int *flag;
+    float *last;
+
+    // PORT: another arrow id leaves the ROM with its caller's s0 / s1 (no state): the host uses arrow 0's.
+    if (arrow == ARROW_CHARA_1) {
+        flag = &flag1_191;
+        last = lastTargDir1_193;
+    } else {
+        flag = &flag0_190;
+        last = lastTargDir0_192;
+    }
+
+    if (*flag == 0) {
+        *flag = 1;
+        XyzNormalize(last, part->matrix[0]);
+    } else {
+        alignas(16) float dir[4], axis[4], m[4][4];
+        MODEL_PARTS *mine = &((MODEL_PARTS *)pModelPartsHeader[chr->bank])[atoi(argv[4])];
+        XyzNormalize(dir, part->matrix[0]);
+        XyzCross(axis, dir, last);
+        asMakeRotMatrixByQuartanion(m, axis, ahAcos(gaInnerProductXYZ(last, dir)));
+        gaMulMatrix(PartPlacement(mine), m, PartPlacement(mine));
+        for (int k = 0; k < 4; k++)
+            last[k] = dir[k];
+    }
+    for (int k = 0; k < 4; k++)
+        ((float *)chr->pos)[k] = part->pos[k];
+    if (ssTrigCheckEvent(atoi(argv[3]), XCMD_SCOPE_BANK, bank) == 0) {
+        *flag = 0;
+        return XCMD_DONE;
+    }
+    return XCMD_WAIT;
+}
+
+// The Y flip SetArrowPath composes into the turn (_128, 0x0193a920).
+alignas(16) static float _128[4][4] = {
+    { 1.0f, 0.0f, 0.0f, 0.0f },
+    { 0.0f, -1.0f, 0.0f, 0.0f },
+    { 0.0f, 0.0f, 1.0f, 0.0f },
+    { 0.0f, 0.0f, 0.0f, 1.0f },
+};
+
+// CT3 0x018e0670: "SetArrowPath <arrow> <targetVar> <part>": the arrow homes on the centre of the
+// character the global variable targetVar names: its part's backward X axis is turned towards the
+// target by at most ARROW_TURN_MAX (the part's placement turned by the same turn and the Y flip), and
+// the arrow moves ARROW_STEP along the turned direction. The ROM skips a NULL &Character[n] (impossible).
+int ssXcmd_SetArrowPath(int argc, char **argv, int bank)
+{
+    CHARACTER *chr = &Character[atoi(argv[0])];
+    CHARACTER *tgt = &Character[ssTrigGetVariable(atoi(argv[1]), XCMD_SCOPE_GLOBAL, bank)];
+    alignas(16) float pos[4], centre[4], back[4], to[4], axis[4], turned[4], m[4][4];
+    MODEL_PARTS *part;
+    int angle;
+
+    for (int k = 0; k < 4; k++) {
+        pos[k] = ((float *)chr->pos)[k];
+        centre[k] = ((const SS_OBB *)tgt->obb)->center[k];
+    }
+    part = &((MODEL_PARTS *)pModelPartsHeader[chr->bank])[atoi(argv[2])];
+    for (int k = 0; k < 3; k++)                     // vmulx.xyz by -1: w stays the row's
+        back[k] = part->matrix[0][k] * -1.0f;
+    back[3] = part->matrix[0][3];
+    for (int k = 0; k < 3; k++)                     // vsub.xyz: w stays the centre's
+        to[k] = centre[k] - pos[k];
+    to[3] = centre[3];
+    XyzNormalize(to, to);
+    XyzCross(axis, to, back);
+    angle = ahAcos(gaInnerProductXYZ(to, back));
+    if (angle > ARROW_TURN_MAX)
+        angle = ARROW_TURN_MAX;
+    asMakeRotMatrixByQuartanion(m, axis, angle);
+    for (int k = 0; k < 4; k++)                     // back as a row vector through m, all four lanes
+        turned[k] = back[0] * m[0][k] + back[1] * m[1][k] + back[2] * m[2][k] + back[3] * m[3][k];
+    gaMulMatrix(m, _128, m);
+    gaMulMatrix(PartPlacement(part), m, PartPlacement(part));
+    for (int k = 0; k < 3; k++)                     // vmulx.xyz / vadd.xyz: w stays turned's
+        ((float *)chr->pos)[k] = turned[k] * ARROW_STEP + pos[k];
+    ((float *)chr->pos)[3] = turned[3];
+    return XCMD_DONE;
+}
+
+// CT3 0x018e0c10: "ScnAtkRequest <event> <object> <chara> <power> <b0d> <var> <motion>": while the
+// bank event is set, a scene attack (SS_HIT_ATK_SCENE) by the script's bank's attack object queued each
+// run, aimed at chara (its lightBank the bank struck). The object's index is the bank variable var;
+// while var is -1 the bank's attack objects are searched for the id (HIT_OBJ_ID) and var remembers it
+// (no attack when none has it). Waits while the event is set; done once it clears.
+int ssXcmd_ScnAtkRequest(int argc, char **argv, int bank)
+{
+    if (ssTrigCheckEvent(atoi(argv[0]), XCMD_SCOPE_BANK, bank) == 0)
+        return XCMD_DONE;
+
+    u_int var = (u_int)atoi(argv[5]);
+    int index = ssTrigGetVariable(var, XCMD_SCOPE_BANK, bank);
+    if (index == -1) {
+        int id = atoi(argv[1]);
+        HIT_TABLE *hits = BankHits(bank);
+        const u_int *objs = BANK_PTR(const u_int *, bank, hits->attackObjs);
+        for (int i = 0; i < hits->attackObjCount; i++) {
+            if (id == HitObjShort(bank, objs[i], HIT_OBJ_ID)) {
+                ssHitAddAttackRequest(i, bank & 0xff, SS_HIT_ATK_SCENE, atoi(argv[3]), atoi(argv[2]),
+                                      atoi(argv[4]), atoi(argv[6]), Character[atoi(argv[2])].lightBank);
+                ssTrigSetVariable(var & 0xffff, i, XCMD_SCOPE_BANK, bank);
+                return XCMD_WAIT;
+            }
+        }
+    } else {
+        ssHitAddAttackRequest(index, bank & 0xff, SS_HIT_ATK_SCENE, atoi(argv[3]), atoi(argv[2]),
+                              atoi(argv[4]), atoi(argv[6]), Character[atoi(argv[2])].lightBank);
+    }
+    return XCMD_WAIT;
+}
+
+// CT3 0x018e0e30: "test3 <event>": waits while the bank event is set.
+int ssXcmd_test3(int argc, char **argv, int bank)
+{
+    return ssTrigCheckEvent(atoi(argv[0]), XCMD_SCOPE_BANK, bank) == 0 ? XCMD_DONE : XCMD_WAIT;
+}
+
 // ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x018dfd70
@@ -743,55 +1020,6 @@ int ssXcmd_AXE_CheckHitAndCompDir(int argc, char **argv, int bank)
 int ssXcmd_AXE_SetPath(int argc, char **argv, int bank)
 {
     ALYSSAPAN_STUB("ssXcmd_AXE_SetPath", 0x018ddcd0);
-    return {};
-}
-
-// stub of CT3 0x018de100
-int ssXcmd_AXE_SetStartPos(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("ssXcmd_AXE_SetStartPos", 0x018de100);
-    return {};
-}
-
-// stub of CT3 0x018e01d0
-int ssXcmd_ArrowSetChild(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("ssXcmd_ArrowSetChild", 0x018e01d0);
-    return {};
-}
-
-// stub of CT3 0x018df6c0
-int ssXcmd_CheckAtkHitALYSSA(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("ssXcmd_CheckAtkHitALYSSA", 0x018df6c0);
-    return {};
-}
-
-// stub of CT3 0x018de5e0
-int ssXcmd_ForceIntoSearchMode(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("ssXcmd_ForceIntoSearchMode", 0x018de5e0);
-    return {};
-}
-
-// stub of CT3 0x018e0c10
-int ssXcmd_ScnAtkRequest(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("ssXcmd_ScnAtkRequest", 0x018e0c10);
-    return {};
-}
-
-// stub of CT3 0x018e0670
-int ssXcmd_SetArrowPath(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("ssXcmd_SetArrowPath", 0x018e0670);
-    return {};
-}
-
-// stub of CT3 0x018e0e30
-int ssXcmd_test3(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("ssXcmd_test3", 0x018e0e30);
     return {};
 }
 

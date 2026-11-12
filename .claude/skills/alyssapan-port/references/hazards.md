@@ -7,6 +7,11 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-12, wideXcmd_TriggerInit.c slice 4) **A static's `CT3 0x...` comment annotates the next
+  function for callcheck.** A static helper written right after `static int flag0_190; /* CT3 0x... */`
+  was checked as that data address. Put statics just above the function that owns them (its own
+  `// CT3` line then wins). Also: Ghidra prints VU masks away -- `_vmulq` / `_vopmsub` were `.xyz` in the
+  listing (w kept): read `mipsdis.py` for every VU op before writing the lane loop.
 - (2026-11-12, wideXcmd_TriggerInit.c slice 2) **Ghidra drops an argument a loop load puts in a3.**
   ssXcmd_AXE_ThrowEnd / _InitParam call ssTrigSetEnable(part, 1, 0) in the decompilation, but the
   disassembly loads the hit slot's first word with lw a3 just before the call: it is the bank (4th
