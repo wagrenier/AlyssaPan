@@ -108,6 +108,14 @@ extern u_char NumPartBlurObj[PART_BLUR_MODES][BANK_MAX]; /* data 0x0193fa80: ALL
 extern PART_BLUR_OBJ *aftSortALLpartBlurObj[PART_BLUR_MAX + 1]; /* data 0x0193fb30: matched, in sorted order */
 extern int DirectLightCharaCounter[CHARACTER_MAX]; /* sbss 0x019400e0 */
 extern short AI_flag[CHARACTER_MAX];            /* sbss 0x0193fca0 */
+// Which side a character slot is on (ssHitCheckCharacterAttack picks its targets by it; only the low
+// byte is read).
+#define CHARA_ATTR_PLAYER 0             /* strikes ssAtkCharaList2 (the stalkers) */
+#define CHARA_ATTR_STALKER 1            /* strikes ssAtkCharaList1 (the player) */
+#define CHARA_ATTR_NONE 0xff            /* strikes nobody */
+extern int charaAttr[CHARACTER_MAX];            /* data 0x01939d90 */
+#define ATK_CHARA_LIST1_COUNT 1
+extern short ssAtkCharaList1[ATK_CHARA_LIST1_COUNT]; /* data 0x01939d40: the player (slot 0) */
 #define ATK_CHARA_LIST2_COUNT 9
 extern short ssAtkCharaList2[ATK_CHARA_LIST2_COUNT]; /* data 0x01939d50: the stalker characters (MonsterAIUpdate) */
 extern u_short CharDirectLightSet[CHARACTER_MAX][6]; /* sbss 0x0193ff30 */

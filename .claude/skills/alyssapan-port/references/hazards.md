@@ -357,6 +357,12 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
   the function's other data, or dump both (`datadump.py <addr> <n> "x5:s" --stride 8`).
 - **The smoke run's `last.png` can be 0 bytes** (2026-11-10): written as the process exits; the numbered
   shots (`shot_<frame>.png`) are complete. Read the newest numbered shot when last.png is empty.
+- **A `// callcheck:` note must sit on one line** (2026-11-11): a wrapped list whose second line lacks
+  the `callcheck:` prefix is not read, and the calls a static helper makes show as MISSING. Name only
+  the helper-made calls, with the helper in parentheses: `// callcheck: a, b (helper)`.
+- **`ssHitNPos` / `ssHitBPos` are the attack part's `transInit` (+0xf0) / `drawOnPos` (+0x2f0)**
+  (2026-11-11, ssHitCheck*Attack): the names say now / before, the fields say initial placement / drawn
+  position; kept as the ROM reads them. ssHitMakeAttackOBB's TU says which is right.
 
 ## From the siblings (2026-11-09 digest of MioPan, ReiPan, RosePan, MikuPan)
 

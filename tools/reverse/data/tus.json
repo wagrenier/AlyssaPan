@@ -1298,7 +1298,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 124..125, 24 functions keyed by their statics, 31 unkeyed; file name from the names"
   },
   "game/ssHitCheckAttackToScn.c": {
-   "notes": "Left: ssHitCheckAttackToScn, ssHitCheckOneObject, ssHitCheckOBB_TriangleSides, ssHitCheckAttack, ssCollisionCheck, ssColCheckChar_Chara, ssMakeCharOBB, ssDivideHitDataToSpaceCell, ssHitCheckAndProcess, ssGetCharSpaceCell, ssAddHitDataToCheckList, ssHitCheckAllObject; stubs still ssHitCheckCharacterAttack, ssHitCheckSceneAttack, ssCollisionCheck. CheckLOS now takes the LOS_HIT it fills (callers in asMothRouteSearch.c, Clipping_Portal.c, BRANCH_CLEAR.c updated; LosHitBlocked passed a bare LOS_SEG, a stack overrun on the EE layout). HIT_DATA: world rows are the polygon corners, worldN (+0x90, was worldPt) the normal; HIT_DATA_FLAG_SIX renamed HIT_DATA_FLAG_TRIANGLE (3 corners), new HIT_DATA_FLAG_NO_LOS 0x10000000. HIT_SCENE_GRID names a scene bank's 8x8 XZ grid (two index lists per cell, +0x10/+0x110, counts +0x210/+0x250, origin +0x290 relative to part 0's position, cell size +0x298); which list a shape goes in is the grid writer's, unread. HIT_OBJ (+0xd0 local, +0xd4 world, +0xd8 rows, +0xda part, +0xdc atk) and HIT_DMG (3 matrices, part +0x1a0) named; HIT_TABLE pad18 is dmgObjCount. Vertical segments divide 0/0: LosEeDiv keeps the EE answer (hazards.md). The title shot is the same clock-tower scene: nothing on the title runs a line of sight.",
+   "notes": "Left: ssHitCheckOneObject, ssHitCheckOBB_OBB, ssHitCheckOBB_TriangleSides, ssHitCheckOBB_Plane, ssCollisionCheck, ssColCheckChar_Chara, ssMakeCharOBB, ssDivideHitDataToSpaceCell, ssHitCheckAndProcess, ssGetCharSpaceCell, ssAddHitDataToCheckList, ssHitCheckAllObject (stubs now: ssHitCheckOneObject, ssHitCheckOBB_OBB via stubgen, ssCollisionCheck). SS_OBB names the box ssHitCheckOBB_OBB reads (centre +0x80, axes +0x90, half sizes +0xc0): an attack object (HIT_OBJ +0), a damage shape (HIT_DMG +0xd0: world[2] and w190) or HIT_TABLE.bodyObb (was pad04, built by ssHitMakeDamageOBB). ssHitNPos / ssHitBPos (bss 0x0193ef50 / 0x0193ef60) are copied from the attack part transInit / drawOnPos (hazards.md). charaAttr (data 0x01939d90, int per slot, low byte read: 0 player side, 1 stalkers, 0xff none) and ssAtkCharaList1 ({0}) added to unassigned_data; a stalker strikes list 1, the player list 2. ssHitMakeAttackOBB, ssHitMakeDamageOBB, ssHit_information, ssHit_informationScn declared in ssCalcInversMatrix2.h with their prototypes from these call sites (stubs there). The title shot is the same clock-tower scene: no attack runs on the title.",
    "ranges": [
     [
      "018a9fe0",
@@ -1315,6 +1315,11 @@
      "date": "2026-11-11 22:52",
      "status": "partial",
      "summary": "slice 2: CheckLOS and CheckLOS_Multi (the scene grid walk and the inside-polygon test), ssTransScnAtkHitDataL2W, ssTransAtkHitDataL2W, ssTransDmgHitDataL2W (5 functions)"
+    },
+    {
+     "date": "2026-11-11 23:13",
+     "status": "partial",
+     "summary": "slice 3: the attack checks ssHitCheckSceneAttack, ssHitCheckCharacterAttack, ssHitCheckAttack, ssHitCheckAttackToScn, and ssGetReflectVector3 (5 functions)"
     }
    ],
    "status": "partial",

@@ -17,6 +17,7 @@
 #include "game/main2.h"
 #include "game/BRANCH_CLEAR.h"
 #include "game/QuatSlerp.h"
+#include "game/ssCalcInversMatrix2.h"
 #include "game/unassigned_data.h"
 #include "game/wideXcmd_DebugPrint.h"
 
@@ -581,6 +582,201 @@ void ssHitGlobalInit(void)
     ssHitClearAttackRequest();
 }
 
+// ---- the attack checks (slice 3, 2026-11-11) ----
+
+float ssHitNPos[4];
+float ssHitBPos[4];
+
+// The VU0's xyz normalize (VMUL, two VADDbc, VRSQRT, VMULq.xyz); w stays. PORT: VRSQRT of 0 is +FLT_MAX on
+// the VU, so a zero vector stays zero instead of becoming NaN.
+static void ssVuUnitXYZ(float *v)
+{
+    float len2 = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
+    float q = len2 > 0.0f ? 1.0f / sqrtf(len2) : FLT_MAX;
+    for (int k = 0; k < 3; k++)
+        v[k] = v[k] == 0.0f ? 0.0f : v[k] * q;
+}
+
+// The attack part's two positions the box and the crossing point are made from.
+static void ssHitSetAttackPos(const MODEL_PARTS *part)
+{
+    memcpy(ssHitNPos, part->transInit, sizeof(ssHitNPos));
+    memcpy(ssHitBPos, part->drawOnPos, sizeof(ssHitBPos));
+}
+
+// The bank's parts and hit table.
+static MODEL_PARTS *ssHitParts(int bank)
+{
+    return (MODEL_PARTS *)(pModelPartsHeader[bank] + PARTS_HDR_RECORDS);
+}
+static HIT_TABLE *ssHitTable(int bank)
+{
+    return BANK_PTR(HIT_TABLE *, bank, All_table_TBL[bank]->hits);
+}
+
+#define SS_HIT_B0D_SCENE 0x1            /* SS_HIT_ATTACK.b0d: the attack also strikes the scene bank a->bank */
+#define SS_HIT_MOVE_EPS 0.01f           /* |N - B|^2 at or below: the crossing point is ssHitNPos itself */
+
+// CT3 0x018a9fe0
+// callcheck: gaInnerProductXYZ, ssHitCheckOneObject, ssHit_informationScn
+int ssHitCheckAttackToScn(HIT_OBJ *obj, HIT_TABLE *scn, HIT_TABLE *atkHits, SS_HIT_ATTACK *a)
+{
+    float dir[4], unit[4], point[4];
+    for (int k = 0; k < 3; k++)
+        dir[k] = ssHitNPos[k] - ssHitBPos[k];
+    dir[3] = ssHitNPos[3];              // vsub.xyz: w is the register's, N's
+    memcpy(unit, dir, sizeof(unit));
+    ssVuUnitXYZ(unit);
+    int bank = BankOfHostPtr(scn);      // PORT: the list's words are EE addresses of the table's bank
+    const u_int *list = BANK_PTR(const u_int *, bank, scn->dmgData);
+    int n = scn->dmgCount;
+    MODEL_PARTS *parts = ssHitParts(a->bank);
+    for (int i = 0; i < n; i++) {
+        HIT_DATA *h = BANK_PTR(HIT_DATA *, bank, list[i]);
+        if ((parts[h->part].flags10 & PARTS_FLAG10_NO_HIT) != 0)
+            continue;
+        if (h->kind != SS_L2W_FRAME && !(gaInnerProductXYZ(h->worldN, unit) < 0.0f))
+            continue;                   // a still shape is struck only from its front
+        if (ssHitCheckOneObject(obj, h, NULL, NULL, NULL) == 0)
+            continue;
+        if (gaInnerProductXYZ(dir, dir) <= SS_HIT_MOVE_EPS) {
+            memcpy(point, ssHitNPos, sizeof(point));
+        } else {
+            float nu = gaInnerProductXYZ(h->worldN, unit);
+            float nb = gaInnerProductXYZ(h->worldN, ssHitBPos);
+            float t = (float)LosEeDiv(h->planeD - nb, nu);
+            for (int k = 0; k < 3; k++)
+                point[k] = unit[k] * t + ssHitBPos[k];
+            point[3] = unit[3];
+        }
+        ssHit_informationScn(a, obj, h, scn, atkHits, point);
+        return 1;
+    }
+    return 0;
+}
+
+// CT3 0x018aa220
+// callcheck: ssHitCheckOBB_OBB, ssHit_information
+int ssHitCheckAttack(HIT_OBJ *obj, HIT_TABLE *dmg, SS_HIT_ATTACK *a, HIT_TABLE *atkHits, HIT_TABLE *scnHits)
+{
+    int hit = 0;
+    int bank = BankOfHostPtr(dmg);      // PORT: the table's words are EE addresses of its bank
+    MODEL_PARTS *parts = ssHitParts(Character[a->target].bank);
+    if (ssHitCheckOBB_OBB(HIT_OBJ_OBB(obj), BANK_PTR(const SS_OBB *, bank, dmg->bodyObb)) != 0) {
+        const u_int *list = BANK_PTR(const u_int *, bank, dmg->hitData);
+        int n = dmg->dmgObjCount;
+        for (int i = 0; i < n; i++) {
+            HIT_DMG *d = BANK_PTR(HIT_DMG *, bank, list[i]);
+            if ((parts[d->part].flags10 & PARTS_FLAG10_NO_HIT) == 0 &&
+                ssHitCheckOBB_OBB(HIT_OBJ_OBB(obj), HIT_DMG_OBB(d)) != 0) {
+                hit = 1;
+                ssHit_information(a, obj, d, dmg, atkHits, scnHits);
+            }
+        }
+    }
+    return hit;
+}
+
+// The target character's damage shapes into the world and its body box; NULL when it takes no hits
+// (CHARACTER_FLAG_NO_HIT) or has no shape on (CHARACTER_FLAG_SHADOW clear).
+static HIT_TABLE *ssHitPrepareTarget(int chara)
+{
+    CHARACTER *t = &Character[chara];
+    if ((t->flags & CHARACTER_FLAG_NO_HIT) != 0 || (t->flags & CHARACTER_FLAG_SHADOW) == 0)
+        return NULL;
+    HIT_TABLE *dmg = ssHitTable(t->bank);
+    ssTransDmgHitDataL2W(ssHitParts(t->bank), dmg);
+    ssHitMakeDamageOBB(dmg);
+    return dmg;
+}
+
+// CT3 0x018aa370
+// A scene bank's attack object (a->atk the bank, a->chara the object) strikes the scene bank a->bank
+// (with SS_HIT_B0D_SCENE) and the character a->target, once: target is cleared when it is checked.
+// callcheck: ssTransDmgHitDataL2W, ssHitMakeDamageOBB (ssHitPrepareTarget)
+void ssHitCheckSceneAttack(SS_HIT_ATTACK *a)
+{
+    int bank = (u_short)a->atk;
+    HIT_TABLE *hits = ssHitTable(bank);
+    MODEL_PARTS *parts = ssHitParts(bank);
+    if (a->chara >= hits->attackObjCount)
+        return;
+    const u_int *objs = BANK_PTR(const u_int *, bank, hits->attackObjs);
+    HIT_OBJ *obj = BANK_PTR(HIT_OBJ *, bank, objs[a->chara]);
+    if ((parts[obj->part].flags10 & PARTS_FLAG10_NO_HIT) != 0)
+        return;
+    ssTransScnAtkHitDataL2W(parts, obj);
+    ssHitSetAttackPos(&parts[obj->part]);
+    ssHitMakeAttackOBB(obj, 0);
+    if ((a->b0d & SS_HIT_B0D_SCENE) != 0 && a->bank != -1) {
+        HIT_TABLE *scn = ssHitTable(a->bank);
+        ssTransScnDmgHitDataL2W(ssHitParts(a->bank), scn, SS_L2W_FRAME);
+        ssHitCheckAttackToScn(obj, scn, NULL, a);
+    }
+    HIT_TABLE *dmg = ssHitPrepareTarget(a->target);
+    if (dmg != NULL) {
+        a->target = -1;
+        ssHitCheckAttack(obj, dmg, a, NULL, hits);
+    }
+}
+
+// CT3 0x018aa570
+// A character's attack a->atk strikes the scene bank a->bank (with SS_HIT_B0D_SCENE, when it is a scene)
+// and the other side's characters (charaAttr): a stalker the player, the player the stalkers.
+// callcheck: ssTransDmgHitDataL2W, ssHitMakeDamageOBB (ssHitPrepareTarget)
+void ssHitCheckCharacterAttack(SS_HIT_ATTACK *a)
+{
+    CHARACTER *c = &Character[a->chara];
+    if ((c->flags & CHARACTER_FLAG_SHADOW) == 0)
+        return;
+    HIT_TABLE *atkHits = ssHitTable(c->bank);
+    MODEL_PARTS *parts = ssHitParts(c->bank);
+    HIT_OBJ *obj = ssTransAtkHitDataL2W(parts, atkHits, a->atk);
+    if (obj == NULL)
+        return;
+    ssHitSetAttackPos(&parts[obj->part]);
+    ssHitMakeAttackOBB(obj, 1);
+    if ((a->b0d & SS_HIT_B0D_SCENE) != 0 && a->bank != -1 && BankInfo[a->bank].type == FS_LOAD_SCENE) {
+        HIT_TABLE *scn = ssHitTable(a->bank);
+        ssTransScnDmgHitDataL2W(ssHitParts(a->bank), scn, SS_L2W_FRAME);
+        ssHitCheckAttackToScn(obj, scn, atkHits, a);
+    }
+    const short *targets = NULL;
+    int count = 0;
+    u_char attr = (u_char)charaAttr[a->chara];  // the ROM reads the low byte
+    if (attr == CHARA_ATTR_STALKER) {
+        targets = ssAtkCharaList1;
+        count = ATK_CHARA_LIST1_COUNT;
+    } else if (attr == CHARA_ATTR_PLAYER) {
+        targets = ssAtkCharaList2;
+        count = ATK_CHARA_LIST2_COUNT;
+    }
+    for (int i = 0; i < count; i++) {
+        HIT_TABLE *dmg = ssHitPrepareTarget(targets[i]);
+        if (dmg != NULL) {
+            a->target = targets[i];
+            ssHitCheckAttack(obj, dmg, a, atkHits, NULL);
+        }
+    }
+}
+
+// CT3 0x018b0860
+// callcheck: gaInnerProductXYZ
+float ssGetReflectVector3(float k, float *out, const float *n, const float *v)
+{
+    float d = k * gaInnerProductXYZ((float *)n, (float *)v);
+    if (!(d <= 0.0f))
+        return 0.0f;
+    float r[4];
+    for (int i = 0; i < 3; i++)
+        r[i] = v[i] + n[i] * -d;
+    r[3] = v[3];                        // vadd.xyz: v's w
+    float len = sqrtf(r[0] * r[0] + r[1] * r[1] + r[2] * r[2]);
+    ssVuUnitXYZ(r);
+    memcpy(out, r, sizeof(r));
+    return len;                         // 1 / (1 / |r|): VDIV of the VRSQRT
+}
+
 // ---- stubs (tools/reverse/stubgen.py) ----
 
 
@@ -591,14 +787,17 @@ void ssCollisionCheck(struct CHARACTER *chara, int bank, SS_HIT_CHARA *list, int
     ALYSSAPAN_STUB("ssCollisionCheck", 0x018b1a40);
 }
 
-// stub of CT3 0x018aa570
-void ssHitCheckCharacterAttack(SS_HIT_ATTACK *a)
+
+// stub of CT3 0x018adf30
+int ssHitCheckOBB_OBB(const SS_OBB *a, const SS_OBB *b)
 {
-    ALYSSAPAN_STUB("ssHitCheckCharacterAttack", 0x018aa570);
+    ALYSSAPAN_STUB("ssHitCheckOBB_OBB", 0x018adf30);
+    return {};
 }
 
-// stub of CT3 0x018aa370
-void ssHitCheckSceneAttack(SS_HIT_ATTACK *a)
+// stub of CT3 0x018b0350
+int ssHitCheckOneObject(HIT_OBJ *obj, HIT_DATA *h, void *a, void *b, void *c)
 {
-    ALYSSAPAN_STUB("ssHitCheckSceneAttack", 0x018aa370);
+    ALYSSAPAN_STUB("ssHitCheckOneObject", 0x018b0350);
+    return {};
 }

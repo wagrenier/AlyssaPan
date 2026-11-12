@@ -131,6 +131,10 @@ u_char NumPartBlurObj[PART_BLUR_MODES][BANK_MAX]; /* data 0x0193fa80 */
 PART_BLUR_OBJ *aftSortALLpartBlurObj[PART_BLUR_MAX + 1]; /* data 0x0193fb30 (PORT: + 1) */
 int DirectLightCharaCounter[CHARACTER_MAX];     /* sbss 0x019400e0 */
 short AI_flag[CHARACTER_MAX];                   /* sbss 0x0193fca0 */
+int charaAttr[CHARACTER_MAX] = {        /* data 0x01939d90 (datadump.py) */
+    0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 1, 1, 1, 1, 0, 255};
+short ssAtkCharaList1[ATK_CHARA_LIST1_COUNT] = {0}; /* data 0x01939d40 */
 /* data 0x01939d50 (18 bytes) */
 short ssAtkCharaList2[ATK_CHARA_LIST2_COUNT] = {2, 3, 4, 5, 6, 29, 30, 31, 32};
 u_short CharDirectLightSet[CHARACTER_MAX][6];   /* sbss 0x0193ff30 */

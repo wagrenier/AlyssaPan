@@ -122,6 +122,36 @@ typedef struct HIT_DMG {
 } HIT_DMG;
 static_assert(offsetof(HIT_DMG, world) == 0xd0, "HIT_DMG.world");
 static_assert(offsetof(HIT_DMG, part) == 0x1a0, "HIT_DMG.part");
+// The box ssHitCheckOBB_OBB tests (slice 3, 2026-11-11, from its reads): an attack object (HIT_OBJ +0,
+// ssHitMakeAttackOBB fills it), a damage shape's world matrices (HIT_DMG +0xd0: centre and axes are
+// world[2], the half sizes w190) or a body box (HIT_TABLE.bodyObb). layout: ee -- bank data.
+typedef struct SS_OBB {
+    u_char pad00[0x80];                 /* the record's own data before the box */
+    float center[4];                    /* 0x80 */
+    float axis[3][4];                   /* 0x90: unit axes */
+    float half[3];                      /* 0xc0: half sizes along them */
+} SS_OBB;
+static_assert(offsetof(SS_OBB, half) == 0xc0, "SS_OBB.half");
+#define HIT_DMG_OBB(d) ((const SS_OBB *)(d)->world) /* a damage shape seen as its box */
+#define HIT_OBJ_OBB(o) ((const SS_OBB *)(o))        /* an attack object seen as its box */
+int ssHitCheckOBB_OBB(const SS_OBB *a, const SS_OBB *b);                                 // CT3 0x018adf30
+// The part positions ssHitMakeAttackOBB and ssHitCheckAttackToScn read (the attack part's transInit /
+// drawOnPos, copied by ssHitCheck*Attack before the box is made).
+extern float ssHitNPos[4];                      /* bss 0x0193ef50 */
+extern float ssHitBPos[4];                      /* bss 0x0193ef60 */
+// Does the attack object touch the shape? (a..c: 0 from ssHitCheckAttackToScn; the other callers pass more)
+int ssHitCheckOneObject(HIT_OBJ *obj, HIT_DATA *h, void *a, void *b, void *c);          // CT3 0x018b0350
+// != 0 when the scene attack / character attack `obj` strikes a damage shape of the scene bank `scn`
+// (whose part is not PARTS_FLAG10_NO_HIT and that faces the attack, or moves); the first one goes to
+// ssHit_informationScn with the point where the attack crosses its plane.
+int ssHitCheckAttackToScn(HIT_OBJ *obj, struct HIT_TABLE *scn, struct HIT_TABLE *atkHits, SS_HIT_ATTACK *a); // CT3 0x018a9fe0
+// != 0 when obj strikes the target character (a->target) of the damage table `dmg`: its body box, then
+// each damage shape; every one struck goes to ssHit_information.
+int ssHitCheckAttack(HIT_OBJ *obj, struct HIT_TABLE *dmg, SS_HIT_ATTACK *a, struct HIT_TABLE *atkHits,
+                     struct HIT_TABLE *scnHits);                                         // CT3 0x018aa220
+// v bounced off the plane of normal n by k: out = unit(v - k (n.v) n), answers the length before the
+// unit; 0 (out untouched) when k (n.v) > 0 (from its one caller, ssXcmd_AXE_CheckHitAndCompDir).
+float ssGetReflectVector3(float k, float *out, const float *n, const float *v);          // CT3 0x018b0860
 void ssTransScnAtkHitDataL2W(struct MODEL_PARTS *parts, HIT_OBJ *obj);                   // CT3 0x018ac600
 HIT_OBJ *ssTransAtkHitDataL2W(struct MODEL_PARTS *parts, struct HIT_TABLE *hits, int atk); // CT3 0x018ac730
 void ssTransDmgHitDataL2W(struct MODEL_PARTS *parts, struct HIT_TABLE *hits);            // CT3 0x018ac840

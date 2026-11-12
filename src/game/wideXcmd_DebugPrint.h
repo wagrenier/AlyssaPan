@@ -214,7 +214,8 @@ typedef struct HIT_TABLE {
     // 0x08..0x1c: a character bank's (FS_LOAD_SHAPE) collision data (ssHitCheckAttackToScn.c, 2026-11-11)
     u_int hitData;                      /* 0x00: u_int[] ended by 0: EE words of HIT_DATA (ssHitCheckAttackToScn.h),
                                            ssTransHitDataL2W's */
-    u_char pad04[4];
+    u_int bodyObb;                      /* 0x04: a character bank's: EE word of an SS_OBB, the whole body's box
+                                           (ssHitMakeDamageOBB builds it; ssHitCheckAttack tests it first) */
     u_int objs;                        /* 0x08: u_int[objCount]: EE words of the attack objects (their
                                            HIT_OBJ_ATK at +0xdc, HIT_OBJ_ID at +0xda) */
     u_int colLocal;                     /* 0x0c: float[colCount][4]: the collision points in their part's space */
