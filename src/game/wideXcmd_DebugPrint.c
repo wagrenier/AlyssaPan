@@ -24,6 +24,10 @@
 // Slice 7 (2026-11-10): the pad move (asCharacterMoveByPad: tank and camera-relative steering, the
 // turn-around flag; asCharacterMoveByPadUD), the panic events (asPanicEventOperation), the face motions
 // and blinks (asMotionAdderByNowMotion with the AM / pAM / AME / pAME tables) and the play-rate setter.
+// Slice 10 (2026-11-11): what slot 0's motion record turns on (asCharacterMortionFunctionOperation:
+// attack and no-hit windows, the run events, Alyssa's stairs / panic triggers, turn speed, lever mash,
+// idle fidgets, panic motions and the catchers' holds) and asChangeCharacterMotionPlayRate: the TU's
+// code is complete.
 //
 // PORT: CHARACTER.w300[0] (CHARA_TARGET) is an EE address no written TU sets yet (Character_All_Init
 // clears it): CharaTarget answers none until its writer decides the host form (open-items.md 1 h).
@@ -43,6 +47,7 @@
 #include "game/main2.h"
 #include "game/sound.h"
 #include "game/ssGrpPortalCheck.h"
+#include "game/ssHitCheckAttackToScn.h"
 #include "game/SdMasterVolumeSetSE.h"
 #include "game/tiAvoidObject.h"
 #include "game/unassigned_data.h"
@@ -2126,11 +2131,6 @@ int asWater_Run_Check(CHARACTER *ch)
 
 // ---- stubs (tools/reverse/stubgen.py) ----
 
-// stub of CT3 0x018f55d0
-void asCharacterMortionFunctionOperation(CHARACTER *ch)
-{
-    ALYSSAPAN_STUB("asCharacterMortionFunctionOperation", 0x018f55d0);
-}
 
 // ---- asMotionAdderByNowMotion (slice 7, 2026-11-10): the face motions and the blinks ------------------
 static const char kAlysShape[] = "ALYS.BIN"; /* @3756, sdata 0x01937400 */
@@ -4210,4 +4210,525 @@ void asPIA1_KEY_TBL_STAND(CHARACTER *ch, PIA_KEY *key)
         else if (motion != MOTION_STAND_1 && motion != MOTION_STAND_9A)
             asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_BLEND, MOTION_STAND);
     }
+}
+
+// ---- asCharacterMortionFunctionOperation (slice 10, 2026-11-11): what slot 0's motion record turns on ----
+// The record fields this function reads (names from this use; MOTION_REC_KIND2 / _RUN / _GROUP / _FACING
+// above carry their other uses).
+#define MOTION_REC_HIT_START 0x20       /* int: slot 0's time (CHARA_SLOT_TIME) the record's window opens */
+#define MOTION_REC_HIT_END 0x24         /* int: ... and closes (inclusive) */
+#define MOTION_REC_HIT_ATTACKS 0x28     /* u_int: bit i = the shape's attack i strikes in the window */
+#define MOTION_REC_HIT_POWER 0x2c       /* short: ssHitAddAttackRequest's fourth argument */
+// MOTION_REC_KIND2 values.
+#define MOTION_KIND2_TURN_SLOW 1        /* Alyssa's turn speed TURN_SPEED_DEFAULT (the default's value too) */
+#define MOTION_KIND2_STAIRS_TURN 3      /* turn TURN_SPEED_STAIRS (TURN_SPEED_SLOWEST in the TURN_SLOWEST_* motions);
+                                           with TRIG_EVENT_HIDE_HELD: TRIG_EVENT_PANIC_ON_8A */
+#define MOTION_KIND2_NO_HIT 4           /* in the window: CHARACTER_FLAG_NO_HIT; Alyssa: TRIG_EVENT_STAIRS_4C */
+#define MOTION_KIND2_ATTACK MOTION_REC_KIND2_RESET /* 10: in the window the record's attacks strike */
+#define MOTION_KIND2_PANIC_4D 0x0c      /* TRIG_EVENT_PANIC_ON_4D, turn TURN_SPEED_FAST */
+#define MOTION_KIND2_PANIC_D 0x0d       /* 0x0d..0x0f: asPanicEventOperation ticks with the kind as group */
+#define MOTION_KIND2_PANIC_E 0x0e       /* back to MOTION_STAND_PANIC_E when the panic is off */
+#define MOTION_KIND2_PANIC_F 0x0f       /* ... MOTION_STAND_PANIC_F; also turn as MOTION_KIND2_STAIRS_TURN */
+#define MOTION_KIND2_TURN_MID 0x10      /* turn TURN_SPEED_MID */
+#define MOTION_KIND2_PANIC_8A 0x11      /* TRIG_EVENT_PANIC_ON_8A */
+#define MOTION_RUN_EVENT 4              /* MOTION_REC_RUN: the character's trigger event (MFO_EVENT_*) is on */
+// MOTION_REC_GROUP values.
+#define MOTION_GROUP_MOVE_A 4           /* 4 and 5: MoveFrame counts (the boss's BOSS_INFO_MOVE_TICKS) */
+#define MOTION_GROUP_MOVE_B 5
+#define MOTION_GROUP_FEET 0x0f          /* footAdjust = both feet */
+#define MOTION_GROUP_NO_HIT_A 0x10      /* Alyssa: CHARACTER_FLAG_NO_HIT */
+#define MOTION_GROUP_NO_HIT_B 0x11
+#define MOTION_GROUP_MASH 0x17          /* the lever mash goes on (asRapidLeverChangeOperate not freed) */
+#define MOTION_GROUP_CATWALK 0x18       /* asCatWalkEventOperation(CATWALK_TICK) */
+#define MOTION_GROUP_AIM 0x1b           /* CHARA_AIM_W kept */
+// MOTION_REC_FACING values: these set CHARACTER_FLAG_FACING_HELD, 2 stocks the camera, the rest clear it.
+#define MOTION_FACING_STOCK_CAMERA 2
+#define CHARACTER_FLAG_FACING_HELD 0x08000000u /* set while slot 0's facing is 1, 3..8, 0x0f or 0x11 (name from this use) */
+// The turn speeds (CHARA_TURN_SPEED, u_short).
+#define TURN_SPEED_DEFAULT 0x600
+#define TURN_SPEED_MID 0x800
+#define TURN_SPEED_STAIRS 0x100
+#define TURN_SPEED_SLOWEST 0x80
+#define TURN_SPEED_FAST 0x4000
+#define TURN_SLOWEST_1 0xc1             /* = MOTION_SITNOUP_STEP2 */
+#define TURN_SLOWEST_2 0xb5             /* = MOTION_SITNOUP_STEP */
+#define TURN_SLOWEST_3 0xbe
+#define TURN_SLOWEST_4 0x91
+// Alyssa's triggers this function keeps (names from this use).
+#define TRIG_EVENT_RUN_EVENT_ALYSSA 0x55 /* her record's MOTION_RUN_EVENT */
+#define TRIG_EVENT_STAIRS_4B 0x4b       /* MOTION_KIND_STAIRS2 (1) plays */
+#define TRIG_EVENT_STAIRS_4C 0x4c       /* MOTION_KIND_STAIRS (3) or MOTION_KIND2_NO_HIT plays */
+#define TRIG_VAR_WATER_DONE 2           /* TRIG_VAR_WATER_USED when MOTION_WATER ends */
+#define BOSS_ACTION_4_DONE 5            /* TRIG_VAR_BOSS_ACTION when MOTION_BOSS5_STRUCK ends */
+#define BOSS_ACTION_E_DONE 0x0f
+#define BOSS_INFO_MOVE_TICKS 0x44       /* pBossInfo: int, += BOSS_MOVE_TICKS every MOVE_FRAME_MAX + 1 moving frames */
+#define BOSS_MOVE_TICKS 30
+#define MOVE_FRAME_MAX 4
+#define FALL_OUT_Y -30000.0f            /* below it: the fatal motion and death */
+#define IDLE_KEY_TICKS 3000             /* keyTicks before the idle fidgets */
+#define IDLE_CHANCE 0.8f                /* every 32 frames, rndf() above it fidgets ... */
+#define IDLE_PICK 0.5f                  /* ... MOTION_IDLE_A above it, else MOTION_IDLE_B */
+#define MOTION_IDLE_A 1
+#define MOTION_IDLE_B 0x9a
+#define MUTEKI_FOREVER 999999999
+#define MOTION_STAND_PANIC_F 0x0d
+#define MOTION_STAND_PANIC_E 2
+#define MOTION_STAND 0                  /* = the standing motion other entries request */
+#define PSTAND_MOVE_STOP 0.3f           /* MOTION_PSTAND_MOVE: every 4 frames, NEXT_MODE -1 at or below it */
+#define MOTION_CAUGHT2_RELEASE 0xe3     /* the catchers let go: vsBossMuteki forever while these play */
+#define MOTION_CAUGHT32_RELEASE 0xe7
+#define MOTION_CAUGHT2_HOLD 0xe2        /* unlocked in these (or MOTION_CAUGHT2): MOTION_CAUGHT2_RELEASE */
+#define MOTION_CAUGHT2_HOLD2 MOTION_CAUGHT2
+#define MOTION_CAUGHT32_HOLD 0xe6       /* ... in these (or MOTION_CAUGHT32): MOTION_CAUGHT32_RELEASE */
+#define MOTION_CAUGHT32_HOLD2 MOTION_CAUGHT32
+#define MOTION_LOCKED_SHAKE 0xb3        /* locked, kind 1 with no catcher: stops on the unlock */
+#define MOTION_LOCKED_GRAB 0x18         /* locked, kind 2 with no catcher; her death when it runs past GRAB_FATAL_TIME */
+#define MOTION_LOCKED_GRAB2 0x19
+#define GRAB_FATAL_TIME 0x293
+#define GRAB_SHAKE_TIME 30000           /* asDualShockVibrationOn_Light's time for MOTION_LOCKED_SHAKE */
+// asAlyssaLockedByAnything's high byte: who holds her (the catcher's Character index, its catch motions).
+#define LOCKED_BY_CHARA2 0x100
+#define LOCKED_BY_CHARA32 0x200
+#define LOCKED_KIND_MASK 0xff
+#define LOCKED_KIND_CATCH 1
+#define LOCKED_KIND_2 2
+#define LOCKED_KIND_3 3
+#define CATCHER_2 2
+#define CATCHER_32 32
+#define MOTION_CAUGHT2 0x23             /* caught by CATCHER_2 (MOTION_CAUGHT2_STAIRS on stairs) ... */
+#define MOTION_CAUGHT2_STAIRS 0x3a
+#define MOTION_CAUGHT2_HELD 0x29
+#define MOTION_CAUGHT2_K3 0x2c          /* kind 3 (0x2d also counts as playing it) */
+#define MOTION_CAUGHT2_K3B 0x2d
+#define MOTION_CAUGHT32 0xe5            /* caught by CATCHER_32 (MOTION_CAUGHT32_STAIRS on stairs) */
+#define MOTION_CAUGHT32_STAIRS 0x2e
+#define MOTION_CAUGHT32_K3 0x40
+#define CATCH_LOOP_2 0x19               /* frames she is pinned to the catcher's part */
+#define CATCH_LOOP_32 0x2e
+#define PART_HASH_CATCH 0x70e586bd2a900b2bull /* the catcher's part she is pinned to */
+#define PART_HASH_STAIRS 0x1d3acfe1972cbull   /* a part of Alyssa's light bank: flag bit 0 off on stairs */
+#define PARTS_REC_FLAGS10 0x10          /* part record: u_int, bit 0 cleared on the stairs (name from this use) */
+#define PARTS_REC_TRANS_INIT 0xf0       /* part record: MODEL_PARTS.transInit, float[4] */
+#define PARTS_REC_DRAW_ON_POS 0x2f0     /* part record: MODEL_PARTS.drawOnPos */
+#define MOTH_INFO_BANK 1                /* MothInfo: u_char, the moth's bank; != 0: Alyssa's attacks also strike there */
+
+int ForceStandup;                       /* sbss 0x01944964 */
+int MoveFrame;                          /* sbss 0x01944a84 */
+static int iCatchLoop;                  /* iCatchLoop$2065, sbss 0x019449cc */
+static const char kZRei[] = "Z_REI";    /* @3672, sdata 0x01937288 */
+
+// The per-character trigger events (MOTION_RUN_EVENT): Character ids and their events, in the ROM's order.
+static const struct {
+    s_char id;
+    short event;
+} kRunEvents[] = {
+    {33, 0x60}, {32, 0x5f}, {31, 0x5e}, {30, 0x5d}, {29, 0x5c}, {6, 0x5b},
+    {5, 0x5a}, {4, 0x59}, {3, 0x58}, {2, 0x57}, {1, 0x56},
+};
+
+static u_char *PartOfBank(int bank, u_long hash)
+{
+    if (bank < 0 || pModelPartsHeader[bank] == NULL)
+        return NULL;    // PORT: the ROM reads the header whatever the bank
+    return asFindModelParts(pModelPartsHeader[bank], hash);
+}
+
+static void SetPartFlag0(u_char *part, int on)
+{
+    u_int f;
+    if (part == NULL)
+        return;
+    memcpy(&f, part + PARTS_REC_FLAGS10, sizeof(f));
+    f = on ? (f | 1u) : (f & ~1u);
+    memcpy(part + PARTS_REC_FLAGS10, &f, sizeof(f));
+}
+
+static int RecInt(const u_char *rec, int off)
+{
+    int v;
+    memcpy(&v, rec + off, sizeof(v));
+    return v;
+}
+
+// Pinned by a catcher: for `loop` frames her xz follow the catcher's PART_HASH_CATCH part; the first
+// frame (loop == first) takes its whole position and faces the catcher.
+static void CatchPin(CHARACTER *ch, int catcher, int first)
+{
+    const CHARACTER *c = &Character[catcher];
+    u_char *part = PartOfBank(c->bank, PART_HASH_CATCH);
+    float p[4];
+    if (part != NULL) {
+        memcpy(p, part + PARTS_REC_TRANS_INIT, sizeof(p));
+        if (iCatchLoop == first) {
+            float d[4], up[4] = {0.0f, 0.0f, 1.0f, 1.0f};
+            int k;
+            float cp[4];
+            memcpy(&ch->pos, p, sizeof(p));
+            memcpy(cp, &c->pos, sizeof(cp));
+            for (k = 0; k < 4; k++)
+                d[k] = cp[k] - p[k];
+            ch->rot = asRadianByVectors(d, up, 1) & 0xffff;
+        } else {
+            float me[4];
+            memcpy(me, &ch->pos, sizeof(me));
+            me[0] = p[0];
+            me[2] = p[2];
+            memcpy(&ch->pos, me, sizeof(me));
+        }
+    }
+    iCatchLoop--;
+}
+
+// CT3 0x018f55d0
+// What slot 0's motion record turns on each frame (asCharacterOperate): the facing flag, Alyssa's no-hit
+// windows, the attack windows (ssHitAddAttackRequest per attack bit, the moth's bank too), each
+// character's run event; for Alyssa then the fall out of the world, the stairs / panic / hide triggers,
+// her turn speed, the lever mash's end, the boss's move ticks, and with no forced motion (CHARA_BHV_W518
+// -1) the idle fidgets, the panic motions, the boss guards and the catchers' holds.
+void asCharacterMortionFunctionOperation(CHARACTER *ch)
+{
+    short motion = CharaShort(ch, CHARA_MOTION_SLOTS);
+    short prev = CharaShort(ch, CHARA_SLOT_PREV);
+    int time = CharaInt(ch, CHARA_SLOT_TIME);
+    u_char *rec = NULL;
+    int kind = -1, facing = 3, kind2 = -1, run = -1, group = -1;
+    int keep, i;
+    u_int locked;
+
+    if (CharaInt(ch, CHARA_MOTION_TABLE) == 0)
+        return;
+    if (motion != -1)
+        rec = MotionRecord(ch, motion);
+    if (rec != NULL) {
+        kind = (s_char)rec[MOTION_REC_KIND];
+        kind2 = (s_char)rec[MOTION_REC_KIND2];
+        facing = (s_char)rec[MOTION_REC_FACING];
+        run = (s_char)rec[MOTION_REC_RUN];
+        group = (s_char)rec[MOTION_REC_GROUP];
+    }
+    ch->footAdjust = group == MOTION_GROUP_FEET ? (u_char)(ch->footAdjust | CHARA_FOOT_ADJUST_R | CHARA_FOOT_ADJUST_L) : 0;
+
+    switch (facing) {
+    case 1: case 3: case 4: case 5: case 6: case 7: case 8: case 0x0f: case 0x11:
+        ch->flags |= CHARACTER_FLAG_FACING_HELD;
+        break;
+    case MOTION_FACING_STOCK_CAMERA:
+        iCamChangeFlag = 0;
+        iCameraBank_Stock = (short)Cam[CAMERA_SHARED].bank;
+        iCameraID_Stock = Cam[CAMERA_SHARED].cut;
+        // fall through
+    case -1: case 0: case 9: case 10: case 0x0b: case 0x0c: case 0x0d: case 0x0e: case 0x10: case 0x12:
+        ch->flags &= ~CHARACTER_FLAG_FACING_HELD;
+        break;
+    default:
+        break;
+    }
+    ch->flags &= ~CHARACTER_FLAG_NO_HIT;
+    if (ch->id == CHARA_ALYSSA && (group == MOTION_GROUP_NO_HIT_A || group == MOTION_GROUP_NO_HIT_B))
+        ch->flags |= CHARACTER_FLAG_NO_HIT;
+
+    if (kind2 == MOTION_KIND2_ATTACK) {
+        if ((ch->id != CHARA_ALYSSA || motion != MOTION_WATER || MagicWaterCount != 0) &&
+            CharaInt(ch, CHARA_HIT_LANDED) == 0) {
+            int lo = RecInt(rec, MOTION_REC_HIT_START), hi = RecInt(rec, MOTION_REC_HIT_END);
+            if (lo <= time && time <= hi) {
+                int prevTime = time - gGlobalNextTicksInterval;
+                int first = prevTime < lo || hi < prevTime;
+                u_int bits = (u_int)RecInt(rec, MOTION_REC_HIT_ATTACKS);
+                short power = RecShort(rec, MOTION_REC_HIT_POWER);
+                for (i = 0; i < 32; i++) {
+                    if ((bits & (1u << i)) == 0)
+                        continue;
+                    ssHitAddAttackRequest(ch->id, i, 0, power, -1, 1, motion, ch->lightBank);
+                    if (first && ch->bank >= 0 && pModelPartsHeader[ch->bank] != NULL) {
+                        // the attack's part starts its sweep where it stands
+                        int idx = ssHit_GetMaxIDFromAtkID(ch->bank, i);
+                        u_char *part = PARTS_REC(pModelPartsHeader[ch->bank], idx);
+                        memmove(part + PARTS_REC_DRAW_ON_POS, part + PARTS_REC_TRANS_INIT, 16);
+                    }
+                    if (MothInfo[MOTH_INFO_BANK] != 0)
+                        ssHitAddAttackRequest(ch->id, i, 0, power, -1, 1, motion, MothInfo[MOTH_INFO_BANK]);
+                }
+            }
+        }
+    } else if (kind2 == MOTION_KIND2_NO_HIT && RecInt(rec, MOTION_REC_HIT_START) <= time &&
+               time <= RecInt(rec, MOTION_REC_HIT_END)) {
+        if (ch->id == CHARA_ALYSSA && motion >= MOTION_BOW_EMPTY && motion <= MOTION_BOW_EMPTY + 3) {
+            int v = ssTrigGetVariable(TRIG_VAR_BOW_53, 1, 0);
+            if (v >= 0 && v < 3)
+                ch->flags |= CHARACTER_FLAG_NO_HIT;
+        } else {
+            ch->flags |= CHARACTER_FLAG_NO_HIT;
+        }
+    }
+
+    for (i = 0; i < (int)(sizeof(kRunEvents) / sizeof(kRunEvents[0])); i++) {
+        if (ch->id != kRunEvents[i].id)
+            continue;
+        if (run == MOTION_RUN_EVENT)
+            ssTrigRegisterEvent(kRunEvents[i].event, 1, 0);
+        else
+            ssTrigRemoveEvent(kRunEvents[i].event, 1, 0);
+    }
+    if (ch->id != CHARA_ALYSSA)
+        return;
+
+    // ---- Alyssa ----
+    float pos[4];
+    memcpy(pos, &ch->pos, sizeof(pos));
+    if (pos[1] < FALL_OUT_Y) {
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_FATAL_FRONT);
+        PlayerDamage(ALYSSA_FATAL_DAMAGE);
+    }
+    if (ssTrigCheckEvent(TRIG_EVENT_BOSS_BATTLE, 1, 0) != 0 && ssTrigCheckEvent(TRIG_EVENT_HIDE_HELD, 1, 0) != 0)
+        ssTrigRemoveEvent(TRIG_EVENT_HIDE_HELD, 1, 0);
+    {
+        int stand = ssTrigCheckEvent(TRIG_EVENT_NO_HIT_B0, 1, 0) != 0;
+        if (ForceStandup != 0 && !stand) {
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_STAND);
+            asRapidLeverChangeOperate(RLC_FREE, 0, 0, 0, 0);
+        }
+        ForceStandup = stand;
+    }
+    if (run == MOTION_RUN_EVENT)
+        ssTrigRegisterEvent(TRIG_EVENT_RUN_EVENT_ALYSSA, 1, 0);
+    else
+        ssTrigRemoveEvent(TRIG_EVENT_RUN_EVENT_ALYSSA, 1, 0);
+
+    {
+        u_short turn = TURN_SPEED_DEFAULT;
+        if (kind2 == MOTION_KIND2_TURN_MID)
+            turn = TURN_SPEED_MID;
+        else if (kind2 == MOTION_KIND2_PANIC_F || kind2 == MOTION_KIND2_STAIRS_TURN)
+            turn = (motion == TURN_SLOWEST_1 || motion == TURN_SLOWEST_2 || motion == TURN_SLOWEST_3 ||
+                    motion == TURN_SLOWEST_4) ? TURN_SPEED_SLOWEST : TURN_SPEED_STAIRS;
+        else if (kind2 == MOTION_KIND2_PANIC_4D)
+            turn = TURN_SPEED_FAST;
+        else if (kind2 == MOTION_KIND2_TURN_SLOW)
+            turn = TURN_SPEED_DEFAULT;
+        memcpy((u_char *)ch + CHARA_TURN_SPEED, &turn, sizeof(turn));
+    }
+
+    {
+        u_char *part = PartOfBank(Character[CHARA_ALYSSA].lightBank, PART_HASH_STAIRS);
+        SetPartFlag0(part, 1);
+        if (kind == MOTION_KIND_STAIRS2) {
+            ssTrigRegisterEvent(TRIG_EVENT_STAIRS_4B, 1, 0);
+            SetPartFlag0(part, 0);
+        } else {
+            ssTrigRemoveEvent(TRIG_EVENT_STAIRS_4B, 1, 0);
+        }
+        ssTrigRemoveEvent(TRIG_EVENT_STAIRS_4C, 1, 0);
+        if (kind == MOTION_KIND_STAIRS) {
+            ssTrigRegisterEvent(TRIG_EVENT_STAIRS_4C, 1, 0);
+            SetPartFlag0(part, 0);
+        }
+        if (kind2 == MOTION_KIND2_NO_HIT) {
+            ssTrigRegisterEvent(TRIG_EVENT_STAIRS_4C, 1, 0);
+            SetPartFlag0(part, 0);
+        }
+    }
+    if (kind2 == MOTION_KIND2_PANIC_4D)
+        ssTrigRegisterEvent(TRIG_EVENT_PANIC_ON_4D, 1, 0);
+    else
+        ssTrigRemoveEvent(TRIG_EVENT_PANIC_ON_4D, 1, 0);
+    if (kind2 == MOTION_KIND2_PANIC_8A ||
+        (kind2 == MOTION_KIND2_STAIRS_TURN && ssTrigCheckEvent(TRIG_EVENT_HIDE_HELD, 1, 0) != 0))
+        ssTrigRegisterEvent(TRIG_EVENT_PANIC_ON_8A, 1, 0);
+    else
+        ssTrigRemoveEvent(TRIG_EVENT_PANIC_ON_8A, 1, 0);
+    asCatWalkEventOperation(group == MOTION_GROUP_CATWALK ? CATWALK_TICK : CATWALK_RESET);
+
+    if (prev == MOTION_WATER && motion != MOTION_WATER)
+        ssTrigSetVariable(TRIG_VAR_WATER_USED, TRIG_VAR_WATER_DONE, 1, 0);
+    keep = 0;
+    if (motion == MOTION_BOSS5_STRUCK) {
+        keep = 1;
+    } else if (prev == MOTION_BOSS5_STRUCK) {
+        int v = ssTrigGetVariable(TRIG_VAR_BOSS_ACTION, 1, 0);
+        if (v == BOSS_ACTION_4)
+            ssTrigSetVariable(TRIG_VAR_BOSS_ACTION, BOSS_ACTION_4_DONE, 1, 0);
+        else if (v == BOSS_ACTION_E)
+            ssTrigSetVariable(TRIG_VAR_BOSS_ACTION, BOSS_ACTION_E_DONE, 1, 0);
+        asRapidLeverChangeOperate(RLC_FREE, 0, 0, 0, 0);
+    }
+    if ((motion == MOTION_FLINCH_BACK || motion == MOTION_FLINCH_FRONT) &&
+        ssTrigCheckEvent(TRIG_EVENT_BOSS_ALYS_DEAD, 1, 0) != 0)
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_BOSS5_DEAD);
+    if (motion == MOTION_PULLED)
+        keep = 1;
+    else if (prev == MOTION_PULLED)
+        asRapidLeverChangeOperate(RLC_FREE, 0, 0, 0, 0);
+    if (group != MOTION_GROUP_MASH && !keep)
+        asRapidLeverChangeOperate(RLC_FREE, 0, 0, 0, 0);
+
+    MoveFrame = (group == MOTION_GROUP_MOVE_B || group == MOTION_GROUP_MOVE_A) ? MoveFrame + 1 : 0;
+    if (MoveFrame > MOVE_FRAME_MAX) {
+        if (pBossInfo != NULL) {
+            int t;
+            memcpy(&t, pBossInfo + BOSS_INFO_MOVE_TICKS, sizeof(t));
+            t += BOSS_MOVE_TICKS;
+            memcpy(pBossInfo + BOSS_INFO_MOVE_TICKS, &t, sizeof(t));
+        }
+        MoveFrame = 0;
+    }
+
+    if (CharaInt(ch, CHARA_BHV_W518) != -1)
+        return;
+
+    if (motion == MOTION_STAND && ch->keyTicks - IDLE_KEY_TICKS >= 0 && (FrameCounter & 0x1f) == 0 &&
+        rndf() > IDLE_CHANCE && ssTrigCheckEvent(TRIG_EVENT_BOSS_BATTLE, 1, 0) == 0)
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, rndf() > IDLE_PICK ? MOTION_IDLE_A : MOTION_IDLE_B);
+    if (motion == MOTION_PSTAND_WAIT)
+        AfterPanicStartMuteki = MUTEKI_FOREVER;
+
+    if ((asPanicStatusCheck(PANIC_STATUS_READ) & 3) == 1) {
+        // the panic just started: the panic stand, and its record goes on to nothing
+        u_char *wait = MotionRecord(&Character[CHARA_ALYSSA], MOTION_PSTAND_WAIT);
+        short none = -1;
+        if (wait != NULL)
+            memcpy(wait + MOTION_REC_NEXT_MODE, &none, sizeof(none));
+        asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_PSTAND_WAIT);
+    } else {
+        int done = Character[CHARA_ALYSSA].hp < 1;
+        if (!done) {
+            switch (group) {
+            case 1: case 2: case 3: case 4: case 5: case 0x0f:
+                asPanicEventOperation(PANIC_EV_RESET, 0);
+                if ((asPanicStatusCheck(PANIC_STATUS_READ) & 3) == 3)
+                    asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_PSTAND_NEXT);
+                done = 1;
+                break;
+            case 6: case 7: case 8: case 9: case 10: case 0x0b: case 0x0c: case 0x0e:
+            case 0x10: case 0x11: case 0x18: case 0x1a:
+                done = 1;
+                break;
+            case 0x12: case 0x13: case 0x14: case 0x15: case 0x16:
+                asPanicEventOperation(PANIC_EV_TICK, kind2);
+                if ((asPanicStatusCheck(PANIC_STATUS_READ) & 1) == 0)
+                    asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY,
+                                                    kind2 == MOTION_KIND2_PANIC_F ? MOTION_STAND_PANIC_F :
+                                                    kind2 == MOTION_KIND2_PANIC_E ? MOTION_STAND_PANIC_E : MOTION_STAND);
+                done = 1;
+                break;
+            default:
+                break;
+            }
+        }
+        if (!done) {
+            switch (kind2) {
+            case 0: case 1: case 2: case 3: case 8: case 9: case 10: case 0x0b:
+                asPanicEventOperation(PANIC_EV_RESET, 0);
+                if ((asPanicStatusCheck(PANIC_STATUS_READ) & 3) == 3)
+                    asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_PSTAND_NEXT);
+                break;
+            case MOTION_KIND2_PANIC_D: case MOTION_KIND2_PANIC_E: case MOTION_KIND2_PANIC_F:
+                asPanicEventOperation(PANIC_EV_TICK, kind2);
+                if ((asPanicStatusCheck(PANIC_STATUS_READ) & 1) == 0)
+                    asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY,
+                                                    kind2 == MOTION_KIND2_PANIC_F ? MOTION_STAND_PANIC_F : MOTION_STAND);
+                break;
+            default:
+                break;
+            }
+        }
+        if (motion == MOTION_PSTAND_MOVE && (FrameCounter & 3) == 0 && rec != NULL) {
+            short mode = rndf() <= PSTAND_MOVE_STOP ? -1 : 0;
+            memcpy(rec + MOTION_REC_NEXT_MODE, &mode, sizeof(mode));
+        }
+    }
+    if (motion == MOTION_CAUGHT2_RELEASE || motion == MOTION_CAUGHT32_RELEASE)
+        vsBossMuteki = MUTEKI_FOREVER;
+
+    locked = (u_int)asAlyssaLockedByAnything(LOCKED_QUERY);
+    if (locked == 0) {
+        if (motion == MOTION_LOCKED_SHAKE) {
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_STAND);
+            asDualShockVibrationOff();
+        } else if (motion == MOTION_CAUGHT2_HOLD || motion == MOTION_CAUGHT2_HOLD2) {
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_CAUGHT2_RELEASE);
+            vsBossMuteki = MUTEKI_FOREVER;
+        } else if (motion == MOTION_CAUGHT32_HOLD || motion == MOTION_CAUGHT32_HOLD2) {
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_CAUGHT32_RELEASE);
+            vsBossMuteki = MUTEKI_FOREVER;
+        }
+        iCatchLoop = 0;
+    }
+    if ((locked & LOCKED_KEEP_MASK) == LOCKED_BY_CHARA32) {
+        u_int k = locked & LOCKED_KIND_MASK;
+        if (k == LOCKED_KIND_3) {
+            if (motion != MOTION_CAUGHT32_K3)
+                asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_CAUGHT32_K3);
+        } else if (k == LOCKED_KIND_2) {
+            if (motion != MOTION_BOSS5_DEAD)
+                asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_BOSS5_DEAD);
+        } else if (k == LOCKED_KIND_CATCH) {
+            if (motion != MOTION_CAUGHT32 && motion != MOTION_CAUGHT32_HOLD && motion != MOTION_CAUGHT32_STAIRS) {
+                asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY,
+                                                kind == MOTION_KIND_STAIRS2 ? MOTION_CAUGHT32_STAIRS : MOTION_CAUGHT32);
+                iCatchLoop = CATCH_LOOP_32;
+            }
+            if (iCatchLoop != 0)
+                CatchPin(ch, CATCHER_32, CATCH_LOOP_32);
+        }
+    } else if ((locked & LOCKED_KEEP_MASK) == LOCKED_BY_CHARA2) {
+        u_int k = locked & LOCKED_KIND_MASK;
+        if (k == LOCKED_KIND_3) {
+            if (motion != MOTION_CAUGHT2_K3 && motion != MOTION_CAUGHT2_K3B)
+                asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_CAUGHT2_K3);
+        } else if (k == LOCKED_KIND_2) {
+            if (motion != MOTION_BOSS5_DEAD)
+                asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_BOSS5_DEAD);
+        } else if (k == LOCKED_KIND_CATCH) {
+            if (motion != MOTION_CAUGHT2 && motion != MOTION_CAUGHT2_STAIRS && motion != MOTION_CAUGHT2_HELD &&
+                motion != MOTION_CAUGHT2_HOLD) {
+                asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY,
+                                                kind == MOTION_KIND_STAIRS2 ? MOTION_CAUGHT2_STAIRS : MOTION_CAUGHT2);
+                iCatchLoop = CATCH_LOOP_2;
+            }
+            if (iCatchLoop != 0)
+                CatchPin(ch, CATCHER_2, CATCH_LOOP_2);
+        }
+    } else if ((locked & LOCKED_KEEP_MASK) == 0 && ssTrigCheckEvent(TRIG_EVENT_PANIC_ON_4D, 1, 0) == 0 &&
+               ssTrigCheckEvent(TRIG_EVENT_PANIC_ON_8A, 1, 0) == 0) {
+        if ((locked & LOCKED_KIND_MASK) == LOCKED_KIND_2) {
+            if (motion != MOTION_LOCKED_GRAB && motion != MOTION_LOCKED_GRAB2) {
+                asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_LOCKED_GRAB);
+                asDualShockVibrationOff();
+            }
+        } else if ((locked & LOCKED_KIND_MASK) == LOCKED_KIND_CATCH && motion != MOTION_LOCKED_SHAKE) {
+            asCharacterMortionChangeRequest(0, CHARA_MOTION_REQ_PLAY, MOTION_LOCKED_SHAKE);
+            asDualShockVibrationOn_Light(GRAB_SHAKE_TIME);
+        }
+    }
+    asAlyssaLockedByAnything(LOCKED_TAKE);
+
+    if (motion == MOTION_LOCKED_GRAB && time > GRAB_FATAL_TIME && Character[Player_BankID].hp > 0) {
+        PlayerDamage(ALYSSA_FATAL_DAMAGE);
+        SSPlaySE(kZRei, 5, 1);
+    }
+    if (group != MOTION_GROUP_AIM)
+        SetCharaInt(ch, CHARA_AIM_W, 0);    // 0.0f
+}
+
+// CT3 0x018fe120
+// The play rate of the motion `index` while one of the character's slots plays it: 0 when set, 1 when no
+// slot plays it (tiBrain_Damage1..3).
+int asChangeCharacterMotionPlayRate(int chara, int index, u_char rate)
+{
+    CHARACTER *ch = &Character[chara];
+    const u_char *rec;
+    BEHAVIOR *bhv;
+    int slot;
+    for (slot = 0; slot < CHARA_BHV_SLOT_COUNT; slot++) {
+        if (CharaShort(ch, CHARA_MOTION_SLOTS + slot * 2) == index)
+            break;
+    }
+    if (slot == CHARA_BHV_SLOT_COUNT)
+        return 1;
+    rec = MotionRecord(ch, index);
+    bhv = rec != NULL ? asFindBehaviorByCharacter(chara, RecHash(rec)) : NULL;
+    if (bhv != NULL)
+        asChangeBehaviorAnimationPlayRate(bhv, rate);
+    return 0;
 }

@@ -27,7 +27,13 @@ typedef struct LOS_MULTI {
 } LOS_MULTI;
 #define LOS_HIT_ID 0x198                /* short: the hit record's id (the faded part's hitIds list) */
 int CheckLOS_Multi(int bank, LOS_MULTI *q);                                              // CT3 0x018aa950
-int CheckLOS(int bank, LOS_SEG *seg);                                                    // CT3 0x018ab180
+int CheckLOS(int bank, LOS_SEG *seg);
+// ---- attack requests (from asCharacterMortionFunctionOperation's calls, 2026-11-11) ----
+// chara strikes with its shape's attack `atk` (power: the motion record's short at +0x2c; motion: its slot
+// 0 motion) against `bank` (its lightBank, or the moth's bank); a2 0, a4 -1, a5 1 at the one call site.
+int ssHitAddAttackRequest(int chara, int atk, int a2, int power, int a4, int a5, int motion, int bank); // CT3 0x018aa8e0
+// The part index (of bank's parts header) of attack `atk`.
+int ssHit_GetMaxIDFromAtkID(int bank, int atk);                                          // CT3 0x018ac6a0                                                    // CT3 0x018ab180
 // What CheckLOS leaves after the segment on a hit, as tiCharaFootAdjust reads it (2026-11-11): the
 // caller's buffer runs on past LOS_SEG -- +0x20 the hit point, +0x30 the hit record (an EE word there).
 // layout: host (the record is a host pointer here); CheckLOS's TU confirms both and fills them.

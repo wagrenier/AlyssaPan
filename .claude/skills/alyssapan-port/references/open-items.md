@@ -176,7 +176,19 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    indices are named from these uses only; (bh) asShootArrowSetting's first argument is a u_char kind
    and asPIA0_KEY_TBL_YUMI passes ArrowList's low byte (lbu): ArrowList may be a u_char array, not
    int[50] -- asUseArrow.c settles it; (bi) callcheck flags MOVEEND / RUN / WALK / STAND for
-   asYumi_Run_Check / asWater_Run_Check: the helper ItemKeyTaken makes those calls. **Next:**
+   asYumi_Run_Check / asWater_Run_Check: the helper ItemKeyTaken makes those calls. Open from slice 10
+   (2026-11-11, asCharacterMortionFunctionOperation: **the TU's code is complete, verify**): (bj) the
+   motion record's +0x20 / +0x24 / +0x28 / +0x2c are named from this one reader as an attack / no-hit
+   window (MOTION_REC_HIT_*), KIND2 4 / 10 / 0x0c..0x11, GROUP 4 / 5 / 0x0f..0x1b and FACING's
+   CHARACTER_FLAG_FACING_HELD (0x08000000) likewise; KIND2 10 is the attack kind (it was named
+   MOTION_REC_KIND2_RESET from asRequestExecute: one value, two names); (bk) asAlyssaLockedByAnything's
+   high byte 0x100 / 0x200 are read as "held by Character 2 / 32" (their catch motions 0x23 / 0xe5 and
+   the part PART_HASH_CATCH she is pinned to): confirm in the catcher TUs; (bl) the ssHitAddAttackRequest
+   (8 arguments: a2 0, a4 -1, a5 1 at the one site) and ssHit_GetMaxIDFromAtkID prototypes come from the
+   call site; (bm) MothInfo (bss 0x0193ced0, 40 bytes) is declared as u_char[0x28] in unassigned_data
+   until asMothOperate.c types it; (bn) PORT: a motion index with no table record (MotionRecord NULL) is
+   read as no motion (the ROM would read garbage). callcheck's asFindModelParts / asRadianByVectors are
+   in the helpers PartOfBank / CatchPin. **Next:**
    ~~`ga/gaInitInterrupt.c`~~ (verify, 2026-11-09: main's frame loops now), then in the order a smoke
    run reaches the stubs: `main2` (game/main2.c: title and scene set-up), `IOPInit` / `Character_All_Init`
    (Character_Init.c), `FS_work_init` / `FileSoundServer` (fileio.c), `SunAllocInit` (ahalloc.c), the ga

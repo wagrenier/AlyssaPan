@@ -118,6 +118,7 @@ extern int TrgCharStopFlag;                     /* sbss 0x019401c4: TRG_CHAR_STO
 extern int PlayerPanicMode;                     /* sbss 0x019401c0 */
 extern int MonsterHpDispCounter;                /* sbss 0x019401bc */
 extern int MonsterHpDispCharID;                 /* sbss 0x019401b8 */
+extern u_char MothInfo[0x28];                   /* bss  0x0193ced0: the moth (asMothOperate); [1] its bank */
 extern u_char *pBossInfo;                       /* sbss 0x0193f78c: byte +0x91 = Alyssa's own light belt */
 extern int MC_NOW_LOADING;                      /* sbss 0x0193f9dc: != 0 while the memory card loads (SSBGMProc pauses the chase BGM rule) */
 extern char sFirstCheck;                        /* sdata 0x01939c8c */

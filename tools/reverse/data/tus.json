@@ -1,7 +1,6 @@
 {
  "queue": [
   "alyssapan/rendering/ui_canvas.cpp",
-  "game/wideXcmd_DebugPrint.c",
   "game/tkXDTrg_GetSceneHash.c",
   "game/asUseArrow.c",
   "game/asMothRouteSearch.c",
@@ -1319,7 +1318,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 140..140, 2 functions keyed by their statics, 6 unkeyed; file name from the names"
   },
   "game/wideXcmd_DebugPrint.c": {
-   "notes": "Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed) -- the last function of the TU. New stubs in asUseArrow.c: asChangeTheArrowState, asShootArrowSetting (types from their bodies). Doubts in open-items 1 bg..bi. callcheck flags only the explained helpers (ItemKeyTaken and the earlier ones). The shot stays black: nothing draws yet.",
+   "notes": "All 109 functions written. Nothing on screen reaches it yet (the shot is the warning screen): verify in gameplay. New stubs ssHitAddAttackRequest, ssHit_GetMaxIDFromAtkID in ssHitCheckAttackToScn.c (prototypes from the call site). MothInfo declared in unassigned_data. Doubts in open-items 1 bj..bn. callcheck: asFindModelParts and asRadianByVectors are called from the helpers PartOfBank and CatchPin.",
    "ranges": [
     [
      "018f3f60",
@@ -1371,9 +1370,14 @@
      "date": "2026-11-10 19:50",
      "status": "partial",
      "summary": "slice 9: the ground key-table entries -- standing, walking, running and the run stop (iRunCount), the move end, crouching and crawling (KEY_MAP_HIDE is the crouch button), the TRIG_EVENT_LOCK_9A second motion set, and the bow before the keys (asPIA0_KEY_TBL_YUMI: arrow state and shoot setting); 9 functions"
+    },
+    {
+     "date": "2026-11-11 20:33",
+     "status": "verify",
+     "summary": "slice 10: asCharacterMortionFunctionOperation (attack and no-hit windows, per-character run events, Alyssa's stairs and panic triggers, turn speed, lever mash end, idle fidgets, panic motions, the catchers' holds) and asChangeCharacterMotionPlayRate; the TU's code is complete"
     }
    ],
-   "status": "partial",
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 141..141, 28 functions keyed by their statics, 80 unkeyed; file name from the names"
   },
   "game/wideXcmd_TriggerInit.c": {

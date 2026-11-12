@@ -307,6 +307,9 @@ void asCharacterOperate(CHARACTER *chr, int others, int player, int animate);   
 // 1 when Alyssa plays a stair motion (MOTION_KIND_STAIRS*) and her targets' flags say she is on the
 // stairs: then she is put back to posBefore.
 int asCheckAlyssaOnStairway(void);                                                       // CT3 0x018f5440
+extern int ForceStandup;                /* sbss 0x01944964: TRIG_EVENT_NO_HIT_B0 last frame (its end stands her up) */
+extern int MoveFrame;                   /* sbss 0x01944a84: Alyssa's moving frames (the boss's move ticks) */
+int asChangeCharacterMotionPlayRate(int chara, int index, u_char rate);                  // CT3 0x018fe120
 void asCharacterMortionFunctionOperation(CHARACTER *ch);                                 // CT3 0x018f55d0
 void asMotionAdderByNowMotion(CHARACTER *ch);                                            // CT3 0x018f6b50
 // as1CharacterPositioning for every operated character of the pass (asCharacterOperate's passes).

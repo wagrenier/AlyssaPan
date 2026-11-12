@@ -44,3 +44,17 @@ double ssRadianByO(const float *v, int axis)
     ALYSSAPAN_STUB("ssRadianByO", 0x018ad300);
     return {};
 }
+
+// stub of CT3 0x018aa8e0
+int ssHitAddAttackRequest(int chara, int atk, int a2, int power, int a4, int a5, int motion, int bank)
+{
+    ALYSSAPAN_STUB("ssHitAddAttackRequest", 0x018aa8e0);
+    return {};
+}
+
+// stub of CT3 0x018ac6a0
+int ssHit_GetMaxIDFromAtkID(int bank, int atk)
+{
+    ALYSSAPAN_STUB("ssHit_GetMaxIDFromAtkID", 0x018ac6a0);
+    return {};
+}

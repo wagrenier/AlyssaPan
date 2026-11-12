@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-11 20:12 at commit `1932f38` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-11 20:33 at commit `bf4e426` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1183**; stubs: **239**
+- reconstructed CT3 functions: **1185**; stubs: **240**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -84,24 +84,23 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/sound.c` | 73 | 0 |
 | `src/game/ssCalcInversMatrix2.c` | 0 | 1 |
 | `src/game/ssGrpPortalCheck.c` | 74 | 0 |
-| `src/game/ssHitCheckAttackToScn.c` | 0 | 6 |
+| `src/game/ssHitCheckAttackToScn.c` | 0 | 8 |
 | `src/game/ssSetTexUVforCubeMap.c` | 1 | 50 |
 | `src/game/tiAvoidObject.c` | 0 | 7 |
 | `src/game/tiXcmd_TransItem.c` | 85 | 8 |
 | `src/game/tkXDTrg_GetSceneHash.c` | 0 | 8 |
 | `src/game/tnXcmd.c` | 0 | 8 |
-| `src/game/wideXcmd_DebugPrint.c` | 107 | 1 |
+| `src/game/wideXcmd_DebugPrint.c` | 109 | 0 |
 | `src/game/wideXcmd_TriggerInit.c` | 1 | 43 |
 | `src/game/xcmd_tn.c` | 59 | 0 |
 | `src/lib/unassigned_stubs.cpp` | 0 | 1 |
 
 ## Translation units (one session each: `tus.py`)
 
-- 64 TUs: todo 30, partial 4, verify 31, done 8, blocked 1
-- next: **game/wideXcmd_DebugPrint.c** (pinned in the queue)
-- pinned queue: alyssapan/rendering/ui_canvas.cpp, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
+- 64 TUs: todo 30, partial 3, verify 32, done 8, blocked 1
+- next: **game/tkXDTrg_GetSceneHash.c** (pinned in the queue)
+- pinned queue: alyssapan/rendering/ui_canvas.cpp, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
 - partial: `game/tiXcmd_TransItem.c` 85/93 -- Slice 10. Written: tiXcmd_UseItem (ITEM_USE_* modes from argv[4], ITEM_KIND_* from the row byte +0: give-take, signal, heal Character[0].hp up to hpMax, calm vi
-- partial: `game/wideXcmd_DebugPrint.c` 107/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed) -- the last function of the TU. New stubs
 - partial: `game/wideXcmd_TriggerInit.c` 1/46 -- Title draws at 4:3 and 16:9 after 40 s (logo, 3, menu, copyright). Fix in SunTexEePtr, BankOfEeAddr, HitObjectId: free slot banks shared EE addresses with the G
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
@@ -133,11 +132,13 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/movie.c` 20/21 -- Playback kept in the ROM shape: host EE kernel runs the decoder thread and vblank handler, sdk/libmpeg decodes, the picture goes through AA_GetDataWord.c displa
 - verify: `game/sound.c` 69/69 -- All 69 written. SSLoadSEfromLoadPoint takes the bank image (BankInfo +0x1c); All_table_TBL[bank] is image + 0x80, so the old +0xd4 record is ALL_TABLE.sound, wo
 - verify: `game/ssGrpPortalCheck.c` 59/59 -- Code complete. The black screen was the ga objects' +0x38 word (EE address of the part's partsPos, the ambient light0 adds) left 0 by the ssSetAmbColorToAllObj 
+- verify: `game/wideXcmd_DebugPrint.c` 109/109 -- All 109 functions written. Nothing on screen reaches it yet (the shot is the warning screen): verify in gameplay. New stubs ssHitAddAttackRequest, ssHit_GetMaxI
 - verify: `game/xcmd_tn.c` 57/57 -- All 57 functions written. VistaVision: ON or on brings the bars in, argv[1] 1 slides, a fourth argument makes ON skippable; statics VistaVisionEndCheck, VistaVi
 - blocked: `alyssapan/rendering/ui_canvas.cpp` 0/0 -- Blocked on ga/gaBGT_DrawObject.c (host draw module for ga draw objects) and the camera (asEyeForcusUP2CamMat.c camera_init0 / camera_view stubs); triggers are n
 
 Recent sessions:
 
+- 2026-11-11 20:33 `game/wideXcmd_DebugPrint.c` verify: slice 10: asCharacterMortionFunctionOperation (attack and no-hit windows, per-character run events, Alyssa's stairs and panic triggers, turn speed, lever mash e
 - 2026-11-11 20:11 `game/Clipping_Portal.c` verify: slice 15: tiCalc_HurikoOPEN and tiCalc_HurikoCLOSED, one pendulum solver (pull to rest pose, normal drag, springs, accel clamp, damping, length constraint, caps
 - 2026-11-11 19:54 `game/Clipping_Portal.c` partial: slice 14: tiCalc_Leaf, tiCalc_Twist (turn about the velocity around startPos less radius along unit (vel+1) x vel), tiGetTransRotMatrix, tiGetDegFromVec, tiPart
 - 2026-11-11 19:45 `game/Clipping_Portal.c` partial: slice 13: the translucent-character and ghost passes (tiChara_Translucence_Start / End / Start2 / End2, host composite from a capture at the inverse FIX), tiXFa
@@ -145,20 +146,19 @@ Recent sessions:
 - 2026-11-11 19:13 `game/Clipping_Portal.c` partial: slice 12: tiDrawLensFlares (flare elements on the line to the screen centre, sprite packets rewritten), tiBumpSTValueUpdate (bump ST shift from the first omni l
 - 2026-11-11 18:57 `game/wideXcmd_TriggerInit.c` partial: ssXcmd_SetAllControlDisable (the title script waited on its stub after START); EE resolvers skip free banks so ATLD's textures bind: the title screen draws
 - 2026-11-11 18:37 `game/Clipping_Portal.c` partial: slice 11: the GS frame-buffer copies -- tiDrawShadingOff (the shade-off: 2^level capture stretched back, turned half-alpha copies), CaptureDBuffer, tiVRAMViewer
-- 2026-11-11 18:20 `game/Clipping_Portal.c` partial: slice 10: tiGenerateParticle and tiGetmatL2WFromMeshEmitter (ring emission: part or mesh-emitter start, jittered dir and scale, life, refractive index), tiLight
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
 | `game/ssSetTexUVforCubeMap.c` | partial | 1/50/96 | 35.3 | 117 | 10 |
 | `game/CpDivideEECom.c` | todo | 0/10/18 | 3.3 | 80 | 10 |
 | `ga/gaDrawObject.c` | todo | 0/11/11 | 6.9 | 39 | 0 |
+| `game/ssHitCheckAttackToScn.c` | todo | 0/8/37 | 32.0 | 28 | 3 |
 | `game/tiAvoidObject.c` | todo | 0/7/82 | 30.5 | 27 | 4 |
-| `game/ssHitCheckAttackToScn.c` | todo | 0/6/37 | 32.0 | 25 | 3 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/AA_GetDataWord.c` | todo | 0/8/15 | 4.9 | 21 | 2 |
 | `game/AA_SoundMonoSoart.c` | todo | 0/8/20 | 4.0 | 18 | 2 |
-| `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `game/asUseArrow.c` | todo | 0/7/11 | 6.4 | 17 | 1 |
+| `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
 | `game/tkXDTrg_GetSceneHash.c` | todo | 0/8/50 | 21.0 | 15 | 2 |
 
@@ -203,7 +203,7 @@ Recent sessions:
 | `0189d900` | ssTrigScreenBlurEnd | 2 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `018c1d80` | AA_videoDecSetStream | 2 | sym | stub | game/AA_mpegTS.c |
 | `018bff20` | AA_strFileOpen | 2 | sym | stub | game/AA_videoCallback.c |
+| `018aa8e0` | ssHitAddAttackRequest | 2 | sym | stub | game/ssHitCheckAttackToScn.c |
 | `018d2120` | CpCall_IOPSndDriver_2 | 2 | sym | stub | game/CpDivideEECom.c |
 | `018d1e80` | CpCheckEE_IOPComEnd | 2 | sym | stub | game/CpDivideEECom.c |
-| `018c0310` | AA_cpuCycles | 2 | sym | stub | game/AA_cpuCycles.c |
 
