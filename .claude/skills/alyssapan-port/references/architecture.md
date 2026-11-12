@@ -1100,6 +1100,19 @@ the branch scene tables and a few tk x commands.
   f flag, g / t scope) and an operator of '>' '<' '!' '='; it answers 1 when the named comparison fails
   (disassembly-checked), and the character count for an operator it does not know.
 
+## The moths, game/asMothRouteSearch.c (2026-11-11)
+
+- **MothInfo** (sbss 0x0193ced0, 0x28 bytes): active, bank (the moths are parts of it; Alyssa attacks
+  also strike there), count, the pad rumble slot (-1 none), stage (1 for MT1A.BIN), endTicks[2], the bank
+  name, the 0x50-byte moth records (gHeapJunc) and a word at +0x24. asXcmd_I_have_x_Mothes arms it (four
+  script numbers per moth, SE bank Z_GA, 蛾); asDestroyMothInfo frees it, drops event 0x47 and, asked,
+  loads SE bank Z_REI back.
+- **asMothRouteSearch(bank, from, to, out, stepAround, stepTilt)**: CheckLOS from -> to; on a hit the
+  offset to -> from is tilted about (hitDir x up, or x when |hitDir . up| >= 0.9) in stepTilt steps up
+  to half a turn and turned about hitDir in stepAround steps per full turn (asMakeRotMatrixByQuartanion
+  units, 0x10000 a turn) until a clear end is found. asMothOperate passes 0x5ed0 / 0x1555 and shortens
+  the target by 0.8 while the answer is 1.
+
 ## The IOP side (2026-11-09)
 
 The EE loads `cdrom0:\IOP\IOPRP255.IMG;1` (an IOP reboot), then `SIO2MAN`, `PADMAN`, `MCMAN`, `MCSERV`,

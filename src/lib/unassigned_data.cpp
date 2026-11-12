@@ -141,7 +141,6 @@ int TrgCharStopFlag;                            /* sbss 0x019401c4 */
 int PlayerPanicMode;                            /* sbss 0x019401c0 */
 int MonsterHpDispCounter;                       /* sbss 0x019401bc */
 int MonsterHpDispCharID;                        /* sbss 0x019401b8 */
-u_char MothInfo[0x28];                          /* bss  0x0193ced0 */
 u_char *pBossInfo;                              /* sbss 0x0193f78c */
 int MC_NOW_LOADING;                             /* sbss 0x0193f9dc */
 char sFirstCheck = 1;                           /* sdata 0x01939c8c */

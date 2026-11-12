@@ -40,6 +40,7 @@
 #include "game/QuatSlerp.h"
 #include "game/ahRelocateSunPs2ObjectArry.h"
 #include "game/asMothOperate.h"
+#include "game/asMothRouteSearch.h"
 #include "game/asUseArrow.h"
 #include "game/main.h"
 #include "game/ahalloc.h"
@@ -4310,7 +4311,6 @@ void asPIA1_KEY_TBL_STAND(CHARACTER *ch, PIA_KEY *key)
 #define PARTS_REC_FLAGS10 0x10          /* part record: u_int, bit 0 cleared on the stairs (name from this use) */
 #define PARTS_REC_TRANS_INIT 0xf0       /* part record: MODEL_PARTS.transInit, float[4] */
 #define PARTS_REC_DRAW_ON_POS 0x2f0     /* part record: MODEL_PARTS.drawOnPos */
-#define MOTH_INFO_BANK 1                /* MothInfo: u_char, the moth's bank; != 0: Alyssa's attacks also strike there */
 
 int ForceStandup;                       /* sbss 0x01944964 */
 int MoveFrame;                          /* sbss 0x01944a84 */
@@ -4446,8 +4446,8 @@ void asCharacterMortionFunctionOperation(CHARACTER *ch)
                         u_char *part = PARTS_REC(pModelPartsHeader[ch->bank], idx);
                         memmove(part + PARTS_REC_DRAW_ON_POS, part + PARTS_REC_TRANS_INIT, 16);
                     }
-                    if (MothInfo[MOTH_INFO_BANK] != 0)
-                        ssHitAddAttackRequest(ch->id, i, 0, power, -1, 1, motion, MothInfo[MOTH_INFO_BANK]);
+                    if (MothInfo.bank != 0)
+                        ssHitAddAttackRequest(ch->id, i, 0, power, -1, 1, motion, MothInfo.bank);
                 }
             }
         }

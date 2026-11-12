@@ -1,7 +1,6 @@
 {
  "queue": [
   "alyssapan/rendering/ui_canvas.cpp",
-  "game/asMothRouteSearch.c",
   "game/asXcmd.c",
   "game/ssHitCheckAttackToScn.c",
   "game/ssSetTexUVforCubeMap.c"
@@ -904,12 +903,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 85..85, 1 functions keyed by their statics, 0 unkeyed; file name from the names"
   },
   "game/asMothRouteSearch.c": {
+   "notes": "The route search runs only from asMothOperate (a stub); MOTH is layout host with most fields still wNN; open-items has the doubts (stage and endTicks, the twice-tested first end, events 0x47 and 0x8c)",
    "ranges": [
     [
      "01882890",
      "01882d60"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-11 21:55",
+     "status": "verify",
+     "summary": "MothInfo init and destroy, and the moth route search around scene collision; MothInfo moved out of unassigned data into MOTH_INFO"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 83..83, 1 functions keyed by their statics, 1 unkeyed; file name from the names"
   },
   "game/asUseArrow.c": {

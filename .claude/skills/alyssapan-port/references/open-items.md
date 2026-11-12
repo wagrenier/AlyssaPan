@@ -1660,6 +1660,16 @@ apply here):
 
 ## Open questions
 
+- (2026-11-11, game/asMothRouteSearch.c) the whole TU written (asInitMothInfo, asDestroyMothInfo,
+  asMothRouteSearch): **verify** (the route search runs only from asMothOperate, still a stub). MothInfo
+  moved out of unassigned_data into MOTH_INFO (asMothRouteSearch.h; wideXcmd_DebugPrint.c reads
+  MothInfo.bank). **To confirm in asMothOperate / asXcmd_I_have_x_Mothes:** (a) MOTH (0x50 on the EE) is
+  layout: host with a void pointer at EE 0x1c; most fields stay wNN; state 7, routeSearch (+0x26), timer
+  (+0x28), target (+0x40) and bank (+3, the collision bank, 0 when armed) are named from one use each;
+  (b) MothInfo.stage is 1 when the armed bank is MT1A.BIN, and endTicks[stage] is stamped once (it starts
+  at -1 from asInitMothInfo, so the ROM test for 0 only fires after something clears it: who?);
+  (c) the route search tests each ring first end twice (it builds the next candidate before stepping):
+  kept as the ROM; (d) TRIG_EVENT_MOTHS_GONE 0x47 / _ARMED 0x8c are named from these two uses.
 - (2026-11-11, game/asUseArrow.c slice 2) asArrowOperate written: **the file is complete (verify: no
   arrow on screen until a stage with the bow runs)**. The states were renamed by what this function does
   with them: 4 ARROW_STATE_CHARGE (MOTION_BOW_DRAW raises a kind 0 arrow's level past 0x95 / 299 ticks),
