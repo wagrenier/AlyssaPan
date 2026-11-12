@@ -4,6 +4,53 @@
 
 #include "sdk/scetypes.h"
 
+// ---- slice 1 (2026-11-12): the timers, the save image's part, the stalkers' kinds and motions ----
+// The timers count gNextTicksInterval ticks; the setters take units of 300 ticks (the scripts' numbers:
+// the global init's first wait is 0x78 of them). Which unit that is in seconds is open (open-items.md).
+#define AI_TICKS_PER_UNIT 300
+#define AI_FIRST_APPEARANCE 0x78        /* ssAI_GlobalInit: the first wait */
+#define AI_REAPPEARANCE 0x3c            /* ssAI_CountAppearanceTimer: the wait after an appearance */
+extern int ssNoReactionTimer;           /* sbss 0x0193ce90 (symtab local) */
+extern int AppearanceTimer;             /* sbss 0x0193ce94 (symtab local) */
+// The save image's words (Character_Init.h's MC image: inside pade5cc).
+#define MC_DATA_AI_APPEARANCE_TIMER 0xe5cc
+#define MC_DATA_AI_NO_REACTION_TIMER 0xe5d0
+// Trigger events of the AI (ssTrigCheckEvent / _Register / _Remove, global scope).
+#define TRIG_EVENT_AI_APPEAR 0xc8       /* set when AppearanceTimer runs out: a stalker may come; GlobalInit clears it */
+#define TRIG_EVENT_AI_1D 0xcd           /* removed when an AI_ID_1D brain ends (set by its brain set: guess) */
+#define TRIG_EVENT_AI_1E 0xce
+#define TRIG_EVENT_AI_1F 0xcf
+#define TRIG_EVENT_AI_APPEAR_NOW 0xd1   /* with the no-reaction time out, zeroes AppearanceTimer; ssAI_main
+                                           removes it (and 0xd2, 0xd3) every frame */
+// CHARACTER.id of the AI's kinds: 2..6 are the stalkers (the chase BGM's, TRIG_EVENT_CHASE); 0x1d..0x1f
+// have an event each. Names from these uses; the brain TUs say who they are.
+#define STALKER_ID_2 0x02
+#define STALKER_ID_3 0x03
+#define STALKER_ID_4 0x04
+#define STALKER_ID_5 0x05
+#define STALKER_ID_6 0x06
+#define AI_ID_1D 0x1d
+#define AI_ID_1E 0x1e
+#define AI_ID_1F 0x1f
+// ssAI_MemLoadInit parks a stalker: pos and posBefore (1e7, -1e7, 0), h100 -2, this flag set.
+#define AI_PARK_X 10000000.0f           /* 0x4b189680 */
+#define AI_PARK_Y (-10000000.0f)        /* 0xcb189680 */
+#define AI_H100_NONE (-2)               /* CHARACTER.h100 of a parked stalker (ssAI_main: -2 -> -3) */
+#define CHARACTER_FLAG_AI_PARKED 0x02000000u /* name from MemLoadInit / BrainEnd, which set it */
+// Motion table indices (CHARA_MOTION_SLOTS[0]) the predicates test.
+#define MOTION_HAIHAI_C0 0xc0           /* Alyssa's crawl motions (ssAI_IsHaiHaiPlaying; with wideXcmd_DebugPrint.h's MOTION_HAIHAI_STEP / _STEP2) */
+#define MOTION_HAIHAI_B6 0xb6
+#define MOTION_HAIHAI_11 0x11
+#define MOTION_HAIHAI_10 0x10
+#define MOTION_DOOR_PUSH_ALYSSA 0x3c
+#define MOTION_DOOR_PULL_ALYSSA 0x3f
+#define MOTION_DOOR_PUSH_2 0x11
+#define MOTION_DOOR_PULL_2 0x12
+#define MOTION_DOOR_PUSH_346 0x20
+#define MOTION_DOOR_PULL_346 0x21
+#define MOTION_DOOR_PUSH_5 0x1e
+#define MOTION_DOOR_PULL_5 0x1f
+
 void ssAI_main(void);                                                                    // CT3 0x01863ed0
 void ssAI_GlobalInit(void);                                                              // CT3 0x01866490
 void ssAI_SceneInit(int scene);                                                          // CT3 0x018660a0
@@ -14,6 +61,11 @@ struct CHARACTER;
 void ssAI_BrainEnd(struct CHARACTER *chara, int brain);                                  // CT3 0x01865e20 (main2.c)
 // 1 while the character plays a door push or pull opening (ssAI_IsDoorPushOpenPlaying / _Pull).
 int ssAI_IsDoorOpenPlaying(struct CHARACTER *chr);                                       // CT3 0x01860d00
+int ssAI_IsDoorPullOpenPlaying(struct CHARACTER *chr);                                   // CT3 0x01860d40
+int ssAI_IsDoorPushOpenPlaying(struct CHARACTER *chr);                                   // CT3 0x01860e40
+void ssAI_ForceBrainEnd(struct CHARACTER *chr, int motion);                              // CT3 0x01865df0
+void ssAI_CharaLoadInit(void);                                                           // CT3 0x01866090
+void ssAI_CountAppearanceTimer(void);                                                    // CT3 0x01866530
 // From tkXDTrg_MonDraw (tkXDTrg_GetSceneHash.c, 2026-11-11): shows (1) or hides (0) a stalker.
 void ssAI_MonsterDraw(struct CHARACTER *chr, int draw);                                  // CT3 0x0185f710
 // From asArrowOperate (asUseArrow.c, 2026-11-11): on stage 3, an arrow first pointing up.

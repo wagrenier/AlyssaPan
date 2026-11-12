@@ -1401,12 +1401,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 89..89, 13 functions keyed by their statics, 83 unkeyed; file name from the names"
   },
   "game/tiAvoidObject.c": {
+   "notes": "Next: ssAI_main and what it calls (CompCharaDir, charaMain, SetPanicGaugeAndBGMVol), SceneInit (TransAllPoleData, the pole matrices), BrainEnd (BrainEndSpecialProc, ssGetBankID, pModelPartsHeader +0x2f0 park), MonsterDraw, AxeThrowReset, and the predicates reading the motion table at +0x350. Open: open-items.md Open questions, tiAvoidObject.c slice 1 (timer unit 300 ticks, event and id names). Smoke shot: the same clock-tower title scene; nothing in this slice draws.",
    "ranges": [
     [
      "0185e9d0",
      "018665e0"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-12 06:11",
+     "status": "partial",
+     "summary": "slice 1: 16 functions -- the appearance and no-reaction timers, GlobalInit, the save image part (MemSaveData, MemLoadInit), BrainFree, ForceBrainEnd, CharaLoadInit, the crawl and door push / pull predicates, GetScnBankID"
+    }
+   ],
+   "status": "partial",
    "why": "tumap.py (bootstrap 5): symtab local chunks 74..74, 14 functions keyed by their statics, 68 unkeyed; file name from the names"
   },
   "game/tiBrain_ChgTrace_BOSS_BALOWS.c": {

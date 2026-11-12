@@ -1688,6 +1688,23 @@ apply here):
 
 ## Open questions
 
+- (2026-11-12, game/tiAvoidObject.c slice 1) **partial**: written 16 of 82 -- the timers
+  (ssAI_SetAppearanceTimer / _SetNoReactionTimer / _CountAppearanceTimer, AppearanceTimer 0x0193ce94 and
+  ssNoReactionTimer 0x0193ce90 defined here), ssAI_GlobalInit, ssAI_MemSaveData / _MemLoadInit (save image
+  0xe5cc / 0xe5d0: closes (ba)'s 0xe5cc start), ssAI_CharaLoadInit (empty), ssAI_BrainFree (the host form
+  of (1 am)), ssAI_ForceBrainEnd, ssAI_IsHaiHaiPlaying (closes (d)), ssAI_IsDoorOpenPlaying / _Push / _Pull,
+  ssAI_GetScnBankID. Stubs left in the file: ssAI_main, ssAI_SceneInit, ssAI_BrainEnd, ssAI_MonsterDraw,
+  ssAI_AxeThrowReset; the slice's other 13 (CompCharaDir, charaMain, SetPanicGaugeAndBGMVol, the
+  IsBend / IsDown / IsDamage / IsReturn / IsRotation predicates that read the motion table at +0x350, the
+  hearing / hide / door / pole checks, TransAllPoleData) are next. Named from these uses, unconfirmed:
+  (a) AI_TICKS_PER_UNIT 300: the setters multiply the script's number by 300; at 60 ticks a frame-second
+  that is 5 s a unit, so the first wait (0x78) would be 10 min -- check gNextTicksInterval's scale;
+  (b) TRIG_EVENT_AI_APPEAR (0xc8), _AI_APPEAR_NOW (0xd1), _AI_1D..1F (0xcd..0xcf), STALKER_ID_2..6 and
+  AI_ID_1D..1F; GlobalInit *registers* TRIG_EVENT_PANIC_NO_RELOAD and TRIG_EVENT_MC_RELOADED, odd beside
+  their names -- the trigger TU's names may be wrong; (c) CHARACTER_FLAG_AI_PARKED (0x02000000), set by
+  MemLoadInit and BrainEnd with the park position (1e7, -1e7, 0); (d) MemLoadInit drops a stalker's brain
+  without freeing it (the ROM's): the host also clears its CharaBrainHost slot.
+
 - (2026-11-12, game/wideXcmd_TriggerInit.c slice 6) **code complete, verify**: test_ssXcmd_BrainSet4, the
   last stub. **(1 am) decided, Claude's call (the user may overrule):** CHARACTER.brain stays the EE word
   but holds a handle (0 = none, else slot + 1) into the host table CharaBrainHost[35] (ct3_types.h
