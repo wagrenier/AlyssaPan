@@ -102,8 +102,8 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    CHARA_MOTION_TABLE** (the bank's ALL_TABLE +0xb8 word: `fog` for scene banks, the motion table for
    character banks -- the field wants a union or a second name when the bank loader TU reads it);
    wideXcmd_DebugPrint.c reads it through `MotionRecord` (BankEePtr of the character's bank). The
-   `CharaMotionTable` helpers in ahRelocateSunPs2ObjectArry.c and QuatSlerp.c still answer none: their
-   TUs can switch to the same BankEePtr read; (ab) motion record fields named from one use each
+   `CharaMotionTable` helper in ahRelocateSunPs2ObjectArry.c still answers none: its TU can switch to
+   the same BankEePtr read (BRANCH_CLEAR.c's MotionTableOf, once QuatSlerp.c's, switched 2026-11-12); (ab) motion record fields named from one use each
    (MOTION_REC_NEXT / _NEXT_MODE +0x10 / +0x14, _KIND +0x1c with stair kinds 1 and 3, _FACING +0x1d with
    backward kinds 0x0f..0x12, _RUN +0x1f); (ac) CHARA_TARGET2 (w300[1]) joins CHARA_TARGET: both EE words,
    CharaTarget / CharaTarget2 answer none, so asCheckAlyssaOnStairway answers 0 on the host; (ad)
@@ -826,8 +826,10 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    GetAreaFloor (CHARACTER *; bank +2 >= 0; roomHash vs roomHashPrev; the room literals @3345..@3458 at
    0x01933758.. read from the ELF: 0A10 0A01 0A06 0B01 0B06 1C01 1C02 1C06 1C04 1B11 1B07 1B08 1B12 2B01
    2B04 4A04..4A12) sets TRIG_EVENT_AREA_PASS2 / PASS3 on a step between paired rooms, as GetAreaNumber
-   reads them; asFindMotionID walks the motion table. 15 s smoke run: no fault, shot black. Open: (ga)
-   asFindMotionID reads CHARACTER +CHARA_MOTION_TABLE through a static MotionTableOf that answers NULL
+   reads them; asFindMotionID walks the motion table. 15 s smoke run: no fault, shot black. Open:
+   ~~(ga)~~ done 2026-11-12 (scheduled run): MotionTableOf (now in BRANCH_CLEAR.c) reads the word through
+   BankEePtr of the character's bank, as wideXcmd_DebugPrint.c's MotionRecord does (ROM 0x0185e060
+   re-read: Character +0x350 deref'd only when bank >= 0); was: asFindMotionID reads CHARACTER +CHARA_MOTION_TABLE through a static MotionTableOf that answers NULL
    (index -1), the same gap as ahRelocateSunPs2ObjectArry.c's CharaMotionTable (fv): the TU that writes
    asInitPlayerBehaviorControler gives the word its host form and both helpers become one; (gb)
    GetAreaFloor's 1C02 branch has no else (from a room other than 1C01 / 1C04 the flags stay), read from

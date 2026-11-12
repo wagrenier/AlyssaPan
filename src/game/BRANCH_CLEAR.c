@@ -4428,13 +4428,15 @@ void GetAreaFloor(CHARACTER *chara)
 
 #undef ROOM_IS
 
-// PORT: CHARACTER +CHARA_MOTION_TABLE holds the EE address of the character's motion table, written
-// by asInitPlayerBehaviorControler (wideXcmd_DebugPrint.c, still a stub); its TU decides the host form
-// (the same gap as ahRelocateSunPs2ObjectArry.c's CharaMotionTable). Until then the table is empty.
+// PORT: CHARACTER +CHARA_MOTION_TABLE holds the EE address of the character's motion table, a word of
+// its bank written by asInitPlayerBehaviorControler (wideXcmd_DebugPrint.c, which reads it the same way
+// in MotionRecord): resolved through BankEePtr (open-items.md 1 h). NULL when the word is 0, where the
+// ROM would read address 0.
 static const u_char *MotionTableOf(const CHARACTER *ch)
 {
-    (void)ch;
-    return NULL;
+    u_int ee;
+    memcpy(&ee, (const u_char *)ch + CHARA_MOTION_TABLE, sizeof(ee));
+    return (const u_char *)BankEePtr(ch->bank, ee);
 }
 
 // CT3 0x0185e060: the index of the character's motion record (CHARA_MOTION_SIZE bytes, led by its

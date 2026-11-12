@@ -455,7 +455,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 91..91, 8 functions keyed by their statics, 3 unkeyed; file name from the names"
   },
   "game/BRANCH_CLEAR.c": {
-   "notes": "15 s smoke run: no fault, shot black (no host draw module yet). callcheck: GetAreaFloor's memcmp and ssTrigRemoveEvent come through ROOM_IS and AreaFloorClear (explained). Open-items 1 (ga) asFindMotionID's motion table is NULL until asInitPlayerBehaviorControler's TU gives CHARACTER +0x350 a host form; (gb) the 1C02 branch has no else, from the decompilation.",
+   "notes": "MotionTableOf now resolves CHARACTER +0x350 via BankEePtr of the bank, as MotionRecord in wideXcmd_DebugPrint.c does (open-items ga done). 15 s smoke run: no fault, the clock-tower title scene as before; nothing on screen exercises this TU's code yet. Left: ahRelocateSunPs2ObjectArry.c CharaMotionTable still answers none; doubts (a) head may be Convert.c tail, (b) file name unknown.",
    "ranges": [
     [
      "01851f00",
@@ -463,11 +463,6 @@
     ]
    ],
    "sessions": [
-    {
-     "date": "2026-11-10 09:37",
-     "status": "partial",
-     "summary": "slice 2: GetAreaNumber (RoomNameID tables), the controller rattles (Free, Get, Update, Set), DemoSkipCheckEvent, PanicModeInit, QuatSlerp, asMakeRotMatrixByQuartanion, the warp family (WarpObject, WarpObjectUpdate, Set, Init, asWarpObjectBody), tnInit3dlibWork"
-    },
     {
      "date": "2026-11-10 09:56",
      "status": "partial",
@@ -522,9 +517,14 @@
      "date": "2026-11-11 22:33",
      "status": "partial",
      "summary": "marked partial -> partial: split from game/QuatSlerp.c on 2026-11-11: one CodeWarrior object 0x01851f00..0x0185e9d0 (symtab locals 1088..1162 one inseparable run); code moved unchanged with the old TU's sessions and notes, state as before the split"
+    },
+    {
+     "date": "2026-11-12 04:28",
+     "status": "verify",
+     "summary": "asFindMotionID reads the motion table through BankEePtr; code complete since the split (173 of 173)"
     }
    ],
-   "status": "partial",
+   "status": "verify",
    "why": "split 2026-11-11 (architecture.md The TU map): one CodeWarrior object. Its 75 locals are symtab 1088..1162, one hash-ordered run no cut can separate (seams.py, databands.py); they tie DemoSkipGetEvent 0x01852060 to rnd 0x0185e960. Its rodata strings rise with text order (3344 GetAreaNumber .. 5148 PlayMovie), its sdata statics fall with it (SkipFlagTbl .. next). The lead-in BRANCH_CLEAR..DemoSkipRegisterEvent has no local and goes with DemoSkipGetEvent by name. Key named after the first function (no source string)."
   },
   "game/Character_Init.c": {
