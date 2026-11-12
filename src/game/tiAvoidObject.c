@@ -48,3 +48,9 @@ int ssAI_IsDoorOpenPlaying(struct CHARACTER *chr)
     ALYSSAPAN_STUB("ssAI_IsDoorOpenPlaying", 0x01860d00);
     return {};
 }
+
+// stub of CT3 0x0185f710
+void ssAI_MonsterDraw(struct CHARACTER *chr, int draw)
+{
+    ALYSSAPAN_STUB("ssAI_MonsterDraw", 0x0185f710);
+}

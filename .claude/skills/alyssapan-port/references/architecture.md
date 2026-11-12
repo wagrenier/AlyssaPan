@@ -1084,6 +1084,18 @@ the branch scene tables and a few tk x commands.
   shut; AlsCam cuts to the record's camera (room name at +0x2e, cut +0x3e), registers event 599 and after
   10 anim frames calls tkXDTrg_MonDraw(0). The ROM repeats Opn / OpnOut / Clo per kind with only the
   constants changed: the port shares two static helpers (callcheck lists their callees as missing).
+- **The DoorTrigger x command** (slice 3, 2026-11-11): argv[0] the door's flag (99: tkXDTrg_CharacterInit
+  sets DTrgPraAls, Alyssa's lead frames and speed, or DTrgPraMon), argv[1] an actor code read from its
+  4th character on ("Ini", "IniMon", "AlsOpn", "AlsClo", "AlsCam", "Hit", "Sht", then "Ham" / "Vit" /
+  "Axe" / "ScM" / "ScW" + "Opn" / "Clo" / "OpnOut": 22 procs). tkXDTrg_ActorGetSceneHead finds the bank's
+  head by (bank, room hash), else frees heads whose bank was unloaded or reloaded with another room and
+  takes a free one; tkXDTrg_ActorGetDoorPara finds the door's record on the chain or appends one from the
+  free list. Ini_New (argc < 15) parses the record's parts and sounds from argv; otherBank is the bank of
+  the bank's trigger detector on the portal part. AlsOpn: keys stopped, OPEN registered, wait for
+  tkBri_DoorDraw '1', warp Alyssa to the warp part, her motion "m_a_001" ("m_a_004" from the other side),
+  AlsCam, the latch sound after her lead frames (scaled by anim_play_slow), MOVING and the swing at
+  DTrgPraAls's speed, OPENED and the keys back when it ends. AlsClo: MonDraw(1), event 599 off, the use
+  trigger back, held open by any set kind event, else CmnClo.
 - **WaitUntil** (tkXcmd_WaitUntil = j tkXcmdS_WaitUntil): operands (number, letters: n literal, v variable,
   f flag, g / t scope) and an operator of '>' '<' '!' '='; it answers 1 when the named comparison fails
   (disassembly-checked), and the character count for an operator it does not know.

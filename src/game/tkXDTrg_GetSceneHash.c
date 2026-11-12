@@ -14,6 +14,7 @@
 #include "game/tkXDTrg_GetSceneHash.h"
 
 #include "common/alyssapan_stub.h"
+#include "game/Character_Init.h"
 #include "game/QuatSlerp.h"
 #include "game/SdMasterVolumeSetSE.h"
 #include "game/ahRelocateSunPs2ObjectArry.h"
@@ -23,6 +24,7 @@
 #include "game/main2.h"
 #include "game/sound.h"
 #include "game/ssGrpPortalCheck.h"
+#include "game/tiAvoidObject.h"
 #include "game/tiXcmd_TransItem.h"
 #include "game/unassigned_data.h"
 
@@ -100,11 +102,11 @@ void tkXcmd_DoorTrigger_Init(void)
     int i;
 
     for (i = 0; i < DTRG_HED_MAX; i++) {
-        DTrgHed[i].w0 = 0;
+        DTrgHed[i].roomHash = 0;
         DTrgHed[i].bank = DTRG_BANK_NONE;
         DTrgHed[i].first = DTRG_END;
-        DTrgHed[i].b7 = DTRG_END;
-        DTrgHed[i].w8 = 0;
+        DTrgHed[i].last = DTRG_END;
+        DTrgHed[i].count = 0;
     }
     for (i = 0; i < DTRG_PRA_DOR_MAX; i++) {
         DTrgPraDor[i].flags = 0;
@@ -602,12 +604,12 @@ static int DoorKindOpen(int bank, DTRG_PRA_DOR *door, int kind, int out, const c
     case 0:
         if (weaponBank != NULL && !out) {
             // AxeOpn / HamOpn: the record's other slots start over.
-            door->step[DTRG_SLOT_0] = 0;
-            door->wait[DTRG_SLOT_0] = DTRG_WAIT_NONE;
+            door->step[DTRG_SLOT_ALS_OPEN] = 0;
+            door->wait[DTRG_SLOT_ALS_OPEN] = DTRG_WAIT_NONE;
             door->step[DTRG_SLOT_CAMERA] = 0;
             door->wait[DTRG_SLOT_CAMERA] = DTRG_WAIT_NONE;
-            door->step[DTRG_SLOT_2] = 0;
-            door->wait[DTRG_SLOT_2] = 0;
+            door->step[DTRG_SLOT_ALS_CLOSE] = 0;
+            door->wait[DTRG_SLOT_ALS_CLOSE] = 0;
             door->step[DTRG_SLOT_CLOSE_COMMON] = 0;
             door->wait[DTRG_SLOT_CLOSE_COMMON] = 0;
         }
@@ -820,20 +822,548 @@ void tkXDTrg_ActorProc_Ini_Error(void)
 {
 }
 
-// ---- stubs (tools/reverse/stubgen.py) ----
+// ---- the door trigger x command (slice 3, 2026-11-11) ----
 
-// stub of CT3 0x018ed090
-void tkXDTrg_MonDraw(int draw)
+DTRG_PRA_ALS DTrgPraAls;                        /* bss  0x01944928 */
+
+#define DTRG_EVENT_NO_OPEN 0x32         /* AlsOpn: while set, Alyssa does not open the door (named from this use) */
+#define DTRG_EVENT_DOOR_SOUND 0xd2      /* registered with AlsOpn's opening sound and AlsClo's close (named from this use) */
+#define DOOR_ALS_MOTION "m_a_001"       /* @1678 0x01936e60: Alyssa's door motion */
+#define DOOR_ALS_MOTION_SIDE "m_a_004"  /* @1677 0x01936e58: the same from the door's other side (DTRG_FLAG_SIDE) */
+#define DOOR_ALS_LEAD_FRAMES 6          /* AlsOpn: frames of her motion before the latch sound (plain side) */
+#define DOOR_ALS_LEAD_FRAMES_SIDE 1
+#define DOOR_PERCENT 100                /* the speeds and anim waits: percent */
+#define CHARACTER_FLAG_DOOR 0x10000000u /* AlsOpn sets it on Character[0] with her door motion (named from this use) */
+#define DOOR_ALS_STEP_NONE 5            /* AlsOpn: a step that skips the slot's wait (no step reaches it) */
+#define DOOR_ALS_STEP_WAIT_DRAW 10      /* AlsOpn: waiting for tkBri_DoorDraw to draw the scenes behind the door */
+
+// CT3 0x018ec870
+// The opening code of a weapon door's actor code: 'O' at 6 (OpnOut when 9 is 'O' too, Opn when the code
+// ends there) or 'C' (Clo); -1 otherwise.
+short tkXDTrg_ActorCodeAnalyzeMonster(const char *code)
 {
-    ALYSSAPAN_STUB("tkXDTrg_MonDraw", 0x018ed090);
+    if (code[6] == 'O') {
+        if (code[9] == '\0') {
+            return DTRG_MON_OPN;
+        }
+        if (code[9] == 'O') {
+            return DTRG_MON_OPN_OUT;
+        }
+        return -1;
+    }
+    if (code[6] == 'C') {
+        return DTRG_MON_CLO;
+    }
+    return -1;
 }
 
+// CT3 0x018ec8c0
+// An actor code (three characters, then the proc's name: "Ini", "IniMon", "AlsOpn", "AlsClo", "AlsCam",
+// "Hit", "Sht", "HamOpn", "VitClo", "AxeOpnOut", "ScMOpn", "ScWClo"...) -> DTRG_CODE_*, DTRG_CODE_NONE when
+// unknown. A weapon kind with an unknown opening code lands one below its base (the ROM's arithmetic).
+short tkXDTrg_ActorCodeAnalyze(const char *code)
+{
+    switch (code[3]) {
+    case 'V':
+        return (short)(tkXDTrg_ActorCodeAnalyzeMonster(code) + DTRG_CODE_VIT);
+    case 'S':
+        if (code[5] == 'W') {
+            return (short)(tkXDTrg_ActorCodeAnalyzeMonster(code) + DTRG_CODE_SCW);
+        }
+        if (code[5] == 'M') {
+            return (short)(tkXDTrg_ActorCodeAnalyzeMonster(code) + DTRG_CODE_SCM);
+        }
+        if (code[5] == 't') {
+            return DTRG_CODE_SHT;
+        }
+        break;
+    case 'H':
+        if (code[4] == 'i') {
+            return DTRG_CODE_HIT_PTL;
+        }
+        if (code[4] == 'a') {
+            return (short)(tkXDTrg_ActorCodeAnalyzeMonster(code) + DTRG_CODE_HAM);
+        }
+        break;
+    case 'A':
+        if (code[4] == 'l') {
+            switch (code[7]) {
+            case 'a':
+                return DTRG_CODE_ALS_CAM;
+            case 'l':
+                return DTRG_CODE_ALS_CLO;
+            case 'p':
+                return DTRG_CODE_ALS_OPN;
+            }
+        } else if (code[4] == 'x') {
+            return (short)(tkXDTrg_ActorCodeAnalyzeMonster(code) + DTRG_CODE_AXE);
+        }
+        break;
+    case 'I':
+        return code[6] == 'M' ? DTRG_CODE_INI_MON : DTRG_CODE_INI;
+    }
+    return DTRG_CODE_NONE;
+}
 
-// stub of CT3 0x018ed9e0
+// Puts a head's chain back on the free list.
+static void DoorHeadFree(DTRG_HED *head)
+{
+    u_char r;
+
+    while ((r = head->first) != DTRG_END) {
+        DTRG_PRA_DOR *p = &DTrgPraDor[r];
+        p->flags = 0;
+        p->doorFlag = DTRG_END;
+        head->first = p->next;
+        p->next = DTrgPraDorTop;
+        head->count--;
+        DTrgPraDorTop = r;
+    }
+    head->roomHash = 0;
+    head->bank = DTRG_BANK_NONE;
+    head->first = DTRG_END;
+    head->last = DTRG_END;
+    head->count = 0;
+}
+
+// CT3 0x018ecb60
+// The head of a scene bank (the bank and the room its file holds). A bank without one takes a free head,
+// after every head whose bank was unloaded or now holds another room has been freed with its records.
+// PORT: the ROM's function is void and its callers use what v0 holds: the head found, or the one taken.
+// PORT: the ROM takes the first head that was free *before* the clean-up (and writes DTrgHed[-1] when
+// none was); the host takes a head the clean-up freed in that case.
+DTRG_HED *tkXDTrg_ActorGetSceneHead(int bank)
+{
+    u_int hash = (u_int)GetRoomName_file(BankInfo[bank].name);
+    int slot = -1;
+    int i;
+
+    for (i = 0; i < DTRG_HED_MAX && (DTrgHed[i].bank != bank || DTrgHed[i].roomHash != hash); i++) {
+        if (slot == -1 && DTrgHed[i].bank == DTRG_BANK_NONE) {
+            slot = i;
+        }
+    }
+    if (i < DTRG_HED_MAX) {
+        return &DTrgHed[i];
+    }
+    for (i = 0; i < DTRG_HED_MAX; i++) {
+        DTRG_HED *h = &DTrgHed[i];
+        if (h->bank != DTRG_BANK_NONE && (BankInfo[h->bank].state != BANK_STATE_LOADED ||
+                                          h->roomHash != (u_int)GetRoomName_file(BankInfo[h->bank].name))) {
+            DoorHeadFree(h);
+        }
+    }
+    for (i = 0; slot == -1 && i < DTRG_HED_MAX; i++) {
+        if (DTrgHed[i].bank == DTRG_BANK_NONE) {
+            slot = i;
+        }
+    }
+    if (slot == -1) {
+        slot = 0;
+    }
+    DTrgHed[slot].roomHash = hash;
+    DTrgHed[slot].bank = (short)bank;
+    DTrgHed[slot].first = DTRG_END;
+    DTrgHed[slot].last = DTRG_END;
+    DTrgHed[slot].count = 0;
+    return &DTrgHed[slot];
+}
+
+// CT3 0x018eca60
+// The record of a door (by its flag) on a head's chain; a door not on it takes the free list's first
+// record, appended to the chain. The pool is never exhausted in play (32 records, chains freed per room).
+DTRG_PRA_DOR *tkXDTrg_ActorGetDoorPara(u_short doorFlag, DTRG_HED *head)
+{
+    u_char top = DTrgPraDorTop;
+    u_char r;
+    DTRG_PRA_DOR *p;
+
+    for (r = head->first; r != DTRG_END && doorFlag != DTrgPraDor[r].doorFlag; r = DTrgPraDor[r].next) {
+    }
+    if (r != DTRG_END) {
+        return &DTrgPraDor[r];
+    }
+    p = &DTrgPraDor[top];
+    DTrgPraDorTop = p->next;
+    p->flags = 0;
+    p->doorFlag = (u_char)doorFlag;
+    p->next = DTRG_END;
+    if (head->first == DTRG_END) {
+        head->first = top;
+    } else {
+        DTrgPraDor[head->last].next = top;
+    }
+    head->last = top;
+    head->count++;
+    return p;
+}
+
+// The slots' state at an Ini: Alyssa's open and the camera wait on nothing (-1), the rest count from 0;
+// no kind holds the door.
+static void DoorRecordReset(DTRG_PRA_DOR *door)
+{
+    int i;
+
+    for (i = 0; i < DTRG_SLOT_COUNT; i++) {
+        door->step[i] = 0;
+        door->wait[i] = (i == DTRG_SLOT_ALS_OPEN || i == DTRG_SLOT_CAMERA) ? DTRG_WAIT_NONE : 0;
+    }
+    for (i = 0; i < DTRG_KIND_COUNT; i++) {
+        door->kind[i].event = -1;
+    }
+}
+
+// CT3 0x018ec600
+// A door record from the trigger's arguments (the form with fewer than 15): the code gives the flags
+// ('u' at 1: DTRG_FLAG_SIDE; a 7th character: 'W' DTRG_FLAG_W, else DTRG_FLAG_SE_ALT), argv[2..8] the
+// part, the portal, the camera cut, the warp part, the two hit parts and the close sound object, then
+// by count the rest. otherBank is the bank of the bank's detector on the portal part.
+int tkXDTrg_ActorProc_Ini_New(int argc, char **argv, int bank, DTRG_PRA_DOR *door)
+{
+    const char *code = argv[1];
+    u_int *det;
+    u_short kindFlag;
+
+    DoorRecordReset(door);
+    kindFlag = code[6] == '\0' ? 0 : code[6] == 'W' ? DTRG_FLAG_W : DTRG_FLAG_SE_ALT;
+    door->flags = (u_short)((code[1] == 'u' ? DTRG_FLAG_SIDE : 0) | DTRG_FLAG_USED | kindFlag);
+    door->part = (u_short)atoi(argv[2]);
+    door->trigPortal = (u_short)atoi(argv[3]);
+    door->camCut = (short)atoi(argv[4]);
+    door->warpPart = (u_short)atoi(argv[5]);
+    door->trigHitClosed = (u_short)atoi(argv[6]);
+    door->trigHitOpen = (u_short)atoi(argv[7]);
+    door->seObjClose = (short)atoi(argv[8]);
+    if (argc == 13) {
+        door->seObjOpen = (short)atoi(argv[9]);
+        door->h4c = (short)atoi(argv[10]);
+        door->trigUse = (u_short)atoi(argv[11]);
+        door->event = (short)atoi(argv[12]);
+    } else if (argc == 12) {
+        door->seObjOpen = door->seObjClose;
+        door->h4c = (short)atoi(argv[9]);
+        door->trigUse = (u_short)atoi(argv[10]);
+        door->event = (short)atoi(argv[11]);
+    } else if (argc == 11) {
+        door->seObjOpen = door->seObjClose;
+        door->trigUse = (u_short)atoi(argv[9]);
+        door->event = (short)atoi(argv[10]);
+    } else {
+        door->h48 = (short)atoi(argv[9]);
+        door->seObjOpen = (short)atoi(argv[10]);
+        door->h4c = (short)atoi(argv[11]);
+        door->trigUse = (u_short)atoi(argv[12]);
+        door->event = (short)atoi(argv[13]);
+    }
+    // PORT: the ROM reads a missing detector's bank through NULL; the host leaves otherBank as it was.
+    for (det = BANK_PTR(u_int *, bank, All_table_TBL[bank]->detectors); *det != 0; det++) {
+        const TRIG_DETECTOR *d = BANK_PTR(const TRIG_DETECTOR *, bank, *det);
+        if ((u_short)d->part == door->trigPortal) {
+            door->otherBank = d->bank;
+            break;
+        }
+    }
+    return 1;
+}
+
+// CT3 0x018ec540
+// A door kind's entry: argv[2] the kind (1..6), argv[3] its event, argv[4..] the entry's next shorts.
+int tkXDTrg_ActorProc_IniMon(int argc, char **argv, int bank, DTRG_PRA_DOR *door)
+{
+    short *entry = &door->kind[(short)atoi(argv[2]) - 1].event;
+    u_int i;
+
+    (void)bank;
+    entry[0] = (short)atoi(argv[3]);
+    for (i = 0; i < (u_int)argc - 4; i++) {
+        entry[1 + i] = (short)atoi(argv[4 + i]);
+    }
+    return 1;
+}
+
+// CT3 0x018ebad0
+// Alyssa opens the door: she is warped to its warp part and plays her door motion while the scenes behind
+// are drawn and the camera cuts (AlsCam); after her motion's lead frames the latch sounds (unless the
+// door's event is unset: then she gives up), then the door swings open at DTrgPraAls's speed. Done when
+// its animation ends (OPENED registered, the keys back).
+int tkXDTrg_ActorProc_AlsOpn(int bank, DTRG_PRA_DOR *door)
+{
+    int *wait = &door->wait[DTRG_SLOT_ALS_OPEN];
+    short *frames = &door->frames[DTRG_SLOT_ALS_OPEN];
+    u_char *step = &door->step[DTRG_SLOT_ALS_OPEN];
+    int side = (door->flags & DTRG_FLAG_SIDE) != 0;
+    int done = 0;
+
+    if (*step != DOOR_ALS_STEP_NONE && *wait != DTRG_WAIT_NONE && !ssTrigWaitByAnimFrame(wait, (u_short)*frames)) {
+        return 0;
+    }
+    switch (*step) {
+    case 0:
+        if ((char)ssTrigCheckEvent(DTRG_EVENT_NO_OPEN, TRIG_SET_GLOBAL, bank) == 1) {
+            done = 1;
+            break;
+        }
+        *step = DOOR_ALS_STEP_WAIT_DRAW;
+        // fall through
+    case DOOR_ALS_STEP_WAIT_DRAW: {
+        char room[8];
+
+        PlayerControlUpdate(1);
+        ssTrigRegisterEvent(TRIG_EVENT_PANIC_KEEP_PLAYER, TRIG_SET_GLOBAL, bank);
+        ssTrigRegisterEvent(door->doorFlag + DOOR_FLAG_OPEN, TRIG_SET_GLOBAL, bank);
+        if (tkBri_DoorDraw(DOOR_DRAW_OPEN) == 0) {
+            ssTrigRemoveEvent(door->doorFlag + DOOR_FLAG_OPEN, TRIG_SET_GLOBAL, bank);
+            break;
+        }
+        *step = 0;
+        room[0] = '\0';
+        WarpObject(room, 1, 0, door->warpPart, bank);
+        asSceneAnimationStart(1.0f, ahGetHash(side ? DOOR_ALS_MOTION_SIDE : DOOR_ALS_MOTION), All_table_TBL[bank], 0, 0,
+                              0, 1, 0, 0, 0, 0, 0, SCENE_ANIM_CHARACTER, 0);
+        Character[0].flags |= CHARACTER_FLAG_DOOR;
+        (*step)++;
+        *frames = 1;
+        if (!ssTrigWaitByAnimFrame(wait, (u_short)*frames * DOOR_ANIM_FRAME)) {
+            break;
+        }
+    }
+        // fall through
+    case 1:
+        if ((char)tkXDTrg_ActorProc_AlsCam(bank, door) == 0) {
+            break;
+        }
+        (*step)++;
+        *frames = (short)(side ? DTrgPraAls.framesSide - 1 : DTrgPraAls.frames - DOOR_ALS_LEAD_FRAMES);
+        *frames = (short)(*frames - 1);
+        *frames = (short)(*frames * DOOR_ANIM_FRAME);
+        *frames = (short)((int)((u_short)*frames * DOOR_PERCENT) / anim_play_slow);
+        if (!ssTrigWaitByAnimFrame(wait, (u_short)*frames)) {
+            break;
+        }
+        // fall through
+    case 2:
+        if ((char)ssTrigCheckEvent(door->event, TRIG_SET_TEMP, bank) == 0) {
+            done = 1;
+            break;
+        }
+        SSPlaySE(SE_BANK_COMMON, (door->flags & DTRG_FLAG_SE_ALT) ? DOOR_SE_OPEN_ALT : DOOR_SE_OPEN, 1);
+        ssTrigRegisterEvent(DTRG_EVENT_DOOR_SOUND, TRIG_SET_GLOBAL, bank);
+        (*step)++;
+        *frames = side ? DOOR_ALS_LEAD_FRAMES_SIDE : DOOR_ALS_LEAD_FRAMES;
+        *frames = (short)(*frames * DOOR_ANIM_FRAME);
+        *frames = (short)((int)((u_short)*frames * DOOR_PERCENT) / anim_play_slow);
+        if (!ssTrigWaitByAnimFrame(wait, (u_short)*frames)) {
+            break;
+        }
+        // fall through
+    case 3:
+        ssTrigRegisterEvent(door->doorFlag + DOOR_FLAG_MOVING, TRIG_SET_GLOBAL, bank);
+        tkXDTrg_ActorProc_AnimRangeDoor(bank, door->part, 0, 10,
+                                        (side ? DTrgPraAls.speedSide : DTrgPraAls.speed) & DOOR_SPEED_MASK, 0, 0,
+                                        door->otherBank);
+        (*step)++;
+        // fall through
+    case 4:
+        if (!DoorAnimPlaying(bank, door)) {
+            ssTrigRegisterEvent(door->doorFlag + DOOR_FLAG_OPENED, TRIG_SET_GLOBAL, bank);
+            ssTrigRemoveEvent(TRIG_EVENT_PANIC_KEEP_PLAYER, TRIG_SET_GLOBAL, bank);
+            PlayerControlUpdate(0);
+            done = 1;
+        }
+        break;
+    default:
+        break;
+    }
+    if (done) {
+        *wait = DTRG_WAIT_NONE;
+        *step = 0;
+    }
+    return done;
+}
+
+// CT3 0x018eb960
+// Alyssa closes the door: the stalkers shown again, the camera event removed, the door's use trigger back;
+// a kind's event that is set holds the door open (done at once); else the common close runs.
+int tkXDTrg_ActorProc_AlsClo(int bank, DTRG_PRA_DOR *door)
+{
+    int *wait = &door->wait[DTRG_SLOT_ALS_CLOSE];
+    u_char *step = &door->step[DTRG_SLOT_ALS_CLOSE];
+    int done = 0;
+    int i;
+
+    if (*wait != 0) {
+        (*wait)--;
+        return 0;
+    }
+    if (*step == 0) {
+        int held = 0;
+
+        tkXDTrg_MonDraw(1);
+        ssTrigRemoveEvent(DOOR_EVENT_CAMERA, TRIG_SET_GLOBAL, bank);
+        ssTrigSetEnable(door->trigUse, 1, 0, bank);
+        for (i = 0; i < DTRG_KIND_COUNT; i++) {
+            if (door->kind[i].event != -1 && (char)ssTrigCheckEvent(door->kind[i].event, TRIG_SET_TEMP, bank) == 1) {
+                held = 1;
+                break;
+            }
+        }
+        if (!held) {
+            (*step)++;
+        }
+        done = 1;
+        if (held) {
+            goto end;
+        }
+    } else if (*step != 1) {
+        goto end;
+    }
+    done = (char)tkXDTrg_ActorProc_CmnClo(bank, door);
+    ssTrigRegisterEvent(DTRG_EVENT_DOOR_SOUND, TRIG_SET_GLOBAL, bank);
+end:
+    if (done) {
+        *wait = 0;
+        *step = 0;
+    }
+    return done;
+}
+
+// CT3 0x018ecd40
+// The door trigger's actor: argv[0] the door's flag, argv[1] the actor code; finds (or makes) the door's
+// record in the bank's head and runs the code's proc. Unknown codes answer 1 (done).
+int tkXDTrg_ActorProc(u_int argc, char **argv, int bank)
+{
+    short doorFlag = (short)atoi(argv[0]);
+    DTRG_HED *head = tkXDTrg_ActorGetSceneHead(bank);
+    DTRG_PRA_DOR *door = tkXDTrg_ActorGetDoorPara((u_short)doorFlag, head);
+
+    switch (tkXDTrg_ActorCodeAnalyze(argv[1])) {
+    case DTRG_CODE_INI:
+        if (argc < DTRG_INI_NEW_ARGC) {
+            return tkXDTrg_ActorProc_Ini_New((int)argc, argv, bank, door);
+        }
+        return tkXDTrg_ActorProc_Ini((int)argc, argv, bank, door);
+    case DTRG_CODE_INI_MON:
+        return tkXDTrg_ActorProc_IniMon((int)argc, argv, bank, door);
+    case DTRG_CODE_ALS_OPN:
+        return tkXDTrg_ActorProc_AlsOpn(bank, door);
+    case DTRG_CODE_ALS_CLO:
+        return tkXDTrg_ActorProc_AlsClo(bank, door);
+    case DTRG_CODE_ALS_CAM:
+        return tkXDTrg_ActorProc_AlsCam(bank, door);
+    case DTRG_CODE_HIT_PTL:
+        return tkXDTrg_ActorProc_HitPtl(bank, door);
+    case DTRG_CODE_SHT:
+        return tkXDTrg_ActorProc_Sht(bank, door);
+    case DTRG_CODE_HAM + DTRG_MON_OPN:
+        return tkXDTrg_ActorProc_HamOpn(bank, door);
+    case DTRG_CODE_HAM + DTRG_MON_CLO:
+        return tkXDTrg_ActorProc_HamClo(bank, door);
+    case DTRG_CODE_HAM + DTRG_MON_OPN_OUT:
+        return tkXDTrg_ActorProc_HamOpnOut(bank, door);
+    case DTRG_CODE_VIT + DTRG_MON_OPN:
+        return tkXDTrg_ActorProc_VitOpn(bank, door);
+    case DTRG_CODE_VIT + DTRG_MON_CLO:
+        return tkXDTrg_ActorProc_VitClo(bank, door);
+    case DTRG_CODE_VIT + DTRG_MON_OPN_OUT:
+        return tkXDTrg_ActorProc_VitOpnOut(bank, door);
+    case DTRG_CODE_AXE + DTRG_MON_OPN:
+        return tkXDTrg_ActorProc_AxeOpn(bank, door);
+    case DTRG_CODE_AXE + DTRG_MON_CLO:
+        return tkXDTrg_ActorProc_AxeClo(bank, door);
+    case DTRG_CODE_AXE + DTRG_MON_OPN_OUT:
+        return tkXDTrg_ActorProc_AxeOpnOut(bank, door);
+    case DTRG_CODE_SCM + DTRG_MON_OPN:
+        return tkXDTrg_ActorProc_ScMOpn(bank, door);
+    case DTRG_CODE_SCM + DTRG_MON_CLO:
+        return tkXDTrg_ActorProc_ScMClo(bank, door);
+    case DTRG_CODE_SCM + DTRG_MON_OPN_OUT:
+        return tkXDTrg_ActorProc_ScMOpnOut(bank, door);
+    case DTRG_CODE_SCW + DTRG_MON_OPN:
+        return tkXDTrg_ActorProc_ScWOpn(bank, door);
+    case DTRG_CODE_SCW + DTRG_MON_CLO:
+        return tkXDTrg_ActorProc_ScWClo(bank, door);
+    case DTRG_CODE_SCW + DTRG_MON_OPN_OUT:
+        return tkXDTrg_ActorProc_ScWOpnOut(bank, door);
+    default:
+        return 1;
+    }
+}
+
+// CT3 0x018ed090
+// Shows (1) or hides (0) the stalkers: ssAI_MonsterDraw on each with a brain; unless a panic keeps them
+// running their AI pauses while hidden, and unless TRIG_EVENT_PANIC_NO_RELOAD is set the hide registers
+// TRIG_EVENT_MC_RELOADED (the event full panic uses the same way).
+void tkXDTrg_MonDraw(int draw)
+{
+    int i;
+
+    for (i = 0; i < ATK_CHARA_LIST2_COUNT; i++) {
+        CHARACTER *chr = &Character[ssAtkCharaList2[i]];
+        if (chr->brain != 0) {
+            ssAI_MonsterDraw(chr, draw);
+        }
+    }
+    if (ssTrigCheckEvent(TRIG_EVENT_PANIC_KEEP_MONSTERS, TRIG_SET_GLOBAL, -1) == 0) {
+        MonsterAIUpdate(draw != 1);
+    }
+    if (ssTrigCheckEvent(TRIG_EVENT_PANIC_NO_RELOAD, TRIG_SET_GLOBAL, -1) == 0) {
+        if (draw == 1) {
+            ssTrigRemoveEvent(TRIG_EVENT_MC_RELOADED, TRIG_SET_GLOBAL, -1);
+        } else {
+            ssTrigRegisterEvent(TRIG_EVENT_MC_RELOADED, TRIG_SET_GLOBAL, -1);
+        }
+    }
+}
+
+// newlib's atoff (float atof), which the ROM links; the host libc has atof.
+static float atoff(const char *s)
+{
+    return (float)atof(s);
+}
+
+// CT3 0x018ed190
+// Door 99's trigger: argv[1] 0 sets Alyssa's door opening (DTrgPraAls: frames, speed, side frames, side
+// speed), 1..6 a door kind's two opening speeds (DTrgPraMon). Speeds are given as rates (1.0 = 100).
+int tkXDTrg_CharacterInit(int argc, char **argv)
+{
+    short kind = (short)atoi(argv[1]);
+
+    (void)argc;
+    if (kind == DTRG_CHARACTER_ALYSSA) {
+        DTrgPraAls.frames = (u_short)atoi(argv[2]);
+        DTrgPraAls.speed = (u_short)(u_int)(atoff(argv[3]) * 100.0f);
+        DTrgPraAls.framesSide = (u_short)atoi(argv[4]);
+        DTrgPraAls.speedSide = (u_short)(u_int)(atoff(argv[5]) * 100.0f);
+    } else {
+        DTrgPraMon[kind - 1][0] = (u_short)(int)(atoff(argv[2]) * 100.0f);
+        DTrgPraMon[kind - 1][1] = (u_short)(int)(atoff(argv[3]) * 100.0f);
+    }
+    return 1;
+}
+
+// CT3 0x018ed9e0
+// The x command DoorTrigger: door DTRG_DOOR_CHARACTER sets the opening speeds, any other door runs its actor.
+// PORT: the ROM's function is void; the x command's answer is its callee's (v0 passes through).
 int tkXcmd_DoorTrigger(int argc, char **argv, int bank)
 {
-    ALYSSAPAN_STUB("tkXcmd_DoorTrigger", 0x018ed9e0);
-    return {};
+    if ((short)atoi(argv[0]) == DTRG_DOOR_CHARACTER) {
+        return tkXDTrg_CharacterInit(argc, argv);
+    }
+    return tkXDTrg_ActorProc((u_int)argc, argv, bank);
+}
+
+// ---- stubs ----
+
+// stub of CT3 0x018ebf90 (slice 4: the old-form Ini builds part names from the scene's name). Answers 1
+// like the ROM so the trigger moves on; the record keeps DoorRecordReset's state only.
+int tkXDTrg_ActorProc_Ini(int argc, char **argv, int bank, DTRG_PRA_DOR *door)
+{
+    (void)argc;
+    (void)argv;
+    (void)bank;
+    DoorRecordReset(door);
+    ALYSSAPAN_STUB("tkXDTrg_ActorProc_Ini", 0x018ebf90);
+    return 1;
 }
 
 

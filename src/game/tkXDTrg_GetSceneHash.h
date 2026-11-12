@@ -65,14 +65,15 @@ extern const SCN_BRANCH ScnTbl[SCN_BRANCH_MAX];                                 
 
 // ---- the door triggers' state (bss) ------------------------------------------------------------------------
 // DTrgHed (0x019448a0, 96 bytes): eight heads; each names a scene bank (bank) and the chain of DTrgPraDor
-// records working on it (first; DTRG_END ends a chain). Fields from tkXcmd_DoorTrigger_Init and
-// tkXDTrg_CloseCancel; the words at +0 / +8 wait for the actor procs.
+// records working on it (first .. last; DTRG_END ends a chain). Fields from tkXcmd_DoorTrigger_Init,
+// tkXDTrg_CloseCancel and (slice 3) tkXDTrg_ActorGetSceneHead / _ActorGetDoorPara.
 typedef struct DTRG_HED {
-    u_int w0;                           /* 0x0: 0 at init */
+    u_int roomHash;                     /* 0x0: GetRoomName_file of the bank's file (0 at init) */
     short bank;                         /* 0x4: the scene bank the chain works in, -1 = free (tkBri_DoorDraw passes the bank to tkXDTrg_CloseCancel) */
     u_char first;                       /* 0x6: the first DTrgPraDor record of the chain, DTRG_END = none */
-    u_char b7;                          /* 0x7: 0xff at init */
-    u_int w8;                           /* 0x8: 0 at init */
+    u_char last;                        /* 0x7: the chain's last record (new records are appended), DTRG_END = none */
+    u_char count;                       /* 0x8: records on the chain */
+    u_char pad9[3];
 } DTRG_HED;
 static_assert(sizeof(DTRG_HED) == 0xc, "DTRG_HED");
 #define DTRG_HED_MAX 8
@@ -84,9 +85,9 @@ extern DTRG_HED DTrgHed[DTRG_HED_MAX];                                          
 // ssTrigWaitByAnimFrame's state, -1 = none), its frames and the proc's step; a proc answers 1 when done and
 // then zeroes its wait and step. Fields from the actor procs (slice 2, 2026-11-11); the rest raw.
 enum {
-    DTRG_SLOT_0 = 0,                    /* AxeOpn / HamOpn set it to -1 (a later slice names it) */
+    DTRG_SLOT_ALS_OPEN = 0,             /* tkXDTrg_ActorProc_AlsOpn: Alyssa opens the door (AxeOpn / HamOpn reset it) */
     DTRG_SLOT_CAMERA = 1,               /* tkXDTrg_ActorProc_AlsCam */
-    DTRG_SLOT_2 = 2,                    /* AxeOpn / HamOpn clear it */
+    DTRG_SLOT_ALS_CLOSE = 2,            /* tkXDTrg_ActorProc_AlsClo (AxeOpn / HamOpn reset it) */
     DTRG_SLOT_OPEN = 3,                 /* the kinds' Opn / OpnOut */
     DTRG_SLOT_CLOSE = 4,                /* the kinds' Clo */
     DTRG_SLOT_CLOSE_COMMON = 5,         /* tkXDTrg_ActorProc_CmnClo */
@@ -112,7 +113,9 @@ typedef struct DTRG_KIND_KEY {
 } DTRG_KIND_KEY;
 static_assert(sizeof(DTRG_KIND_KEY) == 8, "DTRG_KIND_KEY");
 
-#define DTRG_FLAG_SIDE 0x2              /* flags: the door is worked from its other side: the kind's other speed;
+#define DTRG_FLAG_USED 0x1              /* flags: set by the Ini procs (tkXDTrg_ActorGetDoorPara clears flags on a new record) */
+#define DTRG_FLAG_W 0x4                 /* flags: Ini_New, the code's 7th character is 'W' (named from this use) */
+#define DTRG_FLAG_SIDE 0x2              /* flags:the door is worked from its other side: the kind's other speed;
                                            at Axe / Ham doors the weapon's sound (the side the enemy comes from?) */
 #define DTRG_FLAG_SE_ALT 0x8            /* flags: the second door sound of each pair (DOOR_SE_*_ALT) */
 typedef struct DTRG_PRA_DOR {
@@ -128,13 +131,14 @@ typedef struct DTRG_PRA_DOR {
     u_short part;                       /* 0x3a: the door's model part (its animation) */
     u_short trigPortal;                 /* 0x3c: HitPtl: the part enabled while the door is open */
     short camCut;                       /* 0x3e: AlsCam's camera cut */
-    u_char pad40[2];
+    u_short warpPart;                   /* 0x40: AlsOpn: the part Alyssa is warped to (WarpObject) */
     u_short trigHitClosed;              /* 0x42: HitPtl: the part enabled while the door does not move */
     u_short trigHitOpen;                /* 0x44: HitPtl: the part enabled once it moves */
     short seObjClose;                   /* 0x46: CmnClo's sound object */
-    u_char pad48[2];
-    short seObjOpen;                    /* 0x4a: Axe / Ham doors' opening sound object without DTRG_FLAG_SIDE */
-    u_char pad4c[2];
+    short h48;                          /* 0x48: Ini_New's 14-argument form only (no reader seen) */
+    short seObjOpen;                    /* 0x4a: Axe / Ham doors' opening sound object without DTRG_FLAG_SIDE
+                                           (Ini_New: seObjClose in the 11 / 12-argument forms) */
+    short h4c;                          /* 0x4c: Ini_New's 12 to 14-argument forms (no reader seen) */
     u_short trigUse;                    /* 0x4e: enabled when the door opens, disabled by AlsCam */
     short event;                        /* 0x50: keeps the door from closing while set */
     DTRG_KIND_KEY kind[DTRG_KIND_COUNT]; /* 0x52 */
@@ -160,8 +164,22 @@ extern u_char DTrgPraDorTop;                                                    
 
 // DTrgPraMon (bss 0x01944910, 24 bytes): two opening speeds per door kind (percent of the animation's
 // rate; only the low byte is used): OpnOut takes [kind][0] with DTRG_FLAG_SIDE and [kind][1] without, Opn
-// the other way round. Written by code no slice has read yet (tkXcmd_DoorTrigger?).
+// the other way round. Written by tkXDTrg_CharacterInit (door 99, kind n: [n-1][0..1] = argv[2..3] * 100).
 extern u_short DTrgPraMon[DTRG_KIND_COUNT][2];                                           // CT3 0x01944910
+
+// DTrgPraAls (bss 0x01944928, 8 bytes): Alyssa's door opening (tkXDTrg_ActorProc_AlsOpn), set by
+// tkXDTrg_CharacterInit (door 99, kind 0): the door's speed (percent; only the low byte is used) and the
+// anim frames (DOOR_ANIM_FRAME units) her motion takes before the door moves, plain and DTRG_FLAG_SIDE.
+typedef struct DTRG_PRA_ALS {
+    u_short speed;                      /* 0x0: argv[3] * 100 */
+    u_short speedSide;                  /* 0x2: argv[5] * 100 */
+    u_short frames;                     /* 0x4: argv[2] */
+    u_short framesSide;                 /* 0x6: argv[4] */
+} DTRG_PRA_ALS;
+static_assert(sizeof(DTRG_PRA_ALS) == 8, "DTRG_PRA_ALS");
+extern DTRG_PRA_ALS DTrgPraAls;                                                          // CT3 0x01944928
+#define DTRG_DOOR_CHARACTER 99          /* tkXcmd_DoorTrigger: argv[0] == 99 sets DTrgPraAls / DTrgPraMon */
+#define DTRG_CHARACTER_ALYSSA 0         /* tkXDTrg_CharacterInit: argv[1] 0 = Alyssa, 1..6 = a door kind */
 
 // The door sounds (SSPlaySE ids). Bank SE_BANK_COMMON ("C_0000", 0x01936e38 in this TU's .rodata).
 #define DOOR_SE_OPEN 0xb
@@ -248,4 +266,43 @@ int tkXDTrg_ActorProc_Sht(int bank, DTRG_PRA_DOR *door);                        
 int tkXDTrg_ActorProc_HitPtl(int bank, DTRG_PRA_DOR *door);                              // CT3 0x018eb730
 int tkXDTrg_ActorProc_AlsCam(int bank, DTRG_PRA_DOR *door);                              // CT3 0x018eb840
 void tkXDTrg_ActorProc_Ini_Error(void);                                                  // CT3 0x018ebf80
+
+// ---- the door trigger x command (slice 3, 2026-11-11) ----
+// The actor code (tkXcmd_DoorTrigger's argv[1]) -> the proc tkXDTrg_ActorProc runs. tkXDTrg_ActorCodeAnalyze
+// reads characters 3.. of the code: "Ini" (+ 'M' at 6: IniMon), "Alsp" / "All" / "Ala" at 3 and 7 (AlsOpn /
+// AlsClo / AlsCam), "Hi" (HitPtl), "St" at 3 and 5 (Sht), and the weapon kinds "Ha", "V", "Ax", "SM", "SW"
+// followed by the opening code at 6 (tkXDTrg_ActorCodeAnalyzeMonster: DTRG_MON_*).
+enum {
+    DTRG_CODE_INI = 0,                  /* argc < DTRG_INI_NEW_ARGC: Ini_New, else Ini */
+    DTRG_CODE_INI_MON = 1,
+    DTRG_CODE_ALS_OPN = 2,
+    DTRG_CODE_ALS_CLO = 3,
+    DTRG_CODE_ALS_CAM = 4,
+    DTRG_CODE_HIT_PTL = 5,
+    DTRG_CODE_SHT = 6,
+    DTRG_CODE_HAM = 7,                  /* + DTRG_MON_* */
+    DTRG_CODE_VIT = 10,
+    DTRG_CODE_AXE = 13,
+    DTRG_CODE_SCM = 16,
+    DTRG_CODE_SCW = 19,
+    DTRG_CODE_NONE = -1,
+};
+enum {
+    DTRG_MON_OPN = 0,                   /* 'O' at 6, the code ends at 9 */
+    DTRG_MON_CLO = 1,                   /* 'C' at 6 */
+    DTRG_MON_OPN_OUT = 2,               /* 'O' at 6 and 9 */
+};
+#define DTRG_INI_NEW_ARGC 15            /* tkXDTrg_ActorProc: fewer arguments take Ini_New's form */
+short tkXDTrg_ActorCodeAnalyzeMonster(const char *code);                                 // CT3 0x018ec870
+short tkXDTrg_ActorCodeAnalyze(const char *code);                                        // CT3 0x018ec8c0
+DTRG_HED *tkXDTrg_ActorGetSceneHead(int bank);                                           // CT3 0x018ecb60
+DTRG_PRA_DOR *tkXDTrg_ActorGetDoorPara(u_short doorFlag, DTRG_HED *head);                // CT3 0x018eca60
+int tkXDTrg_ActorProc_Ini(int argc, char **argv, int bank, DTRG_PRA_DOR *door);          // CT3 0x018ebf90
+int tkXDTrg_ActorProc_IniMon(int argc, char **argv, int bank, DTRG_PRA_DOR *door);       // CT3 0x018ec540
+int tkXDTrg_ActorProc_Ini_New(int argc, char **argv, int bank, DTRG_PRA_DOR *door);      // CT3 0x018ec600
+int tkXDTrg_ActorProc_AlsOpn(int bank, DTRG_PRA_DOR *door);                              // CT3 0x018ebad0
+int tkXDTrg_ActorProc_AlsClo(int bank, DTRG_PRA_DOR *door);                              // CT3 0x018eb960
+int tkXDTrg_ActorProc(u_int argc, char **argv, int bank);                                // CT3 0x018ecd40
+int tkXDTrg_CharacterInit(int argc, char **argv);                                        // CT3 0x018ed190
+// Shows (1) or hides (0) the stalkers around a door: ssAI_MonsterDraw on each, their AI paused while hidden.
 void tkXDTrg_MonDraw(int draw);                                                          // CT3 0x018ed090

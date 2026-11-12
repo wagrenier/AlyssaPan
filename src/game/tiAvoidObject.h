@@ -14,3 +14,5 @@ struct CHARACTER;
 void ssAI_BrainEnd(struct CHARACTER *chara, int brain);                                  // CT3 0x01865e20 (main2.c)
 // 1 while the character plays a door push or pull opening (ssAI_IsDoorPushOpenPlaying / _Pull).
 int ssAI_IsDoorOpenPlaying(struct CHARACTER *chr);                                       // CT3 0x01860d00
+// From tkXDTrg_MonDraw (tkXDTrg_GetSceneHash.c, 2026-11-11): shows (1) or hides (0) a stalker.
+void ssAI_MonsterDraw(struct CHARACTER *chr, int draw);                                  // CT3 0x0185f710

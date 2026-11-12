@@ -1660,6 +1660,19 @@ apply here):
 
 ## Open questions
 
+- (2026-11-11, game/tkXDTrg_GetSceneHash.c slice 3) The dispatcher, the Ini_New / IniMon parsers, AlsOpn /
+  AlsClo, MonDraw, CharacterInit and the x command read. **Answered:** slots 0 / 2 are Alyssa's open / close
+  (DTRG_SLOT_ALS_*); +0x40 is the warp part; DTrgPraMon and DTrgPraAls are written by door 99's trigger
+  (tkXDTrg_CharacterInit); flag 0x2 comes from a 'u' at the code's 2nd character, 0x8 from a non-'W' 7th
+  character. **Still guessed:** +0x48 / +0x4c (written by Ini_New, no reader seen), the kind entries' +4 / +6
+  (IniMon writes them), events 0x32 (DTRG_EVENT_NO_OPEN) and 0xd2 (DTRG_EVENT_DOOR_SOUND), Character flag
+  0x10000000 (CHARACTER_FLAG_DOOR), AlsOpn's step 5 that skips the wait. **PORT choices:**
+  tkXDTrg_ActorGetSceneHead returns its head (the ROM is void, callers read v0); with no head free before
+  the clean-up the host takes one the clean-up freed (the ROM writes DTrgHed[-1]); Ini_New with no
+  detector on the portal part leaves otherBank (the ROM reads NULL). **Left (slice 4):**
+  tkXDTrg_ActorProc_Ini (0x018ebf90, stubbed: answers 1 and resets the record), which builds the part names
+  ("TDS", "_Cam", "CP_Dor", "Ugd", "Ham_n", "Vit_n"...) from the scene's name.
+
 - (2026-11-11, game/tkXDTrg_GetSceneHash.c slice 2) Door actor procs read. **Answered:** events 600 / 700
   are OPENED / MOVING (architecture.md "Door actor records and procs"); CloseCancel's fields are slots 3..5.
   **Guessed, to confirm with tkXcmd_DoorTrigger / tkXDTrg_ActorProc_Ini:** flag 0x2 (DTRG_FLAG_SIDE: picks

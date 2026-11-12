@@ -1300,7 +1300,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 137..137, 20 functions keyed by their statics, 73 unkeyed; file name from the names"
   },
   "game/tkXDTrg_GetSceneHash.c": {
-   "notes": "Left: tkXDTrg_ActorProc (0x018ecd40, the dispatcher), _Ini (0x018ebf90), _AlsOpn (0x018ebad0), tkXDTrg_MonDraw (0x018ed090, stubbed here), tkXcmd_DoorTrigger (0x018ed9e0) and the rest of the 50. Callcheck MISSING on the kind procs is the shared static helpers DoorKindOpen / DoorKindClose / DoorPlaySE / DoorAnimPlaying (the ROM repeats the bodies per kind). Guesses in open-items.md Open questions (flag 0x2, kind 0, slots 0 and 2, DTrgPraMon writer). Smoke run still ends on the title backdrop; no door on screen yet.",
+   "notes": "Left: tkXDTrg_ActorProc_Ini (0x018ebf90, old-form Ini that builds part names from the scene name; stubbed to answer 1 and reset the record). Callcheck MISSING on the kind procs and AlsOpn are the shared static helpers (DoorKindOpen / DoorKindClose / DoorPlaySE / DoorAnimPlaying). Guesses and PORT choices in open-items.md Open questions (slice 3). Smoke run ends on the content warning screen; no door on screen yet.",
    "ranges": [
     [
      "018e90a0",
@@ -1317,6 +1317,11 @@
      "date": "2026-11-11 21:08",
      "status": "partial",
      "summary": "slice 2: the door actor procs (AnimToFrameDoor, AnimRangeDoor, ChangeCamera, CmnClo, the ScW / ScM / Axe / Vit / Ham Opn, OpnOut and Clo, Sht, HitPtl, AlsCam, Ini_Error); the DTrgPraDor record's six proc slots, the door kinds, DTrgPraMon and the door flags OPEN / MOVING / OPENED; 23 functions"
+    },
+    {
+     "date": "2026-11-11 21:20",
+     "status": "partial",
+     "summary": "slice 3: the DoorTrigger x command and its actor dispatcher (code parser, scene heads, door records), the Ini_New and IniMon parsers, Alyssa's door open and close, MonDraw, CharacterInit (DTrgPraAls, DTrgPraMon); 12 functions"
     }
    ],
    "status": "partial",
