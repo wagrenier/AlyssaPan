@@ -299,7 +299,6 @@ void SceneLightSet(int scene)
                     LightCopy(pos[n], l->lightPos);
                     LightCopy(col[n], l->lightColor);
                 }
-                memset(nearest, NEAR_LIGHT_NONE, sizeof(nearest)); // PORT: a stubbed search writes nothing
                 gaSearchNearLight4(nearest, (float (*)[4])parts[p].pos, 1, pos, list[0]);
                 n = 0;
                 for (k = 0; k < LIGHT_SLOTS; k++) {
@@ -498,7 +497,6 @@ void CharLightSet(int chara)
                     }
                     LightCopy(col[n], l->lightColor);
                 }
-                memset(nearest, NEAR_LIGHT_NONE, sizeof(nearest)); // PORT: a stubbed search writes nothing
                 gaSearchNearLight4(nearest, (float (*)[4])parts[p].pos, 1, actress ? posFar : pos, count);
 
                 if (!actress) {

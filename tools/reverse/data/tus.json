@@ -1,7 +1,6 @@
 {
  "queue": [
   "alyssapan/rendering/ui_canvas.cpp",
-  "ga/gaSearchNearLight4.c",
   "game/ssCalcInversMatrix2.c",
   "ga/gaDrawObject_Redraw_Polygon.c"
  ],
@@ -334,12 +333,21 @@
    "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 1 unkeyed; file name from the names"
   },
   "ga/gaSearchNearLight4.c": {
+   "notes": "w is the inverse range; a light with ftoi0(w*w) low 16 bits nonzero (any w >= 1, so w = 1.0) is never chosen, as in the ROM. PORT: lightCount 0 answers none (ROM do-while would run away); padding positions answer none (ROM reads past posCount). Callers' memset workarounds removed. Smoke shot: title clock-tower scene as before; no light-selection difference visible yet, so verify.",
    "ranges": [
     [
      "018a7538",
      "018a7700"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-12 13:31",
+     "status": "verify",
+     "summary": "gaSearchNearLight4 reconstructed from the MMI code and VU0 micros 0x048/0x054/0x064: four nearest lights per position by squared distance times w squared, below 1.0"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 1 unkeyed; file name from the names"
   },
   "ga/gaSinCos.c": {

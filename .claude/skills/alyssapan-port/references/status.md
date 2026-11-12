@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-12 13:18 at commit `7d0d326` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-12 13:31 at commit `da31258` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1693**; stubs: **107**
+- reconstructed CT3 functions: **1694**; stubs: **106**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -44,7 +44,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/ga/gaInitInterrupt.c` | 3 | 0 |
 | `src/ga/gaInitMeter.c` | 6 | 0 |
 | `src/ga/gaObjectClippingCheck.c` | 1 | 0 |
-| `src/ga/gaSearchNearLight4.c` | 0 | 1 |
+| `src/ga/gaSearchNearLight4.c` | 1 | 0 |
 | `src/ga/gaSinCos.c` | 14 | 0 |
 | `src/ga/gaVifInit.c` | 6 | 0 |
 | `src/ga/pad_button_read.c` | 4 | 0 |
@@ -103,9 +103,9 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 12, verify 54, done 10, blocked 1
-- next: **ga/gaSearchNearLight4.c** (pinned in the queue)
-- pinned queue: alyssapan/rendering/ui_canvas.cpp, ga/gaSearchNearLight4.c, game/ssCalcInversMatrix2.c, ga/gaDrawObject_Redraw_Polygon.c
+- 65 TUs: todo 11, verify 55, done 10, blocked 1
+- next: **game/ssCalcInversMatrix2.c** (pinned in the queue)
+- pinned queue: alyssapan/rendering/ui_canvas.cpp, game/ssCalcInversMatrix2.c, ga/gaDrawObject_Redraw_Polygon.c
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
@@ -116,6 +116,7 @@ Least-named game-code regions (64 KB blocks):
 - verify: `ga/gaInitInterrupt.c` 3/3 -- GCC object; wait_vsync_state (data 0x0192e790), ga_main_timer, ga_down_timer defined here. gaWaitVSync takes no argument and returns the CSR FIELD bit; main.c c
 - verify: `ga/gaInitMeter.c` 6/6 -- Complete code, nothing on screen shows it (shot black as before; the meter stubs no longer appear in the run log). Host: T1/T0 mode writes now reach the host ti
 - verify: `ga/gaObjectClippingCheck.c` 1/1 -- Title scene unchanged at 4:3 and 16:9. Doubts in open-items: the 4:3 side planes must widen with the 3D pass; MAC flag timing; BankOfHostPtr for objects outside
+- verify: `ga/gaSearchNearLight4.c` 1/1 -- w is the inverse range; a light with ftoi0(w*w) low 16 bits nonzero (any w >= 1, so w = 1.0) is never chosen, as in the ROM. PORT: lightCount 0 answers none (RO
 - verify: `ga/gaSinCos.c` 13/13 -- 15 s smoke run: no fault, about 26700 frames, shot black (no host draw module yet). ga_sincos_table.inc generated from the ELF (the ROM floats differ from sinf)
 - verify: `ga/gaVifInit.c` 6/6 -- GCC object. VIF0/VIF1 STAT are host variables that read idle (sdk/eeregs.h), so the polls return at once and main frame loop passes the FLUSH wait. gaDmaSendN_V
 - verify: `ga/pad_button_read.c` 4/4 -- Complete; callcheck clean. 15 s smoke: flat grey as before (attract cycle). 40 s run with scripted START at reads 500..1100: no TITL in the log, but the shot is
@@ -164,6 +165,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-12 13:31 `ga/gaSearchNearLight4.c` verify: gaSearchNearLight4 reconstructed from the MMI code and VU0 micros 0x048/0x054/0x064: four nearest lights per position by squared distance times w squared, below
 - 2026-11-12 13:18 `game/asMothOperate.c` verify: asMothOperate written: the moths state machine (rest, wait, fly the route, circle Alyssa, land and rattle, hit, dead), the three-part moves through asMothRouteS
 - 2026-11-12 12:47 `game/Character_Init.c` verify: Character_Init written, the TU's last stub: room join (hash, light bank, room-in flag, ambient), the place modes (keep, the scene's start part, the light bank's
 - 2026-11-12 12:40 `alyssapan/core/junc_heap.cpp` done: gHeapJunc was corrupted, not exhausted: ssParticleInit sized ParticleObject and ParticleData as count * 4 and stored 8-byte host pointers, overwriting the next 
@@ -171,13 +173,11 @@ Recent sessions:
 - 2026-11-12 12:30 `alyssapan/core/newgame_trace.cpp` done: The silent wait after NEW: the title music ADS stream held gADSOpenSync at 1 waiting for SNDDRV.IRX to acknowledge SND_CMD_ADS_OPEN, so FlProc read nothing and 
 - 2026-11-12 11:50 `game/AA_scTag2.c` verify: all 7 functions written: the movie ring's DMA tag, D3 and D4 CHCR writes, FIFO index, pts region test, B-picture skip history, two-span copy
 - 2026-11-12 11:34 `game/AA_viBuf.c` verify: reconstruct 13 functions (verify)
-- 2026-11-12 11:13 `ga/gaObjectClippingCheck.c` verify: gaObjectClippingCheck written: bounding sphere vs near/far and VU0 micro 0x068 side planes, done natively
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `game/ssCalcInversMatrix2.c` | todo | 0/5/5 | 5.7 | 12 | 1 |
-| `ga/gaSearchNearLight4.c` | todo | 0/1/1 | 0.4 | 9 | 1 |
 | `ga/gaDrawObject_Redraw_Polygon.c` | todo | 0/1/6 | 4.3 | 7 | 1 |
+| `game/ssCalcInversMatrix2.c` | todo | 0/5/5 | 5.7 | 7 | 0 |
 | `game/AA_cpuCycles.c` | todo | 0/4/4 | 0.3 | 6 | 0 |
 | `ga/wait.c` | todo | 0/2/20 | 0.1 | 6 | 0 |
 | `game/copy2area.c` | todo | 0/2/2 | 0.5 | 2 | 0 |
@@ -188,7 +188,6 @@ Recent sessions:
 | CT3 addr | name | call sites | provenance | state | inferred file |
 |---|---|---|---|---|---|
 | `018a8690` | gaDMAStopMessage_VIF1 | 5 | sym | stub | ga/wait.c |
-| `018a7538` | gaSearchNearLight4 | 4 | sym | stub | ga/gaSearchNearLight4.c |
 | `018a9570` | ssHitMakeAttackOBB | 2 | sym | stub | game/ssCalcInversMatrix2.c |
 | `018a9390` | ssHitMakeDamageOBB | 2 | sym | stub | game/ssCalcInversMatrix2.c |
 | `018c0310` | AA_cpuCycles | 2 | sym | stub | game/AA_cpuCycles.c |

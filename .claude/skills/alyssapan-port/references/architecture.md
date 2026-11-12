@@ -1539,6 +1539,14 @@ position (0xff = none). Overrides: AllOmniEffect[4] and CharOmniEffect[chara][4]
 cleared when the bank is gone); CharDirectLightSet[chara] forces directional parts, eased over its fade
 counter (or DirectLightCharaCounter[chara]).
 
+**gaSearchNearLight4 (ga/gaSearchNearLight4.c, 2026-11-12)** is hand-written MMI + VU0 (micros 0x048:
+transpose eight positions, 0x054: `vudis.py 18fe500 f3 48 54 64`). The metric is |p - light.xyz|^2 *
+light.w^2, so a light's w is its **inverse range**: only a value below 1.0 counts (keys are the float's
+bits with the low byte replaced by the light's index, slots start at 0x3f8000ff, pminw / pmaxw keep the
+four smallest, nearest first). A light whose ftoi0(w^2) has non-zero low 16 bits -- any w >= 1, so
+**w = 1.0 lights are never chosen** -- gets 1.001 for every position (micro 0x064). Positions go eight a
+pass, 32 bytes of answer each; asSearchObject's candidates carry w = 1e-8 (no range limit in practice).
+
 ## The save image (game/Character_Init.c, 2026-11-10, slice 5)
 
 A save image is MC_DATA_SIZE (0x10610) bytes in EE layout (MC_SAVE_DATA, Character_Init.h), the same in
