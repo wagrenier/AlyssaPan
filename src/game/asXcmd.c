@@ -22,7 +22,7 @@
 #include "game/fileio.h"
 #include "game/hhXcmd_DressUp.h"
 #include "game/main.h"
-#include "game/QuatSlerp.h"
+#include "game/BRANCH_CLEAR.h"
 #include "game/ssGrpPortalCheck.h"
 #include "game/unassigned_data.h"
 #include "game/wideXcmd_DebugPrint.h"

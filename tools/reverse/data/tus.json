@@ -1,6 +1,5 @@
 {
  "queue": [
-  "game/QuatSlerp.c",
   "alyssapan/rendering/ui_canvas.cpp",
   "game/ssHitCheckAttackToScn.c",
   "game/ssSetTexUVforCubeMap.c"
@@ -457,6 +456,79 @@
    "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 91..91, 8 functions keyed by their statics, 3 unkeyed; file name from the names"
   },
+  "game/BRANCH_CLEAR.c": {
+   "notes": "15 s smoke run: no fault, shot black (no host draw module yet). callcheck: GetAreaFloor's memcmp and ssTrigRemoveEvent come through ROOM_IS and AreaFloorClear (explained). Open-items 1 (ga) asFindMotionID's motion table is NULL until asInitPlayerBehaviorControler's TU gives CHARACTER +0x350 a host form; (gb) the 1C02 branch has no else, from the decompilation.",
+   "ranges": [
+    [
+     "01851f00",
+     "0185e9d0"
+    ]
+   ],
+   "sessions": [
+    {
+     "date": "2026-11-10 09:37",
+     "status": "partial",
+     "summary": "slice 2: GetAreaNumber (RoomNameID tables), the controller rattles (Free, Get, Update, Set), DemoSkipCheckEvent, PanicModeInit, QuatSlerp, asMakeRotMatrixByQuartanion, the warp family (WarpObject, WarpObjectUpdate, Set, Init, asWarpObjectBody), tnInit3dlibWork"
+    },
+    {
+     "date": "2026-11-10 09:56",
+     "status": "partial",
+     "summary": "slice 3: the texture buffers (sunSetupTBufferData, sunBGT_SetLoadGSEnv, sunBGT_LoadGSTexClutData_VIF1, sunBGT_ExecTBufferData_VIF1; SUN_TEX_ATTR, SUN_TBUFFER_DATA, TEX_INFO named), the panic sounds (EventSoundUpdate, PanicSound, LavenderSound, InvisibleSound), PanicCheck, ssMenuUpdate, PlayerControlUpdate"
+    },
+    {
+     "date": "2026-11-10 10:18",
+     "status": "partial",
+     "summary": "slice 4: the screen filters (PanicFilter, DemoScreenFilter, XcmdScreenFilter and Skip, SCREEN_FILTER_OBJ packets and draw controls), EventSoundEnd, ssGetBankID and ssStrCmp4Byte, the slide LZSS decoder (tnSlideThawing, decode, tn_getc, tn_putc), AmbientAlphaUpdate"
+    },
+    {
+     "date": "2026-11-10 10:39",
+     "status": "partial",
+     "summary": "slice 5: the part fades AmbientAlphaUpdate runs (DistanceAttenuationUpdate, Target, AlphaSet; AngleAttenuationUpdate, Target, AlphaSet; LosHitFadeUpdate and Target with CheckLOS and CheckLOS_Multi declared), DemoSkipRegisterEvent, asVectorLength; DIST_ATTEN, ANGLE_ATTEN, LOS_FADE, ATTEN_CHARA, LOS_SEG, LOS_MULTI named"
+    },
+    {
+     "date": "2026-11-10 10:57",
+     "status": "partial",
+     "summary": "slice 6: PanicUpdate (the panic gauge: rises, calming items, full panic, PANIC_INFO and Panicdef named, PanicRecoveryTbl and HidePointUpValue from the ROM), MonsterAIUpdate (ssAtkCharaList2), GAME_OVER_END, PlayerControlUpdate2, asJointParts with the 4-argument asJointParts_byMatrix prototype, asWarpSceneObject, asGetCrossPointInPlaneWithLine, asRadianByO, asContInterpolateZipNormal_XYZ and Trans_XYZ"
+    },
+    {
+     "date": "2026-11-10 11:25",
+     "status": "partial",
+     "summary": "slice 7: the letterbox (VistaVisionMain with its two ROM sprite packets and draw control), the fog easing (FogAnimeUpdate, FOG_ANIME named), the depth pre-pass (OneMaxObjectDrawZOnly, drawctrl_zbuf), the portal joint (asJointParts_byMatrix), asMakeWatchMeMatrixToPosition, asDelSqueezeInformation, the warps (ExecuteWarpObject and ExecuteWarpObject2, now 5 arguments), DemoSkipGetEvent with SkipFlagTbl from the ROM, CheckSameRoomAsMonster, PanicDownSet"
+    },
+    {
+     "date": "2026-11-10 11:34",
+     "status": "partial",
+     "summary": "slice 8: the panic setters (PanicSet, PanicStopMovie with PanicOffMovieFile from the ROM), Kekkai_Check, ssPointCheckWithinScreen, PauseUpdate, UpperCase, GetBankID, the movie break (PlayMovie, PlayMovieReturnLoad, SystemReReset), the part helpers (asGetObjectPositionAtWorld, asSetObjectTrans, asGetObjectTransInitialValue with MODEL_PARTS.transInit), asGetAlyssaPosition, asGetAnalogStickInformation"
+    },
+    {
+     "date": "2026-11-10 11:54",
+     "status": "partial",
+     "summary": "slice 9: the letterbox requests (VistaVisionStart, VistaVisionEnd), PlayerDamage, asObjectRotate (MODEL_PARTS.placeRot named), asPosRUF2ViewMatrix and asCamRUF2ViewMatrix, asRadianByVectors and asRadianByPositions_Rorate, asISubRotate16, asVectorLength1D and 2D, asVectorDistance2, LowerCase, absf, tnRand, rnd and rndf; three Ghidra loop splits named _body"
+    },
+    {
+     "date": "2026-11-10 12:14",
+     "status": "partial",
+     "summary": "slice 10: the paged textures (TexFileSetInit, TexFileSetNext, TexFileSetPage, tnTrigTexFileSetNext and Page; ALL_TABLE.texFileSet and the TEX_FILE_SET tables named, page_set)"
+    },
+    {
+     "date": "2026-11-10 12:30",
+     "status": "verify",
+     "summary": "slice 11: GetAreaFloor (the floor flags a step between paired rooms sets, room literals from the ELF) and asFindMotionID; the TU's code is complete, 177 of 177"
+    },
+    {
+     "date": "2026-11-11 22:23",
+     "status": "partial",
+     "summary": "marked verify -> partial: the user, 2026-11-11: the TU is wrong, it holds many objects; split it (open-items.md TOP PRIORITY)"
+    },
+    {
+     "date": "2026-11-11 22:33",
+     "status": "partial",
+     "summary": "marked partial -> partial: split from game/QuatSlerp.c on 2026-11-11: one CodeWarrior object 0x01851f00..0x0185e9d0 (symtab locals 1088..1162 one inseparable run); code moved unchanged with the old TU's sessions and notes, state as before the split"
+    }
+   ],
+   "status": "partial",
+   "why": "split 2026-11-11 (architecture.md The TU map): one CodeWarrior object. Its 75 locals are symtab 1088..1162, one hash-ordered run no cut can separate (seams.py, databands.py); they tie DemoSkipGetEvent 0x01852060 to rnd 0x0185e960. Its rodata strings rise with text order (3344 GetAreaNumber .. 5148 PlayMovie), its sdata statics fall with it (SkipFlagTbl .. next). The lead-in BRANCH_CLEAR..DemoSkipRegisterEvent has no local and goes with DemoSkipGetEvent by name. Key named after the first function (no source string)."
+  },
   "game/Character_Init.c": {
    "notes": "All 49 functions written; nothing on screen reaches the card yet (main2 is a stub), shot black as before. The save image layout is in architecture.md (The save image); MemorycardAutoLoad*Check now return int, the ROM's v0 (hazards.md). Open-items az..bd hold the doubts: the image ranges no function here writes, the one-use names (MC_BANK_*, trigger events, CAMERA.cut, MODEL_PARTS.drawOnPos, PANIC_INFO), CHARACTER.slot004 as behaviour banks. Next in the queue: game/ArtoolDebugOpen.c, main2.c, fileio.c.",
    "ranges": [
@@ -641,19 +713,14 @@
    "why": "aa_to_big (0x018dab10) is a CW while loop: b to its test at 0x018dab3c, which Ghidra split off as FUN_018dab3c (body to 0x018dab53, nop pad to 0x018dab60); the tail belongs to aa_to_big"
   },
   "game/QuatSlerp.c": {
-   "notes": "15 s smoke run: no fault, shot black (no host draw module yet). callcheck: GetAreaFloor's memcmp and ssTrigRemoveEvent come through ROOM_IS and AreaFloorClear (explained). Open-items 1 (ga) asFindMotionID's motion table is NULL until asInitPlayerBehaviorControler's TU gives CHARACTER +0x350 a host form; (gb) the 1C02 branch has no else, from the decompilation.",
+   "notes": "Evidence (architecture.md The TU map, The split of QuatSlerp.c; tools seams.py, databands.py): the range's 75 locals are symtab 1088..1162, one hash-ordered run whose addresses interleave in every subsection, so no object boundary falls inside it; rodata strings rise and sdata statics fall monotonically through it. The head has no local, so the cut before BRANCH_CLEAR follows the names; it may be Convert.c's tail (open-items doubt a). Build green, callcheck clean, 15 s smoke run shows the same clock-tower scene as the previous run. The four functions here are complete; nothing on screen isolates them, hence verify.",
    "ranges": [
     [
      "01851bf0",
-     "0185e9d0"
+     "01851f00"
     ]
    ],
    "sessions": [
-    {
-     "date": "2026-11-10 09:20",
-     "status": "partial",
-     "summary": "slice 1: part lookup and name hashes (ahGetHash reads back: Bip01, BasePoint), ahAcos with the ROM table, the camera read-back, packed blends, bank/character/room lookups, room trigger flags, OmniRangeChange, AmbientAlphaInit, ControllerClatteringInit; the ActressMP crash at main.c:2106 is gone"
-    },
     {
      "date": "2026-11-10 09:37",
      "status": "partial",
@@ -708,11 +775,15 @@
      "date": "2026-11-11 22:23",
      "status": "partial",
      "summary": "marked verify -> partial: the user, 2026-11-11: the TU is wrong, it holds many objects; split it (open-items.md TOP PRIORITY)"
+    },
+    {
+     "date": "2026-11-11 22:33",
+     "status": "verify",
+     "summary": "split game/QuatSlerp.c: the symtab proves 0x01851f00..0x0185e9d0 is one CodeWarrior object, now game/BRANCH_CLEAR.c (173 functions, code moved unchanged); QuatSlerp.c keeps QuatSlerp, ahCos, ahSin, ahAcos"
     }
    ],
-   "status": "partial",
-   "task": "TOP PRIORITY (the user, 2026-11-11): split game/QuatSlerp.c into its real objects. It holds 177 functions, most unrelated to QuatSlerp. Follow open-items.md Next up, the TOP PRIORITY entry above item 1: find the object boundaries with evidence (source strings, the restart of the @n literal counter, local statics, data order, callers), define each new TU with tus.py define and the evidence, move the reconstructed code as it is into the new files with its statics and declarations, keep the build green and the smoke-run picture unchanged, then remove this task field and record the method in reconstruction.md. Several runs may be needed: finish each run with a coherent, building part.",
-   "why": "tumap.py (bootstrap 5): symtab local chunks 73..73, 30 functions keyed by their statics, 147 unkeyed; file name from the names"
+   "status": "verify",
+   "why": "split 2026-11-11 (architecture.md The TU map): QuatSlerp, ahCos, ahSin, ahAcos reference no local symbol; the cut before BRANCH_CLEAR follows the names (quaternion and angle math here, game state after), and Convert.c's locals (symtab 1086..1087) end before them"
   },
   "game/RotateCamera.c": {
    "ranges": [

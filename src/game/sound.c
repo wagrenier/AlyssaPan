@@ -13,7 +13,7 @@
 #include "game/sound.h"
 
 #include "common/alyssapan_stub.h"
-#include "game/QuatSlerp.h"
+#include "game/BRANCH_CLEAR.h"
 #include "game/SdMasterVolumeSetSE.h"
 #include "game/fileio.h"
 #include "game/hhXcmd_DressUp.h"

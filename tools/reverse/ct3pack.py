@@ -120,7 +120,7 @@ def ct32(v):
 
 
 def decode_tex(img, base, attr, clut_index):
-    """(w, h, rgba) of level 0 of a SUN_TEX_ATTR (game/QuatSlerp.h), or None for a format not read."""
+    """(w, h, rgba) of level 0 of a SUN_TEX_ATTR (game/BRANCH_CLEAR.h), or None for a format not read."""
     w, h, tw, th, psm, mip_max = struct.unpack_from("<5Ii", img, attr)
     data = u32(img, attr + 0x1c) - base
     clut_count, clut_list = u32(img, attr + 0x2c), u32(img, attr + 0x30)
@@ -202,7 +202,7 @@ def textures(name, img):
 
 
 def slide_thaw(img, off):
-    """game/QuatSlerp.c tnSlideThawing / decode: Okumura's LZSS after an 8-byte header whose first word
+    """game/BRANCH_CLEAR.c tnSlideThawing / decode: Okumura's LZSS after an 8-byte header whose first word
     is where the input ends (from the page's start)."""
     end = off + u32(img, off)
     pos = off + 8
@@ -237,7 +237,7 @@ def slide_thaw(img, off):
 
 
 def slide_pages(img, base, table, outdir):
-    """The paged textures (ALL_TABLE +0x8c, game/QuatSlerp.h TEX_FILE_SET_TABLE) whose pages are slide
+    """The paged textures (ALL_TABLE +0x8c, game/BRANCH_CLEAR.h TEX_FILE_SET_TABLE) whose pages are slide
     data in the bank: each page thawed into the texture record its buffer patches (the record whose level
     0 is the buffer), to work/ref/<bank>/page_<set>_<page>.png. File-name pages (DATA/IMG/) are listed."""
     sys.path.insert(0, HERE)

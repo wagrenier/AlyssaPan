@@ -78,7 +78,7 @@ enum
 void AlyssaPan_DrawGaObject(const AlyssaPanGaObject *object);
 
 /* The texture the ga objects after it draw with, as the texture buffer
- * packet (game/QuatSlerp.h SUN_TBUFFER_DATA) sets it: where the ROM sends
+ * packet (game/BRANCH_CLEAR.h SUN_TBUFFER_DATA) sets it: where the ROM sends
  * TEX0_1 / CLAMP_1 to the GS (sunBGT_ExecTBufferData_VIF1), the game hands
  * over the texture record's level 0 and CLUT in place, decoded at their
  * source (rendering::TextureStore::imageOfGsTexture). Added 2026-11-11

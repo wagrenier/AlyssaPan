@@ -19,7 +19,7 @@
 #include "game/xcmd_tn.h"
 #include "game/Character_Init.h"
 #include "game/Clipping_Portal.h"
-#include "game/QuatSlerp.h"
+#include "game/BRANCH_CLEAR.h"
 #include "game/ahRelocateSunPs2ObjectArry.h"
 #include "game/asEyeForcusUP2CamMat.h"
 #include "game/asUseArrow.h"

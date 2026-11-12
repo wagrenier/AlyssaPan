@@ -76,7 +76,7 @@ void ssTransColHitDataL2W(struct MODEL_PARTS *parts, struct HIT_TABLE *hits);   
 void ssMoveAllHitObjCoordinate(struct HIT_TABLE *hits, const float *d);                  // CT3 0x018ad760
 void ssSplitVectorHandV(float *h, float *v, const float *src);                           // CT3 0x018b1820
 
-// ---- line-of-sight tests (from LosHitFadeUpdateTarget's calls, QuatSlerp.c slice 5, 2026-11-10) ----
+// ---- line-of-sight tests (from LosHitFadeUpdateTarget's calls, BRANCH_CLEAR.c slice 5, 2026-11-10) ----
 // CheckLOS(bank, seg): != 0 when the segment from -> to hits the bank's collision.
 typedef struct LOS_SEG {
     float from[4];                      /* 0x00: w 1 */

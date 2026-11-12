@@ -7,7 +7,7 @@
 #include "game/LinkMatrixTree.h"
 #include "game/ct3_types.h"
 #include "game/main.h"
-#include "game/QuatSlerp.h"
+#include "game/BRANCH_CLEAR.h"
 #include "game/ahRelocateSunPs2ObjectArry.h"
 #include "game/ahalloc.h"
 #include "game/ssGrpPortalCheck.h"

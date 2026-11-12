@@ -17,7 +17,7 @@
 
 #include "common/alyssapan_stub.h"
 #include "game/Character_Init.h"
-#include "game/QuatSlerp.h"
+#include "game/BRANCH_CLEAR.h"
 #include "game/SdMasterVolumeSetSE.h"
 #include "game/ahRelocateSunPs2ObjectArry.h"
 #include "game/asEyeForcusUP2CamMat.h"

@@ -16,7 +16,7 @@
 #include "game/Clipping_Portal.h"
 #include "game/sound.h"
 #include "game/Character_Init.h"
-#include "game/QuatSlerp.h"
+#include "game/BRANCH_CLEAR.h"
 #include "game/ssGrpPortalCheck.h"
 #include "game/fileio.h"
 #include "game/main.h"
@@ -957,7 +957,7 @@ int tnXcmd_OmniRange(int argc, char **argv, int bank)
     return XCMD_DONE;
 }
 
-// CT3 0x018f1710: the screen filter (FilterChangeWork, drawn by QuatSlerp.c's ScreenFilter). argv[0]
+// CT3 0x018f1710: the screen filter (FilterChangeWork, drawn by BRANCH_CLEAR.c's ScreenFilter). argv[0]
 // "ON": waits while a fade runs, then turns it on: argv[1] "type1" FILTER_MODE_ADD / "type2"
 // FILTER_MODE_BLEND (else the mode is kept), argv[2] "R,G,B,A" the target; with five arguments it fades
 // over argv[3] frames from argv[4] "R,G,B,A" (else at once), with six argv[5] "AUTO_OFF" turns it off at

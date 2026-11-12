@@ -71,9 +71,34 @@ the TU map's evidence.
   `game/main.c`). The source strings land where expected: `ahalloc.c` 0x0183d9e0, `movie.c` 0x018bda90,
   `fileio.c` 0x018c2170, `sound.c` 0x018c7fb0, `xcmd_tn.c` 0x018ee5f0. 1,298 functions reference no
   local: where they sit between two objects, the cut follows their names; **large objects (QuatSlerp.c 177
-  functions, wideXcmd_DebugPrint.c 109, tiXcmd_TransItem.c 93) are likely several objects without statics**:
+  functions, wideXcmd_DebugPrint.c 109, tiXcmd_TransItem.c 93) are likely several objects without statics**
+  (QuatSlerp.c turned out to be one object and a 4-function head, below):
   a TU session pins its real extent (`tus.py define`) and names the rest. Keys other than the five source
   files are names from the functions (common prefix, else the first), not the game's.
+
+**The split of QuatSlerp.c (2026-11-11, the user's top priority; `seams.py`, `databands.py`).** The TU map's
+`game/QuatSlerp.c` (0x01851bf0..0x0185e9d0, 177 functions) is **two objects, not ten**:
+- **0x01851f00..0x0185e9d0 is one CodeWarrior object, now `game/BRANCH_CLEAR.c`** (173 functions,
+  BRANCH_CLEAR .. rnd). Its 75 locals are symtab 1088..1162, one run in MW's hash order whose addresses
+  interleave in every subsection (`.rodata` @4090 0x01933848, @3444 0x019337a8, `.sbss` iWCcnt, `.sdata`
+  @423 ..): two objects' locals never interleave, and the only cuts the address test allows in 1076..1175
+  are before 1084, 1086, 1087, 1088 and 1163. The run ties DemoSkipGetEvent (SkipFlagTbl, 0x01852060) to
+  rnd (`next`, 0x0185e960), and through them GetAreaFloor, the panic sounds, MonsterAIUpdate, the texture
+  pages, the screen filters, PlayMovie, VistaVision, the warps, asRadianByPositions_Rorate,
+  asVectorLength2D, asConvertHash2String and the slide LZSS. Two more checks agree: its `.rodata` string
+  literals rise with text order (@2670.. PanicOffMovieFile's names, @3344 GetAreaNumber .. @5148
+  PlayMovie, 0x01933720..0x019338aa) and its `.sdata` statics fall with it (`next` 0x01937e00, @423,
+  @521, VistaVision, the filters, @2536, @2885, sPanicBeforeFlg, SkipFlagTbl 0x01938200): **MW emits an
+  object's initialised statics in reverse source order**, its strings in source order. The lead-in
+  BRANCH_CLEAR .. DemoSkipRegisterEvent has no local; it goes with DemoSkipGetEvent by name. The user's
+  candidate runs (rooms, rattles, panic, filters, warps, LZSS ..) are sections of this one file.
+- **0x01851bf0..0x01851f00 stays `game/QuatSlerp.c`**: QuatSlerp, ahCos, ahSin, ahAcos reference no
+  local (ahAcos reads the global `ah_acos_table`, .data 0x0190a600, between newlib's malloc data and
+  `ga_sincos_table`), so no symbol places them; the cut before BRANCH_CLEAR follows the names (quaternion
+  and angle math here, game state after). They may be Convert.c's tail (ConvertMatrix2Quat's locals,
+  symtab 1086..1087, are the run just before): no evidence either way, open-items.md.
+- The CT3 sections below titled "game/QuatSlerp.c" describe code now in BRANCH_CLEAR.c, except the slerp
+  and angle bullets.
 
 ## Naming sources (bootstrap 4, 2026-11-09, `symtab.py`)
 
@@ -303,7 +328,7 @@ the TU map's evidence.
   the microprogram is a zeroed stand-in of its size. MADR / TADR / VIF1_STAT are host variables that read
   idle.
 - **Textures (slice 2, 2026-11-09; no caller in the ROM -- the game uses its sun* copies in
-  QuatSlerp.c, which likely share this shape):** `gaSetupTBufferData(tbuf, tex, tbp, cbp, clut, wms, wmt,
+  BRANCH_CLEAR.c, which likely share this shape):** `gaSetupTBufferData(tbuf, tex, tbp, cbp, clut, wms, wmt,
   minu, maxu, minv, maxv, tfx)` builds a 0x130 `GA_TBUFFER_DATA`: kind 6, TEX0_1 (TCC 1, CLD from tex
   +0x3c, CBP = cbp + clut x the CLUT block: 0x100 words for PSMT8, 0x40 otherwise), CLAMP_1, MIPTBP1_1 /
   MIPTBP2_1 (levels packed after level 0, each >= 0x100 words; widths >= 128 for PSMT8 / PSMT4, >= 64
@@ -413,7 +438,7 @@ the TU map's evidence.
 
 ## The boot screen and the ga draw object's data (2026-11-10, host task `alyssapan/rendering/ui_canvas.cpp`)
 
-- **CT3 has no TIM2.** A bank's textures are `SUN_TEX_ATTR` records (QuatSlerp.h) reached from each draw
+- **CT3 has no TIM2.** A bank's textures are `SUN_TEX_ATTR` records (BRANCH_CLEAR.h) reached from each draw
   list entry (`DRAW_OBJ_ENTRY.tex` -> `TEX_INFO.tim`), raw GS pixels with 32-bit CLUTs (8-bit CLUTs in
   CSM1 order); `tools/reverse/ct3pack.py tex <BANK>.BIN` decodes them to `work/ref/<bank>/`.
 - **The first screen is ATLD** (the global title bank at power-on, main2.c): the memory-card check, "Checking...
@@ -803,7 +828,7 @@ view * matrix (+0x180) and +0x300 = that * diag(record +0x2c0 xyz).
   clock (gNextTicksInterval / gNextTicks / gTotalTicks) only when not paused, the global clock
   (gGlobal*) always; statics last_frame (0x0193cb14) and Globallast_frame (0x0193cb04).
 
-## Part lookup, name hashes, the camera read-back, game/QuatSlerp.c (2026-11-10, slice 1)
+## Part lookup, name hashes, the camera read-back, game/QuatSlerp.c, now game/BRANCH_CLEAR.c (2026-11-10, slice 1)
 
 - **Names are hashed, not stored** (ahGetHash, 0x0185e580): hash ^= rotl64(c & 0x7f, 7 i mod 64) over
   the characters. A name of up to 9 characters never overlaps itself, so asConvertHash2String
@@ -897,7 +922,7 @@ view * matrix (+0x180) and +0x300 = that * diag(record +0x2c0 xyz).
   L2 step iSm through the scene bank's cuts (CamChange {300, scene, iSm - 1, 1}, "Camera ID %d" into
   szCamModeAdd). Every time step is gGlobalNextTicksInterval / 5; stick bytes 0x53..0xad read as 120.
 
-## Areas, rattles, warps, the slerp, game/QuatSlerp.c (2026-11-10, slice 2)
+## Areas, rattles, warps, the slerp, game/QuatSlerp.c, now game/BRANCH_CLEAR.c and the slerp in QuatSlerp.c (2026-11-10, slice 2)
 
 - **Areas** (GetAreaNumber): a room's area number 1..52 (the save file's area, the map / scene name
   menus) from RoomNameID_STR_Tbl / RoomNameID_ID_Tbl (0x019392f0 / 0x01939110, 118 rows). Rooms listed
@@ -925,7 +950,7 @@ view * matrix (+0x180) and +0x300 = that * diag(record +0x2c0 xyz).
   and removes events 3, 0x26, 0x48.
 - **tnInit3dlibWork(src, dst)** is gaInit3dlibWork with the 32-float copy to the scratchpad built in.
 
-## Letterbox, fog easing, warps, joints, game/QuatSlerp.c (2026-11-10, slice 7)
+## Letterbox, fog easing, warps, joints, game/QuatSlerp.c, now game/BRANCH_CLEAR.c (2026-11-10, slice 7)
 
 - **VistaVision** is the letterbox: two black SPRITE packets in sdata (VistaVisionPacketUp / Down,
   0x50 bytes each, 512 wide in GS coordinates 0x8000..0xa000), each VistaVisionHeightSize *

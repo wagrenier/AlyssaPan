@@ -13,7 +13,7 @@
 #include "game/ssHitCheckAttackToScn.h"
 #include "game/tiAvoidObject.h"
 #include "game/ct3_types.h"
-#include "game/QuatSlerp.h"
+#include "game/BRANCH_CLEAR.h"
 #include "game/ssGrpPortalCheck.h"
 #include "game/tiXcmd_TransItem.h"
 #include "game/unassigned_data.h"

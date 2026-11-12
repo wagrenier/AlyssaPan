@@ -19,7 +19,7 @@
 #include "game/ArtoolDebugOpen.h"
 #include "game/Clipping_Portal.h"
 #include "game/ssGrpPortalCheck.h"
-#include "game/QuatSlerp.h"
+#include "game/BRANCH_CLEAR.h"
 #include "game/SdMasterVolumeSetSE.h"
 #include "game/ahRelocateSunPs2ObjectArry.h"
 #include "game/ahalloc.h"

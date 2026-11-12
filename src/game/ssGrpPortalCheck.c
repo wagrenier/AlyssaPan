@@ -20,7 +20,7 @@
 #include "ga/gaInit3dlib.h"
 #include "game/ahalloc.h"
 #include "game/Character_Init.h"
-#include "game/QuatSlerp.h"
+#include "game/BRANCH_CLEAR.h"
 #include "game/ahRelocateSunPs2ObjectArry.h"
 #include "game/sound.h"
 #include "game/ssSetTexUVforCubeMap.h"

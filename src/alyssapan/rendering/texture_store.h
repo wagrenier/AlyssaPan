@@ -31,7 +31,7 @@ public:
     // its source the same way (SKILL.md "The user's rules").
     std::shared_ptr<Image> imageOfTim2(const void *file, int picture);
 
-    // CT3's own textures (game/QuatSlerp.h SUN_TEX_ATTR, 2026-11-11): level 0 as raw GS pixels in `psm`'s
+    // CT3's own textures (game/BRANCH_CLEAR.h SUN_TEX_ATTR, 2026-11-11): level 0 as raw GS pixels in `psm`'s
     // order, `width` x `height`, read through a (1 << tw) x (1 << th) frame; `clut` the CT32 CLUT TEX0.CBP
     // picks (CSM1 for 8-bit), null for a direct format. Decoded during the call, keyed on the content like a
     // TIM2 picture. Null for a format not read (ct3pack.py's decode_tex reads the same five).

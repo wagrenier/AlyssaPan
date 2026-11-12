@@ -141,7 +141,7 @@ static_assert(sizeof(GA_FOGCTRL_DATA) == 0x50, "GA_FOGCTRL_DATA");
 static_assert(offsetof(GA_FOGCTRL_DATA, fog) == 0x40, "GA_FOGCTRL_DATA.fog");
 
 // ---- textures (gaSetupTBufferData / gaBGT_LoadGSTexClutData_VIF1; no caller in the ROM: the game uses
-// its own sun* copies, QuatSlerp.c) --------------------------------------------------------------------
+// its own sun* copies, BRANCH_CLEAR.c) --------------------------------------------------------------------
 #define GA_MIP_LEVELS 7                 /* level 0 and MIPTBP1 / MIPTBP2's six */
 #define GA_CLUTS 8
 

@@ -14,7 +14,7 @@
 
 #include "common/alyssapan_stub.h"
 #include "game/ArtoolDebugOpen.h"
-#include "game/QuatSlerp.h"
+#include "game/BRANCH_CLEAR.h"
 #include "game/Clipping_Portal.h"
 #include "game/SdMasterVolumeSetSE.h"
 #include "game/AlignedNum.h"

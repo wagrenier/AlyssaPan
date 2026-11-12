@@ -78,7 +78,7 @@ static_assert(offsetof(PIA_KEY, h0c) == 0xc, "PIA_KEY.h0c");
 // ---- vibration (the triggers' strength variables; TRIG_EVENT_PANIC_VIBRATE is the "vibration on" event)
 #define TRIG_VAR_VIB_LIGHT 0x46         /* asDualShockVibrationOn_Light's strength */
 #define TRIG_VAR_VIB_MIDIUM 0x47        /* asDualShockVibrationOn_Midium's strength */
-/* TRIG_VAR_PANIC_VIBRATE (0x49, QuatSlerp.h) is asDualShockVibrationOn_SuperLarge's strength */
+/* TRIG_VAR_PANIC_VIBRATE (0x49, BRANCH_CLEAR.h) is asDualShockVibrationOn_SuperLarge's strength */
 #define SE_KAKOKYU 0x3d                 /* SSPlaySE / SSStopSE's id for the breath ("c_0000") */
 
 // ---- Alyssa's hit reactions (asChangeAlyssaMortionByHiting / _ByHirumi) ------------------------------

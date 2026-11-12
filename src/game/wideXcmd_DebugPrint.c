@@ -3,7 +3,7 @@
 // move, panic, the motion request queue). 109 functions; tumap.py keyed the file by its first function,
 // and the as* run is probably its own object (or several): the slices that read them decide.
 //
-// Slice 1 (2026-11-10): asCharacterOperate (main's and QuatSlerp's per-frame call), the vibration
+// Slice 1 (2026-11-10): asCharacterOperate (main's and BRANCH_CLEAR.c's per-frame call), the vibration
 // helpers, Alyssa's hit reactions (Hiting, Hirumi), the key enable, the motion request queue, asClearBehaviorChangeFlag and the empty functions.
 // Slice 2 (2026-11-10): the positioning (asCharacterPositioning, as1CharacterPositioning, the pause
 // review, asResetCharacterRotation), the panic / barrier / lock states, the lever mash, the monster
@@ -37,7 +37,7 @@
 #include "common/alyssapan_stub.h"
 #include "game/Clipping_Portal.h"
 #include "game/LinkMatrixTree.h"
-#include "game/QuatSlerp.h"
+#include "game/BRANCH_CLEAR.h"
 #include "game/ahRelocateSunPs2ObjectArry.h"
 #include "game/asMothOperate.h"
 #include "game/asMothRouteSearch.h"

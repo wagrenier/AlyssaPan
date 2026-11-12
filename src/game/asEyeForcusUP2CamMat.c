@@ -17,7 +17,7 @@
 #include "ga/gaInit3dlib.h"
 #include "ga/gaSinCos.h"
 #include "game/LinkMatrixTree.h"
-#include "game/QuatSlerp.h"
+#include "game/BRANCH_CLEAR.h"
 #include "game/ahRelocateSunPs2ObjectArry.h"
 #include "game/fileio.h"
 #include "game/main.h"

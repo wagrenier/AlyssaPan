@@ -22,7 +22,7 @@
 #include "game/ssGrpPortalCheck.h"
 #include "game/fileio.h"
 #include "game/ArtoolDebugOpen.h"
-#include "game/QuatSlerp.h"
+#include "game/BRANCH_CLEAR.h"
 #include "game/main.h"
 #include "game/unassigned_data.h"
 #include "sdk/libgraph.h"

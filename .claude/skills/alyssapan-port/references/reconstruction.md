@@ -20,6 +20,20 @@ below; anything here that CT3 proves wrong is fixed here.
   `static_assert`ed EE offsets, as everywhere.
 - **Name the patterns** applies in full: CT3's flags, modes and kinds become `enum`s or `#define`s as the
   code is read (SKILL.md "The user's rules").
+- **Splitting a TU map object (2026-11-11, QuatSlerp.c; architecture.md "The TU map").** Evidence first,
+  strongest first: (1) `py seams.py <lo> <hi>` -- per function, the locals it references with their symtab
+  indices and MW counters; **if the symtab indices of the range's locals form one run whose addresses
+  interleave, it is one object** (test the cuts as tumap.py's chunks do: a cut between two objects keeps
+  every subsection's addresses sorted across it); (2) `py databands.py <section lo> <hi> --fn <lo> <hi>` --
+  the data the range uses in address order with its users: `.rodata` strings rise with the source order,
+  `.sdata` statics fall with it, so a band that turns back is a seam; (3) a source string; (4) names, only
+  for functions with no local at the edges. Then move code unchanged: `git mv` the file to the larger
+  object's key (history follows), cut the small object's functions into a new file, keep the old header
+  as an include of the new one where callers need both, `tus.py define` both ranges with the evidence,
+  copy the old entry's notes and sessions in tus.json to the new key, rebuild, smoke-run, compare the
+  shot with the last run's `progress/` picture. **The `@<n>` numbers alone do not order an object's
+  functions** (strings and float pools are numbered on different passes; they also repeat across
+  objects, hazards.md).
 
 How a function goes from Ghidra into `src/`. Accuracy to the ROM beats elegance: this is a
 reconstruction, not a rewrite. The rules come from ReiPan (FF3, GCC 3, ported from FF2's code) and

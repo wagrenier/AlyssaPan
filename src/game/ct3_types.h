@@ -412,7 +412,7 @@ typedef struct ALL_TABLE {
     u_int distAtten;                    /* 0x80: DIST_ATTEN[] (DistanceAttenuationUpdate), 0 = none */
     u_int angleAtten;                   /* 0x84: ANGLE_ATTEN[] (AngleAttenuationUpdate), 0 = none */
     u_int lensFlares;                   /* 0x88: list of LENS_FLARE (Clipping_Portal.h): tiLensFlaresInit, tiDrawLensFlares */
-    u_int texFileSet;                   /* 0x8c: TEX_FILE_SET_TABLE (QuatSlerp.h: the paged textures), 0 = none */
+    u_int texFileSet;                   /* 0x8c: TEX_FILE_SET_TABLE (BRANCH_CLEAR.h: the paged textures), 0 = none */
     u_int hurikoHits;                   /* 0x90: list of HURIKO_HIT (Clipping_Portal.h): tiHurikoInit points them
                                            at their parts, tiHurikoHitUpdate carries them */
     u_int pad94;
@@ -615,8 +615,8 @@ static_assert(sizeof(FOG_INFO) == 0x40, "FOG_INFO");
 static_assert(offsetof(FOG_INFO, charaFog) == 0x28, "FOG_INFO.charaFog");
 
 // A texture of a draw list entry (DRAW_OBJ_ENTRY.tex). layout: ee (2026-11-10): bank data, tim an EE
-// word (BANK_PTR). tim is a SUN_TEX_ATTR (QuatSlerp.h). The words after it are sunSetupTBufferData's
-// arguments, passed by value (2026-11-10, QuatSlerp.c slice 3): where the texture sits in GS memory, its
+// word (BANK_PTR). tim is a SUN_TEX_ATTR (BRANCH_CLEAR.h). The words after it are sunSetupTBufferData's
+// arguments, passed by value (2026-11-10, BRANCH_CLEAR.c slice 3): where the texture sits in GS memory, its
 // CLAMP_1 and TEX0's function.
 typedef struct TEX_INFO {
     u_int tim;                          /* 0x00: EE address of the SUN_TEX_ATTR; 0 = none */
@@ -851,7 +851,7 @@ static_assert(offsetof(PART_BLUR_OBJ, listIndex) == 0x110, "PART_BLUR_OBJ.listIn
 
 // A screen filter's fade (DemoFilterChangeWork, FilterChangeWork: 0x28 bytes): a full-screen quad of one
 // colour, A R G B in [0..3]. Each frame current moves 1/timer of the way to target and timer counts down
-// (QuatSlerp.c's *ScreenFilter, 2026-11-10: +0x08 is the target, +0x18 what is drawn).
+// (BRANCH_CLEAR.c's *ScreenFilter, 2026-11-10: +0x08 is the target, +0x18 what is drawn).
 typedef struct FILTER_CHANGE_WORK {
     short active;                       /* 0x00: FILTER_* bits (0: off) */
     short mode;                         /* 0x02: FILTER_MODE_* */

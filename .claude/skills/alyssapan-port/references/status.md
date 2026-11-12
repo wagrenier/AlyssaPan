@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-11 22:22 at commit `f4fca8f` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-11 22:33 at commit `57c84aa` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -13,7 +13,7 @@ Generated 2026-11-11 22:22 at commit `f4fca8f` by `tools/reverse/status.py` (`re
 - game functions: **1814**, named **1811** (100%); library functions: 814
 - by provenance: game-symbol 2621, lib-match 0, lib-match-low 0, lib-context 0, game-inferred 4
 - context-name ledger: 3 entries; overrides of wrong library matches: 0
-- placed in a source file: 1814/1814 in 64 files
+- placed in a source file: 1814/1814 in 65 files
 
 Least-named game-code regions (64 KB blocks):
 
@@ -23,7 +23,7 @@ Least-named game-code regions (64 KB blocks):
 | `018b0000` | 146/147 (99%) | game/Character_Init.c, game/movie.c, game/AA_SoundMonoSoart.c |
 | `01830000` | 39/39 (100%) | game/main.c, game/ahalloc.c, game/ahRelocateSunPs2ObjectArry.c |
 | `01840000` | 84/84 (100%) | game/ahRelocateSunPs2ObjectArry.c |
-| `01850000` | 200/200 (100%) | game/QuatSlerp.c, game/tiAvoidObject.c, game/ahRelocateSunPs2ObjectArry.c |
+| `01850000` | 200/200 (100%) | game/BRANCH_CLEAR.c, game/tiAvoidObject.c, game/ahRelocateSunPs2ObjectArry.c |
 | `01860000` | 113/113 (100%) | game/tiAvoidObject.c, game/tiBrain_ChgTrace_BOSS_BALOWS.c, game/asUseArrow.c |
 | `01870000` | 82/82 (100%) | game/tiBrain_ChgTrace_BOSS_BALOWS.c, game/tiBrain_ChgTrace_Ghost.c, game/ssBrain_ChgHideAtk1.c |
 | `01880000` | 103/103 (100%) | game/Clipping_Portal.c, game/asEyeForcusUP2CamMat.c, game/ssBrain_ChgHideAtk1.c |
@@ -56,6 +56,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/AA_videoCallback.c` | 0 | 11 |
 | `src/game/AlignedNum.c` | 4 | 0 |
 | `src/game/ArtoolDebugOpen.c` | 15 | 0 |
+| `src/game/BRANCH_CLEAR.c` | 184 | 0 |
 | `src/game/Character_Init.c` | 48 | 1 |
 | `src/game/Clipping_Portal.c` | 73 | 0 |
 | `src/game/Convert.c` | 0 | 2 |
@@ -63,7 +64,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/IOPGetFileSize.c` | 4 | 0 |
 | `src/game/LinkMatrixTree.c` | 4 | 0 |
 | `src/game/PicPaz.c` | 9 | 0 |
-| `src/game/QuatSlerp.c` | 189 | 0 |
+| `src/game/QuatSlerp.c` | 5 | 0 |
 | `src/game/RotateCamera.c` | 0 | 2 |
 | `src/game/SdMasterVolumeSetSE.c` | 61 | 0 |
 | `src/game/ahRelocateSunPs2ObjectArry.c` | 93 | 0 |
@@ -97,9 +98,10 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 64 TUs: todo 25, partial 4, verify 36, done 8, blocked 1
+- 65 TUs: todo 25, partial 5, verify 36, done 8, blocked 1
 - next: **game/ssHitCheckAttackToScn.c** (pinned in the queue)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
+- partial: `game/BRANCH_CLEAR.c` 173/173 -- 15 s smoke run: no fault, shot black (no host draw module yet). callcheck: GetAreaFloor's memcmp and ssTrigRemoveEvent come through ROOM_IS and AreaFloorClear (
 - partial: `game/ssHitCheckAttackToScn.c` 13/37 -- Left in the slice: ssCollisionCheck, ssColCheckChar_Chara, ssMakeCharOBB, ssDivideHitDataToSpaceCell, ssHitCheckAndProcess, ssGetCharSpaceCell, ssAddHitDataToCh
 - partial: `game/tiXcmd_TransItem.c` 85/93 -- Slice 10. Written: tiXcmd_UseItem (ITEM_USE_* modes from argv[4], ITEM_KIND_* from the row byte +0: give-take, signal, heal Character[0].hp up to hpMax, calm vi
 - partial: `game/wideXcmd_TriggerInit.c` 1/46 -- Title draws at 4:3 and 16:9 after 40 s (logo, 3, menu, copyright). Fix in SunTexEePtr, BankOfEeAddr, HitObjectId: free slot banks shared EE addresses with the G
@@ -121,7 +123,7 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/IOPGetFileSize.c` 4/4 -- All 4 functions written. No host server answers FSYS_IOP SUNA yet (sif.cpp answers zeros), so a loose file's size reads 0: a host FSYS_IOP server on io::Disc is
 - verify: `game/LinkMatrixTree.c` 4/4 -- Code complete, nothing on screen shows it yet: the smoke run still crashes at main.c 2106 (ActressMP NULL, the known blocker) and the shot stays black. LinkMatr
 - verify: `game/PicPaz.c` 9/10 -- The smoke run passes aaXcmd_MovieFedeOutCancel: both title movies start and are skipped; the shot stays flat grey since TITL draws nothing yet (title_trace.cpp 
-- verify: `game/QuatSlerp.c` 177/177 -- 15 s smoke run: no fault, shot black (no host draw module yet). callcheck: GetAreaFloor's memcmp and ssTrigRemoveEvent come through ROOM_IS and AreaFloorClear (
+- verify: `game/QuatSlerp.c` 4/4 -- Evidence (architecture.md The TU map, The split of QuatSlerp.c; tools seams.py, databands.py): the range's 75 locals are symtab 1088..1162, one hash-ordered run
 - verify: `game/SdMasterVolumeSetSE.c` 61/61 -- All 61 functions written. callcheck MISSING on SdLoadSQProc is its step helpers (SdLoadSQOpen/Read/Send/Command), as for SdLoadSEProc. ROM slips kept: step 6 pr
 - verify: `game/ahRelocateSunPs2ObjectArry.c` 93/93 -- All 93 functions written; nothing reaches the general body yet (the two written callers pass one flag each; asCharacterAnimationExecute and asResetCharacterPosi
 - verify: `game/ahalloc.c` 7/7 -- Host block header is 0x20 bytes (EE 0x10). SunAllocInit runs at boot; nothing calls _SunAlloc yet. AlignedNum is a stub answering 0, so game/AlignedNum.c is que
@@ -143,14 +145,14 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-11 22:33 `game/BRANCH_CLEAR.c` partial: marked partial -> partial: split from game/QuatSlerp.c on 2026-11-11: one CodeWarrior object 0x01851f00..0x0185e9d0 (symtab locals 1088..1162 one inseparable ru
+- 2026-11-11 22:33 `game/QuatSlerp.c` verify: split game/QuatSlerp.c: the symtab proves 0x01851f00..0x0185e9d0 is one CodeWarrior object, now game/BRANCH_CLEAR.c (173 functions, code moved unchanged); QuatS
+- 2026-11-11 22:23 `game/BRANCH_CLEAR.c` partial: marked verify -> partial: the user, 2026-11-11: the TU is wrong, it holds many objects; split it (open-items.md TOP PRIORITY)
+- 2026-11-11 22:23 `game/QuatSlerp.c` partial: marked verify -> partial: the user, 2026-11-11: the TU is wrong, it holds many objects; split it (open-items.md TOP PRIORITY)
 - 2026-11-11 22:22 `game/ssHitCheckAttackToScn.c` partial: slice 1: ssProcessHit, the attack request queue, ssHitInit, ssTransHitDataL2W and ssTransScnDmgHitDataL2W, the collision-point helpers, ssHit_GetMaxIDFromAtkID 
 - 2026-11-11 22:09 `game/asXcmd.c` verify: all 20 x commands written: panic sources, moths, arrows, hit points, slow motion, camera quake / reset / look-around, attach, auto-aim, seek bars, motion by mot
 - 2026-11-11 21:55 `game/asMothRouteSearch.c` verify: MothInfo init and destroy, and the moth route search around scene collision; MothInfo moved out of unassigned data into MOTH_INFO
 - 2026-11-11 21:47 `game/asUseArrow.c` verify: slice 2: asArrowOperate (the arrow state machine: on the bow, charge, flight, hits, return; the trigger variables); the file is complete
-- 2026-11-11 21:35 `game/asUseArrow.c` partial: slice 1: 10 of 11 functions (arrow records, shoot, aim, state, lookups); ARROW and ARROW_INFO types; HIT_TABLE object hits
-- 2026-11-11 21:26 `game/tkXDTrg_GetSceneHash.c` verify: slice 4: tkXDTrg_ActorProc_Ini, the old-form door record that finds its camera cut and parts by name (Cam_Dor, TDS_Dor, CP_Dor, HT_Dor, SE_Dor plus the room and
-- 2026-11-11 21:20 `game/tkXDTrg_GetSceneHash.c` partial: slice 3: the DoorTrigger x command and its actor dispatcher (code parser, scene heads, door records), the Ini_New and IniMon parsers, Alyssa's door open and clo
-- 2026-11-11 21:08 `game/tkXDTrg_GetSceneHash.c` partial: slice 2: the door actor procs (AnimToFrameDoor, AnimRangeDoor, ChangeCamera, CmnClo, the ScW / ScM / Axe / Vit / Ham Opn, OpnOut and Clo, Sht, HitPtl, AlsCam, I
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|

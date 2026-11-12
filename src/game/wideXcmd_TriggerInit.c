@@ -4,7 +4,7 @@
 #include "common/alyssapan_stub.h"
 #include "game/wideXcmd_TriggerInit.h"
 #include "game/Character_Init.h"
-#include "game/QuatSlerp.h"
+#include "game/BRANCH_CLEAR.h"
 #include "game/asMothPause.h"
 #include "game/sound.h"
 #include "game/ssGrpPortalCheck.h"

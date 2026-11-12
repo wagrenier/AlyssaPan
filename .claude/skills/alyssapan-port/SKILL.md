@@ -136,7 +136,7 @@ examples stand). Not yet run against CT3: start with `python ghidra_mcp.py which
 | which Ghidra | `ghidra_mcp.py list / which / launch` |
 | queue, claim, brief, boundaries, check, finish | `tus.py` |
 | regenerate derived files | `refresh.py` (fetch + features, export, status) |
-| map code | `tumap.py` (the TU map from the symtab), `modview.py range\|tree`, `alyssapan_functions.txt`, `stage.py` |
+| map code | `tumap.py` (the TU map from the symtab), `seams.py` / `databands.py` (splitting an object: reconstruction.md "CT3"), `modview.py range\|tree`, `alyssapan_functions.txt`, `stage.py` |
 | name (rarely: the symtab names) | `ctxcard.py`, `name_ctx.py`, `hidden.py`, `codeptrs.py`, `libmatch.py` (cross-check) |
 | read code | `stage.py`, `dec.py`, `ghidra.py`, `mipsdis.py`, `vudis.py` (the `.vutext` microcode), `mipsemu.py`, `eerun.py`, `sinit.py` |
 | game data | `datadump.py`, `tm2png.py`, readers written as needed (CT3PACK.DAT first) |

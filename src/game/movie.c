@@ -4,7 +4,7 @@
 //
 // A scene script calls AA_OpenMovie(movie, caption, skip) (the names, and the caption file read from
 // data/caption/ to EE 0x200000), then AA_PlayMovieReady; main's frame loop calls AA_MovieProc, which runs
-// PlayMovie (QuatSlerp.c) -> AA_StartMovie. That waits for the file system, picks 20 of banks 6..85 for
+// PlayMovie (BRANCH_CLEAR.c) -> AA_StartMovie. That waits for the file system, picks 20 of banks 6..85 for
 // the decoder's six memory blocks (AA_MovieUseBank; AA_AutoBank_Seelect drops scene banks to make room),
 // resets the GS for a 512 x 448 movie frame and plays data/movie1..3/<name> through AA_movie.
 //
@@ -24,7 +24,7 @@
 #include "game/ArtoolDebugOpen.h"
 #include "game/Character_Init.h"
 #include "game/Clipping_Portal.h"
-#include "game/QuatSlerp.h"
+#include "game/BRANCH_CLEAR.h"
 #include "game/ahalloc.h"
 #include "game/copy2area.h"
 #include "game/ct3_types.h"

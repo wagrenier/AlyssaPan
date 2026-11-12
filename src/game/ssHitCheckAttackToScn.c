@@ -12,7 +12,7 @@
 #include "game/ahRelocateSunPs2ObjectArry.h"
 #include "game/fileio.h"
 #include "game/main2.h"
-#include "game/QuatSlerp.h"
+#include "game/BRANCH_CLEAR.h"
 #include "game/unassigned_data.h"
 #include "game/wideXcmd_DebugPrint.h"
 

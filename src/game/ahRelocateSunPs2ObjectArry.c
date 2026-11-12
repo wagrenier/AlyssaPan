@@ -15,7 +15,7 @@
 #include "ga/gaSinCos.h"
 #include "game/Convert.h"
 #include "game/LinkMatrixTree.h"
-#include "game/QuatSlerp.h"
+#include "game/BRANCH_CLEAR.h"
 #include "game/ahalloc.h"
 #include "game/fileio.h"
 #include "game/main.h"
@@ -3610,7 +3610,7 @@ void asDrawShadowVolumeInit(void)
 // buffers set up once and sent, then the clear sprite under gaDC_EBclear_B.
 // PORT: sunSetupTBufferData's TEX_INFO.tim is the EE address of tex_attr_A$2750 (data 0x01937c80:
 // 512 x 448, log2 9 x 9, +0x18 0x000e0000 -- the shadow buffer read as a texture); sunSetupTBufferData
-// (QuatSlerp.c) keeps the host copy and resolves the word.
+// (BRANCH_CLEAR.c) keeps the host copy and resolves the word.
 void asShadowStart(void)
 {
     asSD_BackBufferAdd = ga_draw_fbuf_address;

@@ -7,7 +7,7 @@
 #include "game/ahalloc.h"
 #include "game/hhXcmd_DressUp.h"
 #include "game/LinkMatrixTree.h"
-#include "game/QuatSlerp.h"
+#include "game/BRANCH_CLEAR.h"
 #include "game/ssGrpPortalCheck.h"
 #include "game/ssHitCheckAttackToScn.h"
 #include "game/tiXcmd_TransItem.h"
