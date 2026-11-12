@@ -1660,6 +1660,15 @@ apply here):
 
 ## Open questions
 
+- (2026-11-11, game/tkXDTrg_GetSceneHash.c slice 1) **To confirm when the door actors are read:** the
+  meaning of door events 600.. / 700.. (DOOR_FLAG_600 / _700, cleared with OPEN by tkXcmd_DoorFlagClear);
+  DTrgHed +0 / +7 / +8 and the DTrgPraDor fields CloseCancel clears (named by offset); SCN_ENTRY +6 / +7
+  (0x28 / 0x03) and +0xc..0xf (branch 3), Lnk / DorExt / DorPol (copied raw). WaitUntil answering 1 (done)
+  when its comparison FAILS is the ROM's (disassembly-checked): if the scripts read as "wait while", fine;
+  if a smoke run hangs on one, look here first. PORT: tkBri_DoorDraw's neighbour searches are bounded to
+  its 8 slots and its name buffers widened to 16 (the ROM's strcat into a 4-byte local overruns it).
+  tkBri_DoorDraw reads Character[0].roomHash (the ROM's literal slot 0, not Player_BankID).
+
 - (2026-11-11, game/tiXcmd_TransItem.c slice 7) **Named from one use, to confirm where they are read:**
   CHARA_JUNC +0x00 `poleCount` and +0x0c `poles` (was `buf`: u_int[poleCount] EE addresses of the
   ghost poles' part positions, tiXcmd_SetGhostPole; the ghost AI that reads them is unread);

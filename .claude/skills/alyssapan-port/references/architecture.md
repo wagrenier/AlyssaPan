@@ -1044,6 +1044,34 @@ Ticks$892.
   Init_SPAttack_SCISSORS_MAN store part addresses (EE words) and _SunAlloc'd lists at +0x130 / +0x134 /
   +0x13c / +0x140 (+0xc4 the warp count); End_SPAttack frees with _SunFree(heap, &word) (it clears them).
 
+## Branches, scenes and doors, game/tkXDTrg_GetSceneHash.c (2026-11-11, slice 1)
+
+0x018e90a0..0x018ee5f0 (50 functions): the door triggers (tkXDTrg_*), the door bridge draw (tkBri_*),
+the branch scene tables and a few tk x commands.
+- **Branches**: global variable 0x1d (TRIG_VAR_BRANCH, tk_GetBranchNo: < 1 reads as 1) picks a row of
+  **ScnTbl** (.rodata 0x0193b860, 6 rows of 0x1c: scene table, Lnk, door table, DorExt, DorPol, Nx2, u16
+  scene count; row 0 = branch 1 without its Ext / Pol). Scene counts 49 / 31 / 20 / 30 / 5. All the
+  Br<n>* / ScnBr<n>Tbl tables sit at 0x0193a970..0x0193b860 (symtab GLOBALs) and are copied into the TU as
+  host initializers (a one-off generator over elf32.py; datadump.py does each table alone).
+- **Scenes** (0x10 each): u32 room hash (GetRoomName_file, compared zero-extended with the u_long hash),
+  then (first, count) byte pairs into Lnk (+4), the door table (+8) and Nx2 (+0xa); +6 / +7 are 0x28 / 0x03
+  in every row seen; +0xc..0xf zero except in branch 3. tkScn_GetId = the room's index in the branch.
+- **Doors** (2 bytes): the door's flag (global event 500 + flag = open, DOOR_FLAG_OPEN) and the scene
+  behind it. Events 600.. and 700.. are two more runs of 99 (tkXcmd_DoorFlagClear clears all three in a
+  save's flags; SceneDoorFlagClear removes a scene's OPEN events).
+- **tkBri_DoorDraw(mode)** (x command SceneDraw "0" / "1" / "2"), for Character[0]'s room: the distinct
+  scenes behind its doors (<= 8); OPEN draws each one behind an open door not drawn yet
+  (TrgSceneDraw(1, idCurrentScene, part "LP_<scene name>" lower case in the current scene, name, its
+  bank)); CLOSE drops each drawn one no open door leads to; both drop the Nx2 scenes (two doors away).
+  Dropping = TrgSceneDraw(0, 0, 0, name, bank) + tkXDTrg_CloseCancel(bank). tkBri_DoorDraw_GetBnkId =
+  the loaded BANK_TYPE_SHADOW (scene) bank whose file names the room.
+- **Door-trigger state**: DTrgHed (0x019448a0, 8 heads of 0xc: +4 the scene bank, -1 free; +6 the first
+  DTrgPraDor record of its chain) and the DTrgPraDor pool (0x01c8c530, 32 x 0x84, a free list through +3
+  from DTrgPraDorTop). tkXDTrg_CloseCancel(bank) clears +0x10..0x18, +0x22..0x26, +0x2b..0x2d of the chain.
+- **WaitUntil** (tkXcmd_WaitUntil = j tkXcmdS_WaitUntil): operands (number, letters: n literal, v variable,
+  f flag, g / t scope) and an operator of '>' '<' '!' '='; it answers 1 when the named comparison fails
+  (disassembly-checked), and the character count for an operator it does not know.
+
 ## The IOP side (2026-11-09)
 
 The EE loads `cdrom0:\IOP\IOPRP255.IMG;1` (an IOP reboot), then `SIO2MAN`, `PADMAN`, `MCMAN`, `MCSERV`,
