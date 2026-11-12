@@ -1704,6 +1704,21 @@ apply here):
   their names -- the trigger TU's names may be wrong; (c) CHARACTER_FLAG_AI_PARKED (0x02000000), set by
   MemLoadInit and BrainEnd with the park position (1e7, -1e7, 0); (d) MemLoadInit drops a stalker's brain
   without freeing it (the ROM's): the host also clears its CharaBrainHost slot.
+  **Slice 2 (2026-11-12) partial**: the hide poles and the scene init (10 functions): ssAI_SceneInit,
+  _TransAllPoleData, _GetPolePos, _GetPoleGroupID, _GetPoleScnName, _GetPoleScnBnkID, _GetShadowPolID,
+  _GetPairScnLinkPoleID, _CheckPoleFlg, _IsGetShadowPol. HIDE_POLE / HIDE_POLE_LIST moved from
+  wideXcmd_TriggerInit.c to tiAvoidObject.h and filled in (ends A / B local and world, room word, pair,
+  group, flags, shadowPol). Doubts: (e) HIDE_POLE +0x4a was `id` (SetHideAttackPole's number) and is the
+  part index TransAllPoleData moves the pole with: renamed `parts`, so the script names a pole by its model
+  part -- confirm from a bank's data; (f) HIDE_POLE_FLAG_SEGMENT 0x02, _SHADOW 0x10, _SCN_LINK 0x20 and
+  AI_BANK_NONE 0xfe named from these uses; (g) ssAI_SceneInit moves each group portal with a matrix whose EE
+  address sits at MODEL_PARTS +0xcc (initRot[0] w, PARTS_PORTAL_MATRIX; the ROM reads it as a float word)
+  and resolves it in the scene bank with BankEePtr: if the address lies outside the bank image (a global
+  matrix), the host reads garbage -- check on the first scene that has group portals; GRP_PORTAL +0x00 /
+  +0x80 are now localCorners / localNormal. Next: ssAI_main and charaMain, CompCharaDir,
+  SetPanicGaugeAndBGMVol, the motion predicates (IsBend / IsDown / IsDamage / IsReturn / IsRotation), the
+  hearing / hide / door checks, SetMonsterPos, LetMonsterInFromShadow, PanicSet, then BrainEnd, MonsterDraw,
+  AxeThrowReset.
 
 - (2026-11-12, game/wideXcmd_TriggerInit.c slice 6) **code complete, verify**: test_ssXcmd_BrainSet4, the
   last stub. **(1 am) decided, Claude's call (the user may overrule):** CHARACTER.brain stays the EE word

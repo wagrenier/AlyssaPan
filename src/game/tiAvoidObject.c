@@ -17,6 +17,7 @@
 #include "game/unassigned_data.h"
 #include "game/wideXcmd_DebugPrint.h"
 #include "game/wideXcmd_TriggerInit.h"
+#include "ga/gaInit3dlib.h"
 
 #include <string.h>
 
@@ -222,18 +223,156 @@ void ssAI_CountAppearanceTimer(void)
     }
 }
 
+// ---- slice 2 (2026-11-12): the hide poles and the scene init ----
+
+// The bank's hide poles (ALL_TABLE.hidePoles: { records, count }, relocated bank data).
+static HIDE_POLE_LIST *ssAI_PoleList(int bank)
+{
+    return BANK_PTR(HIDE_POLE_LIST *, bank, All_table_TBL[bank]->hidePoles);
+}
+
+static HIDE_POLE *ssAI_Pole(int pole, int bank)
+{
+    return BANK_PTR(HIDE_POLE *, bank, ssAI_PoleList(bank)->poles) + pole;
+}
+
+// The VU0 macro sequence vmulax / vmadday / vmaddaz / vmaddw: out = m[0]*x + m[1]*y + m[2]*z + m[3]*w.
+static void ssAI_ApplyMatrix(float *out, const float (*m)[4], const float *v)
+{
+    float r[4];
+    int i;
+
+    for (i = 0; i < 4; i++)
+        r[i] = m[0][i] * v[0] + m[1][i] * v[1] + m[2][i] * v[2] + m[3][i] * v[3];
+    memcpy(out, r, sizeof(r));
+}
+
+// CT3 0x018641e0: every hide pole's ends into the world with its part's world matrix.
+void ssAI_TransAllPoleData(int bank)
+{
+    HIDE_POLE_LIST *list = ssAI_PoleList(bank);
+    HIDE_POLE *poles = BANK_PTR(HIDE_POLE *, bank, list->poles);
+    int i;
+
+    for (i = 0; i < list->count; i++) {
+        HIDE_POLE *p = &poles[i];
+        MODEL_PARTS *part = (MODEL_PARTS *)(pModelPartsHeader[bank] + p->parts * PARTS_REC_SIZE);
+        ssAI_ApplyMatrix(p->posA, (const float (*)[4])part->matrix, p->localA);
+        ssAI_ApplyMatrix(p->posB, (const float (*)[4])part->matrix, p->localB);
+    }
+}
+
+// CT3 0x01863010: the pole's position: end A, or the middle of A and B for a segment.
+void ssAI_GetPolePos(float *pos, int pole, int bank)
+{
+    HIDE_POLE *p = ssAI_Pole(pole, bank);
+
+    if ((p->flags & HIDE_POLE_FLAG_SEGMENT) == 0)
+        memcpy(pos, p->posA, sizeof(p->posA));
+    else
+        gaInterVectorXYZ(pos, p->posA, p->posB, 0.5f);
+}
+
+// CT3 0x01862f20
+short ssAI_GetPoleGroupID(int pole, int bank)
+{
+    return ssAI_Pole(pole, bank)->group;
+}
+
+// CT3 0x01862830
+u_int ssAI_GetPoleScnName(int pole, int bank)
+{
+    return ssAI_Pole(pole, bank)->room;
+}
+
+// CT3 0x01862860: the loaded scene bank of the pole's room (the ROM returns ssAI_GetScnBankID's answer as
+// a char: -1 stays -1).
+s_char ssAI_GetPoleScnBnkID(int pole, int bank)
+{
+    return (s_char)ssAI_GetScnBankID(ssAI_Pole(pole, bank)->room);
+}
+
+// CT3 0x018628b0: the first shadow pole of the bank on shadow polygon shadowPol; -1 for none.
+short ssAI_GetShadowPolID(s_char shadowPol, int bank)
+{
+    HIDE_POLE_LIST *list = ssAI_PoleList(bank);
+    HIDE_POLE *poles = BANK_PTR(HIDE_POLE *, bank, list->poles);
+    short i;
+
+    for (i = 0; i < list->count; i++) {
+        if ((poles[i].flags & HIDE_POLE_FLAG_SHADOW) != 0 && shadowPol == poles[i].shadowPol)
+            return i;
+    }
+    return -1;
+}
+
+// CT3 0x01862c40: the pole a scene link pairs this one with, -1 when the pair is not a scene link.
+short ssAI_GetPairScnLinkPoleID(short pole, int bank)
+{
+    short pair = ssAI_Pole(pole, bank)->pair;
+
+    if ((ssAI_Pole(pair, bank)->flags & HIDE_POLE_FLAG_SCN_LINK) == 0)
+        pair = -1;
+    return pair;
+}
+
+// CT3 0x018600a0
+int ssAI_CheckPoleFlg(short pole, int bank, u_char flag)
+{
+    return (flag & ssAI_Pole(pole, bank)->flags) != 0;
+}
+
+// CT3 0x0185ff40: 1 when the bank has a shadow pole on shadow polygon shadowPol (0 for no bank).
+int ssAI_IsGetShadowPol(u_char shadowPol, int bank)
+{
+    if (bank < AI_BANK_NONE) {
+        HIDE_POLE_LIST *list = ssAI_PoleList(bank);
+        HIDE_POLE *poles = BANK_PTR(HIDE_POLE *, bank, list->poles);
+        short i;
+
+        for (i = 0; i < list->count; i++) {
+            if ((poles[i].flags & HIDE_POLE_FLAG_SHADOW) != 0 && shadowPol == poles[i].shadowPol)
+                return 1;
+        }
+    }
+    return 0;
+}
+
+// CT3 0x018660a0: a scene bank loaded: its hide poles into the world, then each group portal's quad,
+// normal and plane distance from its part's matrix (PARTS_PORTAL_MATRIX).
+void ssAI_SceneInit(int scene)
+{
+    u_int *portals;
+    int i;
+
+    if (BankInfo[scene].type == BANK_TYPE_SHADOW)
+        ssAI_TransAllPoleData(scene);
+    if (BankInfo[scene].type != BANK_TYPE_SHADOW)
+        return;
+    portals = BANK_PTR(u_int *, scene, All_table_TBL[scene]->groupPortals);
+    for (i = 0; portals[i] != 0; i++) {
+        GRP_PORTAL *gp = BANK_PTR(GRP_PORTAL *, scene, portals[i]);
+        u_int matEE;
+        const float (*m)[4];
+
+        memcpy(&matEE, pModelPartsHeader[scene] + gp->part * PARTS_REC_SIZE + PARTS_PORTAL_MATRIX,
+               sizeof(matEE));
+        m = BANK_PTR(const float (*)[4], scene, matEE);
+        ssAI_ApplyMatrix(gp->normal, m, gp->localNormal);
+        ssAI_ApplyMatrix(gp->corners[0], m, gp->localCorners[0]);
+        ssAI_ApplyMatrix(gp->corners[1], m, gp->localCorners[1]);
+        ssAI_ApplyMatrix(gp->corners[2], m, gp->localCorners[2]);
+        ssAI_ApplyMatrix(gp->corners[3], m, gp->localCorners[3]);
+        gp->dist = gaInnerProductXYZ(gp->normal, gp->corners[0]);
+    }
+}
+
 // ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x01863ed0
 void ssAI_main(void)
 {
     ALYSSAPAN_STUB("ssAI_main", 0x01863ed0);
-}
-
-// stub of CT3 0x018660a0
-void ssAI_SceneInit(int scene)
-{
-    ALYSSAPAN_STUB("ssAI_SceneInit", 0x018660a0);
 }
 
 // stub of CT3 0x01865e20

@@ -256,25 +256,10 @@ void ssAI_AXE_Init(void)
 
 // ---- the stalkers' AI (2026-11-12, slice 2) ----
 
-// The script's bank's hide poles (ALL_TABLE +0xc4: { records, count }, 0x50 bytes each).
-typedef struct HIDE_POLE {
-    u_char pad00[0x48];
-    u_char flags;                       /* 0x48: HIDE_POLE_FLAG_* */
-    u_char pad49;
-    short id;                           /* 0x4a: the number SetHideAttackPole names */
-    u_char pad4c[4];
-} HIDE_POLE;
-static_assert(sizeof(HIDE_POLE) == 0x50, "HIDE_POLE");
-static_assert(offsetof(HIDE_POLE, id) == 0x4a, "HIDE_POLE.id");
-typedef struct HIDE_POLE_LIST {
-    u_int poles;                        /* 0x0: HIDE_POLE[count] (EE address in the bank) */
-    int count;                          /* 0x4 */
-} HIDE_POLE_LIST;
-static_assert(sizeof(HIDE_POLE_LIST) == 8, "HIDE_POLE_LIST");
-#define HIDE_POLE_FLAG_ATTACK 0x01      /* SetHideAttackPole: a stalker may strike from this pole */
+// The hide poles (HIDE_POLE, HIDE_POLE_LIST) are tiAvoidObject.h's (their owner, 2026-11-12).
 
-// CT3 0x018de410: "SetHideAttackPole <id>": every hide pole of the script's bank with that id flagged
-// HIDE_POLE_FLAG_ATTACK.
+// CT3 0x018de410: "SetHideAttackPole <id>": every hide pole of the script's bank whose part is that
+// number flagged HIDE_POLE_FLAG_ATTACK (the script names a pole by its model part).
 int ssXcmd_SetHideAttackPole(int argc, char **argv, int bank)
 {
     int id = atoi(argv[0]);
@@ -282,7 +267,7 @@ int ssXcmd_SetHideAttackPole(int argc, char **argv, int bank)
     HIDE_POLE *poles = BANK_PTR(HIDE_POLE *, bank, list->poles);
 
     for (int i = 0; i < list->count; i++) {
-        if (poles[i].id == id)
+        if (poles[i].parts == id)
             poles[i].flags |= HIDE_POLE_FLAG_ATTACK;
     }
     return XCMD_DONE;

@@ -49,9 +49,9 @@ static_assert(offsetof(TRIG_DETECTOR, roomHash) == 0x18, "TRIG_DETECTOR.roomHash
 // A group portal of a bank (ALL_TABLE.groupPortals: a NULL-terminated list of EE words; layout: ee). Its
 // quad is in world space; a character crossing it takes one of two room ids by the side it came from.
 typedef struct GRP_PORTAL {
-    u_char pad00[0x40];
+    float localCorners[4][4];           /* 0x00: the quad's corners in the part's space (ssAI_SceneInit) */
     float corners[4][4];                /* 0x40: the quad's corners (world) */
-    u_char pad80[0x10];
+    float localNormal[4];               /* 0x80: the plane's normal in the part's space */
     float normal[4];                    /* 0x90: the plane's normal (world) */
     float dist;                         /* 0xa0: the plane's distance: normal . p for a point on it */
     short part;                         /* 0xa4: its model part (PARTS_FLAG_HIDDEN switches it off) */

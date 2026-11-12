@@ -4,6 +4,9 @@
 
 #include "sdk/scetypes.h"
 
+#include <assert.h>
+#include <stddef.h>
+
 // ---- slice 1 (2026-11-12): the timers, the save image's part, the stalkers' kinds and motions ----
 // The timers count gNextTicksInterval ticks; the setters take units of 300 ticks (the scripts' numbers:
 // the global init's first wait is 0x78 of them). Which unit that is in seconds is open (open-items.md).
@@ -83,3 +86,49 @@ void ssAI_BrainFree(struct CHARACTER *chr);                                     
 // The first bank of BankInfo in state != 0, type 1, whose GetRoomName_file is roomHash (the low word of a
 // room hash, zero-extended); -1 for none.
 int ssAI_GetScnBankID(u_int roomHash);                                                   // CT3 0x01862770
+
+// ---- slice 2 (2026-11-12): the hide poles and the scene init ----
+// A scene bank's hide poles (ALL_TABLE.hidePoles -> HIDE_POLE_LIST; layout: ee, bank data): the places a
+// stalker hides at and comes out of. Each pole is a point, or a segment (HIDE_POLE_FLAG_SEGMENT) whose
+// middle is its position; ssAI_TransAllPoleData moves both ends into the world with the part's matrix.
+typedef struct HIDE_POLE {
+    float localA[4];                    /* 0x00: end A in the part's space */
+    float localB[4];                    /* 0x10: end B */
+    float posA[4];                      /* 0x20: end A in the world (ssAI_TransAllPoleData) */
+    float posB[4];                      /* 0x30: end B in the world */
+    u_int room;                         /* 0x40: the room the pole leads to (a GetRoomName_file word:
+                                           ssAI_GetPoleScnName, ssAI_GetPoleScnBnkID) */
+    short pair;                         /* 0x44: the pole at the other end of a scene link */
+    short group;                        /* 0x46: ssAI_GetPoleGroupID */
+    u_char flags;                       /* 0x48: HIDE_POLE_FLAG_* */
+    u_char shadowPol;                   /* 0x49: the shadow polygon's id (HIDE_POLE_FLAG_SHADOW) */
+    short parts;                        /* 0x4a: its model part (the matrix); SetHideAttackPole's number */
+    u_char pad4c[4];
+} HIDE_POLE;
+static_assert(sizeof(HIDE_POLE) == 0x50, "HIDE_POLE");
+static_assert(offsetof(HIDE_POLE, room) == 0x40, "HIDE_POLE.room");
+static_assert(offsetof(HIDE_POLE, flags) == 0x48, "HIDE_POLE.flags");
+static_assert(offsetof(HIDE_POLE, parts) == 0x4a, "HIDE_POLE.parts");
+typedef struct HIDE_POLE_LIST {
+    u_int poles;                        /* 0x0: HIDE_POLE[count] (EE address in the bank) */
+    int count;                          /* 0x4 */
+} HIDE_POLE_LIST;
+static_assert(sizeof(HIDE_POLE_LIST) == 8, "HIDE_POLE_LIST");
+#define HIDE_POLE_FLAG_ATTACK 0x01      /* SetHideAttackPole: a stalker may strike from this pole */
+#define HIDE_POLE_FLAG_SEGMENT 0x02     /* the position is the middle of A and B (ssAI_GetPolePos) */
+#define HIDE_POLE_FLAG_SHADOW 0x10      /* a shadow polygon's pole: shadowPol is valid */
+#define HIDE_POLE_FLAG_SCN_LINK 0x20    /* a scene link: pair is valid (ssAI_GetPairScnLinkPoleID) */
+#define AI_BANK_NONE 0xfe               /* ssAI_IsGetShadowPol: a bank at or above it has no poles */
+// MODEL_PARTS +0xcc (the w of initRot's first row): the EE address of the matrix a group portal's part
+// moves its quad with (ssAI_SceneInit). The ROM reads it as a float word; name from that one use.
+#define PARTS_PORTAL_MATRIX 0xcc
+
+void ssAI_TransAllPoleData(int bank);                                                    // CT3 0x018641e0
+void ssAI_GetPolePos(float *pos, int pole, int bank);                                    // CT3 0x01863010
+short ssAI_GetPoleGroupID(int pole, int bank);                                           // CT3 0x01862f20
+u_int ssAI_GetPoleScnName(int pole, int bank);                                           // CT3 0x01862830
+s_char ssAI_GetPoleScnBnkID(int pole, int bank);                                         // CT3 0x01862860
+short ssAI_GetShadowPolID(s_char shadowPol, int bank);                                   // CT3 0x018628b0
+short ssAI_GetPairScnLinkPoleID(short pole, int bank);                                   // CT3 0x01862c40
+int ssAI_CheckPoleFlg(short pole, int bank, u_char flag);                                // CT3 0x018600a0
+int ssAI_IsGetShadowPol(u_char shadowPol, int bank);                                     // CT3 0x0185ff40

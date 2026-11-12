@@ -1401,7 +1401,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 89..89, 13 functions keyed by their statics, 83 unkeyed; file name from the names"
   },
   "game/tiAvoidObject.c": {
-   "notes": "Next: ssAI_main and what it calls (CompCharaDir, charaMain, SetPanicGaugeAndBGMVol), SceneInit (TransAllPoleData, the pole matrices), BrainEnd (BrainEndSpecialProc, ssGetBankID, pModelPartsHeader +0x2f0 park), MonsterDraw, AxeThrowReset, and the predicates reading the motion table at +0x350. Open: open-items.md Open questions, tiAvoidObject.c slice 1 (timer unit 300 ticks, event and id names). Smoke shot: the same clock-tower title scene; nothing in this slice draws.",
+   "notes": "Next: ssAI_main and charaMain, CompCharaDir, SetPanicGaugeAndBGMVol, the motion predicates (IsBend, IsDown, IsDamage, IsReturn, IsRotation), the hearing, hide and door checks, SetMonsterPos, LetMonsterInFromShadow, PanicSet, then BrainEnd, MonsterDraw, AxeThrowReset. Open: open-items.md tiAvoidObject.c slice 2 (e) HIDE_POLE +0x4a is the part index, (g) the group portal matrix word at MODEL_PARTS +0xcc resolved in the scene bank. Smoke shot: the same clock-tower title scene; SceneInit runs without a crash, nothing in this slice draws.",
    "ranges": [
     [
      "0185e9d0",
@@ -1413,6 +1413,11 @@
      "date": "2026-11-12 06:11",
      "status": "partial",
      "summary": "slice 1: 16 functions -- the appearance and no-reaction timers, GlobalInit, the save image part (MemSaveData, MemLoadInit), BrainFree, ForceBrainEnd, CharaLoadInit, the crawl and door push / pull predicates, GetScnBankID"
+    },
+    {
+     "date": "2026-11-12 06:31",
+     "status": "partial",
+     "summary": "slice 2: the hide poles and the scene init (10 functions): ssAI_SceneInit, TransAllPoleData, GetPolePos, GetPoleGroupID, GetPoleScnName, GetPoleScnBnkID, GetShadowPolID, GetPairScnLinkPoleID, CheckPoleFlg, IsGetShadowPol; HIDE_POLE moved to tiAvoidObject.h and filled in"
     }
    ],
    "status": "partial",
