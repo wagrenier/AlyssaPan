@@ -1340,12 +1340,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 103..103, 3 functions keyed by their statics, 33 unkeyed; file name from the names"
   },
   "game/ssSetTexUVforCubeMap.c": {
+   "notes": "Slice 1: ssSetAmbientColor, the part motion blur counters (ssGetNumBlurDrawObj, ssGetNumBlurDrawObjForScene), ssPartMotionBlurUpdate, UpdateAlpha, AllEnd, GlobalInit, ssGetNumParticleEmit, ssParticleDeInit, ssTrigScreenBlurEnd, ssBGT_ZBufferClear (depth-only clear, args from the disassembly). PART_BLUR_MAX_OBJ declared (host layout, EE offsets in comments) with a PORT ambColor host pointer that ssPartMotionBlurStart must set. Push_Back and tiOneFrameMotionBlurUpdate stay stubs until Start builds the ring copies. Next: the reflection maps, ReflectMapUpdate, ssChangeCharAmbientColor, ssParticleInit, ssParticle_main. Smoke run: the title room draws as before (no blur records exist yet).",
    "ranges": [
     [
      "018951d0",
      "0189e180"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-12 00:34",
+     "status": "partial",
+     "summary": "reconstruct 11 functions, stub 2"
+    }
+   ],
+   "status": "partial",
    "why": "tumap.py (bootstrap 5): symtab local chunks 89..89, 13 functions keyed by their statics, 83 unkeyed; file name from the names"
   },
   "game/tiAvoidObject.c": {

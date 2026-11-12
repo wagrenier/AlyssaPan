@@ -846,11 +846,17 @@ static inline u_int BankEeAddr(int bank, const void *host)
 #define PARTICLE_OBJ_SIZE 0x80          /* ParticleObject[bank][i]: one ga draw object per ring slot */
 
 // A part motion-blur object (ALLpartBlurObj[mode][bank][i]; the ss part-blur TU, ssSetTexUVforCubeMap.c,
-// owns it). layout: host -- only the two words objSortWithBlurIdx touches are named.
+// owns it). layout: host -- 0x140 bytes on the EE; only the words this TU and objSortWithBlurIdx touch are
+// named. The pointers are host pointers (ssPartMotionBlurStart allocates the block from gHeapJunc).
+struct PART_BLUR_MAX_OBJ;
 typedef struct PART_BLUR_OBJ {
     u_char pad000[0x110];
     int listIndex;                      /* 0x110: its entry's index in the bank's objTrans list */
     int sortedIndex;                    /* 0x114: objSortWithBlurIdx: its row in the sorted table */
+    DRAW_OBJ_ENTRY *entry;              /* 0x118: the bank's draw list entry it blurs (ssPartMotionBlurAllEnd
+                                           restores its POS word and draw control) */
+    u_char *copies;                     /* 0x11c: the ring of the entry's copies, 0x140 bytes each (EE) */
+    struct PART_BLUR_MAX_OBJ *max;      /* 0x120: the part's blur record (PartBlurMaxObj) */
 } PART_BLUR_OBJ;
 static_assert(offsetof(PART_BLUR_OBJ, listIndex) == 0x110, "PART_BLUR_OBJ.listIndex");
 

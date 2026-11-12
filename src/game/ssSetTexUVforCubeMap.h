@@ -3,6 +3,51 @@
 #pragma once
 
 #include "sdk/scetypes.h"
+#include "ga/gaInitDrawObject.h"
+#include "game/ct3_types.h"
+
+// ---- part motion blur (2026-11-12) -------------------------------------------------------------------------
+// One blurred part's record (PartBlurMaxObj[bank][i], 0-ended; 0xe4 bytes on the EE, ssPartMotionBlurStart
+// allocates it from gHeapJunc). Each of its count PART_BLUR_OBJs (objs, 0x140 apart) keeps a ring of
+// ringMax + 1 copies of one draw list entry; head..tail are the copies in use. layout: host -- the
+// pointer words move on a 64-bit host; the EE offsets are in the comments.
+#define PART_BLUR_MAX_OBJ_MAX 16        /* PartBlurMaxObj's slots per bank (0x40 bytes of EE words) */
+#define PART_BLUR_MODE_TRAIL 0          /* mode: each frame the newest copy is pushed and the ring fades */
+#define PART_BLUR_MODE_ONE_FRAME 1      /* every copy interpolated between last frame's and this frame's
+                                           matrix (tiOneFrameMotionBlurUpdate) */
+#define PART_BLUR_FADE 128.0f           /* the alpha the oldest copy has lost (ssPartMotionBlurUpdateAlpha) */
+typedef struct PART_BLUR_MAX_OBJ {
+    GA_DRAWCTRL_ARGS args;              /* 0x00: the entries' draw control before the blur (AllEnd restores it) */
+    u_char pad78[8];
+    float prevMatrix[4][4];             /* 0x80: the part's matrix last frame (ONE_FRAME) */
+    float color[4];                     /* 0xc0: RGBA every copy draws with (the copies' DRAW_OBJ_POS) */
+    float alphaPercent;                 /* 0xd0: ONE_FRAME: the copies' alpha, percent of the part's */
+    PART_BLUR_OBJ *objs;                /* 0xd4: count blur objects */
+    u_int ambPos;                       /* 0xd8: the entries' DRAW_OBJ_POS before the blur (an EE address of
+                                           ALL_TABLE.partsPos: the part's RGBA) */
+    u_char mode;                        /* 0xdc: PART_BLUR_MODE_* */
+    u_char pad_dd;
+    u_short parts;                      /* 0xde: the MODEL_PARTS record (ONE_FRAME reads its matrix) */
+    u_char ringMax;                     /* 0xe0: the ring holds ringMax + 1 copies */
+    u_char head;                        /* 0xe1: the oldest copy */
+    u_char tail;                        /* 0xe2: where the next copy goes */
+    u_char count;                       /* 0xe3: objs' length */
+    const float *ambColor;              /* PORT: ambPos as a host pointer (BankEePtr; the record has no bank) */
+} PART_BLUR_MAX_OBJ;
+static_assert(offsetof(PART_BLUR_MAX_OBJ, prevMatrix) == 0x80, "PART_BLUR_MAX_OBJ.prevMatrix");
+static_assert(offsetof(PART_BLUR_MAX_OBJ, color) == 0xc0, "PART_BLUR_MAX_OBJ.color");
+static_assert(offsetof(PART_BLUR_MAX_OBJ, alphaPercent) == 0xd0, "PART_BLUR_MAX_OBJ.alphaPercent");
+
+extern PART_BLUR_MAX_OBJ *PartBlurMaxObj[BANK_MAX][PART_BLUR_MAX_OBJ_MAX]; /* bss 0x01a42280 */
+extern u_char **ParticleData[BANK_MAX];         /* sbss 0x01940a10: per particle list entry, its records */
+
+int ssGetNumBlurDrawObj(const PART_BLUR_MAX_OBJ *max);                                   // CT3 0x018968d0
+void ssPartMotionBlurUpdateAlpha(PART_BLUR_MAX_OBJ *max);                                // CT3 0x018965e0
+void ssPartMotionBlurPush_Back(PART_BLUR_MAX_OBJ *max);                                  // CT3 0x01896720
+void tiOneFrameMotionBlurUpdate(int bank, PART_BLUR_MAX_OBJ *max);                       // CT3 0x01897430
+// r, g, b, a: the new ambient of every part of the bank; -1 keeps that channel.
+void ssSetAmbientColor(float r, float g, float b, float a, int bank);                    // CT3 0x01896530
+int ssGetNumParticleEmit(int bank);                                                      // CT3 0x0189a8d0
 
 void ReflectMapUpdate(void);                                                             // CT3 0x01895c10
 // set: {chara, bank, 0, 0} (ExecuteWarpObject's call: the character takes the room bank's ambient).

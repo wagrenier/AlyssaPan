@@ -1208,6 +1208,30 @@ the branch scene tables and a few tk x commands.
   down). The slide's horizontal and vertical parts recurse with the shape flagged CHECKING (0x2000000);
   the last shape met is answered.
 
+## Part motion blur and screen effects, game/ssSetTexUVforCubeMap.c (2026-11-12, slice 1)
+
+- **PartBlurMaxObj[86][16]** (bss 0x01a42280, 0-ended per bank): one record per blurred part
+  (PART_BLUR_MAX_OBJ, 0xe4 bytes on the EE): the entries' draw control args before the blur (+0x00, 0x78
+  bytes), last frame's matrix (+0x80), the colour every copy draws with (+0xc0), an alpha percent (+0xd0),
+  its PART_BLUR_OBJs (+0xd4, 0x140 apart), the entries' old DRAW_OBJ_POS word (+0xd8), mode (+0xdc:
+  0 trail, 1 one-frame), the part (+0xde) and a byte ring: ringMax (+0xe0, ring of ringMax + 1),
+  head (+0xe1), tail (+0xe2), count of objs (+0xe3). PART_BLUR_OBJ +0x118 is the bank's DRAW_OBJ_ENTRY,
+  +0x11c its ring of copies (0x140 each: a 0x20-byte entry header, then the draw object, matrices at
+  +0xc0 / +0x100), +0x120 the record. ALLpartBlurObj[2][86][48] (0x01a43800) and NumPartBlurObj[2][86]
+  (0x0193fa80) index the PART_BLUR_OBJs per draw mode.
+- **ssPartMotionBlurUpdate** (main, per frame): banks 0..5 when drawn, banks 6..85 when drawn, not
+  BANK_TYPE_BEHAVIOR and not paused (PAUSE_RUNNING runs); a group counts once. Trail mode pushes the newest
+  copy (Push_Back: tail advances, head follows when they meet) and fades (UpdateAlpha: alpha minus
+  128 * i / (ringMax + 1), +-255; every pass writes the one shared colour, so the oldest copy's value is
+  what draws). One-frame mode lerps every copy's matrix from +0x80 to the part's (tiOneFrameMotionBlurUpdate).
+- **ssPartMotionBlurAllEnd** (scene_end) restores the entries only when mode != 0 (ROM), then frees copies,
+  objs and the record from gHeapJunc; it clears only slot [0] of each table, which is the 0 end.
+- **ssBGT_ZBufferClear** (GlobalDrawObject): drawctrl$91 (0x0193e280) set to ATST NEVER / AFAIL ZB_ONLY /
+  ZTST ALWAYS, then drawcom_frameclear's sprite: a depth-only clear.
+- **ssSetAmbientColor**(r, g, b, a, bank): every partsPos qword of the bank (baseobjCount), -1 keeps the
+  channel. **ssParticleDeInit** frees ParticleObject[bank] and ParticleData[bank] (sbss 0x01940a10).
+- **ssTrigScreenBlurEnd**: DRAW_MODE_BLUR -> NORMAL.
+
 ## The IOP side (2026-11-09)
 
 The EE loads `cdrom0:\IOP\IOPRP255.IMG;1` (an IOP reboot), then `SIO2MAN`, `PADMAN`, `MCMAN`, `MCSERV`,

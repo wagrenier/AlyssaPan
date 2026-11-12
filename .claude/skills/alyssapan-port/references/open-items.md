@@ -1679,6 +1679,19 @@ apply here):
 
 ## Open questions
 
+- (2026-11-12, game/ssSetTexUVforCubeMap.c slice 1) 11 functions written, the TU is **partial** (its
+  slice's 23 functions: the cube / plane reflection maps, ReflectMapUpdate, ssChangeCharAmbientColor,
+  ssParticleInit and ssParticle_main are next; then the 72 left). **Decision (port):** PART_BLUR_MAX_OBJ
+  carries a PORT host pointer ambColor beside the EE word ambPos (+0xd8), because ssPartMotionBlurUpdateAlpha
+  reads the part's RGBA through it and the record has no bank: **ssPartMotionBlurStart must set both**
+  (ambColor = BankEePtr(bank, ambPos)). PART_BLUR_OBJ.entry / .copies / .max are host pointers (the blocks
+  are host allocations). ssPartMotionBlurPush_Back and tiOneFrameMotionBlurUpdate stay stubs until Start is
+  written: they need the ring copies' layout (0x20-byte entry header + draw object + two matrices), which
+  Start builds. Nothing creates a blur record yet, so Update / AllEnd run over empty tables in the smoke run.
+  To confirm: (a) PART_BLUR_MODE_* names are from Update's test only (AllEnd restores only when mode != 0,
+  as the ROM does); (b) the PORT bound of 16 records per bank in Update / AllEnd (the ROM reads to the 0
+  slot, and its next bank's slots follow).
+
 - (2026-11-12, game/ssHitCheckAttackToScn.c slice 6) **the TU's 37 functions are written: verify** (no
   smoke run reaches ssCollisionCheck yet: no character collides before E_00 loads). **CHARACTER.w300[0..3]
   are now written**: EE words (BankEeAddr) of HIT_DATA in the character's scene bank (lightBank): floor,
