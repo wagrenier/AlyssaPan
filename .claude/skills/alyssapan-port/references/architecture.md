@@ -1859,6 +1859,11 @@ The auto-load at boot (MemorycardAutoLoad, xcmd_tn.c) has its own states (mcMain
 - The host's drive stream (sdk/libcdvd.cpp, 2026-11-12): StInit / StStart / StStop answer 1, StRead reads
   the disc image at the stream's cursor inside the call.
 - AA_videoDecPutTs answers AA_viBufPutTs's result (0 = stamp ring full -> "pts buffer overflow").
+- game/copy2area.c (0x018bf9d0..0x018bfbf0, symtab local chunk 111, 2026-11-12) is ezmpegstr's
+  copy2area + pcmCallback, unchanged: copy2area copies nothing when s0 + s1 > d0 + d1 and answers
+  s0 + s1. AA_pcmCallback skips the PCM packet's 4-byte header (cb->data + 4, len - 4; past the ring's
+  end it wraps by the ring's size), puts into AA_audioDec (0x0193f390) and passes cb->pts (+0x10) to
+  AA_audioDecEndPut. Unlike AA_videoCallback, no uncached aliases.
 
 ## The movie's audio / video clock, game/AA_cpuCycles.c (2026-11-12)
 
