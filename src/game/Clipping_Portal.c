@@ -17,6 +17,8 @@
 #include "game/unassigned_data.h"
 #include "ga/gaInit3dlib.h"
 #include "ga/gaInitDrawObject.h"
+#include "ga/gaDma.h"
+#include "ga/gaDmaSync_VIF1.h"
 #include "ga/gaSinCos.h"
 #include "sdk/eekernel.h"
 #include "ga/pad_button_read.h"
@@ -2671,10 +2673,53 @@ void tiRefractionMapUpdate(void)
     }    // callcheck: ssTrigCheckEnable, gaInversMatrix, SetSTValueForRefraction (RefractionMapUpdateBank makes them)
 }
 
-// stub of CT3 0x0188d3f0
+// data 0x01938c80 init_black: the fade's black sprite (tiFade_Draw's FADE_RGBA_BLACK), drawn here under
+// init_black_drawctrl (ABE 0: the colour alone).
+#define XFADE_ALPHA_FULL 128.0f         /* tiVRAMViewer's FIX of the whole old frame */
+
+// CT3 0x0188d3f0: once a frame while fXFade (main): the cross-fade out. Its first frame copies the frame
+// drawn so far into the effect buffer (tiBGT_MoveImage, 512 x 448) and takes the buffer (the PAUSE kinds
+// reserve a pause); each later frame the kinds that start from black cover the screen with black, and
+// the old frame is drawn over it at the alpha left ((end - start) / end, 1 .. 0). When the time is up
+// the cross-fade ends (kinds 0..3; the PAUSE kinds drop their pause) or, for the other kinds, only the
+// effect buffer is let go and fXFade stays.
+// PORT: init_black is not sent: the host covers the window (AlyssaPan_DrawGaFill, FIX 0x80 for ABE 0).
 void tiXFadeOut_Draw(void)
 {
-    ALYSSAPAN_STUB("tiXFadeOut_Draw", 0x0188d3f0);
+    float f;
+
+    if (XfadeStartTicks == 0) {
+        EffectBuffer_Use = 1;
+        tiBGT_MoveImage((u_int)ga_draw_fbuf_address, GS_FRAME_WIDTH, EFFECT_FBUF_ADDRESS, GS_FRAME_WIDTH,
+                        SCE_GS_PSMCT32, 0, 0, 0, 0, GS_FRAME_WIDTH, GS_FRAME_HEIGHT);
+        XfadeStartTicks += gGlobalNextTicksInterval;
+        if (XFade_Type == XFADE_TYPE_PAUSE2 || XFade_Type == XFADE_TYPE_PAUSE)
+            pause_reservation = 1;
+        return;
+    }
+    if (XFADE_TYPE_FROM_BLACK(XFade_Type)) {
+        FlushCache(0);
+        gaBGT_ExecDrawCtrlData_VIF1(&init_black_drawctrl);
+        AlyssaPan_DrawGaFill(FADE_RGBA_BLACK, VRAM_ALPHA_OPAQUE);
+    }
+    if (XfadeEndTicks - XfadeStartTicks > 0) {
+        f = XfadeEndTicks == 0 ? 0.0f : (float)(XfadeEndTicks - XfadeStartTicks) / (float)XfadeEndTicks;
+        tiVRAMViewer(0.0f, 0.0f, (float)GS_FRAME_WIDTH, (float)GS_FRAME_HEIGHT, EFFECT_FBUF_ADDRESS,
+                     GS_FRAME_WIDTH, GS_FRAME_HEIGHT, GS_FRAME_LOG2, GS_FRAME_LOG2, SCE_GS_PSMCT32, 4,
+                     (int)(f * XFADE_ALPHA_FULL));
+        XfadeStartTicks += gGlobalNextTicksInterval;
+        return;
+    }
+    if (XFade_Type == XFADE_TYPE_PAUSE2 || XFade_Type == XFADE_TYPE_PAUSE) {
+        pause_reservation = 0;
+    } else if (XFade_Type != 2 && XFade_Type != XFADE_TYPE_NONE) {
+        EffectBuffer_Use = 0;
+        return;
+    }
+    XFade_Type = XFADE_TYPE_NONE;
+    EffectBuffer_Use = 0;
+    fXFade = 0;
+    // callcheck: gaBGT_ExecDrawCommandData_VIF1 (PORT: init_black's send; AlyssaPan_DrawGaFill draws it)
 }
 
 #define EXPORT_FBUF_ADDRESS_SMALL 0xe0000u /* ExportDrawToTex's copy while the effect buffer is taken */
@@ -2769,28 +2814,245 @@ void ExportDrawToTex(void)
     // callcheck: sunSetupTBufferData (PORT: sunSetupTBufferDataFrom, the records are host data)
 }
 
-// stub of CT3 0x0188dca0
-void tiChara_Translucence_End(float alpha, int fbuf)
-{
-    ALYSSAPAN_STUB("tiChara_Translucence_End", 0x0188dca0);
-}
+// ---- translucent characters (slice 13, 2026-11-11) ----
+// AllDrawObject's last pass (main.c): the CHARA_TRANS_TRANSLUCENT characters between _Start and _End,
+// the CHARA_TRANS_GHOST ones between _Start2 and _End2 (one _End2 per ghost). Both pairs point the draw
+// buffer at the effect buffer while the characters draw, then lay the effect buffer back over the frame.
+//
+// PORT (the host has no draw-target switch: the characters draw straight onto the frame): the packets
+// are built and sent as the ROM's, and the host is told an equivalent composite --
+// _Start captures the frame before the characters (F) under EFFECT_FBUF_ADDRESS; the characters draw
+// opaque (H = F + chars); _End lays F back over H at 0x80 - FIX, which is the ROM's
+// (E - F) * FIX + F with E = H, exactly. The ghosts' composite (three shifted copies) is approximated the
+// same way (open-items.md: an offscreen layer seam would make it exact).
 
-// stub of CT3 0x0188d720
-void tiChara_Translucence_End2(int fbuf, int chara)
-{
-    ALYSSAPAN_STUB("tiChara_Translucence_End2", 0x0188d720);
-}
-
-// stub of CT3 0x0188dd40
+// CT3 0x0188dd40: the effect buffer becomes the draw buffer and gets a copy of the frame drawn so far
+// (opaque); the characters then draw into the copy. Nothing while the effect buffer is taken.
 void tiChara_Translucence_Start(void)
 {
-    ALYSSAPAN_STUB("tiChara_Translucence_Start", 0x0188dd40);
+    int fbuf = ga_draw_fbuf_address;
+
+    if (EffectBuffer_Use != 0)
+        return;
+    ga_draw_fbuf_address = (int)EFFECT_FBUF_ADDRESS;
+    FlushCache(0);
+    gaBGT_ExecDBufferData_VIF1(&drawbuffer_0);
+    // PORT: the ROM's tiVRAMViewer(0, 0, 512, 448, fbuf, 512, 448, 9, 9, CT32, 4, 0x80) copies the frame
+    // into the effect buffer; the host captures it instead (see above).
+    (void)fbuf;
+    AlyssaPan_DrawGaCapture(EFFECT_FBUF_ADDRESS, GS_FRAME_WIDTH, GS_FRAME_HEIGHT);
+    // callcheck: tiVRAMViewer (PORT: AlyssaPan_DrawGaCapture of the frame before the characters)
 }
 
-// stub of CT3 0x0188dbd0
+#define TRANSLUCENT_ALPHA_SCALE 128.0f  /* translucentAlpha 0..100 (percent) -> FIX 0..128 */
+
+// CT3 0x0188dca0: the draw buffer back at fbuf, and the effect buffer (the frame with the characters)
+// drawn over it at alpha percent (FIX alpha * 128 / 100): the characters come out translucent.
+void tiChara_Translucence_End(float alpha, int fbuf)
+{
+    int fix = (int)((alpha * TRANSLUCENT_ALPHA_SCALE) / 100.0f);
+
+    ga_draw_fbuf_address = fbuf;
+    FlushCache(0);
+    gaBGT_ExecDBufferData_VIF1(&drawbuffer_0);
+    // PORT: the ROM's tiVRAMViewer(0, 0, 512, 448, EFFECT_FBUF_ADDRESS, 512, 448, 9, 9, CT32, 4, fix);
+    // the host lays the frame before the characters back at 0x80 - fix (see above).
+    AlyssaPan_DrawGaCopy(EFFECT_FBUF_ADDRESS, GS_FRAME_WIDTH, GS_FRAME_HEIGHT, 0.0f, 0.0f,
+                         (float)GS_FRAME_WIDTH - 1.0f, (float)GS_FRAME_HEIGHT - 1.0f, VRAM_ALPHA_OPAQUE - fix);
+    // callcheck: tiVRAMViewer (PORT: AlyssaPan_DrawGaCopy at the inverse FIX)
+}
+
+// data 0x01938a80: _Start2's clear -- a flat SPRITE over the whole 512 x 448 window, RGBA (0x80, 0x80,
+// 0x80, 0), drawn under drawctrl_0193d600's ALPHA (0 - 0) * FIX + 0: the effect buffer becomes black with
+// alpha 0 (no ghost yet).
+alignas(16) static u_long ghost_clear[10] = {
+    0x10000004ul, 0, 0, 0x5000000300000000ul, 0x4400000000008001ul, 0x4410ul,
+    6, 0x3f80000000808080ul, 0xfffffe80008000ul, 0xfffffe9bf09ff0ul};
+alignas(16) static GA_DRAWCTRL_DATA drawctrl_0193d600;    /* sbss 0x0193d600 (local): the clear's */
+
+// The clear's draw control: flat, ABE, UV; ATE ATST 0 (never) AFAIL 1 (FB only), ZTE ZTST 1; ALPHA_1
+// (0 - 0) * FIX + 0 (A B C D all 2); TEX1 LCM 1 MXL 2 MMAG 1 MMIN 1.
+#define GHOST_CLEAR_DRAWCTRL_ARGS {                                                0, 0, 0, 1, 0, 1, 0, 0,      /* PRMODE: ABE, FST */                             1, 0, 0, 1, 0, 0, 1, 1,      /* TEST_1: ATE, AFAIL 1, ZTE, ZTST 1 */            2, 2, 2, 2, 0,               /* ALPHA_1: 0, 0, FIX, 0 */                        0,                           /* FBA_1 */                                        1, 2, 1, 1, 0, 0,            /* TEX1_1 */                                       0}                           /* TEXA */
+
+// CT3 0x0188dbd0: the effect buffer becomes the draw buffer, cleared to black with alpha 0; the ghosts
+// then draw into it. Nothing while the effect buffer is taken.
+// PORT: the host captures the frame before the ghosts (see above); the clear has nothing to land in.
 void tiChara_Translucence_Start2(void)
 {
-    ALYSSAPAN_STUB("tiChara_Translucence_Start2", 0x0188dbd0);
+    if (EffectBuffer_Use != 0)
+        return;
+    {
+        GA_DRAWCTRL_ARGS args = GHOST_CLEAR_DRAWCTRL_ARGS;
+
+        gaSetupDrawCtrlData(&drawctrl_0193d600, args);
+    }
+    AlyssaPan_DrawGaCapture(EFFECT_FBUF_ADDRESS, GS_FRAME_WIDTH, GS_FRAME_HEIGHT);
+    ga_draw_fbuf_address = (int)EFFECT_FBUF_ADDRESS;
+    FlushCache(0);
+    gaBGT_ExecDBufferData_VIF1(&drawbuffer_0);
+    gaBGT_ExecDrawCtrlData_VIF1(&drawctrl_0193d600);
+    gaBGT_ExecDrawCommandData_VIF1((GA_DRAWCOMMAND_DATA *)ghost_clear);
+}
+
+// data 0x01938b00: _End2's packet -- a DMAtag of qwc 9 and a GIFtag of 8 A+D (PRIM textured SPRITE,
+// RGBAQ, then UV / XYZ2 pairs for three sprites); UVs (0.5625, 0.5625) .. (511.5625, 447.5625), the second
+// and third sprites' UVs copied from the first's per call, every corner and the RGBAQ alpha per call.
+#define GHOST_PACKET_WORDS 20
+#define GHOST_RGBAQ 7
+#define GHOST_UV0 8                     /* sprite 0's corners: UV0, XYZ0, UV1, XYZ1; sprite 1 at +4, 2 at +8 */
+#define GHOST_XYZ0 9
+#define GHOST_UV1 10
+#define GHOST_XYZ1 11
+#define GHOST_SPRITE_WORDS 4
+#define GHOST_RGBAQ_GREY 0x3f80000000808080ul /* RGB 0x80, Q 1.0; the alpha byte per call */
+alignas(16) static u_long ghost_copies[GHOST_PACKET_WORDS] = {
+    0x10000009ul, 0, 0, 0x5000000800000000ul, 0xe400000000008001ul, 0x43434343434310ul,
+    6, 0x3f80000080808080ul, 0x90009ul, 0x80008000ul, 0x1bf91ff9ul, 0x9bf09ff0ul,
+    0, 0, 0, 0, 0, 0, 0, 0};
+alignas(16) static GA_DRAWCTRL_DATA drawctrl_0193d540;    /* sbss 0x0193d540 (local) */
+alignas(16) static u_char tex_0193d440[0x100];            /* sbss 0x0193d440 (local): a SUN_TBUFFER_DATA */
+// data 0x01938c00: the effect buffer read as a texture (512 x 448, CT32, already in GS memory).
+static const SUN_TEX_ATTR tex_attr_effect = {GS_FRAME_WIDTH, GS_FRAME_HEIGHT, GS_FRAME_LOG2, GS_FRAME_LOG2,
+                                             SCE_GS_PSMCT32, 0, 0x000e0000u, {0, 0, 0, 0}, 0, 0};
+
+// The copies' draw control: textured, ABE, UV; ATE ATST 0 AFAIL 1, ZTE ZTST 1; ALPHA_1 (Cs - Cd) * As + Cd;
+// FBA 1; bilinear.
+#define GHOST_DRAWCTRL_ARGS {                                                      0, 1, 0, 1, 0, 1, 0, 0,      /* PRMODE: TME, ABE, FST */                        1, 0, 0, 1, 0, 0, 1, 1,      /* TEST_1: ATE, AFAIL 1, ZTE, ZTST 1 */            0, 1, 0, 1, 0,               /* ALPHA_1: A Cs, B Cd, C As, D Cd */              1,                           /* FBA_1 */                                        1, 2, 1, 1, 0, 0,            /* TEX1_1 */                                       0}                           /* TEXA */
+#define GHOST_ALPHA_SCALE 64.0f         /* translucentAlpha 0..100 -> the RGBAQ alpha 0..64 (half) */
+#define GHOST_WINDOW_RIGHT 511.0f       /* the window's last pixel column / row */
+#define GHOST_WINDOW_BOTTOM 447.0f
+
+// CT3 0x0188d720: one ghost's layer (the effect buffer, the ghost drawn on clear black) laid over the frame
+// three times, each modulated by alpha * 64 / 100 and blended by its texel alpha, a little apart: shifted
+// by the edge-shading level (edgeLevel pixels) right, left and down, and each stretched by the two
+// edge-shading amplitudes times |cos| of their phases (CHARA_EDGE_PHASE_X / _Y advance by their speeds
+// each running frame). Nothing while the effect buffer is taken.
+// PORT: the host lays the frame before the ghost back once, at the inverse of the three copies' combined
+// alpha (see above): the shimmer of the shifted copies is lost (open-items.md).
+void tiChara_Translucence_End2(int fbuf, int chara)
+{
+    CHARACTER *chr = &Character[chara];
+    float level = (float)chr->edgeLevel;
+    float ax = (float)chr->h536[CHARA_EDGE_PARAM_A];
+    float ay = (float)chr->h536[CHARA_EDGE_PARAM_B];
+    float v[4];
+    u_long alpha;
+    int s;
+
+    if (EffectBuffer_Use != 0)
+        return;
+    if (pause == 0) {
+        chr->h536[CHARA_EDGE_PHASE_X] = (short)(chr->h536[CHARA_EDGE_PHASE_X] + chr->h536[CHARA_EDGE_SPEED_X]);
+        chr->h536[CHARA_EDGE_PHASE_Y] = (short)(chr->h536[CHARA_EDGE_PHASE_Y] + chr->h536[CHARA_EDGE_SPEED_Y]);
+    }
+    {
+        GA_DRAWCTRL_ARGS args = GHOST_DRAWCTRL_ARGS;
+
+        gaSetupDrawCtrlData(&drawctrl_0193d540, args);
+    }
+    {
+        TEX_INFO tex;
+
+        memset(&tex, 0, sizeof(tex));
+        tex.tim = 0x01938c00u;                  /* tex_attr_effect */
+        tex.tbp = EFFECT_FBUF_ADDRESS;
+        tex.wms = TEX_WRAP_CLAMP;
+        tex.wmt = TEX_WRAP_CLAMP;
+        sunSetupTBufferDataFrom(tex_0193d440, tex, &tex_attr_effect);
+    }
+    ga_draw_fbuf_address = fbuf;
+    FlushCache(0);
+    gaBGT_ExecDBufferData_VIF1(&drawbuffer_0);
+    gaBGT_ExecDrawCtrlData_VIF1(&drawctrl_0193d540);
+    sunBGT_ExecTBufferData_VIF1(tex_0193d440);
+    alpha = (u_long)((chr->translucentAlpha * GHOST_ALPHA_SCALE) / 100.0f);
+    ghost_copies[GHOST_RGBAQ] = alpha << 24 | GHOST_RGBAQ_GREY;
+    // the three sprites: x0 shift, y0 shift (the far corner adds the window and the same shift)
+    for (s = 0; s < 3; s++) {
+        static const float shiftX[3] = {1.0f, -1.0f, 0.0f}; /* * level */
+        static const float shiftY[3] = {0.0f, 0.0f, 1.0f};
+        u_long *w = &ghost_copies[s * GHOST_SPRITE_WORDS];
+        float dx = shiftX[s] * level, dy = shiftY[s] * level;
+
+        if (s != 0) {
+            w[GHOST_UV0] = ghost_copies[GHOST_UV0];
+            w[GHOST_UV1] = ghost_copies[GHOST_UV1];
+        }
+        v[0] = dx - ax * absf(ahCos(chr->h536[CHARA_EDGE_PHASE_X] & 0xffff));
+        v[1] = dy - ay * absf(ahCos(chr->h536[CHARA_EDGE_PHASE_Y] & 0xffff));
+        v[2] = 0.0f;
+        v[3] = 0.0f;
+        tiDR_XYZF2(&w[GHOST_XYZ0], v);
+        v[0] = GHOST_WINDOW_RIGHT + dx + ax * absf(ahCos(chr->h536[CHARA_EDGE_PHASE_X] & 0xffff));
+        v[1] = GHOST_WINDOW_BOTTOM + dy + ay * absf(ahCos(chr->h536[CHARA_EDGE_PHASE_Y] & 0xffff));
+        v[2] = 0.0f;
+        v[3] = 0.0f;
+        tiDR_XYZF2(&w[GHOST_XYZ1], v);
+    }
+    gaBGT_ExecDrawCommandData_VIF1((GA_DRAWCOMMAND_DATA *)ghost_copies);
+    {
+        // PORT: three layers of alpha a / 128 each cover 1 - (1 - a)^3 of the ghost's colour.
+        float a = (float)alpha / 128.0f;
+        float covered = 1.0f - (1.0f - a) * (1.0f - a) * (1.0f - a);
+
+        AlyssaPan_DrawGaCopy(EFFECT_FBUF_ADDRESS, GS_FRAME_WIDTH, GS_FRAME_HEIGHT, 0.0f, 0.0f,
+                             GHOST_WINDOW_RIGHT, GHOST_WINDOW_BOTTOM,
+                             VRAM_ALPHA_OPAQUE - (int)(covered * (float)VRAM_ALPHA_OPAQUE));
+    }
+    // callcheck: sunSetupTBufferData (PORT: sunSetupTBufferDataFrom, the record is host data)
+    // callcheck: __fixunssfdi (the alpha's conversion: the compiler's runtime)
+}
+
+// CT3 0x01894950: a window position (x, y pixels; z, f integers) as a GIF XYZF2 word: x / y in 12.4 about
+// the window origin (VU0 ftoi4, truncated), z 24 bits, f 8 bits.
+void tiDR_XYZF2(u_long *dst, const float *v)
+{
+    u_long x = (u_long)((int64_t)(int)(v[0] * 16.0f) + GS_WINDOW_ORIGIN) & 0xffff;
+    u_long y = (u_long)((int64_t)(int)(v[1] * 16.0f) + GS_WINDOW_ORIGIN) & 0xffff;
+    u_long z = (u_long)(u_int)(int)v[2] & 0xffffff;
+    u_long f = (u_long)(u_int)(int)v[3];
+
+    *dst = f << 56 | z << 32 | y << 16 | x;
+}
+
+// The local-to-local transfer packet, built at the scratchpad's mark packet area (EE 0x70000800): a
+// DMAtag of qwc 6, VIF NOP / DIRECT 5, a GIFtag of 4 A+D (BITBLTBUF, TRXPOS, TRXREG, TRXDIR).
+#define GS_TRXDIR_LOCAL 2               /* TRXDIR.XDIR: local -> local */
+#define GS_BP_SHIFT 6                   /* BITBLTBUF's SBP / DBP and widths: word address / 64 */
+
+// CT3 0x01894cf0: a GS local-to-local copy of rrw x rrh pixels (psm) from sbp (width sbw, at sx, sy) to
+// dbp (width dbw, at dx, dy).
+// PORT: no GS memory: the packet is sent as the ROM's; when the source is the draw buffer the host keeps
+// the copy as a capture of the frame drawn so far (AlyssaPan_DrawGaCapture under dbp). Other copies have
+// no picture on the host (none seen yet).
+void tiBGT_MoveImage(u_int sbp, u_int sbw, u_int dbp, u_int dbw, u_int psm, u_int sx, u_int sy, u_int dx,
+                     u_int dy, u_int rrw, u_int rrh)
+{
+    u_long *p = (u_long *)SCRATCHPAD(GA_SPR_MARK_PACKET);
+    u_int *w = (u_int *)p;
+
+    gaDmaSync_fromSPR();
+    p[0] = 0x10000006ul;
+    w[2] = 0;
+    w[3] = 0;
+    w[4] = 0;
+    w[5] = 0;
+    w[6] = 0;
+    w[7] = 0x50000005u;
+    p[4] = 0x1000000000008004ul;
+    p[5] = 0xe;
+    p[6] = (u_long)psm << 56 | (u_long)(dbw >> GS_BP_SHIFT) << 48 | (u_long)(dbp >> GS_BP_SHIFT) << 32 |
+           (u_long)psm << 24 | (u_long)(sbw >> GS_BP_SHIFT) << 16 | (u_long)(sbp >> GS_BP_SHIFT);
+    p[7] = SCE_GS_BITBLTBUF;
+    p[8] = (u_long)dy << 48 | (u_long)dx << 32 | (u_long)sy << 16 | (u_long)sx;
+    p[9] = SCE_GS_TRXPOS;
+    p[10] = (u_long)rrh << 32 | (u_long)rrw;
+    p[11] = SCE_GS_TRXREG;
+    p[12] = GS_TRXDIR_LOCAL;
+    p[13] = SCE_GS_TRXDIR;
+    gaBGT_DmaSendN_fromSPR_VIF1(p, 7);
+    if (sbp == (u_int)ga_draw_fbuf_address)
+        AlyssaPan_DrawGaCapture(dbp, (int)rrw, (int)rrh);
 }
 
 // stub of CT3 0x018949c0
@@ -2827,13 +3089,33 @@ void tiCalc_Leaf(int ticks, PARTICLE2 *rec, int arg, int bank)
     ALYSSAPAN_STUB("tiCalc_Leaf", 0x0188ea90);
 }
 
-// stub of CT3 0x0188c6e0
+// CT3 0x0188c6e0: ORBIT_TRANS_WIND: tiCalc_Trans with the winds added to the acceleration -- each live
+// wind whose trigger part is on and whose capsule holds the record (or with radius 0: everywhere) adds
+// its world10 (xyz).
 void tiCalc_Trans_WIND(int ticks, PARTICLE2 *rec, int bank)
 {
-    (void)ticks;
-    (void)rec;
-    (void)bank;
-    ALYSSAPAN_STUB("tiCalc_Trans_WIND", 0x0188c6e0);
+    PARTICLE2_MATS *m = RecMats(rec, bank);
+    float dt = (float)ticks / ORBIT_TICKS_PER_SEC;
+    float accel[4];
+    int i;
+
+    rec->age += ticks;
+    accel[0] = accel[1] = accel[2] = 0.0f; // sqc2 vf0
+    accel[3] = 1.0f;
+    for (i = 0; i < WIND_MAX; i++) {
+        WIND *w = WindList[i];
+
+        if (w != NULL && ssTrigCheckEnable((u_short)w->part, w->bank) != 0 &&
+            (w->radius == 0.0f || tiCheckWindForce(m->local[3], w) != 0)) {
+            accel[0] += w->world10[0];
+            accel[1] += w->world10[1];
+            accel[2] += w->world10[2];
+        }
+    }
+    for (i = 0; i < 3; i++) {
+        accel[i] += rec->accel[i];
+    }
+    OrbitStep(rec, m, accel, dt);
 }
 
 #define LEAF_TICKS_PER_SECOND 300.0f   /* dt = ticks / 300 */

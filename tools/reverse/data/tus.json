@@ -501,7 +501,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 105..105, 36 functions keyed by their statics, 13 unkeyed; file name from the names"
   },
   "game/Clipping_Portal.c": {
-   "notes": "Smoke run unchanged (content warning screen, right at 4:3); none of the new code is on its path. Flare sprites are sent as GIF packets the host does not draw yet (open-items 7 ko: a textured sprite seam). Next: tiCalc_HurikoCLOSED (0xd20 spring chain; open-items 7 ks lists the HURIKO words it reads), then tiCalc_HurikoOPEN, tiCalc_Leaf, tiCalc_Trans_WIND, tiCalc_Twist, tiXFadeOut_Draw and the translucence four.",
+   "notes": "Smoke run unchanged (content warning screen at 4:3); none of the new code is on its path. Ghost compositing is approximate on the host (open-items 7 kt: an offscreen-layer seam would make it exact). Next: tiCalc_HurikoCLOSED (0xd20), tiCalc_HurikoOPEN, tiCalc_Leaf, tiCalc_Twist (VU outer product: read the disassembly).",
    "ranges": [
     [
      "01889cd0",
@@ -509,11 +509,6 @@
     ]
    ],
    "sessions": [
-    {
-     "date": "2026-11-11 14:19",
-     "status": "partial",
-     "summary": "slice 1: vibration (tiVibrationOn / Off / Timer), wind (tiWindInit / Update / End / End_All), tiLightBelt2Init, tiFade_Start, tiFade_Draw, tiFactorial; WIND, LIGHT_BELT2, ALL_TABLE.winds / lightBelts, MODEL_PARTS.matrix200, gaPadSetVibration declared"
-    },
     {
      "date": "2026-11-11 14:54",
      "status": "partial",
@@ -568,6 +563,11 @@
      "date": "2026-11-11 19:13",
      "status": "partial",
      "summary": "slice 12: tiDrawLensFlares (flare elements on the line to the screen centre, sprite packets rewritten), tiBumpSTValueUpdate (bump ST shift from the first omni light), tiRefractionMapUpdate and SetSTValueForRefraction (per-vertex refracted-eye ST), tiCheckHit_Face, tiCheckHit_Capsule, tiCheckWindForce, tiCalc_Leaf_WIND; ALL_TABLE.bumps, MODEL_PARTS refrIndex / bumpScale, WIND.radius"
+    },
+    {
+     "date": "2026-11-11 19:45",
+     "status": "partial",
+     "summary": "slice 13: the translucent-character and ghost passes (tiChara_Translucence_Start / End / Start2 / End2, host composite from a capture at the inverse FIX), tiXFadeOut_Draw (cross-fade from a frame copy), tiBGT_MoveImage (GS local copy; host capture when the source is the draw buffer), tiDR_XYZF2, tiCalc_Trans_WIND; CHARACTER edge-shimmer speeds and phases named"
     }
    ],
    "status": "partial",

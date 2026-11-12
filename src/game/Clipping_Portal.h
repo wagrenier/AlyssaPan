@@ -329,6 +329,12 @@ void tiChara_Translucence_End2(int fbuf, int chara);                            
 void tiChara_Translucence_Start2(void);                                                  // CT3 0x0188dbd0
 void tiChara_Translucence_End(float alpha, int fbuf);                                    // CT3 0x0188dca0
 void tiChara_Translucence_Start(void);                                                   // CT3 0x0188dd40
+// A window position (v: x, y pixels; z, f) as a GIF XYZF2 word.
+void tiDR_XYZF2(u_long *dst, const float *v);                                            // CT3 0x01894950
+// A GS local-to-local copy (BITBLTBUF / TRXPOS / TRXREG / TRXDIR 2): rrw x rrh pixels from sbp (sx, sy)
+// to dbp (dx, dy). The ROM's a0..t3, then dy, rrw, rrh on the stack.
+void tiBGT_MoveImage(u_int sbp, u_int sbw, u_int dbp, u_int dbw, u_int psm, u_int sx, u_int sy, u_int dx,
+                     u_int dy, u_int rrw, u_int rrh);                                    // CT3 0x01894cf0
 void tiLightBelt2Init(int scene);                                                        // CT3 0x0188b050
 void tiWindInit(int scene);                                                              // CT3 0x0188ccb0
 void tiLensFlaresInit(int scene);                                                        // CT3 0x0188e4a0

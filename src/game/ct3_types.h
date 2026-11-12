@@ -127,8 +127,12 @@ typedef struct CHARA_JUNC {
 
 // CHARACTER.translucent (AllDrawObject): any bit keeps the character out of the opaque and mirror passes.
 #define CHARA_TRANS_TRANSLUCENT 0x1     /* drawn last between tiChara_Translucence_Start / _End */
-#define CHARA_EDGE_PARAM_A 4            /* CHARACTER.h536[]: the two edge-shading values tiXcmd_CharaEdgeShadeAnim */
-#define CHARA_EDGE_PARAM_B 5            /* animates (their reader unread) */
+#define CHARA_EDGE_SPEED_X 0            /* CHARACTER.h536[]: the ghost edge shimmer (tiChara_Translucence_End2): */
+#define CHARA_EDGE_SPEED_Y 1            /* the phases' steps a running frame (0x10000 a turn), */
+#define CHARA_EDGE_PHASE_X 2            /* the phases (|cos| of each scales its amplitude), */
+#define CHARA_EDGE_PHASE_Y 3
+#define CHARA_EDGE_PARAM_A 4            /* the x and y amplitudes in pixels (the two values tiXcmd_CharaEdgeShadeAnim */
+#define CHARA_EDGE_PARAM_B 5            /* animates) */
 #define CHARA_TRANS_GHOST 0x2           /* (without 0x1) drawn last by main_rtn_GHOST, _Start2 / _End2 */
 
 // CharAmbChangeFlag[3] (0x0193fc00, 0x1c bytes each): a character's ambient colour change in progress

@@ -1400,7 +1400,22 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    spring chain: reads HURIKO words 2, 3, 6..10 (+0x08 .. +0x28, unnamed), gGlobalNextTicksInterval / 5,
    the hits list (HURIKO +0x14) split into hFace / hCapsule by pairInA, flag 0x80000000 = winds on,
    flag 2 = a length spring, joints' +0x30 / +0x50 / +0x60 qwords), then tiCalc_HurikoOPEN, tiCalc_Leaf,
-   tiCalc_Trans_WIND, tiCalc_Twist, tiXFadeOut_Draw and the translucence four.
+   tiCalc_Twist (slice 13 did the rest).
+   Open from slice 13 (2026-11-11: tiChara_Translucence_Start / _End / _Start2 / _End2, tiXFadeOut_Draw,
+   tiBGT_MoveImage, tiDR_XYZF2, tiCalc_Trans_WIND): (kt) **the host has no draw-target switch**: the ROM
+   points the draw buffer at the effect buffer while translucent characters / ghosts draw, then lays it
+   back over the frame. The port captures the frame before them (AlyssaPan_DrawGaCapture), lets them draw
+   opaque and lays the capture back at 0x80 - FIX: exact for _End ((E - F) * a + F), **approximate for
+   _End2** (one copy at the three shifted copies' combined alpha 1 - (1 - a)^3; the ghost's edge shimmer
+   -- copies shifted by edgeLevel and stretched by the amplitudes * |cos(phase)| -- is lost, and the ghost
+   layer's own texel alpha is taken as 0x80). An offscreen-layer seam (draw into a target, composite with
+   per-sprite offsets) in alyssapan_drawga.h would make both exact: host work before the first scene with
+   a ghost; (ku) CHARACTER.h536[0..3] named from _End2 (CHARA_EDGE_SPEED_X / _Y, _PHASE_X / _Y; [4] / [5]
+   the amplitudes); (kv) tiBGT_MoveImage tells the host a capture only when its source is the draw buffer
+   (tiXFadeOut_Draw's only use so far); other local copies have no host picture; (kw) init_black under
+   init_black_drawctrl (ABE 0) is AlyssaPan_DrawGaFill at FIX 0x80; XFade kind 2 / 4 have no names yet
+   (XFADE_TYPE_FROM_BLACK); (kx) the statics of this slice are named by address (drawctrl_0193d600,
+   drawctrl_0193d540, tex_0193d440): the symtab's $n names were not looked up.
 
 8. **(2026-11-11, the user: "queue the title blockers") The way to the title screen.** A probe run
    (16:25, reverted: every stubbed x command answering XCMD_DONE, AA_movie returning at once) showed the
