@@ -501,7 +501,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 105..105, 36 functions keyed by their statics, 13 unkeyed; file name from the names"
   },
   "game/Clipping_Portal.c": {
-   "notes": "Smoke run unchanged (content warning screen at 4:3); none of the new code is on its path. Ghost compositing is approximate on the host (open-items 7 kt: an offscreen-layer seam would make it exact). Next: tiCalc_HurikoCLOSED (0xd20), tiCalc_HurikoOPEN, tiCalc_Leaf, tiCalc_Twist (VU outer product: read the disassembly).",
+   "notes": "Smoke run unchanged (content warning screen at 4:3); none of the new code is on its path. callcheck MISSING on tiCalc_Leaf / _Leaf_WIND is the calls moved into the static helpers LeafFace / LeafStepTurn. Open: open-items 7 ky (PARTICLE2_TWIST runs past 0x80), kz (PTCL_* record layout owned by ssCalcParticleOrbit). Next: tiCalc_HurikoCLOSED (0xd20) and tiCalc_HurikoOPEN (0xbc4), the TU's last stubs.",
    "ranges": [
     [
      "01889cd0",
@@ -509,11 +509,6 @@
     ]
    ],
    "sessions": [
-    {
-     "date": "2026-11-11 14:54",
-     "status": "partial",
-     "summary": "slice 2: Clipping_Portal (portal side planes), tiCharaFootAdjust and tiCalc_FootPos (two-bone leg IK onto the floor); LOS_HIT, CHARACTER.footAdjust, CHARA_LEG moved to ct3_types.h"
-    },
     {
      "date": "2026-11-11 15:12",
      "status": "partial",
@@ -568,6 +563,11 @@
      "date": "2026-11-11 19:45",
      "status": "partial",
      "summary": "slice 13: the translucent-character and ghost passes (tiChara_Translucence_Start / End / Start2 / End2, host composite from a capture at the inverse FIX), tiXFadeOut_Draw (cross-fade from a frame copy), tiBGT_MoveImage (GS local copy; host capture when the source is the draw buffer), tiDR_XYZF2, tiCalc_Trans_WIND; CHARACTER edge-shimmer speeds and phases named"
+    },
+    {
+     "date": "2026-11-11 19:54",
+     "status": "partial",
+     "summary": "slice 14: tiCalc_Leaf, tiCalc_Twist (turn about the velocity around startPos less radius along unit (vel+1) x vel), tiGetTransRotMatrix, tiGetDegFromVec, tiParticleSetPosition_WIND; leaf face and step/turn shared with _Leaf_WIND; PARTICLE2_TWIST; vecOne"
     }
    ],
    "status": "partial",

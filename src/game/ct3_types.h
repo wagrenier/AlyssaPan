@@ -791,6 +791,17 @@ static_assert(offsetof(PARTICLE2_ENTRY, dir) == 0x10, "PARTICLE2_ENTRY.dir");
 static_assert(offsetof(PARTICLE2_ENTRY, refrIndex) == 0x4c, "PARTICLE2_ENTRY.refrIndex");
 static_assert(sizeof(PARTICLE2_ENTRY) == 0x80, "PARTICLE2_ENTRY");
 
+// An ORBIT_TWIST entry runs on past the 0x80 bytes: tiCalc_Twist reads two halfwords at +0x80 / +0x82
+// of the entry tiCalc_Orbit hands it (2026-11-11, from the disassembly; the lists hold pointers, so
+// entries of this kind are simply longer). layout: ee.
+typedef struct PARTICLE2_TWIST {
+    PARTICLE2_ENTRY base;
+    u_short angle;                      /* 0x80: the turn per step about the velocity (65536 a turn) */
+    u_short radius;                     /* 0x82: the turn's centre: startPos less this along the unit
+                                           (vel + 1) x vel */
+} PARTICLE2_TWIST;
+static_assert(offsetof(PARTICLE2_TWIST, radius) == 0x82, "PARTICLE2_TWIST.radius");
+
 #define PARTS_POS_W_CENTER 128.0f       /* main_rtn_Particle2: w' = (w + 128) * scale - 128 */
 
 // PORT (2026-11-09, open-items.md 1 h): a bank's relocated data (its ga draw objects first) keeps the

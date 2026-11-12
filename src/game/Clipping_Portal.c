@@ -3055,10 +3055,67 @@ void tiBGT_MoveImage(u_int sbp, u_int sbw, u_int dbp, u_int dbw, u_int psm, u_in
         AlyssaPan_DrawGaCapture(dbp, (int)rrw, (int)rrh);
 }
 
-// stub of CT3 0x018949c0
+// CT3 0x018949c0: src turned about the point pos: dst = src after a move by -pos, then a move by +pos
+// (two gaMulMatrix with matUnit whose row 3 gains -pos / +pos, xyz). dst may be src.
 void tiGetTransRotMatrix(float (*dst)[4], float *pos, float (*src)[4])
 {
-    ALYSSAPAN_STUB("tiGetTransRotMatrix", 0x018949c0);
+    float move[4][4];
+
+    memcpy(move, matUnit, sizeof(move));
+    move[3][0] += pos[0] * -1.0f;
+    move[3][1] += pos[1] * -1.0f;
+    move[3][2] += pos[2] * -1.0f;
+    gaMulMatrix(dst, src, move);
+    memcpy(move, matUnit, sizeof(move));
+    move[3][0] += pos[0];
+    move[3][1] += pos[1];
+    move[3][2] += pos[2];
+    gaMulMatrix(dst, move, dst);
+}
+
+#define DEG_PER_RAD 57.295776f          /* tiGetDegFromVec */
+
+// CT3 0x01894a90: v's angle in one plane, in degrees. The ROM zeroes the third axis and normalises the
+// vector (VRSQRT) before taking the two components; the ratio and the signs do not change, so the host
+// reads them straight (PORT: a zero vector answers 0 both ways -- the VU's RSQRT of 0 is its largest
+// float, not inf). a > 0: atan(c / a) (0 when c is 0); a < 0: that +-180 by c's sign (180 when c is
+// 0); a == 0: +-90 by c's sign, 0 when both are 0.
+float tiGetDegFromVec(float *v, char axis)
+{
+    float a, c;
+
+    switch (axis) {
+    case 2:
+        a = v[0];
+        c = v[2];
+        break;
+    case 1:
+        a = v[1];
+        c = v[2];
+        break;
+    case 0:
+        a = v[0];
+        c = v[1];
+        break;
+    default:
+        a = c = 0.0f;
+        break;
+    }
+    if (a > 0.0f) {
+        if (c != 0.0f)
+            return atanf(c / a) * DEG_PER_RAD;
+        return 0.0f;
+    }
+    if (a < 0.0f) {
+        if (c == 0.0f)
+            return 180.0f;
+        if (c > 0.0f)
+            return atanf(c / a) * DEG_PER_RAD + 180.0f;
+        return atanf(c / a) * DEG_PER_RAD - 180.0f;
+    }
+    if (c != 0.0f)
+        return c > 0.0f ? 90.0f : -90.0f;
+    return 0.0f;
 }
 
 // stub of CT3 0x01892310
@@ -3077,16 +3134,6 @@ void tiCalc_HurikoCLOSED(HURIKO *h, int bank, int ticks)
     (void)bank;
     (void)ticks;
     ALYSSAPAN_STUB("tiCalc_HurikoCLOSED", 0x018915a0);
-}
-
-// stub of CT3 0x0188ea90
-void tiCalc_Leaf(int ticks, PARTICLE2 *rec, int arg, int bank)
-{
-    (void)ticks;
-    (void)rec;
-    (void)arg;
-    (void)bank;
-    ALYSSAPAN_STUB("tiCalc_Leaf", 0x0188ea90);
 }
 
 // CT3 0x0188c6e0: ORBIT_TRANS_WIND: tiCalc_Trans with the winds added to the acceleration -- each live
@@ -3118,29 +3165,64 @@ void tiCalc_Trans_WIND(int ticks, PARTICLE2 *rec, int bank)
     OrbitStep(rec, m, accel, dt);
 }
 
+#define PTCL_POS 0x40                   /* tiParticleSetPosition_WIND's record: position (xyz) */
+#define PTCL_VEL 0x80                   /* velocity (xyz) */
+#define PTCL_TIME 0xac                  /* the time of the last step, 1/300 s ticks */
+#define PTCL_OBJ_POS 0x10               /* the draw object's position (xyz) */
+
+// CT3 0x0188c040: the first particle system's wind motion (ssCalcParticleOrbit, orbit kind 4): dt =
+// (now - the record's last time) / 300, and the time kept; the acceleration is the header's plus every
+// live wind's world10 (enabled trigger part, and the record's position in its capsule or radius 0);
+// position += v dt + a dt^2, v += a 2dt (xyz; the w lanes kept), and the position copied to the draw
+// object.
+void tiParticleSetPosition_WIND(const float *head, u_char *obj, u_char *rec, int now)
+{
+    float *pos = (float *)(rec + PTCL_POS);
+    float *vel = (float *)(rec + PTCL_VEL);
+    float wind[3], a[3], step[3], dt;
+    int last, i;
+
+    memcpy(&last, rec + PTCL_TIME, sizeof(last));
+    memcpy(rec + PTCL_TIME, &now, sizeof(now));
+    dt = (float)(now - last) / ORBIT_TICKS_PER_SEC;
+    wind[0] = wind[1] = wind[2] = 0.0f; // sqc2 vf0
+    for (i = 0; i < WIND_MAX; i++) {
+        WIND *w = WindList[i];
+
+        if (w != NULL && ssTrigCheckEnable((u_short)w->part, w->bank) != 0 &&
+            (w->radius == 0.0f || tiCheckWindForce(pos, w) != 0)) {
+            wind[0] += w->world10[0];
+            wind[1] += w->world10[1];
+            wind[2] += w->world10[2];
+        }
+    }
+    for (i = 0; i < 3; i++) {
+        a[i] = head[i] + wind[i];
+        step[i] = vel[i] * dt + a[i] * (dt * dt);
+        vel[i] = vel[i] + a[i] * (dt * 2.0f);
+    }
+    for (i = 0; i < 3; i++) {
+        pos[i] += step[i];
+    }
+    gaCopyVectorXYZ((float *)(obj + PTCL_OBJ_POS), pos);
+}
+
 #define LEAF_TICKS_PER_SECOND 300.0f   /* dt = ticks / 300 */
 #define LEAF_PUSH_DIVISOR 4.0f          /* the face's push: arg * speed * (n . -v) / 4 */
 #define LEAF_TURN_MIN 0x16c             /* the turn per step, ahAcos units (65536 a turn): 2 degrees .. */
 #define LEAF_TURN_MAX 0x71c             /* .. 10 degrees */
 
-// CT3 0x0188c210: a falling leaf in the winds (tiCalc_Orbit's ORBIT_LEAF_WIND). A random vertex normal of
-// the record's object, turned by local's rotation, is the leaf's face n; the air pushes it along n by
-// arg * |v| * (n . -v / |v|) / 4; every enabled wind whose capsule holds the leaf (or whose radius is 0)
-// adds its world10 vector; with the acceleration that moves local's row 3 by v dt + a dt^2 and makes
-// v' = v + a 2dt (dt = ticks / 300; v's w kept). The leaf turns about its own position by the angle
-// between v and v' (clamped to 2..10 degrees) three times: about n x v', about v', about n. age += ticks.
-void tiCalc_Leaf_WIND(int ticks, PARTICLE2 *rec, int arg, int bank)
+// The leaf's face and the air's push (tiCalc_Leaf and _Leaf_WIND alike): n = a random vertex normal of
+// the record's object through local's rotation; push = n * arg * |v| * (n . -v / |v|) / 4 (w n's).
+static void LeafFace(PARTICLE2 *rec, PARTICLE2_MATS *m, int arg, int bank, float *n, float *push)
 {
-    PARTICLE2_MATS *m = RecMats(rec, bank);
     u_char *obj = BANK_PTR(u_char *, bank, rec->obj);
-    float dt = (float)ticks / LEAF_TICKS_PER_SECOND;
-    float rot[4][4], turn[4][4], n[4], vn[4], vu[4], push[4], wind[4], a[4], vNew[4], axis[4], pos[4];
+    float rot[4][4], vn[4];
     const float *normals;
     u_int nrmEE;
-    int count, i, angle;
+    int count;
     float speed, k;
 
-    rec->age += ticks;
     memcpy(&nrmEE, obj + REFR_OBJ_NORMALS, sizeof(nrmEE));
     memcpy(&count, obj + REFR_OBJ_VERTEX_COUNT, sizeof(count));
     normals = BANK_PTR(const float *, bank, nrmEE + REFR_BLOCK_VIF_BYTES);
@@ -3162,24 +3244,17 @@ void tiCalc_Leaf_WIND(int ticks, PARTICLE2 *rec, int arg, int bank)
     push[1] = n[1] * k;
     push[2] = n[2] * k;
     push[3] = n[3];
+}
 
-    // the winds
-    wind[0] = wind[1] = wind[2] = 0.0f;
-    wind[3] = 1.0f;
-    for (i = 0; i < WIND_MAX; i++) {
-        WIND *w = WindList[i];
+// The leaf's step and turn: local's row 3 moves by v dt + a dt^2 and v' = v + a 2dt (v's w kept); the
+// leaf turns about its own position by the angle between v and v' (clamped to 2..10 degrees) three
+// times: about n x v', about v', about n; then v = v'.
+static void LeafStepTurn(PARTICLE2 *rec, PARTICLE2_MATS *m, const float *n, const float *a, float dt)
+{
+    float rot[4][4], turn[4][4], vn[4], vu[4], vNew[4], axis[4], pos[4];
+    int i, angle;
 
-        if (w != NULL && ssTrigCheckEnable((u_short)w->part, w->bank) != 0 &&
-            (w->radius == 0.0f || tiCheckWindForce(m->local[3], w) != 0)) {
-            wind[0] += w->world10[0];
-            wind[1] += w->world10[1];
-            wind[2] += w->world10[2];
-        }
-    }
-
-    // the step
     for (i = 0; i < 3; i++) {
-        a[i] = push[i] + wind[i] + rec->accel[i];
         m->local[3][i] += rec->vel[i] * dt + a[i] * (dt * dt);
     }
     for (i = 0; i < 3; i++) {
@@ -3187,7 +3262,6 @@ void tiCalc_Leaf_WIND(int ticks, PARTICLE2 *rec, int arg, int bank)
     }
     vNew[3] = rec->vel[3];
 
-    // the turn
     memcpy(vn, vNew, sizeof(vn));
     PortUnitXYZ(vn);
     memcpy(vu, rec->vel, sizeof(vu));
@@ -3211,7 +3285,7 @@ void tiCalc_Leaf_WIND(int ticks, PARTICLE2 *rec, int arg, int bank)
     gaMulMatrix(m->local, turn, m->local);
     asMakeRotMatrixByQuartanion(turn, vn, angle);
     gaMulMatrix(m->local, turn, m->local);
-    asMakeRotMatrixByQuartanion(turn, n, angle);
+    asMakeRotMatrixByQuartanion(turn, (float *)n, angle);
     gaMulMatrix(m->local, turn, m->local);
     memcpy(rot, matUnit, sizeof(rot));
     rot[3][0] += pos[0];
@@ -3221,14 +3295,82 @@ void tiCalc_Leaf_WIND(int ticks, PARTICLE2 *rec, int arg, int bank)
     memcpy(rec->vel, vNew, sizeof(vNew));
 }
 
-// stub of CT3 0x0188e8c0
+// CT3 0x0188ea90: a falling leaf (tiCalc_Orbit's ORBIT_LEAF): the face's push plus the record's own
+// acceleration, then the leaf's step and turn (dt = ticks / 300). age += ticks.
+void tiCalc_Leaf(int ticks, PARTICLE2 *rec, int arg, int bank)
+{
+    PARTICLE2_MATS *m = RecMats(rec, bank);
+    float dt = (float)ticks / LEAF_TICKS_PER_SECOND;
+    float n[4], push[4], a[3];
+    int i;
+
+    rec->age += ticks;
+    LeafFace(rec, m, arg, bank, n, push);
+    for (i = 0; i < 3; i++) {
+        a[i] = push[i] + rec->accel[i];
+    }
+    LeafStepTurn(rec, m, n, a, dt);
+}
+
+// CT3 0x0188c210: a falling leaf in the winds (tiCalc_Orbit's ORBIT_LEAF_WIND): as tiCalc_Leaf, and every
+// enabled wind whose capsule holds the leaf (or whose radius is 0) adds its world10 vector.
+void tiCalc_Leaf_WIND(int ticks, PARTICLE2 *rec, int arg, int bank)
+{
+    PARTICLE2_MATS *m = RecMats(rec, bank);
+    float dt = (float)ticks / LEAF_TICKS_PER_SECOND;
+    float n[4], push[4], wind[4], a[3];
+    int i;
+
+    rec->age += ticks;
+    LeafFace(rec, m, arg, bank, n, push);
+    wind[0] = wind[1] = wind[2] = 0.0f;
+    wind[3] = 1.0f;
+    for (i = 0; i < WIND_MAX; i++) {
+        WIND *w = WindList[i];
+
+        if (w != NULL && ssTrigCheckEnable((u_short)w->part, w->bank) != 0 &&
+            (w->radius == 0.0f || tiCheckWindForce(m->local[3], w) != 0)) {
+            wind[0] += w->world10[0];
+            wind[1] += w->world10[1];
+            wind[2] += w->world10[2];
+        }
+    }
+    for (i = 0; i < 3; i++) {
+        a[i] = push[i] + wind[i] + rec->accel[i];
+    }
+    LeafStepTurn(rec, m, n, a, dt);
+}
+
+// CT3 0x0188e8c0: ORBIT_TWIST: the record's step (velocity and its own acceleration), then a turn by
+// the entry's angle about the record's velocity, centred on startPos less radius along the unit
+// (vel + 1) x vel -- the new velocity, after the step. age += ticks. The entry is a PARTICLE2_TWIST
+// (it runs past PARTICLE2_ENTRY's 0x80 bytes). The u_short -> float conversion's high-bit path the ROM
+// carries is dead for a halfword.
 void tiCalc_Twist(int ticks, PARTICLE2 *rec, PARTICLE2_ENTRY *ent, int bank)
 {
-    (void)ticks;
-    (void)rec;
-    (void)ent;
-    (void)bank;
-    ALYSSAPAN_STUB("tiCalc_Twist", 0x0188e8c0);
+    const PARTICLE2_TWIST *tw = (const PARTICLE2_TWIST *)ent;
+    PARTICLE2_MATS *m = RecMats(rec, bank);
+    float dt = (float)ticks / ORBIT_TICKS_PER_SEC;
+    float turn[4][4], v1[3], axis[4], q, r;
+    int i;
+
+    rec->age += ticks;
+    OrbitStep(rec, m, rec->accel, dt);
+    for (i = 0; i < 3; i++) {
+        v1[i] = rec->vel[i] + vecOne[i];
+    }
+    axis[0] = v1[1] * rec->vel[2] - rec->vel[1] * v1[2]; // vopmula / vopmsub: (vel + 1) x vel
+    axis[1] = v1[2] * rec->vel[0] - rec->vel[2] * v1[0];
+    axis[2] = v1[0] * rec->vel[1] - rec->vel[0] * v1[1];
+    q = 1.0f / sqrtf(axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]);
+    r = (float)tw->radius;
+    for (i = 0; i < 3; i++) {
+        axis[i] = rec->startPos[i] - axis[i] * q * r;
+    }
+    axis[3] = rec->startPos[3];
+    asMakeRotMatrixByQuartanion(turn, rec->vel, tw->angle);
+    tiGetTransRotMatrix(turn, axis, turn);
+    gaMulMatrix(m->local, turn, m->local);
 }
 
 // ---- refraction: the per-vertex ST (slice 12, 2026-11-11) ----

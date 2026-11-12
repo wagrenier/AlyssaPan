@@ -1416,6 +1416,17 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    init_black_drawctrl (ABE 0) is AlyssaPan_DrawGaFill at FIX 0x80; XFade kind 2 / 4 have no names yet
    (XFADE_TYPE_FROM_BLACK); (kx) the statics of this slice are named by address (drawctrl_0193d600,
    drawctrl_0193d540, tex_0193d440): the symtab's $n names were not looked up.
+   Open from slice 14 (2026-11-11: tiCalc_Leaf, tiCalc_Twist, tiGetTransRotMatrix, tiGetDegFromVec,
+   tiParticleSetPosition_WIND; the leaf's face and step/turn shared with _Leaf_WIND as static helpers, so
+   callcheck reports their calls as missing from the two callers -- explained): (ky) **tiCalc_Twist reads
+   +0x80 / +0x82 of its entry**, past PARTICLE2_ENTRY's 0x80 bytes (tiCalc_Orbit hands the entry itself,
+   s6 = a1): ct3_types.h's PARTICLE2_TWIST (angle, radius) says so; the bank loader / particle TU should
+   confirm such entries really are longer; (kz) tiParticleSetPosition_WIND's record (0xc0 bytes: +0x40
+   position, +0x80 velocity, +0xac last time) and draw object (+0x10 position) are PTCL_* offsets in
+   Clipping_Portal.c and host pointers in the prototype: ssCalcParticleOrbit's TU (the first particle
+   system) owns that layout and decides; its first argument is the system header, whose first quad is the
+   acceleration; (la) vecOne (sdata 0x01939e80, (1, 1, 1, 1)) is now defined in unassigned_data.cpp.
+   Left: tiCalc_HurikoCLOSED (0xd20), tiCalc_HurikoOPEN (0xbc4) -- the TU's last stubs.
 
 8. **(2026-11-11, the user: "queue the title blockers") The way to the title screen.** A probe run
    (16:25, reverted: every stubbed x command answering XCMD_DONE, AA_movie returning at once) showed the

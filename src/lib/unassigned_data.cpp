@@ -418,6 +418,7 @@ u_long DrawOnPosSetHashTemp;                    /* sbss 0x019424e0 */
 int CharacterDisable;                           /* sbss 0x01942384 */
 alignas(16) float matUnit[4][4] = {             /* sdata 0x01939e40 */
     {1.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 1.0f}};
+alignas(16) float vecOne[4] = {1.0f, 1.0f, 1.0f, 1.0f}; /* sdata 0x01939e80 */
 u_char LetterData[100][0xc] = {                 /* data 0x0192fad0 */
     {0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
     {0x00, 0x01, 0x06, 0x01, 0x06, 0x00, 0x00, 0x00, 0xf2, 0x03, 0x00, 0x00},

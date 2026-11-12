@@ -198,6 +198,7 @@ extern u_long DrawOnPosSetHashTemp;             /* sbss 0x019424e0: != 0 -> TrgS
 extern int CharacterDisable;                    /* sbss 0x01942384: main2 clears it */
 extern float matUnit[4][4];                     /* sdata 0x01939e40: the unit matrix */
 #define MATUNIT_EE 0x01939e40u           /* matUnit's EE address (a root part's REC_PARENT) */
+extern float vecOne[4];                         /* sdata 0x01939e80: (1, 1, 1, 1) */
 extern u_char LetterData[100][0xc];             /* data 0x0192fad0: the letter table */
 
 // ---- sound (game/sound.c's slice 1 uses them; the Sd driver TU or the scene TU owns them) -----------

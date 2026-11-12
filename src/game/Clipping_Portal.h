@@ -32,6 +32,14 @@ static_assert(offsetof(WIND, world40) == 0x60, "WIND.world40");
                                            named from this use) */
 extern WIND *WindList[WIND_MAX];                /* sbss 0x0193d290 */
 int tiCheckWindForce(float *p, WIND *wind);                                             // CT3 0x0188c8b0
+// ssCalcParticleOrbit's wind motion (orbit kind 4) for one record of the first particle system: head is
+// the system's header, whose first quad is the acceleration; obj the record's draw object (its +0x10
+// gets the position), rec the 0xc0-byte record (+0x40 position, +0x80 velocity, +0xac last time); now
+// the time in 1/300 s ticks. The record layout belongs to ssCalcParticleOrbit's TU (PTCL_* in the .c).
+void tiParticleSetPosition_WIND(const float *head, u_char *obj, u_char *rec, int now);   // CT3 0x0188c040
+// The angle of v in one plane, in degrees (-180..180): axis 0 = (x, y), 1 = (y, z), 2 = (x, z) -- the
+// first is the "x" of atan2. Other axes answer 0.
+float tiGetDegFromVec(float *v, char axis);                                              // CT3 0x01894a90
 
 // ---- light belts (tiLightBelt2Init, 2026-11-11; tiLightBelt2Update, 2026-11-11 slice 6) ----
 // A bank's light belts (ALL_TABLE.lightBelts, a 0-ended list of EE words). layout: ee -- bank data;
