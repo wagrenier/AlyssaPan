@@ -11,7 +11,7 @@
  },
  "tus": {
   "alyssapan/core/alyssa_pose.cpp": {
-   "notes": "gdb (movies skipped): game thread in main room loop, no inner loop. Shot 24360-24600: Alyssa posed from behind (arms down; one frame headless/armless), room not drawn, skirt a column to the floor; black from 24720. fFade 1, Fade_Type 4, FadeEndTicks 0. pause 0, bank 47 flags 0x1 (gate passes). slots 0,-1,-1,206,66,-1; times 10,0,900,610,20,0; playable 600,0,0,900,900,0. Watchpoint on slot 0 time == 0 never fired: frozen, not restarted. Next (open-items nq5): why motion 0 behaviour playing ticks stay 1000 (ExecuteAnimation tick advance, play rate MOTION_REC_PLAY_RATE, same behaviour as TrigAnimStart started?), sample slots 3/4 twice, probe the 701 WAIT_ANIM answers for hash c1830bfb6fed; then skirt, room draw, head/arms, mp3.",
+   "notes": "Smoke runs (build.py --run 150 --pad 600:START*10,800:START*10,1200:START*10,1400:START*10) reach the room; black presents between camera shots remain (mp3). Next (open-items nq6): Alyssa drawn posed but with long triangles from her body converging on one far point (shot 285000). Probe the host draw of two-matrix objects (DRAW_OBJ_MATRIX / MATRIX2 +0x58/+0x5c from LinkMatrixTree): log view-space vertices far from her BasePoint with the object part and its REC_GA_MATRIX / REC_GA_MATRIX2, compare with BuildMatrixTree view pass (REC_DRAW_MATRIX 0x300, REC_VIEW_MATRIX 0x340). Then head/arms in close shots, then mp3.",
    "sessions": [
     {
      "date": "2026-11-12 16:08",
@@ -27,6 +27,11 @@
      "date": "2026-11-12 17:13",
      "status": "partial",
      "summary": "Black frames after NEW named: a held OUT2_BLACK fade from the skipped opening movie; the script fade-in never comes because Alyssa motion 0 (slot 0) is frozen at time 10 of 600, so the WAIT_ANIM on it never ends; gdbrun.py now skips movies and answers --help"
+    },
+    {
+     "date": "2026-11-12 17:34",
+     "status": "partial",
+     "summary": "Motion 0 freeze settled: a gdb artefact; smoke runs reach the room (opening shots draw) and Alyssa slot 0 loops at 1000 ticks a call under ANIM_CTRL_HOLD; the body spikes are not the static parts zero matrices (kind 1, never written in the ROM either)"
     }
    ],
    "status": "partial",

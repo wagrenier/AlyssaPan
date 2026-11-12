@@ -1892,6 +1892,30 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    (probe ssTrigExecuteActCmd's 701 answers for hash c1830bfb6fed). Then the skirt column, the room
    draw, head / arms in close shots, then (mp3).
 
+   **alyssa_pose.cpp (partial, 2026-11-12 17:35, scheduled run): (nq5) settled -- motion 0 is not
+   frozen, the black after NEW was a gdb artefact.** Smoke runs (build.py --run 120/150 --pad
+   "600:START*10,800:START*10,1200:START*10,1400:START*10", no gdb) reach the room every time: the
+   opening's camera shots (stairs hall, the double doors opening, Alyssa small from behind) draw, with
+   black presents between them (mp3, still open). A probe in asCharacterAnimationExecute (stripped) gave
+   Alyssa's slot 0 (motion 0, 95 tracks, all playing, rate 100, hdr[0] 2 = ANIM_CTRL_HOLD, track flags 0)
+   a time that advances 1000 a call (anim_play_slow 100 x gGlobalNextTicksInterval 10 x rate 100 / 100)
+   and wraps at playable 600 x 100 every 60 calls (HOLD restarts it through asStartAnimation, so it never
+   ends -- an idle loop); slots 3 (206) and 4 (66/67, the blink) advance the same. Trap: sampling every 60
+   calls aliases with a 60-call loop and looks like a slow (~77 a call) advance. The "frozen at 10" of the
+   gdb run is gdb's pacing (hazards.md: gdbrun.py is unpaced), not the port.
+   **The spikes (nq6, next):** shot 285000 of the 150 s run shows Alyssa posed (no T-pose) but long
+   triangles from her body converging on one far point, the skirt one of them. Ruled out: the parts with a
+   zero world matrix (REC_MATRIX +0x180 all 0, w too) -- records 11..20, 30, 42, 69 and 176.. of bank 47
+   are PARTS_KIND_STATIC (kind 1), which BuildMatrixTree never writes in the ROM either (LinkMatrixTree
+   sends their draw objects to the parent's draw matrices). Next: find which draw object of bank 47 emits
+   the far vertices (a probe in the host draw of a two-matrix object -- DRAW_OBJ_MATRIX / DRAW_OBJ_MATRIX2,
+   +0x58 / +0x5c, filled by LinkMatrixTree -- logging any view-space vertex farther than 1000 from her
+   BasePoint, with the object's part and its REC_GA_MATRIX / REC_GA_MATRIX2), then compare that part's two
+   matrices with what BuildMatrixTree's view pass (REC_DRAW_MATRIX 0x300 / REC_VIEW_MATRIX 0x340) should
+   have written. Then head / arms in close shots, then (mp3). Probe note: MODEL_PARTS (ct3_types.h) and
+   the REC_* offsets name the same record in two frames (MODEL_PARTS.matrix 0x1c0 = REC_MATRIX 0x180 + 0x40,
+   but MODEL_PARTS.hash 0x48 is not REC_HASH 0x38 + 0x40): read records as hdr + 0x40 + i * 0x380 with REC_*.
+
 ## Decisions
 
 - 2026-11-11 (Claude, scheduled run 19:15, for the user to overrule): **the ga 2D frame stays 4:3.** The
