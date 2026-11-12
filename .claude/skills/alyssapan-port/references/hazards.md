@@ -7,6 +7,17 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-11, title_wide.cpp) **CLAMP_1's REGION_REPEAT read as clamp smears a picture's edge into a flat
+  band.** UiCanvas's DrawCall has only repeat (WMS 0) or clamp; the title's sky and fog bands tile one
+  128 x 128 cell of a 256 x 256 picture (CLAMP_1 0x7f0007ff / 0x7f2007ff: MSK 0x7f, FIX 0 or 0x80) across
+  st -0.7..1.7, and clamped they showed a flat strip at the right of the frame and lost the tower
+  silhouette. seams.cpp gaSampling now draws a REGION_REPEAT whose mask is 2^n - 1 as REPEAT over the
+  cell (TextureStore::regionOf), u / v moved by whole cells past 0 (the canvas's u and v are unsigned: a
+  negative st clamped to 0 too). When a ga picture shows a flat or smeared region, print each mesh's
+  CLAMP_1 and st range before suspecting the texture decode. Also: a frame-wide quad ending a few texels
+  past the 512 x 448 frame is the ROM leaving the edge to SCISSOR_1; drawn squeezed and unscissored at a
+  wide aspect, each such edge is a seam.
+
 - (2026-11-11, movie_skip.cpp) **A stubbed x command waits for good, and the log looks like the next
   step hangs.** stubgen's stubs `return {}`, which is XCMD_WAIT (0) for an x command: the script runs it
   again every frame. The log printed AA_OpenMovie's "Open Mpeg File" and then the stub

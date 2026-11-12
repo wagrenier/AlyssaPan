@@ -5,8 +5,10 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <mutex>
+#include <tuple>
 #include <unordered_map>
 
 
@@ -36,7 +38,19 @@ public:
     std::shared_ptr<Image> imageOfGsTexture(int psm, int width, int height, int tw, int th, const void *pixels,
                                             const std::uint32_t *clut, bool useAlpha);
 
+    // The `width` x `height` cell of `source` at (x, y), as an image of its own: what CLAMP_1's REGION_REPEAT
+    // reads (u = (u & MSK) | FIX, MSK + 1 a power of two), drawn with a plain repeat. Kept while its source
+    // is; null when the cell is not inside the source.
+    std::shared_ptr<Image> regionOf(const std::shared_ptr<Image> &source, int x, int y, int width, int height);
+
 private:
+    struct Region
+    {
+        std::weak_ptr<Image> source;
+        std::shared_ptr<Image> image;
+    };
+    using RegionKey = std::tuple<const Image *, int, int, int, int>; // the source, x, y, width, height
+
     struct Entry
     {
         std::shared_ptr<Image> image;
@@ -47,6 +61,7 @@ private:
 
     std::mutex m_lock;
     std::unordered_map<std::uint64_t, Entry> m_entries; // by the picture's content, see imageOf
+    std::map<RegionKey, Region> m_regions;
     std::size_t m_bytes = 0;
     std::uint64_t m_uses = 0;
     bool m_loggedUnreadable = false;

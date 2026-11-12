@@ -545,6 +545,42 @@ std::shared_ptr<Image> TextureStore::imageOfGsTexture(int psm, int width, int he
     return image;
 }
 
+std::shared_ptr<Image> TextureStore::regionOf(const std::shared_ptr<Image> &source, int x, int y, int width,
+                                              int height)
+{
+    if (source == nullptr || x < 0 || y < 0 || width <= 0 || height <= 0 || x + width > source->width ||
+        y + height > source->height)
+        return nullptr;
+    if (x == 0 && y == 0 && width == source->width && height == source->height)
+        return source;
+
+    const RegionKey key{source.get(), x, y, width, height};
+    std::scoped_lock lock(m_lock);
+    if (const auto found = m_regions.find(key); found != m_regions.end())
+    {
+        if (found->second.source.lock() == source)
+            return found->second.image;
+        m_regions.erase(found); // its source was freed, and another took its address
+    }
+    std::erase_if(m_regions, [](const auto &entry) { return entry.second.source.expired(); });
+
+    auto image = std::make_shared<Image>();
+    image->width = width;
+    image->height = height;
+    const std::size_t rowBytes = static_cast<std::size_t>(width) * sizeof(Rgba);
+    image->pixels.resize(rowBytes * static_cast<std::size_t>(height));
+    for (int row = 0; row < height; ++row)
+    {
+        const std::size_t from = (static_cast<std::size_t>(y + row) * static_cast<std::size_t>(source->width) +
+                                  static_cast<std::size_t>(x)) *
+                                 sizeof(Rgba);
+        std::memcpy(image->pixels.data() + static_cast<std::size_t>(row) * rowBytes, source->pixels.data() + from,
+                    rowBytes);
+    }
+    m_regions.emplace(key, Region{source, image});
+    return image;
+}
+
 void TextureStore::evictOver(std::size_t byteBudget)
 {
     while (m_bytes > byteBudget && m_entries.size() > 1)

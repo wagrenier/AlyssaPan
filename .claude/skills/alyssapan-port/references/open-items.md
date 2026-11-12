@@ -1478,9 +1478,11 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    A 40 s run shows the clock logo, CLOCK TOWER 3, NEW / LOAD / OPTIONS with the cursor and the copyright
    lines, at 4:3 and 16:9 (the 3 and the menu come late in the intro animation: let runs go 40 s or more).
    Also: ssXcmd_SetAllControlDisable (game/wideXcmd_TriggerInit.c) was the stub the script waited on after
-   START; with it, START on NEW reaches tnXcmd_LoadWait E_00 (Alyssa's bank, the first scene). Open: (ko2)
-   at wide aspects the backdrop panels end short of the window edges with visible seams (the user's
-   decision on backdrops is YamiPan's; CT3's is to make); (kp2) ExportDrawToTex binds the screen copy,
+   START; with it, START on NEW reaches tnXcmd_LoadWait E_00 (Alyssa's bank, the first scene). Open: ~~(ko2)
+   at wide aspects the backdrop panels end short of the window edges with visible seams~~ fixed
+   2026-11-11 (alyssapan/rendering/title_wide.cpp, host task): the ga frame is scissored to the 4:3 box
+   (Decisions), and the lighter band was CLAMP_1 REGION_REPEAT drawn as clamp (hazards.md); 4:3, 16:9
+   and 21:9 shots show the same title, pillarboxed, with the clouds and the tower behind the logo; (kp2) ExportDrawToTex binds the screen copy,
    which has no host picture, so the objects after it draw untextured until rendering/ga_copy.cpp (kk);
    (kq2) the next title-path blocker is the E_00 load after NEW.
    **For 3D after it** (not queued yet): a ga pass of its own with depth and fog, widened from
@@ -1489,6 +1491,15 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    then characters (skinned parts) once a room loads.
 
 ## Decisions
+
+- 2026-11-11 (Claude, scheduled run 19:15, for the user to overrule): **the ga 2D frame stays 4:3.** The
+  title's backdrops are quads the size of the GS's 512 x 448 frame (some run a few texels past it, others
+  -460..970 for the rotating sky), the ROM leaving the edges to SCISSOR_1. At a wide aspect the canvas
+  draws that frame squeezed about the centre and now scissors it to the 4:3 box (seams.cpp gaScissor):
+  black pillars, no seams, nothing stretched. Taken from the user's YamiPan decision (textured backdrops
+  stay 4:3, YamiPan commit ba4ceff). Extending the panels to the window edges would stretch their
+  pictures or show the larger quads over nothing. The 3D pass, widened from DisplayGeometry (item 8 "For
+  3D after it"), does not take this scissor: only the ga meshes UiCanvas draws do.
 
 - 2026-11-11 (Claude, scheduled run 16:42, for the user to overrule): **game/PicPaz.c queued first.** Its
   stub aaXcmd_MovieFedeOutCancel is the real wait before the title movies (item 8); the movie skip

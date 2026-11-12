@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-11 19:13 at commit `2d2567f` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-11 19:35 at commit `3f4545d` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -97,7 +97,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 64 TUs: todo 30, partial 5, verify 30, done 7, blocked 1
+- 64 TUs: todo 30, partial 5, verify 30, done 8, blocked 1
 - next: **game/Clipping_Portal.c** (pinned in the queue)
 - pinned queue: game/Clipping_Portal.c, alyssapan/rendering/ui_canvas.cpp, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
 - partial: `game/Clipping_Portal.c` 58/73 -- Smoke run unchanged (content warning screen, right at 4:3); none of the new code is on its path. Flare sprites are sent as GIF packets the host does not draw ye
@@ -138,6 +138,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-11 19:35 `alyssapan/rendering/title_wide.cpp` done: the title at any aspect: ga frame scissored to the 4:3 box, CLAMP_1 REGION_REPEAT drawn as a repeat of its cell
 - 2026-11-11 19:13 `game/Clipping_Portal.c` partial: slice 12: tiDrawLensFlares (flare elements on the line to the screen centre, sprite packets rewritten), tiBumpSTValueUpdate (bump ST shift from the first omni l
 - 2026-11-11 18:57 `game/wideXcmd_TriggerInit.c` partial: ssXcmd_SetAllControlDisable (the title script waited on its stub after START); EE resolvers skip free banks so ATLD's textures bind: the title screen draws
 - 2026-11-11 18:37 `game/Clipping_Portal.c` partial: slice 11: the GS frame-buffer copies -- tiDrawShadingOff (the shade-off: 2^level capture stretched back, turned half-alpha copies), CaptureDBuffer, tiVRAMViewer
@@ -145,7 +146,6 @@ Recent sessions:
 - 2026-11-11 18:08 `game/Clipping_Portal.c` partial: slice 9: tiHurikoReset (rest pose back in the part frame), tiGetNewNormalData (pendulum vertex normals), tiGetCharaDirection, tiFreeBossData; HURIKO_JOINT norma
 - 2026-11-11 17:59 `game/Clipping_Portal.c` partial: slice 8: tiCalc_Orbit and its motions (tiCalc_Trans, Goal_Disable, TransToGoal, TransToGoal_Stop, matL2V, Refraction) from the disassembly; PARTICLE2 laid out (
 - 2026-11-11 17:49 `ga/pad_button_read.c` verify: reconstruct gaPadRead (libpad detection walk, key repeat, stick d-pad, vibration), pad_button_read, gaPadSetVibration; merge gaPadInit into this object (018a088
-- 2026-11-11 17:33 `alyssapan/core/title_trace.cpp` done: frames no longer stop; after the title movies the ATLD script cycles the attract demos d01-d04 and never loads TITL: the press-start wait needs gaPadRead (stub)
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
@@ -157,9 +157,9 @@ Recent sessions:
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/AA_GetDataWord.c` | todo | 0/8/15 | 4.9 | 21 | 2 |
 | `game/AA_SoundMonoSoart.c` | todo | 0/8/20 | 4.0 | 18 | 2 |
-| `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
-| `game/asUseArrow.c` | todo | 0/7/11 | 6.4 | 17 | 1 |
 | `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
+| `game/asUseArrow.c` | todo | 0/7/11 | 6.4 | 17 | 1 |
+| `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `game/tkXDTrg_GetSceneHash.c` | todo | 0/8/50 | 21.0 | 15 | 2 |
 
 ## Frontier (called by reconstructed code, not written yet)

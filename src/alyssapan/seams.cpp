@@ -2,8 +2,10 @@
 // Carried over from YamiPan without FS2's 3D, shadow and whole-frame effect seams (cpp-port.md "Left in
 // YamiPan"): CT3's own draw modules add theirs here when their TUs are read.
 #include <algorithm>
+#include <bit>
 #include <chrono>
 #include <cstdint>
+#include <cmath>
 #include <cstring>
 #include <memory>
 #include <span>
@@ -123,6 +125,10 @@ constexpr float kTexelMax = 65535.0f;
 
 // The GS registers UiCanvas::setRegister reads, and the values the ga path's draws take.
 constexpr int kRegClamp1 = 0x08;
+constexpr int kRegScissor1 = 0x40;
+constexpr int kScissorX1Shift = 16; // SCISSOR_1: SCAX0 0, SCAX1 16, SCAY0 32, SCAY1 48
+constexpr int kScissorY1Shift = 48;
+constexpr float kCanvasFrameWidth = 512.0f;
 constexpr int kRegTex11 = 0x14;
 constexpr int kRegAlpha1 = 0x42;
 // PORT: CT3's ALPHA_1 / TEX1_1 for the ga objects are not read (the draw environment's TU): (Cs - Cd) x As +
@@ -162,6 +168,104 @@ std::uint16_t gaCanvasY(float windowY)
     return static_cast<std::uint16_t>(std::clamp(y, 0.0f, kWindowMax));
 }
 
+// The GS's own window: the ROM draws its backdrops as quads the size of the 512 x 448 frame (the title's
+// panels, -24..522 at most) and leaves the rest to SCISSOR_1. Squeezed at a wide aspect, that frame is the
+// 4:3 box about the centre, and the canvas scissors there: past it the quads would end short, each edge a
+// seam, and the larger ones (the sky, the fog bands) would show over nothing. The user's YamiPan decision,
+// taken for CT3 (open-items.md "Decisions" 2026-11-11): textured backdrops stay 4:3. The 3D pass, widened
+// from DisplayGeometry, is another matter (open-items.md item 8). Rounded inwards: a pixel of picture
+// lost rather than a sliver of a quad's edge.
+std::uint64_t gaScissor(float squeeze)
+{
+    const float half = kCanvasFrameWidth / 2.0f;
+    const auto x0 = static_cast<std::uint64_t>(std::ceil(half - half * squeeze));
+    const auto x1 = static_cast<std::uint64_t>(std::floor(half + half * squeeze)) - 1;
+    const auto y1 = static_cast<std::uint64_t>(kCanvasFrameHeight) - 1;
+    return x0 | x1 << kScissorX1Shift | y1 << kScissorY1Shift; // y0 = 0
+}
+
+// CLAMP_1's wrap modes, and REGION_REPEAT's fields: u = (u & MINU) | MAXU, v = (v & MINV) | MAXV.
+enum GaWrap
+{
+    GaWrap_Repeat = 0,
+    GaWrap_Clamp = 1,
+    GaWrap_RegionClamp = 2,
+    GaWrap_RegionRepeat = 3,
+};
+constexpr int kClampWmtShift = 2;
+constexpr std::uint64_t kClampWrapMask = 3;
+constexpr int kClampMinUShift = 4;
+constexpr int kClampMaxUShift = 14;
+constexpr int kClampMinVShift = 24;
+constexpr int kClampMaxVShift = 34;
+constexpr std::uint64_t kClampFieldMask = 0x3ff;
+
+// How a mesh's texture is sampled on the canvas. The title's sky and fog bands (ATLD) tile one 128 x 128
+// cell of a 256 x 256 picture with REGION_REPEAT across st -0.7..1.7; the canvas knows only repeat and
+// clamp, and clamped they smeared the picture's edge texels into flat bands (the lighter band at the
+// right). A REGION_REPEAT whose mask is a power of two less one, with its fix outside the mask, is the
+// plain repeat of that cell: the cell becomes its own image, sampled with REPEAT, its u and v unchanged
+// (the canvas divides by the bound image's size, so u / cell width wraps where u & MSK does), moved by
+// whole cells past 0 because the canvas's u and v are unsigned.
+struct GaSampling
+{
+    std::shared_ptr<alyssapan::rendering::Image> image;
+    std::uint64_t clamp = 0;
+    float shiftU = 0.0f; // 12.4 texels
+    float shiftV = 0.0f;
+};
+
+struct GaWrapCell
+{
+    bool repeats = false; // REPEAT, or a REGION_REPEAT that is one
+    int offset = 0;
+    int size = 0;
+};
+
+GaWrapCell gaWrapCell(int wrap, std::uint64_t mask, std::uint64_t fix, int imageSize)
+{
+    if (wrap == GaWrap_Repeat)
+        return {true, 0, imageSize};
+    const bool cell = wrap == GaWrap_RegionRepeat && std::has_single_bit(mask + 1) && (fix & mask) == 0 &&
+                      fix + mask + 1 <= static_cast<std::uint64_t>(imageSize);
+    if (!cell)
+        return {};
+    return {true, static_cast<int>(fix), static_cast<int>(mask + 1)};
+}
+
+GaSampling gaSampling(const alyssapan::rendering::GaMeshRecorder::Mesh &mesh)
+{
+    using alyssapan::rendering::GaMeshRecorder;
+    GaSampling sampling{mesh.image, mesh.clamp};
+    const std::uint64_t clamp = mesh.clamp;
+    const GaWrapCell u = gaWrapCell(static_cast<int>(clamp & kClampWrapMask), clamp >> kClampMinUShift & kClampFieldMask,
+                                    clamp >> kClampMaxUShift & kClampFieldMask, mesh.image->width);
+    const GaWrapCell v = gaWrapCell(static_cast<int>(clamp >> kClampWmtShift & kClampWrapMask),
+                                    clamp >> kClampMinVShift & kClampFieldMask,
+                                    clamp >> kClampMaxVShift & kClampFieldMask, mesh.image->height);
+    // PORT: a mesh that repeats along one axis and clamps along the other keeps the canvas's single mode
+    // (its U's); none on the title.
+    if (!u.repeats || !v.repeats)
+        return sampling;
+    auto image = alyssapan::Application::instance().renderer().textures().regionOf(mesh.image, u.offset, v.offset,
+                                                                                    u.size, v.size);
+    if (image == nullptr)
+        return sampling;
+    sampling.image = std::move(image);
+    sampling.clamp = GaWrap_Repeat | GaWrap_Repeat << kClampWmtShift;
+
+    float minU = 0.0f, minV = 0.0f;
+    for (const GaMeshRecorder::Vertex &vertex : mesh.vertices) {
+        minU = std::min(minU, vertex.drawSt[0] * static_cast<float>(mesh.image->width) * kGaWindowUnit);
+        minV = std::min(minV, vertex.drawSt[1] * static_cast<float>(mesh.image->height) * kGaWindowUnit);
+    }
+    const float periodU = static_cast<float>(u.size) * kGaWindowUnit;
+    const float periodV = static_cast<float>(v.size) * kGaWindowUnit;
+    sampling.shiftU = std::ceil(-minU / periodU) * periodU;
+    sampling.shiftV = std::ceil(-minV / periodV) * periodV;
+    return sampling;
+}
+
 // PORT: CT3's frame end is not read yet (no UiCanvas kick in the game's code): the first ga object after a
 // vblank closes the previous frame, and its meshes go to the canvas as one layer, as the VU1 program would
 // have sent them (window coordinates, RGBAQ, ST), each with the texture bound when it came. Squeezed about
@@ -174,11 +278,12 @@ void DrawGaFrame(const std::vector<alyssapan::rendering::GaMeshRecorder::Mesh> &
     auto &ui = canvas();
 
     ui.setSqueezed(list, true);
+    ui.setRegister(list, kRegScissor1, gaScissor(ui.squeezeFactor()));
     ui.setRegister(list, kRegAlpha1, kGaAlphaBlend);
     ui.setRegister(list, kRegTex11, kGaTex1Linear);
     for (const GaMeshRecorder::Mesh &mesh : meshes) {
         if (mesh.fill) {
-            // Over the whole window, not the GS's 512 x 448: the fill does not take the squeeze.
+            // Over the whole frame, inside gaScissor's 4:3 box as the GS's window holds it.
             ui.fillColor(list, mesh.fillRgba, mesh.fillFix);
             continue;
         }
@@ -188,11 +293,12 @@ void DrawGaFrame(const std::vector<alyssapan::rendering::GaMeshRecorder::Mesh> &
             continue;
         }
         const bool textured = mesh.image != nullptr;
+        const GaSampling sampling = textured ? gaSampling(mesh) : GaSampling{};
         const int tfx = static_cast<int>(mesh.tex0 >> kTex0TfxShift) & kTex0TfxMask;
         const bool texelAlpha = (mesh.tex0 >> kTex0TccShift & 1) != 0;
         if (textured) {
-            ui.setRegister(list, kRegClamp1, mesh.clamp);
-            ui.bindImage(list, mesh.image);
+            ui.setRegister(list, kRegClamp1, sampling.clamp);
+            ui.bindImage(list, sampling.image);
             ui.setPrimitive(list, kPrimTriangle | kPrimGouraud | kPrimTextured | kPrimBlended, nullptr);
             ui.begin(list, ALYSSAPAN_UIV_RGBAQ | ALYSSAPAN_UIV_UV);
         } else {
@@ -218,8 +324,10 @@ void DrawGaFrame(const std::vector<alyssapan::rendering::GaMeshRecorder::Mesh> &
                 out.x = gaCanvasX(v.screen[0]);
                 out.y = gaCanvasY(v.screen[1]);
                 out.z = static_cast<std::uint32_t>(std::max(v.screen[2], 0.0f));
-                out.u = static_cast<std::uint16_t>(std::clamp(v.drawSt[0] * texelsU, 0.0f, kTexelMax));
-                out.v = static_cast<std::uint16_t>(std::clamp(v.drawSt[1] * texelsV, 0.0f, kTexelMax));
+                out.u = static_cast<std::uint16_t>(
+                    std::clamp(v.drawSt[0] * texelsU + sampling.shiftU, 0.0f, kTexelMax));
+                out.v = static_cast<std::uint16_t>(
+                    std::clamp(v.drawSt[1] * texelsV + sampling.shiftV, 0.0f, kTexelMax));
                 ui.addVertex(list, out);
             }
         }
