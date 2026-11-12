@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-12 04:28 at commit `51fd46c` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-12 04:55 at commit `d132419` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1451**; stubs: **118**
+- reconstructed CT3 functions: **1456**; stubs: **113**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -91,7 +91,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/tiAvoidObject.c` | 0 | 12 |
 | `src/game/tiBrain_ChgTrace_BOSS_BALOWS.c` | 0 | 2 |
 | `src/game/tiBrain_ChgTrace_Ghost.c` | 0 | 3 |
-| `src/game/tiXcmd_TransItem.c` | 85 | 8 |
+| `src/game/tiXcmd_TransItem.c` | 90 | 3 |
 | `src/game/tkXDTrg_GetSceneHash.c` | 50 | 0 |
 | `src/game/tnXcmd.c` | 0 | 8 |
 | `src/game/wideXcmd_DebugPrint.c` | 109 | 0 |
@@ -104,7 +104,7 @@ Least-named game-code regions (64 KB blocks):
 - 65 TUs: todo 25, partial 2, verify 39, done 8, blocked 1
 - next: **game/tiXcmd_TransItem.c** (continuing a partial TU)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp
-- partial: `game/tiXcmd_TransItem.c` 85/93 -- Slice 10. Written: tiXcmd_UseItem (ITEM_USE_* modes from argv[4], ITEM_KIND_* from the row byte +0: give-take, signal, heal Character[0].hp up to hpMax, calm vi
+- partial: `game/tiXcmd_TransItem.c` 90/93 -- Slice 11. pBossInfo host form decided (open-items.md Decisions 2026-11-12): EE-layout block, pointer words 0xe8..0x140 in a host side table (BossInfoGetPtr / Bo
 - partial: `game/wideXcmd_TriggerInit.c` 45/46 -- 1 stub left: test_ssXcmd_BrainSet4 (0x698). HIT_ATK_REC gains attackObj and attackBank; AXE_RESULT values and the axe materials named from one writer (open-item
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
@@ -149,6 +149,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-12 04:55 `game/tiXcmd_TransItem.c` partial: the boss info host form and five boss commands: battle start, both chain sets, warp points, blood attack part
 - 2026-11-12 04:28 `game/BRANCH_CLEAR.c` verify: asFindMotionID reads the motion table through BankEePtr; code complete since the split (173 of 173)
 - 2026-11-12 04:15 `game/wideXcmd_TriggerInit.c` partial: slice 5: LockToTargChara (the bow lock-on), AXE_SetPath, AXE_CheckHitAndCompDir; the test commands annotated one by one: 6 functions
 - 2026-11-12 03:55 `game/wideXcmd_TriggerInit.c` partial: slice 4: AXE_SetStartPos, ForceIntoSearchMode (the ssAI_BrainInit table, six initialisers stubbed in three new brain TU headers), CheckAtkHitALYSSA, ArrowSetChi
@@ -156,7 +157,6 @@ Recent sessions:
 - 2026-11-12 03:15 `game/wideXcmd_TriggerInit.c` partial: slice 2: wideXcmd_TriggerInit, GlobalSetEnable, the axe state (AXE_INFO, ssAI_AXE_IsThrowing, ssAI_AXE_Init, AXE_ThrowEnd, AXE_InitParam), the stalkers AI x com
 - 2026-11-12 02:52 `game/ssSetTexUVforCubeMap.c` verify: reconstruct 11 functions: the full-screen sprite passes (HQDOF write-back and pre-render, hazy, ultima, blur, DOF pre, post and draw); TU code complete
 - 2026-11-12 02:33 `game/ssSetTexUVforCubeMap.c` partial: reconstruct 7 functions (vaseline trigger, screen-position picker and draw data; vaseline and wave diamond passes and their draw environment)
-- 2026-11-12 02:17 `game/ssSetTexUVforCubeMap.c` partial: reconstruct 13 functions (2D particle simulation, wave start, screen sprite setters)
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|

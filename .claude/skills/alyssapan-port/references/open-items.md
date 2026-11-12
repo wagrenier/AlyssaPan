@@ -1678,6 +1678,13 @@ apply here):
 - ReiPan (the user): an empty queue means re-assess, not "follow the frontier".
 - MioPan (the user): debug probes are stripped before committing; frame smoothing interpolates, never
   extrapolates, and adds no input lag.
+- (2026-11-12, game/tiXcmd_TransItem.c slice 11, Claude's call, the user may overrule) **pBossInfo's host
+  form** (settles (as), (jr), (kh), (ki) and slice 1's question): the block stays the ROM's 0x160 bytes
+  with every scalar at its EE offset (five TUs index its bytes); its pointer words 0xe8..0x140 keep their
+  host pointers in a side table in tiXcmd_TransItem.c (BossInfoGetPtr / BossInfoSetPtr), the EE word
+  holding 1 or 0 so the ROM's != 0 tests hold; the lists they point to are host layout (pointer arrays,
+  u_char flags). Not BankEeAddr words: SetWarp and GetBloodAttackObject do not keep their bank, so an EE
+  word could not be resolved. tiFreeBossData now frees through it; ChainBelts and ChainAnchor read it.
 
 ## Open questions
 

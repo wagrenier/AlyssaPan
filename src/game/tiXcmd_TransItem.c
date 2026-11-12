@@ -1864,44 +1864,278 @@ int tiXcmd_TEST00(int argc, char **argv, int bank)
     return XCMD_DONE;
 }
 
-// ---- stubs (tools/reverse/stubgen.py) ----
+// ---- the boss info (slice 11, 2026-11-12) ----
 
-// stub of CT3 0x018e3460
+// PORT: the host pointers of pBossInfo's pointer words, BOSS_INFO_PTR_FIRST..LAST, 4 bytes apart (the
+// header says why). Not a ROM global; one boss info exists at a time, as pBossInfo is one.
+static void *BossInfoPtrs[(BOSS_INFO_PTR_LAST - BOSS_INFO_PTR_FIRST) / 4 + 1];
+
+static int BossInfoPtrSlot(int off)
+{
+    if (off < BOSS_INFO_PTR_FIRST || off > BOSS_INFO_PTR_LAST || (off & 3) != 0)
+        return -1;
+    return (off - BOSS_INFO_PTR_FIRST) / 4;
+}
+
+void *BossInfoGetPtr(int off)
+{
+    int slot = BossInfoPtrSlot(off);
+    u_int word;
+
+    if (pBossInfo == NULL || slot < 0)
+        return NULL;
+    memcpy(&word, pBossInfo + off, sizeof(word));
+    return word != 0 ? BossInfoPtrs[slot] : NULL;
+}
+
+void BossInfoSetPtr(int off, void *p)
+{
+    int slot = BossInfoPtrSlot(off);
+    u_int word = p != NULL ? BOSS_INFO_PTR_SET : 0;
+
+    if (pBossInfo == NULL || slot < 0)
+        return;
+    BossInfoPtrs[slot] = p;
+    memcpy(pBossInfo + off, &word, sizeof(word));
+}
+
+static void BossInfoSetInt(int off, int v)
+{
+    memcpy(pBossInfo + off, &v, sizeof(v));
+}
+
+static void BossInfoSetFloat(int off, float v)
+{
+    memcpy(pBossInfo + off, &v, sizeof(v));
+}
+
+// Part `id` of bank `bank` (pModelPartsHeader[bank] + id * PARTS_REC_SIZE, as the ROM adds it).
+static MODEL_PARTS *BossPart(int bank, int id)
+{
+    return (MODEL_PARTS *)(pModelPartsHeader[bank] + id * PARTS_REC_SIZE);
+}
+
+// The position of the chains' source part (CHAIN_SOURCE_PART) of Character[chara]'s bank.
+static float *ChainSourcePos(int chara)
+{
+    int bank = Character[chara].bank;
+
+    return BossPart(bank, asFindModelPartsID(pModelPartsHeader[bank], ahGetHash(CHAIN_SOURCE_PART)))->pos;
+}
+
+// tiXcmd_BOSS_BattleStart's argv[0] (1..7) -> the boss's Character[] index; anything else takes 2.
+#define BOSS_KIND_DEFAULT_CHARA 2
+static const u_char BossKindChara[8] = { BOSS_KIND_DEFAULT_CHARA, 2, 3, 4, 4, 6, 5, BALOWS_CHARA };
+#define BOSS_KIND_CHARA4_B 4            /* argv[0] 3 and 4 both pick Character[4]; 4 is the harder setup */
+
+// One boss's starting values (the ROM writes them inline, one branch per boss; meanings unread except
+// hp: named by offset until the boss AI's TU reads them). layout: host (a table of this TU's, no EE twin).
+typedef struct BOSS_SETUP {
+    u_char chara;                       /* its Character[] index (BossKindChara) */
+    u_char kindArg;                     /* 0: any; else argv[0] must match (Character[4]'s two setups) */
+    u_char b8e, b94, b8f;               /* bytes 0x8e, 0x94, 0x8f */
+    u_int stateBits;                    /* ORed into BOSS_INFO_PHASE (BOSS_STATE_BIT_*) */
+    int hp;                             /* Character[chara].hp and .hpMax */
+    int w14, w1c, w68, w24, w2c;        /* words 0x14, 0x1c, 0x68, 0x24, 0x2c */
+    float f98;                          /* 0x98 */
+    int w144, w148;                     /* 0x144, 0x148 */
+    int w14c;                           /* 0x14c, 0x150, 0x154 and 0x158 alike */
+    int w15c;                           /* 0x15c */
+    int thresholds[8];                  /* BOSS_INFO_THRESHOLDS */
+    int b4[4];                          /* BOSS_INFO_B4 */
+} BOSS_SETUP;
+
+static const BOSS_SETUP BossSetups[] = {
+    { BALOWS_CHARA, 0, 0, 8, 2, BOSS_STATE_BIT_04, 6000, 2400, 900, 1500, 1500, 0, 100.0f, 1500, 0, 5, 2,
+      { 3900, 4500, 5100, 5700, 6300, 6900, 0, 0 }, { 0, 0, 0, 0 } },
+    { 5, 0, 2, 15, 2, BOSS_STATE_BIT_04, 3000, 900, 13500, 1500, 6000, 900, 100.0f, 1500, 0, 4, 1,
+      { 4500, 5400, 6300, 7200, 9000, 0, 0, 0 }, { 0, 0, 0, 0 } },
+    { 6, 0, 0, 0, 0, 0, 300, 0, 0, 0, 0, 0, 0.0f, 0, 0, 0, 0,
+      { 1500, 1800, 2100, 2400, 2700, 3000, 3600, 4500 }, { 0, 0, 0, 0 } },
+    { 4, 3, 0, 20, 2, BOSS_STATE_BIT_2000, 2500, 600, 0, 0, 3000, 600, 100.0f, 1500, 120, 2, 0,
+      { 4500, 5400, 6300, 7200, 9000, 0, 0, 0 }, { 0, 0, 0, 0 } },
+    { 4, 0, 0, 15, 2, BOSS_STATE_BIT_04 | BOSS_STATE_BIT_2000, 2500, 600, 9000, 2100, 3000, 600, 100.0f,
+      1500, 120, 3, 0, { 6300, 7200, 8100, 9000, 9000, 0, 0, 0 }, { 0, 0, 0, 0 } },
+    { 3, 0, 4, 15, 2, BOSS_STATE_BIT_2000, 2400, 600, 0, 1500, 900, 450, 100.0f, 1500, 0, 1, 0,
+      { 5400, 6300, 7200, 8100, 9000, 0, 0, 0 }, { 50, 75, 100, 125 } },
+    { 2, 0, 0, 10, 2, 0, 1750, 900, 12000, 1500, 1500, 0, 100.0f, 1500, 0, 0, 0,
+      { 5400, 6300, 7200, 8100, 9000, 0, 0, 0 }, { 0, 0, 0, 0 } },
+};
+
+// The hit-back floats every boss starts with (BOSS_INFO_HIT_BACKS; tiXcmd_BOSS_SetHitBacks changes them).
+static const float BossHitBacks[BOSS_INFO_HIT_BACK_COUNT] = { 10.0f, 25.0f, 25.0f, 50.0f, 75.0f, 100.0f };
+#define BOSS_INFO_B95_CHARA3 15         /* byte 0x95: only Character[3]'s setup writes it */
+#define BOSS_INFO_D8_CHARA5 3000        /* word 0xd8: Character[5]'s */
+#define BOSS_INFO_34_CHARA5 150         /* word 0x34: Character[5]'s */
+#define BOSS_INFO_138_LAST 420.0f       /* float 0x138: the last boss's */
+
+// CT3 0x018e3460
+// A boss battle starts: argv[0] picks the boss (BossKindChara); the boss info is allocated (gHeapJunc)
+// and filled -- its chain source is the boss's "Bip01 Spine1" position, its chains, warps and attack
+// records empty -- the player's hp and the boss's are set, and both chain sets' events are removed.
+// PORT: the block is cleared first; the ROM zeroes the fields it lists one by one and leaves the rest
+// (byte 0x95 outside Character[3], words 0x34 / 0x138 / 0xd8 outside their bosses) as the heap had them.
 int tiXcmd_BOSS_BattleStart(int argc, char **argv, int bank)
 {
-    ALYSSAPAN_STUB("tiXcmd_BOSS_BattleStart", 0x018e3460);
-    return {};
+    int kind = atoi(argv[0]);
+    int chara = (kind >= 1 && kind <= 7) ? BossKindChara[kind] : BOSS_KIND_DEFAULT_CHARA;
+    const BOSS_SETUP *s = NULL;
+    int i, ev;
+
+    (void)argc;
+    (void)bank;
+    pBossInfo = (u_char *)_SunAlloc(&gHeapJunc, BOSS_INFO_SIZE, 0x10);
+    memset(pBossInfo, 0, BOSS_INFO_SIZE);
+    memset(BossInfoPtrs, 0, sizeof BossInfoPtrs);
+    pBossInfo[BOSS_INFO_CHARA] = (u_char)chara;
+    BossInfoSetPtr(BOSS_INFO_CHAIN_A_SRC, ChainSourcePos(chara));
+    Character[Player_BankID].hpMax = BOSS_PLAYER_HP;
+    Character[Player_BankID].hp = BOSS_PLAYER_HP;
+
+    for (i = 0; i < (int)(sizeof BossSetups / sizeof BossSetups[0]); i++) {
+        if (BossSetups[i].chara == chara && (BossSetups[i].kindArg == 0 || BossSetups[i].kindArg == kind)) {
+            s = &BossSetups[i];
+            break;
+        }
+    }
+    if (s != NULL) {
+        u_int state = s->stateBits;
+
+        Character[chara].hpMax = s->hp;
+        Character[chara].hp = s->hp;
+        memcpy(pBossInfo + BOSS_INFO_PHASE, &state, sizeof(state));
+        BossInfoSetInt(0x14, s->w14);
+        BossInfoSetInt(0x1c, s->w1c);
+        BossInfoSetInt(0x68, s->w68);
+        BossInfoSetInt(0x24, s->w24);
+        BossInfoSetInt(0x2c, s->w2c);
+        BossInfoSetFloat(0x98, s->f98);
+        pBossInfo[0x8e] = s->b8e;
+        pBossInfo[0x94] = s->b94;
+        pBossInfo[0x8f] = s->b8f;
+        BossInfoSetInt(0x144, s->w144);
+        BossInfoSetInt(0x148, s->w148);
+        BossInfoSetInt(0x14c, s->w14c);
+        BossInfoSetInt(0x150, s->w14c);
+        BossInfoSetInt(0x158, s->w14c);
+        BossInfoSetInt(0x154, s->w14c);
+        BossInfoSetInt(0x15c, s->w15c);
+        memcpy(pBossInfo + BOSS_INFO_THRESHOLDS, s->thresholds, sizeof s->thresholds);
+        memcpy(pBossInfo + BOSS_INFO_HIT_BACKS, BossHitBacks, sizeof BossHitBacks);
+        memcpy(pBossInfo + BOSS_INFO_B4, s->b4, sizeof s->b4);
+        if (chara == 3)
+            pBossInfo[0x95] = BOSS_INFO_B95_CHARA3;
+        if (chara == 5) {
+            BossInfoSetInt(0xd8, BOSS_INFO_D8_CHARA5);
+            BossInfoSetInt(0x34, BOSS_INFO_34_CHARA5);
+        }
+        if (chara == BALOWS_CHARA) {
+            BossInfoSetFloat(0x138, BOSS_INFO_138_LAST);
+            Character[Player_BankID].hpMax = BOSS_PLAYER_HP_LAST;
+            Character[Player_BankID].hp = BOSS_PLAYER_HP_LAST;
+        }
+    }
+    for (ev = TRIG_EVENT_CHAIN_A_FIRST; ev <= TRIG_EVENT_CHAIN_A_LAST; ev++)
+        ssTrigRemoveEvent(ev, 1, 0);
+    for (ev = TRIG_EVENT_CHAIN_B_FIRST; ev <= TRIG_EVENT_CHAIN_B_LAST; ev++)
+        ssTrigRemoveEvent(ev, 1, 0);
+    // callcheck: ahGetHash, asFindModelPartsID (ChainSourcePos makes them)
+    return XCMD_DONE;
 }
 
-// stub of CT3 0x018e31d0
+// A chain set (SetChain: set A, SetChain_Alyssa: set B; the ROM writes the body twice). argv[0] chains,
+// then a pair of part numbers each (argv[1 + 2i], argv[2 + 2i]) in `bank`: its first and last part's
+// drawOnPos, and the bank's light belt that starts at the first part (ALL_TABLE.lightBelts), go to the
+// set's lists; its holding flags start cleared. PORT: the lists hold host pointers (the header).
+static void ChainSetup(char **argv, int bank, int countOff, int beltsOff, int bankOff, int fromOff, int toOff,
+                       int onOff)
+{
+    int n = atoi(argv[0]);
+    u_int *belts = NULL;
+    LIGHT_BELT2 **beltList;
+    float **from, **to;
+    u_char *on;
+    int i, j;
+
+    pBossInfo[countOff] = (u_char)n;
+    if (n == 0)
+        return;
+    if (All_table_TBL[bank] != NULL)
+        belts = BANK_PTR(u_int *, bank, All_table_TBL[bank]->lightBelts);
+    beltList = (LIGHT_BELT2 **)_SunAlloc(&gHeapJunc, n * (int)sizeof(void *), sizeof(void *));
+    memset(beltList, 0, n * sizeof(void *)); // PORT: an unmatched part leaves the ROM's word as the heap had it
+    BossInfoSetPtr(beltsOff, beltList);
+    BossInfoSetInt(bankOff, bank);
+    from = (float **)_SunAlloc(&gHeapJunc, n * (int)sizeof(void *), sizeof(void *));
+    BossInfoSetPtr(fromOff, from);
+    to = (float **)_SunAlloc(&gHeapJunc, n * (int)sizeof(void *), sizeof(void *));
+    BossInfoSetPtr(toOff, to);
+    for (i = 0; i < n; i++) {
+        int a = atoi(argv[1 + i * 2]);
+        int b = atoi(argv[2 + i * 2]);
+
+        from[i] = BossPart(bank, a)->drawOnPos;
+        to[i] = BossPart(bank, b)->drawOnPos;
+        for (j = 0; belts != NULL && belts[j] != 0; j++) {
+            LIGHT_BELT2 *belt = BANK_PTR(LIGHT_BELT2 *, bank, belts[j]);
+
+            if (belt->partA == a) {
+                beltList[i] = belt;
+                break;
+            }
+        }
+    }
+    on = (u_char *)_SunAlloc(&gHeapJunc, n, 4);
+    BossInfoSetPtr(onOff, on);
+    memset(on, 0, n);
+}
+
+// CT3 0x018e31d0: the boss's chain set (set A) in this bank.
 int tiXcmd_BOSS_SetChain(int argc, char **argv, int bank)
 {
-    ALYSSAPAN_STUB("tiXcmd_BOSS_SetChain", 0x018e31d0);
-    return {};
+    (void)argc;
+    ChainSetup(argv, bank, BOSS_INFO_CHAIN_A_COUNT, BOSS_INFO_CHAIN_A_BELTS, BOSS_INFO_CHAIN_A_BANK,
+               BOSS_INFO_CHAIN_A_FROM, BOSS_INFO_CHAIN_A_TO, BOSS_INFO_CHAIN_A_ON);
+    // callcheck: _SunAlloc, atoi, memset (ChainSetup makes them)
+    return XCMD_DONE;
 }
 
-// stub of CT3 0x018e2f70
+// CT3 0x018e2f70: the chain set on Alyssa (set B) in this bank; its source is the player's
+// CHAIN_SOURCE_PART (set as the lists are allocated, the ROM's order).
 int tiXcmd_BOSS_SetChain_Alyssa(int argc, char **argv, int bank)
 {
-    ALYSSAPAN_STUB("tiXcmd_BOSS_SetChain_Alyssa", 0x018e2f70);
-    return {};
+    (void)argc;
+    if (atoi(argv[0]) != 0)
+        BossInfoSetPtr(BOSS_INFO_CHAIN_B_SRC, ChainSourcePos(Player_BankID));
+    ChainSetup(argv, bank, BOSS_INFO_CHAIN_B_COUNT, BOSS_INFO_CHAIN_B_BELTS, BOSS_INFO_CHAIN_B_BANK,
+               BOSS_INFO_CHAIN_B_FROM, BOSS_INFO_CHAIN_B_TO, BOSS_INFO_CHAIN_B_ON);
+    // callcheck: _SunAlloc, ahGetHash, asFindModelPartsID, memset (ChainSetup and ChainSourcePos make them)
+    return XCMD_DONE;
 }
 
-// stub of CT3 0x018e2e90
+// CT3 0x018e2e90: the boss's warp points: argv[0] of them, argv[1..] part numbers of this bank whose
+// positions go to the list. PORT: the list holds host pointers.
 int tiXcmd_BOSS_SetWarp(int argc, char **argv, int bank)
 {
-    ALYSSAPAN_STUB("tiXcmd_BOSS_SetWarp", 0x018e2e90);
-    return {};
+    int n = atoi(argv[0]);
+    float **list;
+    int i;
+
+    (void)argc;
+    BossInfoSetInt(BOSS_INFO_WARP_COUNT, n);
+    list = (float **)_SunAlloc(&gHeapJunc, n * (int)sizeof(void *), sizeof(void *));
+    BossInfoSetPtr(BOSS_INFO_WARP_POS, list);
+    for (i = 0; i < n; i++)
+        list[i] = BossPart(bank, atoi(argv[1 + i]))->pos;
+    return XCMD_DONE;
 }
 
 // CT3 0x018e1bc0
 // The boss's second phase: Character[BALOWS_CHARA] gets BALOWS_2_HP and its brain is reset, the phase
 // event is registered and two global variables go to -1; each chain set still up is dropped (its pull
 // time and holding flags cleared, its events removed, its loops stopped, TRIG_EVENT_CHAINS_CUT raised).
-// PORT: the brain's bytes (+0 = 1, +1 = 0, +0x181 = 0) and the chain sets' holding arrays (EE words at
-// BOSS_INFO_CHAIN_A_ON / +4) have no host form until the AI and boss TUs give them one (as
-// wideXcmd_DebugPrint.c's BossInfoPtr): they are not written. With no boss info (no boss TU yet) only the
-// character and the script state change.
+// PORT: the brain's bytes (+0 = 1, +1 = 0, +0x181 = 0) have no host form until the AI TU gives it one
+// (open-items.md 1 am): not written. With no boss info only the character and the script state change.
 int tiXcmd_Balows2th(int argc, char **argv, int bank)
 {
     int ev;
@@ -1921,6 +2155,8 @@ int tiXcmd_Balows2th(int argc, char **argv, int bank)
         return XCMD_DONE;
     if (pBossInfo[BOSS_INFO_CHAIN_A_ACTIVE] != 0) {
         memset(pBossInfo + BOSS_INFO_CHAIN_A_TIME, 0, sizeof(int));
+        if (BossInfoGetPtr(BOSS_INFO_CHAIN_A_ON) != NULL)
+            memset(BossInfoGetPtr(BOSS_INFO_CHAIN_A_ON), 0, pBossInfo[BOSS_INFO_CHAIN_A_COUNT]);
         for (ev = TRIG_EVENT_CHAIN_A_FIRST; ev <= TRIG_EVENT_CHAIN_A_LAST; ev++)
             ssTrigRemoveEvent(ev, 1, 0);
         ssTrigRegisterEvent(TRIG_EVENT_CHAINS_CUT, 1, 0);
@@ -1930,6 +2166,8 @@ int tiXcmd_Balows2th(int argc, char **argv, int bank)
     }
     if (pBossInfo[BOSS_INFO_CHAIN_B_ACTIVE] != 0) {
         memset(pBossInfo + BOSS_INFO_CHAIN_B_TIME, 0, sizeof(int));
+        if (BossInfoGetPtr(BOSS_INFO_CHAIN_B_ON) != NULL)
+            memset(BossInfoGetPtr(BOSS_INFO_CHAIN_B_ON), 0, pBossInfo[BOSS_INFO_CHAIN_B_COUNT]);
         for (ev = TRIG_EVENT_CHAIN_B_FIRST; ev <= TRIG_EVENT_CHAIN_B_LAST; ev++)
             ssTrigRemoveEvent(ev, 1, 0);
         ssTrigRegisterEvent(TRIG_EVENT_CHAINS_CUT, 1, 0);
@@ -1947,11 +2185,16 @@ int tiXcmd_End_SPAttack_SCISSORS_MAN(int argc, char **argv, int bank)
     return {};
 }
 
-// stub of CT3 0x018e20c0
+// CT3 0x018e20c0: the part argv[0] of this bank the blood attack uses: argv[1] == 0 takes its record
+// (BOSS_INFO_BLOOD_PART), else its position (BOSS_INFO_BLOOD_POS).
 int tiXcmd_GetBloodAttackObject(int argc, char **argv, int bank)
 {
-    ALYSSAPAN_STUB("tiXcmd_GetBloodAttackObject", 0x018e20c0);
-    return {};
+    (void)argc;
+    if (atoi(argv[1]) == 0)
+        BossInfoSetPtr(BOSS_INFO_BLOOD_PART, (u_char *)BossPart(bank, atoi(argv[0])) + PARTS_HDR_RECORDS);
+    else
+        BossInfoSetPtr(BOSS_INFO_BLOOD_POS, BossPart(bank, atoi(argv[0]))->pos);
+    return XCMD_DONE;
 }
 
 // stub of CT3 0x018e2b30

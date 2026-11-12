@@ -1068,6 +1068,18 @@ Ticks$892.
 - **Boss words**: SetHitBacks writes six floats at pBossInfo +0x9c; GetBloodAttackObject / SetWarp /
   Init_SPAttack_SCISSORS_MAN store part addresses (EE words) and _SunAlloc'd lists at +0x130 / +0x134 /
   +0x13c / +0x140 (+0xc4 the warp count); End_SPAttack frees with _SunFree(heap, &word) (it clears them).
+- **The boss info (2026-11-12, slice 11)**: tiXcmd_BOSS_BattleStart allocates pBossInfo (gHeapJunc,
+  0x160, align 0x10); argv[0] 1..7 picks the boss's Character[] index (2, 3, 4, 4, 6, 5, 0x20; else 2),
+  stored at +0. It sets the player's hp / hpMax to 800 (1200 for 0x20) and the boss's (2: 1750, 3: 2400,
+  4: 2500, 5: 3000, 6: 300, 0x20: 6000), per-boss words (0x14, 0x1c, 0x24, 0x2c, 0x68, 0x144..0x15c,
+  bytes 0x8e / 0x8f / 0x94), eight thresholds at +0x48, hit-backs (10, 25, 25, 50, 75, 100) at +0x9c,
+  four ints at +0xb4, state bits 4 / 0x2000 at +0xc, and +0xf4 = the boss's "Bip01 Spine1" pos; then
+  removes events 0x3c..0x45 and 0x69..0x6d. BOSS_SetChain (set A) / _Alyssa (set B, +0xf8 = the player's
+  "Bip01 Spine1" pos): count at 0x90 / 0x91, bank at +4 / +8, lists at 0xe8 / 0xec (the bank's
+  LIGHT_BELT2 whose partA is the chain's first part), 0xfc / 0x100 (first part's drawOnPos, MODEL_PARTS
+  +0x2f0), 0x104 / 0x108 (last part's drawOnPos), 0x10c / 0x110 (u_char holding flags). **Host form**:
+  the block keeps the EE layout; its pointer words live in a side table (BossInfoGetPtr / SetPtr,
+  tiXcmd_TransItem.h), the EE word reads 1 or 0; the lists are host pointers.
 
 ## Branches, scenes and doors, game/tkXDTrg_GetSceneHash.c (2026-11-11, slice 1)
 

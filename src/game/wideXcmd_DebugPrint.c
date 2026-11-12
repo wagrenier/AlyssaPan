@@ -51,6 +51,7 @@
 #include "game/ssHitCheckAttackToScn.h"
 #include "game/SdMasterVolumeSetSE.h"
 #include "game/tiAvoidObject.h"
+#include "game/tiXcmd_TransItem.h"
 #include "game/unassigned_data.h"
 #include "game/wideXcmd_TriggerInit.h"
 #include "ga/gaInit3dlib.h"
@@ -1996,8 +1997,8 @@ void asPIAK_BHVC1_MoveLR(CHARACTER *ch, PIA_KEY *key)
 
 // The boss's chains (pBossInfo; names from asChainLengthCheck's use, the boss TU confirms them).
 #define BOSS_INFO_CHAIN_COUNT 0x91      /* u_char: chains (main.c's light belt test reads the same byte) */
-#define BOSS_INFO_CHAIN_POS 0x100       /* EE word -> EE word[count] -> qword: each chain's anchor */
-#define BOSS_INFO_CHAIN_ON 0x110        /* EE word -> u_char[count]: the chain holds Alyssa */
+#define BOSS_INFO_CHAIN_POS 0x100       /* ptr -> float *[count]: each chain's anchor (BOSS_INFO_CHAIN_B_FROM) */
+#define BOSS_INFO_CHAIN_ON 0x110        /* ptr -> u_char[count]: the chain holds Alyssa */
 #define BOSS_INFO_PULL_TIME 0x44        /* int: += CHAIN_PULL_LENGTH when a chain pulls her */
 #define CHAIN_PULL_LENGTH 300           /* the distance from which one or two chains pull her (and the add) */
 #define CHAIN_MANY 3                    /* this many chains: she is held (MOTION_CHAINED) */
@@ -2014,21 +2015,19 @@ void asPIAK_BHVC1_MoveLR(CHARACTER *ch, PIA_KEY *key)
 
 int MagicWaterCount;                    /* sbss 0x01944954 */
 
-// The boss info's EE word at `off` as a host pointer; NULL for none. PORT: pBossInfo's pointer words
-// have no host form until the boss TU that fills them decides it (as CharaTarget): no chain is seen.
+// The boss info's pointer word at `off` as a host pointer; NULL for none (tiXcmd_TransItem.h's host
+// form, 2026-11-12).
 static const u_char *BossInfoPtr(int off)
 {
-    (void)off;
-    return NULL;
+    return (const u_char *)BossInfoGetPtr(off);
 }
 
-// Chain i's anchor (BOSS_INFO_CHAIN_POS's word [i]); NULL for none. PORT: as BossInfoPtr.
+// Chain i's anchor (BOSS_INFO_CHAIN_POS's entry [i]: the chain's first part's drawOnPos); NULL for none.
 static const float *ChainAnchor(int i)
 {
-    const u_char *words = BossInfoPtr(BOSS_INFO_CHAIN_POS);
-    (void)i;
-    (void)words;
-    return NULL;
+    float *const *anchors = (float *const *)BossInfoPtr(BOSS_INFO_CHAIN_POS);
+
+    return anchors != NULL ? anchors[i] : NULL;
 }
 
 // CT3 0x018f4140

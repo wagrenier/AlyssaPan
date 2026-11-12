@@ -20,11 +20,48 @@
 #define BOSS_INFO_CHAIN_A_TIME 0x40     /* int: chain set A's pull time (set B's is 0x44, BOSS_INFO_PULL_TIME) */
 #define BOSS_INFO_CHAIN_B_TIME 0x44
 #define BOSS_INFO_CHAIN_A_COUNT 0x90    /* u_char: set A's chains (set B's count is 0x91) */
+#define BOSS_INFO_CHAIN_B_COUNT 0x91    /* u_char: set B's chains (main.c's light belt test) */
 #define BOSS_INFO_CHAIN_A_ACTIVE 0x92   /* u_char: set A is up (events 0x3c..0x45, SE slot 1) */
 #define BOSS_INFO_CHAIN_B_ACTIVE 0x93   /* u_char: set B is up (events 0x69..0x6d, SE slot 2) = sound.h's
                                            BOSS_INFO_BAL_LOOP */
-#define BOSS_INFO_CHAIN_A_ON 0x10c      /* EE word -> u_char[count]: set A's chains holding (set B: 0x110) */
-#define BALOWS_CHARA 32                 /* Character[32]: the boss Balows2th resets (hp, brain) */
+#define BOSS_INFO_CHAIN_A_ON 0x10c      /* ptr -> u_char[count]: set A's chains holding (set B: 0x110) */
+// Slice 11 (2026-11-12): the boss info's host form (open-items.md 1 as / kh / jr, decided here: this TU
+// allocates it). pBossInfo stays the ROM's 0x160-byte gHeapJunc block, every scalar at its EE offset
+// (main.c, sound.c, Clipping_Portal.c and wideXcmd_DebugPrint.c index its bytes). Its pointer words
+// (0xe8..0x140) cannot hold a host pointer in 4 bytes: the host keeps each in a side table
+// (BossInfoGetPtr / BossInfoSetPtr) and the EE word holds BOSS_INFO_PTR_SET or 0, so the ROM's "!= 0"
+// tests still hold. The blocks they point to are host layout: lists of host pointers, u_char flags.
+#define BOSS_INFO_SIZE 0x160            /* _SunAlloc(gHeapJunc, 0x160, 0x10) */
+#define BOSS_INFO_CHARA 0x00            /* u_char: the boss's Character[] index (tiXcmd_BOSS_BattleStart) */
+#define BOSS_INFO_CHAIN_A_BANK 0x04     /* int: set A's chain bank (tiXcmd_BOSS_SetChain's) */
+#define BOSS_INFO_CHAIN_B_BANK 0x08     /* int: set B's (tiXcmd_BOSS_SetChain_Alyssa's) */
+#define BOSS_INFO_THRESHOLDS 0x48       /* int[8]: per boss (BOSS_SETUP.thresholds; meaning unread) */
+#define BOSS_INFO_B4 0xb4               /* int[4]: per boss (50, 75, 100, 125 for Character[3]) */
+#define BOSS_INFO_CHAIN_A_BELTS 0xe8    /* ptr -> LIGHT_BELT2 *[count]: each set A chain's light belt */
+#define BOSS_INFO_CHAIN_B_BELTS 0xec    /* ptr -> LIGHT_BELT2 *[count]: set B's */
+#define BOSS_INFO_CHAIN_A_SRC 0xf4      /* ptr -> float[4]: the boss's "Bip01 Spine1" position */
+#define BOSS_INFO_CHAIN_B_SRC 0xf8      /* ptr -> float[4]: the player's "Bip01 Spine1" position */
+#define BOSS_INFO_CHAIN_A_FROM 0xfc     /* ptr -> float *[count]: each chain's first part, drawOnPos */
+#define BOSS_INFO_CHAIN_B_FROM 0x100    /*   (wideXcmd_DebugPrint.c's BOSS_INFO_CHAIN_POS) */
+#define BOSS_INFO_CHAIN_A_TO 0x104      /* ptr -> float *[count]: each chain's last part, drawOnPos (the */
+#define BOSS_INFO_CHAIN_B_TO 0x108      /*   belt end Clipping_Portal.c's ChainBelts moves to the source) */
+#define BOSS_INFO_CHAIN_B_ON 0x110      /* ptr -> u_char[count]: set B's chains holding */
+#define BOSS_INFO_BLOOD_POS 0x130       /* ptr -> float[4]: GetBloodAttackObject's part position (mode 1) */
+#define BOSS_INFO_BLOOD_PART 0x134      /* ptr -> a part's record (MODEL_PARTS + 0x40; mode 0) */
+#define BOSS_INFO_WARP_COUNT 0xc4       /* int: tiXcmd_BOSS_SetWarp's points (!= 0: the list is allocated) */
+#define BOSS_INFO_WARP_POS 0x13c        /* ptr -> float *[count]: the warp points' part positions */
+#define BOSS_INFO_SPATTACK 0x140        /* ptr -> the SCISSORS_MAN attack record (0x70 bytes, not written) */
+#define BOSS_INFO_PTR_FIRST 0xe8
+#define BOSS_INFO_PTR_LAST 0x140
+#define BOSS_INFO_PTR_SET 1u            /* PORT: the EE word of a set pointer (the host pointer is aside) */
+#define BOSS_STATE_BIT_04 0x0004        /* BOSS_INFO_PHASE bits BattleStart sets per boss (meaning unread) */
+#define BOSS_STATE_BIT_2000 0x2000
+#define BOSS_PLAYER_HP 800              /* BattleStart: the player's hp and hpMax (BOSS_PLAYER_HP_LAST for */
+#define BOSS_PLAYER_HP_LAST 1200        /*   the last boss, Character[0x20]) */
+#define CHAIN_SOURCE_PART "Bip01 Spine1" /* the chains' source part (the boss's, the player's) */
+void *BossInfoGetPtr(int off);          /* PORT: the host pointer of pointer word `off`, NULL if none */
+void BossInfoSetPtr(int off, void *p);  /* PORT: sets it, and the EE word to BOSS_INFO_PTR_SET or 0 */
+#define BALOWS_CHARA 32                /* Character[32]: the boss Balows2th resets (hp, brain) */
 #define BALOWS_2_HP 10
 #define TRIG_EVENT_BALOWS_2 0x55e       /* registered as the second phase starts */
 #define TRIG_EVENT_CHAINS_CUT 0x85      /* registered when a chain set is dropped */

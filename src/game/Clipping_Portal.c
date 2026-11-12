@@ -1522,19 +1522,9 @@ void tiGetCharaDirection(float *dir, const CHARACTER *chr)
 // ---- boss data ----
 
 // The boss info's allocations (pBossInfo, from gHeapJunc; tiFreeBossData frees them). Two chain sets of
-// four blocks each (set A while BOSS_INFO_CHAIN_A_COUNT != 0, set B while its count at 0x91 != 0), one
-// block while the int at 0xc4 is set, and a sub-block at 0x140 holding two more.
-#define BOSS_INFO_CHAIN_A_E8 0xe8       /* set A: EE word of a block */
-#define BOSS_INFO_CHAIN_A_FC 0xfc
-#define BOSS_INFO_CHAIN_A_104 0x104
-#define BOSS_INFO_CHAIN_B_COUNT 0x91    /* u_char: set B's chains (= BOSS_INFO_CHAIN_COUNT) */
-#define BOSS_INFO_CHAIN_B_EC 0xec       /* set B: EE word of a block */
-#define BOSS_INFO_CHAIN_B_100 0x100     /* = BOSS_INFO_CHAIN_POS */
-#define BOSS_INFO_CHAIN_B_108 0x108
-#define BOSS_INFO_CHAIN_B_ON 0x110      /* = BOSS_INFO_CHAIN_ON */
-#define BOSS_INFO_C4 0xc4               /* int: != 0 -> the block at 0x13c is allocated */
-#define BOSS_INFO_13C 0x13c
-#define BOSS_INFO_SUB 0x140             /* EE word -> a block whose words 0x24 and 0x28 are blocks too */
+// four blocks each (set A while BOSS_INFO_CHAIN_A_COUNT != 0, set B while BOSS_INFO_CHAIN_B_COUNT != 0),
+// the warp list while BOSS_INFO_WARP_COUNT is set, and the attack record at 0x140 holding two more.
+// Offsets and the host form: tiXcmd_TransItem.h (the boss info's pointer words, 2026-11-12).
 #define BOSS_SUB_24 0x24
 #define BOSS_SUB_28 0x28
 
@@ -1542,34 +1532,34 @@ void tiGetCharaDirection(float *dir, const CHARACTER *chr)
 // ROM's order.
 static const int BossTrigVars[] = { 0x53, 0x54, 0x52, 0x56, 5 };
 
-// _SunFree on the boss info's pointer word at `off` (of `base`). PORT: pBossInfo's pointer words are EE
-// words with no host form until the boss TU that allocates them decides it (as BossInfoPtr in
-// wideXcmd_DebugPrint.c), so nothing is allocated through them yet and nothing is freed here.
+// _SunFree on the boss info's pointer word at `off` (of `base`, always pBossInfo): its host pointer
+// (BossInfoGetPtr) is freed and the word cleared.
 static void BossInfoFree(u_char *base, int off)
 {
+    void *p = BossInfoGetPtr(off);
+
     (void)base;
-    (void)off;
+    if (p != NULL) {
+        _SunFree(&gHeapJunc, &p);
+        BossInfoSetPtr(off, NULL);
+    }
 }
 
 // The chain sets' light belts (the boss battle). A set's trigger variable at 2 clears its chains'
 // events; at 3 every chain holding (BOSS_INFO_CHAIN_x_ON[i] == 1) registers its event; then each chain
-// whose event is set copies the set's source position (EE word 0xf4 / 0xf8) into its belt end (the EE
-// word table at 0x104 / 0x108, entry i). PORT: those words have no host form (BossInfoPtr in
-// wideXcmd_DebugPrint.c, open-items.md 1 as): BossInfoWord answers none, so only the events run.
+// whose event is set copies the set's source position (BOSS_INFO_CHAIN_x_SRC) into its belt end
+// (BOSS_INFO_CHAIN_x_TO, entry i).
 #define TRIG_VAR_CHAIN_A 0x54           /* global: set A's state (CHAIN_STATE_*) */
 #define TRIG_VAR_CHAIN_B 0x53           /* global: set B's (the chains on Alyssa) */
 #define CHAIN_STATE_DROP 2              /* the set's events are cleared */
 #define CHAIN_STATE_HOLD 3              /* the holding chains' events are registered */
-#define BOSS_INFO_CHAIN_A_SRC 0xf4      /* EE word -> float[4]: set A's belt source */
-#define BOSS_INFO_CHAIN_B_SRC 0xf8
-#define BOSS_INFO_CHAIN_A_ENDS 0x104    /* EE word -> EE words[count]: each chain's belt end (float[4]) */
-#define BOSS_INFO_CHAIN_B_ENDS 0x108
+#define BOSS_INFO_CHAIN_A_ENDS BOSS_INFO_CHAIN_A_TO
+#define BOSS_INFO_CHAIN_B_ENDS BOSS_INFO_CHAIN_B_TO
 #define CHAIN_ON 1
 
 static void *BossInfoWord(int off)
 {
-    (void)off;
-    return NULL;
+    return BossInfoGetPtr(off);
 }
 
 static void ChainBelts(int var, int countOff, int onOff, int srcOff, int endsOff, int firstEvent, int max)
@@ -1594,7 +1584,9 @@ static void ChainBelts(int var, int countOff, int onOff, int srcOff, int endsOff
         }
     }
     for (i = 0; i < max; i++) {
-        if (ssTrigCheckEvent(firstEvent + i, XCMD_SCOPE_GLOBAL, 0) != 0 && src != NULL && ends != NULL) {
+        // PORT: i < count guards the host list (the ROM reads past it if an event outlives its chain)
+        if (ssTrigCheckEvent(firstEvent + i, XCMD_SCOPE_GLOBAL, 0) != 0 && src != NULL && ends != NULL &&
+            i < count) {
             memcpy(ends[i], src, sizeof(float[4]));
         }
     }
@@ -1634,33 +1626,33 @@ void tiFreeBossData(void)
         return;
     }
     if (pBossInfo[BOSS_INFO_CHAIN_A_COUNT] != 0) {
-        BossInfoFree(pBossInfo, BOSS_INFO_CHAIN_A_E8);
-        BossInfoFree(pBossInfo, BOSS_INFO_CHAIN_A_FC);
-        BossInfoFree(pBossInfo, BOSS_INFO_CHAIN_A_104);
+        BossInfoFree(pBossInfo, BOSS_INFO_CHAIN_A_BELTS);
+        BossInfoFree(pBossInfo, BOSS_INFO_CHAIN_A_FROM);
+        BossInfoFree(pBossInfo, BOSS_INFO_CHAIN_A_TO);
         BossInfoFree(pBossInfo, BOSS_INFO_CHAIN_A_ON);
     }
     if (pBossInfo[BOSS_INFO_CHAIN_B_COUNT] != 0) {
-        BossInfoFree(pBossInfo, BOSS_INFO_CHAIN_B_EC);
-        BossInfoFree(pBossInfo, BOSS_INFO_CHAIN_B_100);
-        BossInfoFree(pBossInfo, BOSS_INFO_CHAIN_B_108);
+        BossInfoFree(pBossInfo, BOSS_INFO_CHAIN_B_BELTS);
+        BossInfoFree(pBossInfo, BOSS_INFO_CHAIN_B_FROM);
+        BossInfoFree(pBossInfo, BOSS_INFO_CHAIN_B_TO);
         BossInfoFree(pBossInfo, BOSS_INFO_CHAIN_B_ON);
     }
     {
         int c4;
 
-        memcpy(&c4, pBossInfo + BOSS_INFO_C4, sizeof c4);
+        memcpy(&c4, pBossInfo + BOSS_INFO_WARP_COUNT, sizeof c4);
         if (c4 != 0) {
-            BossInfoFree(pBossInfo, BOSS_INFO_13C);
+            BossInfoFree(pBossInfo, BOSS_INFO_WARP_POS);
         }
     }
     {
         u_int sub;
 
-        memcpy(&sub, pBossInfo + BOSS_INFO_SUB, sizeof sub);
+        memcpy(&sub, pBossInfo + BOSS_INFO_SPATTACK, sizeof sub);
         if (sub != 0) {
-            // PORT: the ROM frees the sub-block's words 0x24 and 0x28 first (BOSS_SUB_24 / _28): no host
-            // form, as BossInfoFree
-            BossInfoFree(pBossInfo, BOSS_INFO_SUB);
+            // PORT: the ROM frees the attack record's words 0x24 and 0x28 first (BOSS_SUB_24 / _28): the
+            // record has no host form until tiXcmd_Init_SPAttack_SCISSORS_MAN is written (nothing sets it)
+            BossInfoFree(pBossInfo, BOSS_INFO_SPATTACK);
         }
     }
     _SunFree(&gHeapJunc, (void **)&pBossInfo);
