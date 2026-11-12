@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-12 03:15 at commit `7ce10c3` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-12 03:34 at commit `f4b0655` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1423**; stubs: **133**
+- reconstructed CT3 functions: **1434**; stubs: **122**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -92,7 +92,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/tkXDTrg_GetSceneHash.c` | 50 | 0 |
 | `src/game/tnXcmd.c` | 0 | 8 |
 | `src/game/wideXcmd_DebugPrint.c` | 109 | 0 |
-| `src/game/wideXcmd_TriggerInit.c` | 22 | 22 |
+| `src/game/wideXcmd_TriggerInit.c` | 33 | 11 |
 | `src/game/xcmd_tn.c` | 59 | 0 |
 | `src/lib/unassigned_stubs.cpp` | 0 | 1 |
 
@@ -103,7 +103,7 @@ Least-named game-code regions (64 KB blocks):
 - pinned queue: alyssapan/rendering/ui_canvas.cpp
 - partial: `game/BRANCH_CLEAR.c` 173/173 -- 15 s smoke run: no fault, shot black (no host draw module yet). callcheck: GetAreaFloor's memcmp and ssTrigRemoveEvent come through ROOM_IS and AreaFloorClear (
 - partial: `game/tiXcmd_TransItem.c` 85/93 -- Slice 10. Written: tiXcmd_UseItem (ITEM_USE_* modes from argv[4], ITEM_KIND_* from the row byte +0: give-take, signal, heal Character[0].hp up to hpMax, calm vi
-- partial: `game/wideXcmd_TriggerInit.c` 21/46 -- 22 stubs left: AXE_CheckHitAndCompDir, AXE_SetPath, AXE_SetStartPos, ForceIntoSearchMode (ssAI_BrainInit table args unread), test_BrainSet4, CheckAtkHit*, LockT
+- partial: `game/wideXcmd_TriggerInit.c` 32/46 -- 11 stubs left: AXE_CheckHitAndCompDir, AXE_SetPath, AXE_SetStartPos, ForceIntoSearchMode (ssAI_BrainInit table args unread), test_BrainSet4, LockToTargChara, Ar
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
@@ -146,6 +146,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-12 03:34 `game/wideXcmd_TriggerInit.c` partial: slice 3: the hit-record queries (GetAtkHitInfoID, CheckAtkHitChara, CheckAtkHitMaterial, GetAttackMotionID), ObjectSetHitPos, the arrow commands (ArrowSetHitPos
 - 2026-11-12 03:15 `game/wideXcmd_TriggerInit.c` partial: slice 2: wideXcmd_TriggerInit, GlobalSetEnable, the axe state (AXE_INFO, ssAI_AXE_IsThrowing, ssAI_AXE_Init, AXE_ThrowEnd, AXE_InitParam), the stalkers AI x com
 - 2026-11-12 02:52 `game/ssSetTexUVforCubeMap.c` verify: reconstruct 11 functions: the full-screen sprite passes (HQDOF write-back and pre-render, hazy, ultima, blur, DOF pre, post and draw); TU code complete
 - 2026-11-12 02:33 `game/ssSetTexUVforCubeMap.c` partial: reconstruct 7 functions (vaseline trigger, screen-position picker and draw data; vaseline and wave diamond passes and their draw environment)
@@ -153,7 +154,6 @@ Recent sessions:
 - 2026-11-12 01:53 `game/ssSetTexUVforCubeMap.c` partial: reconstruct 11 functions (twist orbit, part motion blur start, end, push-back and one-frame update, particle start preroll, screen-pass triggers for HQDOF, hazy
 - 2026-11-12 01:40 `game/ssSetTexUVforCubeMap.c` partial: reconstruct 15 functions, stub 1 (particle main loop, emission, push-backs, orbit and motions, blur draw-table insert, DOF slice clip, particle all-off, hazy en
 - 2026-11-12 01:07 `game/ssSetTexUVforCubeMap.c` partial: reconstruct 13 functions (particle curve readers, per-slot setters, ring life helpers)
-- 2026-11-12 01:00 `game/ssSetTexUVforCubeMap.c` partial: reconstruct 13 functions (reflection maps, ambient change, particle init, small triggers)
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
@@ -163,8 +163,8 @@ Recent sessions:
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/AA_GetDataWord.c` | todo | 0/8/15 | 4.9 | 21 | 2 |
 | `game/AA_SoundMonoSoart.c` | todo | 0/8/20 | 4.0 | 18 | 2 |
-| `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
+| `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `ga/gaObjectClippingCheck.c` | todo | 0/1/1 | 0.2 | 12 | 1 |
 | `game/asMothPause.c` | todo | 0/1/1 | 0.3 | 10 | 0 |
 | `game/ssCalcInversMatrix2.c` | todo | 0/5/5 | 5.7 | 7 | 0 |

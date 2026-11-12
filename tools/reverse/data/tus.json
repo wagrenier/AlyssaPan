@@ -1587,7 +1587,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 141..141, 28 functions keyed by their statics, 80 unkeyed; file name from the names"
   },
   "game/wideXcmd_TriggerInit.c": {
-   "notes": "22 stubs left: AXE_CheckHitAndCompDir, AXE_SetPath, AXE_SetStartPos, ForceIntoSearchMode (ssAI_BrainInit table args unread), test_BrainSet4, CheckAtkHit*, LockToTargChara, the arrow commands. Brain offsets and AI_MODE values named from these uses only (open-items Open questions 2026-11-12). Shot unchanged: title clock-tower backdrop; nothing here draws.",
+   "notes": "11 stubs left: AXE_CheckHitAndCompDir, AXE_SetPath, AXE_SetStartPos, ForceIntoSearchMode (ssAI_BrainInit table args unread), test_BrainSet4, LockToTargChara, ArrowSetChild, SetArrowPath (quaternion turn, ahAcos capped at 400), ScnAtkRequest, test3. Hit record fields named from these readers only (open-items Open questions 2026-11-12 slice 3). Shot unchanged: title clock-tower backdrop; nothing here draws.",
    "ranges": [
     [
      "018dd550",
@@ -1604,6 +1604,11 @@
      "date": "2026-11-12 03:15",
      "status": "partial",
      "summary": "slice 2: wideXcmd_TriggerInit, GlobalSetEnable, the axe state (AXE_INFO, ssAI_AXE_IsThrowing, ssAI_AXE_Init, AXE_ThrowEnd, AXE_InitParam), the stalkers AI x commands, the test commands: 23 functions"
+    },
+    {
+     "date": "2026-11-12 03:34",
+     "status": "partial",
+     "summary": "slice 3: the hit-record queries (GetAtkHitInfoID, CheckAtkHitChara, CheckAtkHitMaterial, GetAttackMotionID), ObjectSetHitPos, the arrow commands (ArrowSetHitPos, ArrowSetStartPos, SetArrowPath2, SetArwRotMaxID), SetDurabilityToVar, GetCharFootEndMaterial: 11 functions; HIT_TABLE atkHits and scnHits, HIT_ATK_REC"
     }
    ],
    "status": "partial",

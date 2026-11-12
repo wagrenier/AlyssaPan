@@ -226,7 +226,8 @@ typedef struct HIT_TABLE {
     u_char colCount;                    /* 0x1a */
     u_char pad1b;
     int w1c;                            /* 0x1c: cleared by ssProcessHit each frame (character banks) */
-    u_char pad20[4];
+    u_int atkHits;                      /* 0x20: a character bank's: HIT_OBJ_REC[w1c], what hit it this frame
+                                           (wideXcmd_TriggerInit.c: GetAtkHitInfoID, ArrowSetHitPos, CheckAtkHit*) */
     int count;                          /* 0x24: records in recs */
     u_int recs;                         /* 0x28: HIT_REC[count] (EE word of the bank) */
     u_char pad2c[0x2a0 - 0x2c];
@@ -238,8 +239,24 @@ typedef struct HIT_TABLE {
     int dmgCount;                       /* 0x2ac */
     int objHitCount;                    /* 0x2b0: records in objHits (asUseArrow.c, 2026-11-11) */
     u_int objHits;                      /* 0x2b4: HIT_OBJ_REC[objHitCount] (EE word of the bank) */
-    int w2b8;                           /* 0x2b8: cleared by ssProcessHit each frame (scene banks) */
+    int w2b8;                           /* 0x2b8: cleared by ssProcessHit each frame (scene banks): the
+                                           records in scnHits */
+    u_int scnHits;                      /* 0x2bc: HIT_ATK_REC[w2b8] (EE word of the bank): the scene's damage
+                                           shapes hit this frame (wideXcmd_TriggerInit.c, 2026-11-12) */
 } HIT_TABLE;
+static_assert(offsetof(HIT_TABLE, atkHits) == 0x20, "HIT_TABLE.atkHits");
+static_assert(offsetof(HIT_TABLE, scnHits) == 0x2bc, "HIT_TABLE.scnHits");
+// One hit of HIT_TABLE.scnHits (the x commands' reading, 2026-11-12; the collision TU writes it).
+typedef struct HIT_ATK_REC {
+    float pos[4];                       /* 0x00: where it hit (ObjectSetHitPos moves there) */
+    u_int object;                       /* 0x10: EE word of the bank: the HIT_DATA hit (its part at +0x198) */
+    u_char pad14[2];
+    short motion;                       /* 0x16: the attack's motion (GetAttackMotionID) */
+    u_char byObject;                    /* 0x18: 0 = a character's attack (GetAttackMotionID answers motion) */
+    u_char pad19[7];
+} HIT_ATK_REC;
+static_assert(sizeof(HIT_ATK_REC) == 0x20, "HIT_ATK_REC");
+static_assert(offsetof(HIT_ATK_REC, motion) == 0x16, "HIT_ATK_REC.motion");
 static_assert(offsetof(HIT_TABLE, objs) == 0x08, "HIT_TABLE.objs");
 static_assert(offsetof(HIT_TABLE, colCount) == 0x1a, "HIT_TABLE.colCount");
 static_assert(offsetof(HIT_TABLE, w1c) == 0x1c, "HIT_TABLE.w1c");
@@ -249,17 +266,19 @@ static_assert(offsetof(HIT_TABLE, objHits) == 0x2b4, "HIT_TABLE.objHits");
 static_assert(offsetof(HIT_TABLE, attackObjCount) == 0x2a4, "HIT_TABLE.attackObjCount");
 // What a bank's objects hit this frame (asUseArrow.c's readers name it; the collision TU writes it).
 typedef struct HIT_OBJ_REC {
-    u_char pad00[0x10];
+    float pos[4];                       /* 0x00: where it hit (ArrowSetHitPos, 2026-11-12) */
     u_int object;                       /* 0x10: EE word of the bank: the object; its short at
                                            HIT_OBJ_ID is the id an ARROW carries (hitId) */
-    u_char pad14[4];
-    int id;                             /* 0x18: asAttackedArrowInformation's key */
+    u_int materials;                    /* 0x14: bit n = material n was hit (CheckAtkHitMaterial, 2026-11-12) */
+    int id;                             /* 0x18: asAttackedArrowInformation's key; CheckAtkHitChara reads it as
+                                           the EE word of the attacker, 0 = none (its short at HIT_ATTACKER_ID) */
     short chara;                        /* 0x1c: the Character[] it hit (asArrowOperate) */
     u_char kind;                        /* 0x1e: asArrowOperate: 0 leaves the arrow stuck (ARROW_HIT_STUCK), 1 ends it (ARROW_HIT_END) */
     u_char pad1f;
 } HIT_OBJ_REC;
 static_assert(sizeof(HIT_OBJ_REC) == 0x20, "HIT_OBJ_REC");
 #define HIT_OBJ_ID 0xda                 /* object: short, an arrow's hitId */
+#define HIT_ATTACKER_ID 0x1a0           /* attacker: short, the id CheckAtkHitChara answers (2026-11-12) */
 typedef struct HIT_REC {
     u_int attacker;                     /* 0x00: EE word: the attacking object (HIT_ATTACKER_KIND at +0x1a2) */
     short attack;                       /* 0x04: the attack (a character's: its motion; an object's:

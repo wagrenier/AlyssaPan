@@ -1,6 +1,7 @@
 // game/wideXcmd_TriggerInit.c -- Clock Tower 3 module (file from the inference in alyssapan_functions.txt).
 // ssXcmd_SetAllControlDisable is reconstructed (2026-11-11); slice 2 (2026-11-12): the wide triggers,
-// the axe's state, the stalkers' AI commands and the test commands. The rest are stubs until reconstructed.
+// the axe's state, the stalkers' AI commands and the test commands; slice 3 (2026-11-12): the hit-record
+// queries and the arrow commands. The rest are stubs until reconstructed.
 
 #include "common/alyssapan_stub.h"
 #include "game/wideXcmd_TriggerInit.h"
@@ -9,6 +10,7 @@
 #include "game/asMothPause.h"
 #include "game/sound.h"
 #include "game/ssGrpPortalCheck.h"
+#include "game/ssHitCheckAttackToScn.h"
 #include "game/unassigned_data.h"
 #include "game/wideXcmd_DebugPrint.h"
 #include "game/xcmd_tn.h"
@@ -480,6 +482,248 @@ int test_ssXcmd_ChangeGroupID(int argc, char **argv, int bank)
     return XCMD_DONE;
 }
 
+// ---- hits, arrows and objects (2026-11-12, slice 3) ----
+
+#define HIT_DATA_MATERIAL 0x19b         /* HIT_DATA: u_char, the surface's material (the floor a foot ends on) */
+#define HIT_DATA_DURABILITY 0x19e       /* HIT_DATA: u_char, a damage shape's durability (SetDurabilityToVar) */
+#define HIT_VAR_NONE -1                 /* the answer when nothing matches */
+#define HIT_DURABILITY_NONE 0xff        /* SetDurabilityToVar: no shape with that part */
+#define ARROW_PATH2_BACK -60.0f         /* SetArrowPath2: the step along the part's X axis (-1 * 60) */
+
+// The short at off of the bank object at EE word ee (a HIT_DATA's part, an object's HIT_OBJ_ID).
+static short HitObjShort(int bank, u_int ee, int off)
+{
+    return *(const short *)(BANK_PTR(const u_char *, bank, ee) + off);
+}
+
+// The bank's hit table (ALL_TABLE.hits).
+static HIT_TABLE *BankHits(int bank)
+{
+    return BANK_PTR(HIT_TABLE *, bank, All_table_TBL[bank]->hits);
+}
+
+// The floor object Character[chara] stands on (CHARACTER.w300[0], CHARA_TARGET); NULL for none.
+// PORT: the EE word has no host form yet (hhXcmd_DressUp.c's FootGround, open-items.md 1 (v)).
+static const u_char *FootEndObject(int chara)
+{
+    (void)chara;
+    return NULL;
+}
+
+// CT3 0x018df610: "GetCharFootEndMaterial <chara> <var>": the bank variable var = the material of the
+// floor the character stands on (HIT_DATA_MATERIAL), -1 with none.
+int ssXcmd_GetCharFootEndMaterial(int argc, char **argv, int bank)
+{
+    const u_char *floor = FootEndObject(atoi(argv[0]));
+    if (floor == NULL)
+        ssTrigSetVariable(atoi(argv[1]) & 0xffff, HIT_VAR_NONE, XCMD_SCOPE_BANK, bank);
+    else
+        ssTrigSetVariable(atoi(argv[1]) & 0xffff, floor[HIT_DATA_MATERIAL], XCMD_SCOPE_BANK, bank);
+    return XCMD_DONE;
+}
+
+// CT3 0x018dfb80: "GetAtkHitInfoID <id> <var>": the bank variable var = the index of this frame's hit
+// record whose object has that id, -1 for none. A scene bank (BANK_TYPE_SHADOW) looks in its object hits
+// (HIT_OBJ_ID) and then its damage-shape hits (the HIT_DATA's part), each counted from 0; a character bank
+// (BANK_TYPE_2) in its attack hits (HIT_OBJ_ID).
+int ssXcmd_GetAtkHitInfoID(int argc, char **argv, int bank)
+{
+    int id = atoi(argv[0]) & 0xffff;
+    int type = BankInfo[bank].type;
+
+    if (type == BANK_TYPE_SHADOW) {
+        HIT_TABLE *hits = BankHits(bank);
+        const HIT_OBJ_REC *objs = BANK_PTR(const HIT_OBJ_REC *, bank, hits->objHits);
+        for (int i = 0; i < hits->objHitCount; i++) {
+            if (id == HitObjShort(bank, objs[i].object, HIT_OBJ_ID)) {
+                ssTrigSetVariable(atoi(argv[1]) & 0xffff, i, XCMD_SCOPE_BANK, bank);
+                return XCMD_DONE;
+            }
+        }
+        const HIT_ATK_REC *scn = BANK_PTR(const HIT_ATK_REC *, bank, hits->scnHits);
+        for (int i = 0; i < hits->w2b8; i++) {
+            if (id == HitObjShort(bank, scn[i].object, offsetof(HIT_DATA, part))) {
+                ssTrigSetVariable(atoi(argv[1]) & 0xffff, i, XCMD_SCOPE_BANK, bank);
+                return XCMD_DONE;
+            }
+        }
+    } else if (type == BANK_TYPE_2) {
+        HIT_TABLE *hits = BankHits(bank);
+        const HIT_OBJ_REC *atk = BANK_PTR(const HIT_OBJ_REC *, bank, hits->atkHits);
+        for (int i = 0; i < hits->w1c; i++) {
+            if (id == HitObjShort(bank, atk[i].object, HIT_OBJ_ID)) {
+                ssTrigSetVariable(atoi(argv[1]) & 0xffff, i, XCMD_SCOPE_BANK, bank);
+                return XCMD_DONE;
+            }
+        }
+    }
+    ssTrigSetVariable(atoi(argv[1]) & 0xffff, HIT_VAR_NONE, XCMD_SCOPE_BANK, bank);
+    return XCMD_DONE;
+}
+
+// The hit record the bank variable var indexes: a scene bank's (BANK_TYPE_SHADOW) object hits, a
+// character bank's (BANK_TYPE_2) attack hits; NULL for another bank type (the commands then do nothing).
+static const HIT_OBJ_REC *HitRecByVar(int var, int bank)
+{
+    int i = ssTrigGetVariable(var, XCMD_SCOPE_BANK, bank);
+    int type = BankInfo[bank].type;
+    HIT_TABLE *hits = BankHits(bank);
+
+    if (type == BANK_TYPE_SHADOW)
+        return &BANK_PTR(const HIT_OBJ_REC *, bank, hits->objHits)[i];
+    if (type == BANK_TYPE_2)
+        return &BANK_PTR(const HIT_OBJ_REC *, bank, hits->atkHits)[i];
+    return NULL;
+}
+
+// CT3 0x018df8a0: "CheckAtkHitChara <var> <charaVar> <idVar>": for the hit record var indexes (scene or
+// character bank), the bank variable charaVar = the character it hit, and idVar = its attacker's id
+// (HIT_ATTACKER_ID) when it has an attacker.
+int ssXcmd_CheckAtkHitChara(int argc, char **argv, int bank)
+{
+    const HIT_OBJ_REC *rec = HitRecByVar(atoi(argv[0]), bank);
+    if (rec != NULL) {
+        ssTrigSetVariable(atoi(argv[1]) & 0xffff, rec->chara, XCMD_SCOPE_BANK, bank);
+        if (rec->id != 0)
+            ssTrigSetVariable(atoi(argv[2]) & 0xffff, HitObjShort(bank, (u_int)rec->id, HIT_ATTACKER_ID),
+                              XCMD_SCOPE_BANK, bank);
+    }
+    return XCMD_DONE;
+}
+
+// CT3 0x018dfa10: "CheckAtkHitMaterial <var> <material> <event>": the bank event set when the hit record
+// var indexes hit that material (bit material & 31 of its materials), removed when not.
+int ssXcmd_CheckAtkHitMaterial(int argc, char **argv, int bank)
+{
+    const HIT_OBJ_REC *rec = HitRecByVar(atoi(argv[0]), bank);
+    u_int material = (u_int)atoi(argv[1]);
+    if (rec != NULL) {
+        if ((rec->materials & (1u << (material & 0x1f))) == 0)
+            ssTrigRemoveEvent(atoi(argv[2]) & 0xffff, XCMD_SCOPE_BANK, bank);
+        else
+            ssTrigRegisterEvent(atoi(argv[2]) & 0xffff, XCMD_SCOPE_BANK, bank);
+    }
+    return XCMD_DONE;
+}
+
+#define ARROW_READY_VALUE 1             /* ArrowSetStartPos: the global ready variable's threshold */
+
+// CT3 0x018e0420: "ArrowSetStartPos <charaVar> <part> <readyVar>": while the global variable readyVar is
+// not below 1 (ssTrigCheckVariable TRIG_CMP_LT fails), the character the global variable charaVar names
+// (the arrow) is placed on that part of the script's bank -- its position the part's, its yaw from the
+// part's X axis (ssRadianByO, axis 1: 0x10000 minus the angle) -- and the command waits; once readyVar
+// is below 1 it is done. The ROM also builds the Y rotation of the angle and turns the part's X axis
+// by it into a stack temporary nothing reads (0x018e0528..0x018e055c): left out.
+int ssXcmd_ArrowSetStartPos(int argc, char **argv, int bank)
+{
+    if (ssTrigCheckVariable(atoi(argv[2]), ARROW_READY_VALUE, XCMD_SCOPE_GLOBAL, TRIG_CMP_LT, bank) != 0)
+        return XCMD_DONE;
+
+    CHARACTER *chr = &Character[ssTrigGetVariable(atoi(argv[0]), XCMD_SCOPE_GLOBAL, bank)];
+    const MODEL_PARTS *part = &((const MODEL_PARTS *)pModelPartsHeader[bank])[atoi(argv[1])];
+    int angle = (int)((ssRadianByO(part->matrix[0], 1) * 65536.0) / 6.283185307179586);
+
+    chr->rot = AXE_ANGLE_FULL - (angle & 0xffff);
+    for (int k = 0; k < 4; k++)
+        ((float *)chr->pos)[k] = part->pos[k];
+    return XCMD_WAIT;
+}
+
+// CT3 0x018e0170: "SetArwRotMaxID <value> <var>": the global variable var = value.
+int ssXcmd_SetArwRotMaxID(int argc, char **argv, int bank)
+{
+    u_int var = (u_int)atoi(argv[1]);
+    ssTrigSetVariable(var & 0xffff, atoi(argv[0]), XCMD_SCOPE_GLOBAL, bank);
+    return XCMD_DONE;
+}
+
+// CT3 0x018e0590: "SetArrowPath2 <chara> <part>": the character (the arrow) moved 60 back along the X
+// axis (row 0 of the world matrix) of that part of its bank; all four lanes, w too (vmulbc / vadd).
+// The ROM skips a NULL &Character[n], which cannot happen.
+int ssXcmd_SetArrowPath2(int argc, char **argv, int bank)
+{
+    CHARACTER *chr = &Character[atoi(argv[0])];
+    float *pos = (float *)chr->pos;
+    const MODEL_PARTS *parts = (const MODEL_PARTS *)pModelPartsHeader[chr->bank];
+    const float *axis = parts[atoi(argv[1])].matrix[0];
+
+    for (int k = 0; k < 4; k++)
+        pos[k] += axis[k] * ARROW_PATH2_BACK;
+    return XCMD_DONE;
+}
+
+// CT3 0x018e08a0: "GetAttackMotionID <part> <var>": the bank variable var = the motion of the attack
+// that hit the script's bank's damage shape of that part this frame (a character's attack only), else -1.
+int ssXcmd_GetAttackMotionID(int argc, char **argv, int bank)
+{
+    int part = atoi(argv[0]) & 0xffff;
+    HIT_TABLE *hits = BankHits(bank);
+    const HIT_ATK_REC *scn = BANK_PTR(const HIT_ATK_REC *, bank, hits->scnHits);
+
+    for (int i = 0; i < hits->w2b8; i++) {
+        if (part == HitObjShort(bank, scn[i].object, offsetof(HIT_DATA, part))) {
+            if (scn[i].byObject == 0)
+                ssTrigSetVariable(atoi(argv[1]) & 0xffff, scn[i].motion, XCMD_SCOPE_BANK, bank);
+            else
+                ssTrigSetVariable(atoi(argv[1]) & 0xffff, HIT_VAR_NONE, XCMD_SCOPE_BANK, bank);
+            return XCMD_DONE;
+        }
+    }
+    ssTrigSetVariable(atoi(argv[1]) & 0xffff, HIT_VAR_NONE, XCMD_SCOPE_BANK, bank);
+    return XCMD_DONE;
+}
+
+// CT3 0x018e09c0: "ObjectSetHitPos <part> <object>": the scene object warped (asWarpSceneObject) to where
+// the script's bank's damage shape of that part was hit this frame; nothing when it was not.
+int ssXcmd_ObjectSetHitPos(int argc, char **argv, int bank)
+{
+    int part = atoi(argv[0]) & 0xffff;
+    HIT_TABLE *hits = BankHits(bank);
+    HIT_ATK_REC *scn = BANK_PTR(HIT_ATK_REC *, bank, hits->scnHits);
+
+    for (int i = 0; i < hits->w2b8; i++) {
+        if (part == HitObjShort(bank, scn[i].object, offsetof(HIT_DATA, part))) {
+            asWarpSceneObject(All_table_TBL[bank], atoi(argv[1]), scn[i].pos);
+            return XCMD_DONE;
+        }
+    }
+    return XCMD_DONE;
+}
+
+// CT3 0x018e0a90: "ArrowSetHitPos <chara> <var>": the character (the arrow) placed at the attack hit
+// the bank variable var indexes (the script's bank's HIT_TABLE.atkHits; GetAtkHitInfoID's answer).
+int ssXcmd_ArrowSetHitPos(int argc, char **argv, int bank)
+{
+    HIT_TABLE *hits = BankHits(bank);
+    float *pos = (float *)Character[atoi(argv[0])].pos;
+    int i = ssTrigGetVariable(atoi(argv[1]), XCMD_SCOPE_BANK, bank);
+    const HIT_OBJ_REC *atk = BANK_PTR(const HIT_OBJ_REC *, bank, hits->atkHits);
+
+    for (int k = 0; k < 4; k++)
+        pos[k] = atk[i].pos[k];
+    return XCMD_DONE;
+}
+
+// CT3 0x018e0b40: "SetDurabilityToVar <part> <var>": the bank variable var = the durability of the
+// script's bank's damage shape of that part (HIT_DATA_DURABILITY), 0xff for none.
+int ssXcmd_SetDurabilityToVar(int argc, char **argv, int bank)
+{
+    int part = atoi(argv[0]);
+    int value = HIT_DURABILITY_NONE;
+    HIT_TABLE *hits = BankHits(bank);
+    const u_int *dmg = BANK_PTR(const u_int *, bank, hits->dmgData);
+
+    for (int i = 0; i < hits->dmgCount; i++) {
+        const u_char *shape = BANK_PTR(const u_char *, bank, dmg[i]);
+        if (part == ((const HIT_DATA *)shape)->part) {
+            value = shape[HIT_DATA_DURABILITY];
+            break;
+        }
+    }
+    ssTrigSetVariable(atoi(argv[1]) & 0xffff, value, XCMD_SCOPE_BANK, bank);
+    return XCMD_DONE;
+}
+
 // ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x018dfd70
@@ -516,20 +760,6 @@ int ssXcmd_ArrowSetChild(int argc, char **argv, int bank)
     return {};
 }
 
-// stub of CT3 0x018e0a90
-int ssXcmd_ArrowSetHitPos(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("ssXcmd_ArrowSetHitPos", 0x018e0a90);
-    return {};
-}
-
-// stub of CT3 0x018e0420
-int ssXcmd_ArrowSetStartPos(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("ssXcmd_ArrowSetStartPos", 0x018e0420);
-    return {};
-}
-
 // stub of CT3 0x018df6c0
 int ssXcmd_CheckAtkHitALYSSA(int argc, char **argv, int bank)
 {
@@ -537,52 +767,10 @@ int ssXcmd_CheckAtkHitALYSSA(int argc, char **argv, int bank)
     return {};
 }
 
-// stub of CT3 0x018df8a0
-int ssXcmd_CheckAtkHitChara(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("ssXcmd_CheckAtkHitChara", 0x018df8a0);
-    return {};
-}
-
-// stub of CT3 0x018dfa10
-int ssXcmd_CheckAtkHitMaterial(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("ssXcmd_CheckAtkHitMaterial", 0x018dfa10);
-    return {};
-}
-
 // stub of CT3 0x018de5e0
 int ssXcmd_ForceIntoSearchMode(int argc, char **argv, int bank)
 {
     ALYSSAPAN_STUB("ssXcmd_ForceIntoSearchMode", 0x018de5e0);
-    return {};
-}
-
-// stub of CT3 0x018dfb80
-int ssXcmd_GetAtkHitInfoID(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("ssXcmd_GetAtkHitInfoID", 0x018dfb80);
-    return {};
-}
-
-// stub of CT3 0x018e08a0
-int ssXcmd_GetAttackMotionID(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("ssXcmd_GetAttackMotionID", 0x018e08a0);
-    return {};
-}
-
-// stub of CT3 0x018df610
-int ssXcmd_GetCharFootEndMaterial(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("ssXcmd_GetCharFootEndMaterial", 0x018df610);
-    return {};
-}
-
-// stub of CT3 0x018e09c0
-int ssXcmd_ObjectSetHitPos(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("ssXcmd_ObjectSetHitPos", 0x018e09c0);
     return {};
 }
 
@@ -597,27 +785,6 @@ int ssXcmd_ScnAtkRequest(int argc, char **argv, int bank)
 int ssXcmd_SetArrowPath(int argc, char **argv, int bank)
 {
     ALYSSAPAN_STUB("ssXcmd_SetArrowPath", 0x018e0670);
-    return {};
-}
-
-// stub of CT3 0x018e0590
-int ssXcmd_SetArrowPath2(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("ssXcmd_SetArrowPath2", 0x018e0590);
-    return {};
-}
-
-// stub of CT3 0x018e0170
-int ssXcmd_SetArwRotMaxID(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("ssXcmd_SetArwRotMaxID", 0x018e0170);
-    return {};
-}
-
-// stub of CT3 0x018e0b40
-int ssXcmd_SetDurabilityToVar(int argc, char **argv, int bank)
-{
-    ALYSSAPAN_STUB("ssXcmd_SetDurabilityToVar", 0x018e0b40);
     return {};
 }
 

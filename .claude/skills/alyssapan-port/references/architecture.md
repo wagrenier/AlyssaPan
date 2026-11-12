@@ -1307,6 +1307,24 @@ the branch scene tables and a few tk x commands.
   then gaSetupDrawCtrlData(drawctrl_ssSprite 0x01941bc0: IIP TME ABE FST, ZTE ZTST 1, ALPHA (Cs-Cd)*As+Cd,
   FBA 1, LCM 1, bilinear). The host draws nothing of it yet: the fan packets need the host's frame copy.
 
+## This frame's hits as the scripts read them, game/wideXcmd_TriggerInit.c (2026-11-12, slice 3)
+
+- A bank's hit table (ALL_TABLE.hits, HIT_TABLE) keeps three per-frame hit lists of 0x20-byte records,
+  which the trigger script's x commands index by a bank variable (GetAtkHitInfoID stores the index):
+  a scene bank (BankInfo.type BANK_TYPE_SHADOW) has objHits (+0x2b0 count, +0x2b4 HIT_OBJ_REC) and
+  scnHits (+0x2b8 count, +0x2bc HIT_ATK_REC: its damage shapes hit, keyed by the HIT_DATA's part); a
+  character bank (BANK_TYPE_2) has atkHits (+0x1c count, +0x20 HIT_OBJ_REC, keyed by the object's
+  HIT_OBJ_ID +0xda).
+- HIT_OBJ_REC: +0x00 the hit position (ArrowSetHitPos puts the arrow there), +0x10 the object, +0x14 a
+  bit set of the materials hit (CheckAtkHitMaterial), +0x18 the attacker word (its short +0x1a0 is the id
+  CheckAtkHitChara answers), +0x1c the character hit. HIT_ATK_REC: +0x00 position (ObjectSetHitPos warps a
+  scene object there), +0x10 the HIT_DATA, +0x16 the attack's motion, +0x18 0 = a character's attack.
+- HIT_DATA +0x19b is the surface's material (GetCharFootEndMaterial reads it from the floor a character
+  stands on, CHARACTER.w300[0]) and +0x19e a damage shape's durability (SetDurabilityToVar, 0xff = none).
+- The arrow x commands move an arrow character: ArrowSetStartPos onto a part of the script's bank (its
+  position, yaw 0x10000 minus the part's X-axis angle) while a global ready variable is not below 1;
+  SetArrowPath2 60 back along a part's X axis.
+
 ## The IOP side (2026-11-09)
 
 The EE loads `cdrom0:\IOP\IOPRP255.IMG;1` (an IOP reboot), then `SIO2MAN`, `PADMAN`, `MCMAN`, `MCSERV`,

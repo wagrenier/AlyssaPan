@@ -1679,6 +1679,23 @@ apply here):
 
 ## Open questions
 
+- (2026-11-12, game/wideXcmd_TriggerInit.c slice 3) **partial, 11 more x commands** (the hit-record
+  queries GetAtkHitInfoID / CheckAtkHitChara / CheckAtkHitMaterial / GetAttackMotionID, ObjectSetHitPos,
+  ArrowSetHitPos / ArrowSetStartPos / SetArrowPath2 / SetArwRotMaxID, SetDurabilityToVar,
+  GetCharFootEndMaterial); 11 stubs left (AXE_CheckHitAndCompDir / SetPath / SetStartPos,
+  ForceIntoSearchMode, test_BrainSet4, LockToTargChara, ArrowSetChild, SetArrowPath -- a quaternion turn
+  capped at 400 by ahAcos --, ScnAtkRequest, test3). Named from these readers only, the collision TU
+  (ssProcessHit's writer) confirms: (a) HIT_OBJ_REC's word +0x18 (id, asUseArrow.c's key) is read by
+  CheckAtkHitChara as the EE word of an attacker object whose short +0x1a0 it answers (HIT_ATTACKER_ID):
+  probably the attacker's address used as a key; (b) the scnHits list (HIT_TABLE +0x2b8 count / +0x2bc
+  records, HIT_ATK_REC) is a different record from HIT_OBJ_REC: +0x16 short motion, +0x18 byte 0 = a
+  character's attack; (c) HIT_DATA +0x19b (the floor material, after the struct's last named field) and
+  +0x19e (durability, past sizeof(HIT_DATA) as declared) are read as raw bytes: the HIT_DATA record is
+  longer than ssHitCheckAttackToScn.h declares; (d) GetCharFootEndMaterial answers -1 on the host while
+  CHARACTER.w300[0] has no host form (1 (v)). ArrowSetStartPos's Y-rotation product is dead in the ROM
+  (stored to a stack slot nothing reads) and left out; callcheck's missing gaSetRotMatrixY / dp* there and
+  ssTrigGetVariable in the CheckAtkHit pair (HitRecByVar calls it) are explained.
+
 - (2026-11-12, game/wideXcmd_TriggerInit.c slice 2) **partial, 21 x commands + ssAI_AXE_IsThrowing /
   ssAI_AXE_Init written** (the wide triggers, the axe's state, the stalkers' AI commands, the test
   commands); 22 stubs left (AXE_CheckHitAndCompDir / SetPath / SetStartPos, ForceIntoSearchMode -- it
