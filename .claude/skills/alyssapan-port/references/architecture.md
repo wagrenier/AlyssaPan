@@ -1359,6 +1359,21 @@ disc answers -1 / -1: the module's own answer is unread (open-items.md). **The b
 INFO, E_GL, 0MH0 and ATLD pass every FSMltLoadProc phase to the set-up step at boot (probed 2026-11-10),
 and TrgGLBLSceneDraw gets past BankReady (camera_init0 / CamChange_S are reached).
 
+**The sound driver's EE link, game/CpDivideEECom.c (2026-11-12).** SNDDRV.IRX has two RPC services the
+EE binds (CpEEInit_RpcClient retries until each is registered): `0x77777777` (gEE_CliendData,
+CpCall_IOPSndDriver: every command, waited for; the send size is the command's -- 0 for the bare ones,
+0x20 a SND_JSL_COM, 0x88 the ADS record, 0xb0 gTransJSL for SND_CMD_SE_REGISTER, 0x270000 the low byte
+times 0x20 -- the reply 4 bytes except 0x140000 (0x1c) and 0x50000 (0x98), into gEE_RetBuf 0x1800 bytes;
+SND_CMD_ADS_OPEN alone is posted NOWAIT) and `0x77777778` (gEE_CliendData_2, CpCall_IOPSndDriver_2: only
+0x120000 IOP->SPU2 and 0x110000 the wave transfer, posted NOWAIT with an end callback that clears bit 1 / 0
+of gCpEE_IOPCallBack[0]; CpCheckEE_IOPComEnd polls the bit). The driver calls the EE back on the EE's own
+server `0x77777779` (a receive thread, EESd / EEQd, buffer gEE_RpcArg): 0x20000 / 0x30000 / 0x40000 /
+0x50000 write the record's +8 word into gEEStat +0x30 / +0x20 / +0x40 / +0x50, and 0x10000 SIF-DMAs EE
+memory to the IOP (+8 src, +0xc IOP address, +0x10 size; comm mode 1 -- gArg_CpDriverInit.h1a, which
+CT3 sets 0 -- answers the +8 pointer instead). At boot CpExchangeTransBuffer sends 0x40000 with gEEStat's
+address and DMAs the 0x80-byte gEEStat to the IOP address the reply names (gAdrIOPStat). The module's
+arguments are ten NUL-separated strings: three `0x%X` words, then seven `%d` (CpMakeSnddrvInitStr).
+
 **The memory card (2026-11-09, sdk/libmc.cpp's host task).** CT3 links libmc's EE side at
 0x01826d38..0x01828530. Its `sceMcInit` binds `MCSERV` and refuses an IOP side older than mcserv 0x20a /
 mcman 0x20e (returns -120 / -121, strings 0x01932010 / 0x01932038): the host answers 0. The game calls

@@ -2049,6 +2049,13 @@ apply here):
 - (2026-11-09) Is `SNDDRV.IRX` the game's own driver (to reconstruct under `src/iop/`, as RXSNDDRV was) or a
   middleware build? And how much of the sound goes through SCE's `MODHSYN` / `MODMIDI` (hardware-synth
   MIDI, which no sibling met) against `sdremote`? `sound.c`'s TU answers it.
+- (2026-11-12, game/CpDivideEECom.c) The EE half of the sound link is written (verify): nothing sounds
+  until SNDDRV.IRX's two services (0x77777777 / 0x77777778) answer on the host -- reconstructing the
+  driver under src/iop/ (RXSNDDRV's precedent) or a host server is the sound blocker now; the host task
+  should be queued once the user picks. EE_IOP_STAT +0x30 (EE_COM_SET_STAT_30) has no EE reader yet;
+  gTransJSL / gTransSER / gTransJSLCOM2 have no EE writer read yet (only CpInit_Gloval_EE clears them).
+  CpCall_IOPSndDriver's commands 0x270000, 0x300000, 0x2e0000, 0x2f0000, 0x130000, 0x90000, 0x140000,
+  0x50000 are not named: no reconstructed caller sends them yet.
 - (2026-11-09) `CT3PACK.DAT`'s format, and whether CT3's pictures are TIM2 (TextureStore decodes TIM2 only).
 - (2026-11-09) Is the "one EE thread at a time, by priority" model right for CT3? (YamiPan's for FS2.)
 

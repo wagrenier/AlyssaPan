@@ -89,6 +89,7 @@ int iReleaseAlarm(int alarmId) { return ReleaseAlarm(alarmId); }
 
 void FlushCache(int) {}
 void SyncDCache(void *, void *) {}
+void iSyncDCache(void *, void *) {}
 void InitThread() {} // the main thread is the host's
 int SetDebugHandler(int, AlyssaPanDebugHandler) { return 0; }
 int AddDmacHandler(int, DmacHandler, int) { return 0; } // no bus errors on the host

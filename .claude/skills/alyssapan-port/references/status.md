@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-12 05:34 at commit `e4dd80f` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-12 05:54 at commit `fb5d112` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1460**; stubs: **111**
+- reconstructed CT3 functions: **1478**; stubs: **101**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -60,7 +60,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/Character_Init.c` | 48 | 1 |
 | `src/game/Clipping_Portal.c` | 73 | 0 |
 | `src/game/Convert.c` | 0 | 2 |
-| `src/game/CpDivideEECom.c` | 0 | 10 |
+| `src/game/CpDivideEECom.c` | 18 | 0 |
 | `src/game/IOPGetFileSize.c` | 4 | 0 |
 | `src/game/LinkMatrixTree.c` | 4 | 0 |
 | `src/game/PicPaz.c` | 9 | 0 |
@@ -101,8 +101,8 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 25, verify 41, done 8, blocked 1
-- next: **game/CpDivideEECom.c** (frontier score 80)
+- 65 TUs: todo 24, verify 42, done 8, blocked 1
+- next: **game/tiAvoidObject.c** (frontier score 46)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
@@ -120,6 +120,7 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/BRANCH_CLEAR.c` 173/173 -- MotionTableOf now resolves CHARACTER +0x350 via BankEePtr of the bank, as MotionRecord in wideXcmd_DebugPrint.c does (open-items ga done). 15 s smoke run: no fa
 - verify: `game/Character_Init.c` 48/49 -- All 49 functions written; nothing on screen reaches the card yet (main2 is a stub), shot black as before. The save image layout is in architecture.md (The save 
 - verify: `game/Clipping_Portal.c` 73/73 -- Smoke run unchanged (content warning screen at 4:3); no pendulum is on its path, so verify. callcheck lists the two entry points calls under the static HurikoSw
+- verify: `game/CpDivideEECom.c` 18/18 -- Complete code nothing on screen shows: SNDDRV.IRX is not reconstructed, so sif.cpp answers zero replies and gAdrIOPStat stays 0 (the status DMA is skipped). The
 - verify: `game/IOPGetFileSize.c` 4/4 -- All 4 functions written. No host server answers FSYS_IOP SUNA yet (sif.cpp answers zeros), so a loose file's size reads 0: a host FSYS_IOP server on io::Disc is
 - verify: `game/LinkMatrixTree.c` 4/4 -- Code complete, nothing on screen shows it yet: the smoke run still crashes at main.c 2106 (ActressMP NULL, the known blocker) and the shot stays black. LinkMatr
 - verify: `game/PicPaz.c` 9/10 -- The smoke run passes aaXcmd_MovieFedeOutCancel: both title movies start and are skipped; the shot stays flat grey since TITL draws nothing yet (title_trace.cpp 
@@ -149,6 +150,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-12 05:54 `game/CpDivideEECom.c` verify: all 17 functions: the two driver RPC clients (CpCall_IOPSndDriver, _2 with its end callbacks and CpCheckEE_IOPComEnd), the EE server and receive thread, SIF DMA
 - 2026-11-12 05:34 `game/wideXcmd_TriggerInit.c` verify: slice 6: test_ssXcmd_BrainSet4, the last stub: the brain set-up (BRAIN_SET, BRAIN_STATE_REF, the 0x280-byte brain); CHARACTER.brain host form decided (handle in
 - 2026-11-12 05:11 `game/tiXcmd_TransItem.c` verify: slice 12: the SCISSORS_MAN attack (init, per-frame streams homing on the player, end); the TU has no stubs left
 - 2026-11-12 04:55 `game/tiXcmd_TransItem.c` partial: the boss info host form and five boss commands: battle start, both chain sets, warp points, blood attack part
@@ -156,11 +158,9 @@ Recent sessions:
 - 2026-11-12 04:15 `game/wideXcmd_TriggerInit.c` partial: slice 5: LockToTargChara (the bow lock-on), AXE_SetPath, AXE_CheckHitAndCompDir; the test commands annotated one by one: 6 functions
 - 2026-11-12 03:55 `game/wideXcmd_TriggerInit.c` partial: slice 4: AXE_SetStartPos, ForceIntoSearchMode (the ssAI_BrainInit table, six initialisers stubbed in three new brain TU headers), CheckAtkHitALYSSA, ArrowSetChi
 - 2026-11-12 03:34 `game/wideXcmd_TriggerInit.c` partial: slice 3: the hit-record queries (GetAtkHitInfoID, CheckAtkHitChara, CheckAtkHitMaterial, GetAttackMotionID), ObjectSetHitPos, the arrow commands (ArrowSetHitPos
-- 2026-11-12 03:15 `game/wideXcmd_TriggerInit.c` partial: slice 2: wideXcmd_TriggerInit, GlobalSetEnable, the axe state (AXE_INFO, ssAI_AXE_IsThrowing, ssAI_AXE_Init, AXE_ThrowEnd, AXE_InitParam), the stalkers AI x com
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `game/CpDivideEECom.c` | todo | 0/10/18 | 3.3 | 80 | 10 |
 | `game/tiAvoidObject.c` | todo | 0/14/82 | 30.5 | 46 | 4 |
 | `ga/gaDrawObject.c` | todo | 0/11/11 | 6.9 | 39 | 0 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
@@ -172,18 +172,17 @@ Recent sessions:
 | `game/asMothPause.c` | todo | 0/1/1 | 0.3 | 10 | 0 |
 | `game/ssCalcInversMatrix2.c` | todo | 0/5/5 | 5.7 | 7 | 0 |
 | `ga/wait.c` | todo | 0/2/20 | 0.1 | 5 | 0 |
+| `ga/gaSearchNearLight4.c` | todo | 0/1/1 | 0.4 | 4 | 0 |
 
 ## Frontier (called by reconstructed code, not written yet)
 
 | CT3 addr | name | call sites | provenance | state | inferred file |
 |---|---|---|---|---|---|
 | `01851b10` | ConvertQuat2Matrix | 17 | sym | stub | game/Convert.c |
-| `018d1e70` | CpGetEEIOPStatus | 14 | sym | stub | game/CpDivideEECom.c |
 | `01883ca0` | asMothPause | 10 | sym | stub | game/asMothPause.c |
 | `018a3078` | gaObjectClippingCheck | 7 | sym | stub | ga/gaObjectClippingCheck.c |
 | `01866510` | ssAI_SetAppearanceTimer | 7 | sym | stub | game/tiAvoidObject.c |
 | `018518d0` | ConvertMatrix2Quat | 6 | sym | stub | game/Convert.c |
-| `018d1fa0` | CpSifDmaTransEEToIOP | 6 | sym | stub | game/CpDivideEECom.c |
 | `018a4fe0` | gaDrawObject_VertexLocalViewWithClippingFlagSet | 6 | sym | stub | ga/gaDrawObject.c |
 | `018a51e8` | gaDrawObject_VertexLocalViewWithClippingFlagSet_Billboard | 6 | sym | stub | ga/gaDrawObject.c |
 | `018a5fe0` | gaDrawObject_MakeVertexReferenceTable | 6 | sym | stub | ga/gaDrawObject.c |
@@ -203,8 +202,6 @@ Recent sessions:
 | `018a9390` | ssHitMakeDamageOBB | 2 | sym | stub | game/ssCalcInversMatrix2.c |
 | `018c1d80` | AA_videoDecSetStream | 2 | sym | stub | game/AA_mpegTS.c |
 | `018bff20` | AA_strFileOpen | 2 | sym | stub | game/AA_videoCallback.c |
-| `018d2120` | CpCall_IOPSndDriver_2 | 2 | sym | stub | game/CpDivideEECom.c |
-| `018d1e80` | CpCheckEE_IOPComEnd | 2 | sym | stub | game/CpDivideEECom.c |
 | `018c0310` | AA_cpuCycles | 2 | sym | stub | game/AA_cpuCycles.c |
 | `018c1cd0` | AA_videoDecGetState | 2 | sym | stub | game/AA_mpegTS.c |
 | `018c1ba0` | AA_videoDecFlush | 2 | sym | stub | game/AA_mpegTS.c |
@@ -217,4 +214,8 @@ Recent sessions:
 | `018bfde0` | AA_readBufDelete | 1 | sym | stub | game/AA_videoCallback.c |
 | `018c2080` | AA_voBufDelete | 1 | sym | stub | game/AA_mpegTS.c |
 | `018c1cf0` | AA_videoDecDelete | 1 | sym | stub | game/AA_mpegTS.c |
+| `018bc4d0` | AA_audioDecDelete | 1 | sym | stub | game/AA_SoundMonoSoart.c |
+| `018bfe80` | AA_strFileClose | 1 | sym | stub | game/AA_videoCallback.c |
+| `018bfdf0` | AA_readBufCreate | 1 | sym | stub | game/AA_videoCallback.c |
+| `018c1da0` | AA_videoDecCreate | 1 | sym | stub | game/AA_mpegTS.c |
 

@@ -165,6 +165,17 @@ u_int sceSifSetDma(sceSifDmaData *sdd, int len)
     return 1;
 }
 
+// The interrupt-handler forms: no interrupt context on the host, so the same as the thread forms.
+u_int isceSifSetDma(sceSifDmaData *sdd, int len)
+{
+    return sceSifSetDma(sdd, len);
+}
+
+int isceSifDmaStat(u_int id)
+{
+    return sceSifDmaStat(id);
+}
+
 // Mode 1 is sysmem's high placement (the sound library's "from the top"), 0 its low one; mode 2 ("at
 // `addr`") no caller uses, so it is placed low.
 void *sceSifAllocSysMemory(int mode, u_int size, void *)

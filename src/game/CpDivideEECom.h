@@ -12,7 +12,9 @@
 typedef struct EE_IOP_STAT {
     u_char unk00[0x20];
     int adsActive;          // +0x20 != 0: an ADS stream is playing (SdIsPlayingStream, with +0x50)
-    u_char unk24[0x1c];
+    u_char unk24[0xc];
+    int unk30;              // +0x30 the IOP's EE_COM_SET_STAT_30 word (no EE reader yet)
+    u_char unk34[0xc];
     u_int sndFlags;         // +0x40 bit 0 (EE_IOP_SND_READY): SdSoundEnable clears it, then waits for the IOP to set it
     u_char unk44[0xc];
     int iopBusy;           // +0x50 != 0: the IOP is using the drive (FlProc waits)
@@ -21,6 +23,7 @@ typedef struct EE_IOP_STAT {
 static_assert(sizeof(EE_IOP_STAT) == 0x80, "EE_IOP_STAT is 0x80 bytes");
 
 static_assert(offsetof(EE_IOP_STAT, adsActive) == 0x20, "EE_IOP_STAT.adsActive");
+static_assert(offsetof(EE_IOP_STAT, unk30) == 0x30, "EE_IOP_STAT.unk30");
 static_assert(offsetof(EE_IOP_STAT, iopBusy) == 0x50, "EE_IOP_STAT.iopBusy");
 static_assert(offsetof(EE_IOP_STAT, sndFlags) == 0x40, "EE_IOP_STAT.sndFlags");
 #define EE_IOP_SND_READY 0x1u
@@ -117,9 +120,48 @@ typedef struct SND_DRV_INIT {
 static_assert(sizeof(SND_DRV_INIT) == 0x20, "SND_DRV_INIT");
 static_assert(offsetof(SND_DRV_INIT, h1a) == 0x1a, "SND_DRV_INIT.h1a");
 
-extern SND_JSL_COM gTransJSLCOM;        // bss 0x01943c40 (defined in lib/unassigned_data.cpp until this TU)
-extern SND_TRANS_ADS gTransADS;         // bss 0x01943b40 (likewise)
-extern SND_DRV_INIT gArg_CpDriverInit;  // bss 0x01943d40 (likewise)
+// The commands SNDDRV.IRX sends the EE (_CpDivideEECom, RPC service EE_COM_RPC_ID): the high half picks
+// it, its record's arguments start at +8. The four status words land in gEEStat.
+#define EE_COM_SIF_DMA 0x10000u           /* +8 src, +0xc IOP address, +0x10 size, +0x14, +0x18 intr */
+#define EE_COM_SET_STAT_30 0x20000u       /* +8 -> gEEStat.unk30 */
+#define EE_COM_SET_ADS_ACTIVE 0x30000u    /* +8 -> gEEStat.adsActive */
+#define EE_COM_SET_SND_FLAGS 0x40000u     /* +8 -> gEEStat.sndFlags */
+#define EE_COM_SET_IOP_BUSY 0x50000u      /* +8 -> gEEStat.iopBusy */
+#define SND_CMD_GET_STAT_ADDR 0x40000u    /* CpExchangeTransBuffer: the reply word is the IOP's status block */
+#define SND_CMD_TRANS_WAVE 0x110000u      /* CpCall_IOPSndDriver_2's other command (CP_CMD_CB_WAVE) */
+
+// The RPC service numbers: the driver's two channels and the EE's own server.
+#define SND_RPC_ID 0x77777777u            /* gEE_CliendData: CpCall_IOPSndDriver */
+#define SND_RPC_ID_2 0x77777778u          /* gEE_CliendData_2: CpCall_IOPSndDriver_2 */
+#define EE_COM_RPC_ID 0x77777779u         /* EESd: the IOP -> EE commands */
+
+// gCpEE_IOPCallBack (bss 0x01943a00, 16 bytes; CpGetCPCMDCALLBACK): word 0's bits are set while a second-
+// channel command runs, cleared by its end callback.
+#define CP_CMD_CB_WAVE 0x1u               /* SND_CMD_TRANS_WAVE in flight */
+#define CP_CMD_CB_SPU2 0x2u               /* SND_CMD_TRANS_SPU2 in flight */
+
+// The SIF DMA's limit (CpSifDmaTransEEToIOP: larger answers -1) and its answers.
+#define CP_SIF_DMA_MAX 0xffff0u
+#define CP_SIF_DMA_TOO_BIG (-1)
+#define CP_SIF_DMA_BAD_MODE (-2)
+#define CP_SIF_DMA_REFUSED (-3)
+#define CP_SIF_DMA_BAD_MODE_WAIT (-4)
+
+extern SND_JSL_COM gTransJSLCOM;        // bss 0x01943c40
+extern SND_TRANS_ADS gTransADS;         // bss 0x01943b40
+extern SND_DRV_INIT gArg_CpDriverInit;  // bss 0x01943d40
+extern u_char gTransJSL[0xb0];          // bss 0x01943c80 (no EE writer read yet)
+extern u_char gTransJSLCOM2[0x600];     // bss 0x01c8bd80 (likewise)
+extern u_char gTransSER[0x10];          // bss 0x01943c00 (likewise)
+extern EE_IOP_STAT gEEStat;             // bss 0x01943a40
+extern u_int gCpEE_IOPCallBack[4];      // bss 0x01943a00
+extern u_int gAdrIOPStat;               // bss 0x01943a10: the IOP's status block (SND_CMD_GET_STAT_ADDR)
+extern int gTransDmaDataEEToIOPCueNo;   // bss 0x01943ac0
+extern int gEEComRecieveTHSemaID;       // bss 0x01943978
+extern int gEEComRecieveTHID;           // bss 0x01943998
+
+u_int *CpGetCPCMDCALLBACK(void);        // CT3 0x018d1e60: &gCpEE_IOPCallBack (its uncached alias)
+void CpEEWait(int count);               // CT3 0x018d2820: a busy wait, count + 1 turns
 
 // Prototypes from IopLoadCapcomSound's calls (2026-11-10); this TU writes them.
 void CpInit_Gloval_EE(void);                                     // CT3 0x018d2770

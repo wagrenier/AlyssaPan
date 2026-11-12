@@ -648,12 +648,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 71..71, 1 functions keyed by their statics, 1 unkeyed; file name from the names"
   },
   "game/CpDivideEECom.c": {
+   "notes": "Complete code nothing on screen shows: SNDDRV.IRX is not reconstructed, so sif.cpp answers zero replies and gAdrIOPStat stays 0 (the status DMA is skipped). The sound blocker is now the driver itself (open-items 2026-11-12). FUN_018d2838 is CpEEWait's loop head split by Ghidra, left alone (hazards). Title backdrop still draws as before.",
    "ranges": [
     [
      "018d1cb0",
      "018d2a68"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-12 05:54",
+     "status": "verify",
+     "summary": "all 17 functions: the two driver RPC clients (CpCall_IOPSndDriver, _2 with its end callbacks and CpCheckEE_IOPComEnd), the EE server and receive thread, SIF DMA to the IOP, init, bind, status exchange, CpMakeSnddrvInitStr; TU data moved here from lib/unassigned_data.cpp; sdk gains iSyncDCache, isceSifSetDma, isceSifDmaStat"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 122..122, 9 functions keyed by their statics, 8 unkeyed; file name from the names"
   },
   "game/IOPGetFileSize.c": {

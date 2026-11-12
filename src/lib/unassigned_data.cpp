@@ -533,7 +533,3 @@ int gStereo = 1;                                /* sdata 0x0193a4dc */
 int gMasterVolSE = 0xff;                          /* sdata 0x0193a4e0 */
 int gMasterVolSQ = 0xff;                          /* sdata 0x0193a4e4 */
 int gMasterVolADS = 0xff;                         /* sdata 0x0193a4e8 */
-// game/CpDivideEECom.c's command records, until that TU is written (game/SdMasterVolumeSetSE.c writes them).
-SND_JSL_COM gTransJSLCOM;                       /* bss  0x01943c40 (CpDivideEECom.c) */
-SND_TRANS_ADS gTransADS;                        /* bss  0x01943b40 (CpDivideEECom.c) */
-SND_DRV_INIT gArg_CpDriverInit;                 /* bss  0x01943d40 (CpDivideEECom.c; IopLoadCapcomSound fills it) */

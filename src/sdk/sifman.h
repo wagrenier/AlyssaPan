@@ -28,6 +28,10 @@ int sceSifDmaStat(u_int id);
  * halves the same way.  Returns a transfer id for sceSifDmaStat(). */
 u_int sceSifSetDma(sceSifDmaData *sdd, int len);
 
+/* The interrupt-handler forms (CpSifDmaTransEEToIOP's `intr` 1): the same transfer and answer. */
+u_int isceSifSetDma(sceSifDmaData *sdd, int len);
+int isceSifDmaStat(u_int id);
+
 /* Performs the transfers, then calls `func(param)`.  MyTransEEWait() relies on
  * that callback firing: it parks on a semaphore that _intr_SifSetDma() signals,
  * and would deadlock if the completion never arrived. */
