@@ -2,7 +2,8 @@
 // Slice 1 (2026-11-12): the appearance and no-reaction timers, the global init, the save image's part,
 // the brain's free, the motion predicates (crawl, door push / pull) and ssAI_GetScnBankID. Slice 2: the
 // hide poles and the scene init. Slice 3: the frame's driver (ssAI_main), the mode tables and dispatch,
-// the facing, the panic rise, the hearing / hide / door checks, the motion predicates. Stubs below.
+// the facing, the panic rise, the hearing / hide / door checks, the motion predicates. Slice 4: the
+// obstacle steering (tiAvoidObject), the frame / group / scene predicates, the axe reset and BrainEndSpecialProc.
 
 #include "common/alyssapan_stub.h"
 #include "game/tiAvoidObject.h"
@@ -25,6 +26,11 @@
 #include "game/tiBrain_ChgTrace_BOSS_BALOWS.h"
 #include "game/tiBrain_ChgTrace_Ghost.h"
 #include "ga/gaInit3dlib.h"
+#include "ga/gaSinCos.h"
+#include "game/hhXcmd_DressUp.h"
+#include "game/ssSetTexUVforCubeMap.h"
+#include "game/Clipping_Portal.h"
+#include "game/xcmd_tn.h"
 
 #include <float.h>
 #include <math.h>
@@ -975,16 +981,536 @@ void ssAI_MonsterDraw(CHARACTER *chr, int draw)
     }
 }
 
-// ---- stubs (tools/reverse/stubgen.py) ----
+// ---- slice 4 (2026-11-12): the obstacle steering, the frame and group / scene predicates, the axe reset ----
 
-// stub of CT3 0x018642b0
-void ssAI_AxeThrowReset(void)
+// CT3 0x0185ffd0: the frame test of motion `index`'s behaviour (the ROM spells it "Mortion").
+int ssAI_IsMortionFramePassed(CHARACTER *chr, int index, u_int frame)
 {
-    ALYSSAPAN_STUB("ssAI_AxeThrowReset", 0x018642b0);
+    const u_char *rec = ssAI_MotionRecord(chr, index);
+    BEHAVIOR *bhv;
+    BEHAVIOR_TRACK *track;
+    u_int word, now, before;
+    u_long hash;
+    int bank;
+
+    if (rec == NULL)
+        return 0;   // PORT: the ROM reads a record whatever the table word holds
+    memcpy(&hash, rec + CHARA_MOTION_BEHAVIOR, sizeof(hash));
+    bhv = asFindBehaviorByCharacter(chr->id, hash);
+    if (bhv == NULL)
+        return 0;
+    bank = BankOfHostPtr(bhv);
+    track = BANK_PTR(BEHAVIOR_TRACK *, bank, bhv->groups[0].tracks);
+    memcpy(&word, (const u_char *)track + TRACK_FRAMES, sizeof(word));
+    now = word & 0xffff;
+    before = word >> 16;
+    if ((track->flags & TRACK_FLAG_NO_FRAMES) != 0)
+        return 0;
+    if (before < now)
+        return before < frame && frame <= now;
+    if (now < before)
+        return before < frame || frame <= now;     // the motion wrapped
+    return before == frame;
 }
 
-// stub of CT3 0x01864950
-void ssAI_BrainEndSpecialProc(struct CHARACTER *chr)
+// CT3 0x018603d0
+int ssAI_IsNextGroup(short group, short other, int bank)
 {
-    ALYSSAPAN_STUB("ssAI_BrainEndSpecialProc", 0x01864950);
+    HIDE_POLE_LIST *list = ssAI_PoleList(bank);
+    HIDE_POLE_GROUP *groups = BANK_PTR(HIDE_POLE_GROUP *, bank, list->groups);
+    int i, j;
+
+    for (i = 0; i < list->groupCount; i++) {
+        HIDE_POLE_GROUP *g = &groups[i];
+        const short *links;
+        if (g->id != group)
+            continue;
+        links = BANK_PTR(const short *, bank, g->links);
+        for (j = 0; j < g->linkCount; j++) {
+            if (other == groups[links[j]].id)
+                return 1;
+        }
+    }
+    return 0;
+}
+
+// CT3 0x01860490
+int ssAI_IsNextScene(int bank, u_int room)
+{
+    HIDE_POLE_LIST *list = ssAI_PoleList(bank);
+    HIDE_POLE *poles = BANK_PTR(HIDE_POLE *, bank, list->poles);
+    int i;
+
+    for (i = 0; i < list->count; i++) {
+        HIDE_POLE *p = &poles[i];
+        MODEL_PARTS *part = (MODEL_PARTS *)(pModelPartsHeader[bank] + p->parts * PARTS_REC_SIZE);
+        if ((part->flags & PARTS_FLAG_HIDDEN) == 0 && (p->flags & HIDE_POLE_FLAG_SHADOW) != 0 && room == p->room)
+            return 1;
+    }
+    return 0;
+}
+
+// The VU0 normalisation (vrsqrt of x^2 + y^2 + z^2, vmulq): all four lanes scaled by 1 / |xyz|.
+static void ssAI_Unit(float *out, const float *v)
+{
+    float len2 = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
+    float q = len2 > 0.0f ? 1.0f / sqrtf(len2) : FLT_MAX;
+    int i;
+
+    for (i = 0; i < 4; i++)
+        out[i] = v[i] * q;
+}
+
+// |a - b| (xyz) and the same in the XZ plane (y dropped).
+static float ssAI_Dist(const float *a, const float *b)
+{
+    float d[3] = { a[0] - b[0], a[1] - b[1], a[2] - b[2] };
+    return sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+}
+
+static float ssAI_DistXZ(const float *a, const float *b)
+{
+    float d[2] = { a[0] - b[0], a[2] - b[2] };
+    return sqrtf(d[0] * d[0] + d[1] * d[1]);
+}
+
+static void ssAI_RotY(float *out, const float *v, int angle)
+{
+    alignas(16) float m[4][4];
+
+    gaSetRotMatrixY(m, angle);
+    ssAI_ApplyMatrix(out, (const float (*)[4])m, v);
+}
+
+// seg->to = seg->from + v.
+static void ssAI_ProbeTo(LOS_HIT *seg, const float *v)
+{
+    int i;
+
+    for (i = 0; i < 4; i++)
+        seg->seg.to[i] = seg->seg.from[i] + v[i];
+}
+
+// The followed polygon's corners nearest (*near) and farthest (*far) from Alyssa in the XZ plane (all four
+// corners: a triangle's fourth is read as the ROM does).
+static void ssAI_NearFarCorner(const HIT_DATA *hit, const float *player, int *nearC, int *farC)
+{
+    float d = ssAI_DistXZ(hit->world[0], player);
+    float lo = d, hi = d;
+    int i;
+
+    *nearC = *farC = 0;
+    for (i = 1; i < 4; i++) {
+        d = ssAI_DistXZ(hit->world[i], player);
+        if (hi < d) {
+            hi = d;
+            *farC = i;
+        }
+        if (d < lo) {
+            lo = d;
+            *nearC = i;
+        }
+    }
+}
+
+// The XZ unit of a - b.
+static void ssAI_EdgeXZ(float *out, const float *a, const float *b)
+{
+    float e[4] = { a[0] - b[0], 0.0f, a[2] - b[2], a[3] - b[3] };
+    ssAI_Unit(out, e);
+}
+
+// goal = corner + unit(edge + n) * AVOID_GOAL_OFFSET, its y from CHARA_AVOID_GOAL_Y.
+static float ssAI_Goal[4];              /* goalPos$1620: sbss 0x0193ce80 (symtab local of tiAvoidObject) */
+
+static void ssAI_SetGoal(const CHARACTER *chr, const float *corner, const float *edge, const float *n)
+{
+    float v[4], u[4];
+    int i;
+
+    for (i = 0; i < 4; i++)
+        v[i] = edge[i] + n[i];
+    ssAI_Unit(u, v);
+    for (i = 0; i < 4; i++)
+        ssAI_Goal[i] = corner[i] + u[i] * AVOID_GOAL_OFFSET;
+    memcpy(&ssAI_Goal[1], (const u_char *)chr + CHARA_AVOID_GOAL_Y, sizeof(float));
+}
+
+// dir = the XZ unit towards the goal.
+static void ssAI_DirToGoal(float *dir, const CHARACTER *chr)
+{
+    const float *pos = (const float *)&chr->pos;
+    float d[4];
+    int i;
+
+    for (i = 0; i < 4; i++)
+        d[i] = ssAI_Goal[i] - pos[i];
+    d[1] = 0.0f;
+    d[3] = 0.0f;
+    ssAI_Unit(dir, d);
+}
+
+// CT3 0x0185e9d0: steer chr round what blocks it (see tiAvoidObject.h). A clear line towards Alyssa
+// forgets the followed polygon. A blocked one, with no polygon followed yet, tries probes 15 and 30 degrees
+// either side and turns 45 / 15 (the first clear one's side; the matrix the 30-degree probes leave turns
+// dir by 30); with all four blocked it follows the polygon: the goal is off its corner nearest Alyssa, or
+// the far one when the way along the edge is blocked. With a polygon followed it heads for the goal, or,
+// on a new polygon, sets the new goal (dir unchanged, as the ROM does). Then a 60-unit probe 45 degrees to
+// the left: blocked turns dir right by 45, else one to the right: blocked turns dir left by 45.
+int tiAvoidObject(float *dir, CHARACTER *chr, void **lastHit)
+{
+    static const int fan[4] = { AVOID_ANGLE_15, AVOID_ANGLE_M15, AVOID_ANGLE_30, AVOID_ANGLE_M30 };
+    static const int turn[4] = { AVOID_ANGLE_45, AVOID_ANGLE_M45, AVOID_ANGLE_30, AVOID_ANGLE_M30 };
+    const float *pos = (const float *)&chr->pos;
+    const float *player = (const float *)&Character[Player_BankID].pos;
+    LOS_HIT seg;
+    float probe[4], v[4];
+    float dist;
+    int turned = 0;
+    int i;
+
+    memset(&seg, 0, sizeof(seg));
+    dist = ssAI_Dist(player, pos);
+    if (dist > AVOID_PROBE_MAX)
+        dist = AVOID_PROBE_MAX;
+    memcpy(seg.seg.from, pos, sizeof(seg.seg.from));
+    seg.seg.from[1] = pos[1] + AVOID_EYE_HEIGHT;
+    for (i = 0; i < 4; i++)
+        probe[i] = dir[i] * dist;
+    ssAI_ProbeTo(&seg, probe);
+    if (CheckLOS(chr->lightBank, &seg) == 0) {
+        *lastHit = NULL;
+    } else {
+        HIT_DATA *hit = (HIT_DATA *)seg.record;
+        float n[4] = { 0.0f, 0.0f, 0.0f, 0.0f }, edge[4];
+        int nearC, farC;
+
+        turned = 1;
+        if (*lastHit == NULL) {
+            for (i = 0; i < 4; i++) {
+                ssAI_RotY(v, probe, fan[i]);
+                ssAI_ProbeTo(&seg, v);
+                if (CheckLOS(chr->lightBank, &seg) == 0) {
+                    *lastHit = NULL;
+                    ssAI_RotY(dir, dir, turn[i]);
+                    break;
+                }
+            }
+            if (i == 4) {
+                // All four blocked: follow the polygon the last probe hit.
+                LOS_HIT along;
+                hit = (HIT_DATA *)seg.record;
+                ssAI_NearFarCorner(hit, player, &nearC, &farC);
+                ssAI_EdgeXZ(edge, hit->world[nearC], hit->world[farC]);
+                gaCopyVectorXYZ(n, hit->worldN);
+                n[1] = 0.0f;
+                memset(&along, 0, sizeof(along));
+                memcpy(along.seg.from, hit->world[farC], sizeof(along.seg.from));
+                memcpy(along.seg.to, hit->world[nearC], sizeof(along.seg.to));
+                along.seg.from[1] = along.seg.to[1] = pos[1] + AVOID_EYE_HEIGHT;
+                for (i = 0; i < 4; i++) {
+                    along.seg.from[i] += n[i];
+                    along.seg.to[i] += n[i] + edge[i];
+                }
+                if (CheckLOS(chr->lightBank, &along) == 0) {
+                    ssAI_SetGoal(chr, hit->world[nearC], edge, n);
+                } else {
+                    ssAI_EdgeXZ(edge, hit->world[farC], hit->world[nearC]);
+                    ssAI_SetGoal(chr, hit->world[farC], edge, n);
+                }
+                *lastHit = hit;
+                ssAI_DirToGoal(dir, chr);
+            }
+        } else if (*lastHit == hit) {
+            ssAI_DirToGoal(dir, chr);
+        } else {
+            ssAI_NearFarCorner(hit, player, &nearC, &farC);
+            ssAI_EdgeXZ(edge, hit->world[nearC], hit->world[farC]);
+            gaCopyVectorXYZ(n, hit->worldN);
+            n[1] = 0.0f;
+            ssAI_SetGoal(chr, hit->world[nearC], edge, n);
+            *lastHit = hit;
+        }
+    }
+
+    // The sides: a 60-unit probe 45 degrees left, then right.
+    for (i = 0; i < 4; i++)
+        probe[i] = dir[i] * AVOID_SIDE_PROBE;
+    ssAI_RotY(v, probe, AVOID_ANGLE_45);
+    ssAI_ProbeTo(&seg, v);
+    if (CheckLOS(chr->lightBank, &seg) == 0) {
+        ssAI_RotY(v, probe, AVOID_ANGLE_M45);
+        ssAI_ProbeTo(&seg, v);
+        if (CheckLOS(chr->lightBank, &seg) != 0) {
+            ssAI_RotY(dir, dir, AVOID_ANGLE_45);
+            turned = 1;
+        }
+    } else {
+        ssAI_RotY(dir, dir, AVOID_ANGLE_M45);
+        turned = 1;
+    }
+    return turned;
+}
+
+// The axe stalker's scene bank ("E_14") and the stop-SE command's arguments (@3321..@3323).
+static char ssAI_SeOno[] = "E_ONO";     /* data 0x01933a08 */
+static char ssAI_SeArg3[] = "3";        /* data 0x01933a10 */
+static char ssAI_SeArg1[] = "1";        /* data 0x01933a18 */
+
+// The part named name of the bank's parts header.
+static int ssAI_PartID(u_char *header, const char *name)
+{
+    return (short)asFindModelPartsID(header, ahGetHash(name));
+}
+
+// The axe throw's parts (E_14's model; data 0x019339e8..0x01933bd0, Ghidra's strings).
+static const char *const ssAI_AxeShownParts[] = { "N_AxeR", "N_AxeL" };
+static const char *const ssAI_AxeBlurParts[] = { "N_AxeR001", "N_AxeL01", "N_Axerr01" };
+static const char *const ssAI_AxeHiddenParts[] = {
+    "ht_dabul_axe", "ht_double_axe_damege", "ht_L_axe", "ht_L_axe_damege", "ht_R_axe", "ht_R_axe_damege",
+    "N_AxeL", "N_AxeL01", "N_AxeL_shoot00", "N_AxeR", "N_AxeR001", "N_AxeR01", "N_AxeR_shoot00",
+    "N_Axerr01", "N_Axerr_shoot00",
+};
+static const char *const ssAI_AxeParticles[] = {
+    "p_hit_N_AxeR00", "p_hit_N_AxeR01", "p_hit_N_AxeR02", "p_hit_N_AxeL00", "p_hit_N_AxeL01",
+    "p_hit_N_AxeL02", "p_hit_N_Axerr00", "p_hit_N_Axerr01", "p_hit_N_Axerr02",
+};
+static const char *const ssAI_AxeHitParts[] = {
+    "hit_N_AxeL00", "hit_N_AxeL01", "hit_N_AxeR00", "hit_N_AxeR01", "hit_N_Axerr00", "hit_N_Axerr01",
+};
+
+// CT3 0x018642b0: the axe throw back to rest. The axe stalker's own model shows its two axes again and
+// hides the thrown one (N_AxeR01); the axe's scene bank (E_14) resets its triggers, stops the throw's SE,
+// ends the blurs, hides every axe part and hit shape, puts out the hit particles and ends the throw.
+void ssAI_AxeThrowReset(void)
+{
+    short bank = Character[HIT_CHARA_ONO].bank;
+    size_t i;
+
+    if (bank != -1) {
+        u_char *header = pModelPartsHeader[bank];
+        ssTrigSetEnable(ssAI_PartID(header, ssAI_AxeShownParts[0]), 1, 0, bank);
+        ssTrigSetEnable(ssAI_PartID(header, ssAI_AxeShownParts[1]), 1, 0, bank);
+        ssTrigSetEnable(ssAI_PartID(header, "N_AxeR01"), 0, 0, bank);
+    }
+    {
+        int axe = ssGetBankID(ssAI_BankE14);
+        char *argv[3];
+        u_char *header;
+
+        if (axe == -1)
+            return;
+        Trigger_reset(axe);
+        header = pModelPartsHeader[axe];
+        argv[0] = ssAI_SeOno;
+        argv[1] = ssAI_SeArg3;
+        argv[2] = ssAI_SeArg1;
+        hhXcmd_StopSESp1(3, argv, axe);
+        for (i = 0; i < sizeof(ssAI_AxeBlurParts) / sizeof(ssAI_AxeBlurParts[0]); i++)
+            ssPartMotionBlurEnd(ssAI_PartID(header, ssAI_AxeBlurParts[i]), axe);
+        for (i = 0; i < sizeof(ssAI_AxeHiddenParts) / sizeof(ssAI_AxeHiddenParts[0]); i++)
+            ssTrigSetEnable(ssAI_PartID(header, ssAI_AxeHiddenParts[i]), 0, 0, axe);
+        for (i = 0; i < sizeof(ssAI_AxeParticles) / sizeof(ssAI_AxeParticles[0]); i++)
+            ssTrigParticleAllOffImmediately(ssAI_PartID(header, ssAI_AxeParticles[i]), axe);
+        for (i = 0; i < sizeof(ssAI_AxeHitParts) / sizeof(ssAI_AxeHitParts[0]); i++)
+            ssTrigSetEnable(ssAI_PartID(header, ssAI_AxeHitParts[i]), 0, 0, axe);
+        ssXcmd_AXE_ThrowEnd(0, argv, axe);
+    }
+}
+
+// ---- ssAI_BrainEndSpecialProc: each stalker's effects put back at its brain's end ----
+
+// The commands' arguments (symtab literals @3514..@3574).
+static char ssAI_ArgOff[] = "OFF";      /* data 0x01933e90 (@3548) */
+static char ssAI_Arg0[] = "0";          /* data 0x01933cc8 (@3515) */
+static char ssAI_Arg2[] = "2";          /* data 0x01933cc0 (@3514) */
+static char ssAI_Arg4[] = "4";          /* data 0x01933ed8 (@3553) */
+static char ssAI_Arg5[] = "5";          /* data 0x01933fa0 (@3567) */
+static char ssAI_Arg6[] = "6";          /* data 0x01934008 (@3574) */
+static char ssAI_SeRyusan[] = "E_RYUSAN"; /* data 0x01933d00 (@3520): STALKER_ID_3's SE bank */
+
+// What a step does to its part (by name, through the bank's parts header). layout: host -- the ROM writes
+// each step as its own call; the table is the port's.
+enum SS_AI_PART_OP {
+    SS_AI_PART_SHOW,                    /* ssTrigSetEnable(part, 1, 0, bank) */
+    SS_AI_PART_HIDE,                    /* ssTrigSetEnable(part, 0, 0, bank) */
+    SS_AI_PART_PARTICLE_OFF,            /* ssTrigParticleAllOffImmediately(part, bank) */
+};
+// layout: host (a port table)
+typedef struct SS_AI_PART_STEP {
+    u_char op;                          /* SS_AI_PART_* */
+    const char *name;
+} SS_AI_PART_STEP;
+
+static void ssAI_PartSteps(const SS_AI_PART_STEP *steps, size_t n, int bank)
+{
+    u_char *header = pModelPartsHeader[bank];
+    size_t i;
+
+    for (i = 0; i < n; i++) {
+        int part = ssAI_PartID(header, steps[i].name);
+        switch (steps[i].op) {
+        case SS_AI_PART_SHOW:
+            ssTrigSetEnable(part, 1, 0, bank);
+            break;
+        case SS_AI_PART_HIDE:
+            ssTrigSetEnable(part, 0, 0, bank);
+            break;
+        default:
+            ssTrigParticleAllOffImmediately(part, bank);
+            break;
+        }
+    }
+}
+#define SS_AI_STEPS(a) (a), sizeof(a) / sizeof((a)[0])
+
+// The stalkers' own models (CHARACTER.bank): the weapons back in hand, the attack shapes off.
+static const SS_AI_PART_STEP ssAI_End6Own[] = {
+    { SS_AI_PART_SHOW, "n_hazami1" }, { SS_AI_PART_SHOW, "n_hasami2" },
+    { SS_AI_PART_HIDE, "n_hasami03" }, { SS_AI_PART_HIDE, "n_hazami04" },
+};
+static const SS_AI_PART_STEP ssAI_End5Own[] = {
+    { SS_AI_PART_SHOW, "ha_R_Sword" }, { SS_AI_PART_SHOW, "N_HASAMI02" }, { SS_AI_PART_HIDE, "N_HASAMI03" },
+};
+static const SS_AI_PART_STEP ssAI_End3Own[] = {
+    { SS_AI_PART_PARTICLE_OFF, "particle_acid_01" }, { SS_AI_PART_PARTICLE_OFF, "particle_acid_02" },
+    { SS_AI_PART_HIDE, "HIT_side_attack_01" }, { SS_AI_PART_HIDE, "HIT_side_attack_02" },
+    { SS_AI_PART_HIDE, "HIT_side_attack_03" }, { SS_AI_PART_HIDE, "HIT_side_attack_04" },
+    { SS_AI_PART_SHOW, "ha_Continuation_attack" }, { SS_AI_PART_SHOW, "ha_dash_attack" },
+};
+static const SS_AI_PART_STEP ssAI_End2Own[] = {
+    { SS_AI_PART_PARTICLE_OFF, "HAM_MAGIC_HIT" }, { SS_AI_PART_SHOW, "ha_Grip02" },
+    { SS_AI_PART_SHOW, "ha_Hammer01" }, { SS_AI_PART_SHOW, "n_al2_1" }, { SS_AI_PART_SHOW, "n_al2_2" },
+    { SS_AI_PART_HIDE, "n_al2_03" }, { SS_AI_PART_HIDE, "n_al2_04" }, { SS_AI_PART_SHOW, "hd_waist" },
+};
+// Their scene banks (E_05 for kinds 5 and 6, E_04, E_03, E_02): the effects off.
+static const SS_AI_PART_STEP ssAI_EndE05[] = {
+    { SS_AI_PART_HIDE, "e_05_pme02" }, { SS_AI_PART_PARTICLE_OFF, "e_05_inazumap01" },
+    { SS_AI_PART_HIDE, "e_05_light" }, { SS_AI_PART_HIDE, "e_05_01" }, { SS_AI_PART_HIDE, "e_05_02" },
+    { SS_AI_PART_PARTICLE_OFF, "e_05_p02" }, { SS_AI_PART_HIDE, "e_05_jp01" }, { SS_AI_PART_HIDE, "e_05_jp02" },
+    { SS_AI_PART_HIDE, "e_05_pme01" }, { SS_AI_PART_HIDE, "e_Omni01" },
+};
+static const SS_AI_PART_STEP ssAI_EndE05Atk6[] = {
+    { SS_AI_PART_HIDE, "aratk_scsr00" }, { SS_AI_PART_HIDE, "aratk_scsr01" },
+};
+static const SS_AI_PART_STEP ssAI_EndE05Atk5[] = {
+    { SS_AI_PART_HIDE, "3atk_scsr00" }, { SS_AI_PART_HIDE, "3atk_scsr01" },
+};
+static const SS_AI_PART_STEP ssAI_EndE04[] = {
+    { SS_AI_PART_PARTICLE_OFF, "e_04_p02" }, { SS_AI_PART_HIDE, "e_04_base02" },
+    { SS_AI_PART_HIDE, "e_04_base03" }, { SS_AI_PART_HIDE, "e_04_base04" },
+};
+static const SS_AI_PART_STEP ssAI_EndE03[] = {
+    { SS_AI_PART_PARTICLE_OFF, "ehw01" }, { SS_AI_PART_PARTICLE_OFF, "ehw02" }, { SS_AI_PART_PARTICLE_OFF, "ehw03" },
+    { SS_AI_PART_PARTICLE_OFF, "ehw04" }, { SS_AI_PART_PARTICLE_OFF, "ehw05" }, { SS_AI_PART_PARTICLE_OFF, "ehw06" },
+    { SS_AI_PART_PARTICLE_OFF, "ehw07" }, { SS_AI_PART_PARTICLE_OFF, "ehw08" }, { SS_AI_PART_PARTICLE_OFF, "ehw09" },
+    { SS_AI_PART_PARTICLE_OFF, "ehw10" }, { SS_AI_PART_PARTICLE_OFF, "ehw11" }, { SS_AI_PART_PARTICLE_OFF, "ehw12" },
+    { SS_AI_PART_PARTICLE_OFF, "ehw13" }, { SS_AI_PART_PARTICLE_OFF, "ehw14" }, { SS_AI_PART_PARTICLE_OFF, "ehw15" },
+    { SS_AI_PART_PARTICLE_OFF, "ehw16" }, { SS_AI_PART_PARTICLE_OFF, "ehw17" }, { SS_AI_PART_PARTICLE_OFF, "ehw18" },
+    { SS_AI_PART_PARTICLE_OFF, "ehw19" },
+};
+static const SS_AI_PART_STEP ssAI_EndE02[] = {
+    { SS_AI_PART_PARTICLE_OFF, "p_e02_hw00" }, { SS_AI_PART_PARTICLE_OFF, "p_e02_hw01" },
+    { SS_AI_PART_PARTICLE_OFF, "p_e02_hw02" }, { SS_AI_PART_PARTICLE_OFF, "p_e02_hw03" },
+    { SS_AI_PART_PARTICLE_OFF, "p_e02_hw04" }, { SS_AI_PART_PARTICLE_OFF, "p_e02_hw05" },
+    { SS_AI_PART_PARTICLE_OFF, "p_e02_hw06" },
+};
+// Every scene bank's tail: the fade-away effect off.
+static const SS_AI_PART_STEP ssAI_EndFade[] = {
+    { SS_AI_PART_HIDE, "doron" }, { SS_AI_PART_HIDE, "doron02" },
+    { SS_AI_PART_PARTICLE_OFF, "p_fadeaway00" }, { SS_AI_PART_HIDE, "fadeaway01" },
+};
+
+// "CharOmniEffect OFF <chara> 0" on bank.
+static void ssAI_OmniOff(char *chara, int bank)
+{
+    char *argv[3] = { ssAI_ArgOff, chara, ssAI_Arg0 };
+    tnXcmd_CharOmniEffect(3, argv, bank);
+}
+
+// The translucence off, "Character_Ambient_Change <chara> 0 0 0 0 0" on bank, then the fade-away tail.
+static void ssAI_EndTail(const CHARACTER *chr, char *chara, int bank)
+{
+    char *argv[6] = { chara, ssAI_Arg0, ssAI_Arg0, ssAI_Arg0, ssAI_Arg0, ssAI_Arg0 };
+
+    tiSet_CharaTranslucenceOFF(chr->id, 1);
+    tnXcmd_Character_Ambient_Change(6, argv, bank);
+    ssAI_PartSteps(SS_AI_STEPS(ssAI_EndFade), bank);
+}
+
+// CT3 0x01864950: per stalker kind, its own model's triggers reset and weapons back, then its scene bank's
+// triggers reset and effects off (omni light, translucence, ambient, fade-away). The axe stalker also resets
+// its axe throw (whether or not E_04 is loaded).
+void ssAI_BrainEndSpecialProc(CHARACTER *chr)
+{
+    int bank;
+
+    switch (chr->id) {
+    case STALKER_ID_6:
+    case STALKER_ID_5: {
+        int six = chr->id == STALKER_ID_6;
+        char *chara = six ? ssAI_Arg6 : ssAI_Arg5;
+        if (chr->bank != -1) {
+            Trigger_reset(chr->bank);
+            if (six)
+                ssAI_PartSteps(SS_AI_STEPS(ssAI_End6Own), chr->bank);
+            else
+                ssAI_PartSteps(SS_AI_STEPS(ssAI_End5Own), chr->bank);
+        }
+        bank = ssGetBankID(ssAI_BankE05);
+        if (bank == -1)
+            return;
+        Trigger_reset(bank);
+        ssAI_PartSteps(SS_AI_STEPS(ssAI_EndE05), bank);
+        ssAI_OmniOff(chara, bank);
+        if (six)
+            ssAI_PartSteps(SS_AI_STEPS(ssAI_EndE05Atk6), bank);
+        else
+            ssAI_PartSteps(SS_AI_STEPS(ssAI_EndE05Atk5), bank);
+        ssAI_EndTail(chr, chara, bank);
+        break;
+    }
+    case STALKER_ID_4:
+        if (chr->bank != -1)
+            Trigger_reset(chr->bank);
+        bank = ssGetBankID(ssAI_BankE04);
+        if (bank != -1) {
+            Trigger_reset(bank);
+            ssAI_PartSteps(SS_AI_STEPS(ssAI_EndE04), bank);
+            ssAI_EndTail(chr, ssAI_Arg4, bank);
+        }
+        ssAI_AxeThrowReset();
+        break;
+    case STALKER_ID_3:
+        if (chr->bank != -1) {
+            char *argv[3] = { ssAI_SeRyusan, ssAI_Arg0, ssAI_SeArg1 };
+            Trigger_reset(chr->bank);
+            hhXcmd_StopSE(3, argv, chr->bank);      // "StopSE E_RYUSAN 0 1", then "... 1 1"
+            argv[1] = ssAI_SeArg1;
+            hhXcmd_StopSE(3, argv, chr->bank);
+            ssAI_PartSteps(SS_AI_STEPS(ssAI_End3Own), chr->bank);
+        }
+        bank = ssGetBankID(ssAI_BankE03);
+        if (bank == -1)
+            return;
+        Trigger_reset(bank);
+        ssAI_PartSteps(SS_AI_STEPS(ssAI_EndE03), bank);
+        ssAI_OmniOff(ssAI_SeArg3, bank);
+        ssAI_EndTail(chr, ssAI_SeArg3, bank);
+        break;
+    case STALKER_ID_2:
+        if (chr->bank != -1) {
+            Trigger_reset(chr->bank);
+            ssAI_PartSteps(SS_AI_STEPS(ssAI_End2Own), chr->bank);
+        }
+        bank = ssGetBankID(ssAI_BankE02);
+        if (bank == -1)
+            return;
+        Trigger_reset(bank);
+        ssAI_PartSteps(SS_AI_STEPS(ssAI_EndE02), bank);
+        ssAI_EndTail(chr, ssAI_Arg2, bank);
+        break;
+    default:
+        break;
+    }
 }

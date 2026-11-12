@@ -1401,7 +1401,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 89..89, 13 functions keyed by their statics, 83 unkeyed; file name from the names"
   },
   "game/tiAvoidObject.c": {
-   "notes": "Next: ssAI_BrainEndSpecialProc (0x01864950, stub), SetMonsterPos, LetMonsterInFromShadow, AxeThrowReset, tiAvoidObject, then the rest. Open: open-items.md tiAvoidObject.c slice 3 (h) brain field names, (j) motion kind 1 and 3 versus the stair kinds, (k) CHARACTER.lightBank looks like the room bank, (l) event 0x49 is probably Alyssa down in general. callcheck: CompCharaDir lacks dpdiv, dpmul, dptoli (the C double arithmetic) and BrainEnd lacks ssGetBankID (in the static helper ssAI_ParkBank): explained. Smoke shot: the same clock-tower title scene; ssAI_main runs every frame without a crash, no stalker is active at the title.",
+   "notes": "Next: SetMonsterPos, LetMonsterInFromShadow, then the rest (36 functions). No stubs left in the TU. Open: open-items.md tiAvoidObject.c slice 4 (n) the hide pole group record, (o) the goal y at CHARACTER +0xd0 and the turn sides, (p) the track frame word, (q) the stalker kinds. callcheck: the missing calls sit in static helpers (ssAI_RotY for gaSetRotMatrixY, ssAI_PartID for ahGetHash and asFindModelPartsID, ssAI_PartSteps and ssAI_EndTail): explained. Smoke shot: the same clock-tower title scene; nothing of slice 4 runs at the title.",
    "ranges": [
     [
      "0185e9d0",
@@ -1423,6 +1423,11 @@
      "date": "2026-11-12 06:58",
      "status": "partial",
      "summary": "slice 3: 17 functions -- ssAI_main, ssAI_charaMain with the 13 mode tables (64 brain functions declared and stubbed in the three brain TUs), CompCharaDir, SetPanicGaugeAndBGMVol, PanicSet, the hearing, hide-attack and door checks, the bend, down, return, damage and rotation predicates, BrainEnd, MonsterDraw"
+    },
+    {
+     "date": "2026-11-12 07:18",
+     "status": "partial",
+     "summary": "slice 4: 6 functions -- tiAvoidObject (the obstacle steering: LOS probes, the 15/30 degree fan, wall following off the hit polygon), ssAI_IsMortionFramePassed, ssAI_IsNextGroup, ssAI_IsNextScene, ssAI_AxeThrowReset, ssAI_BrainEndSpecialProc (per-stalker part tables); HIDE_POLE_LIST grows its group table"
     }
    ],
    "status": "partial",

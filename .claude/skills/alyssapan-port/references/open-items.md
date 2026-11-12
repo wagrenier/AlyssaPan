@@ -1740,6 +1740,19 @@ apply here):
   TRIG_EVENT_MC_LOADED (0x99), odd beside that name (like (b)); (m) ssAI_BrainEndSpecialProc (0x01864950,
   0x1498 bytes) is a stub: a stalker's end does not yet do its special part. Next: BrainEndSpecialProc,
   SetMonsterPos, LetMonsterInFromShadow, AxeThrowReset, tiAvoidObject, then the rest of the 82.
+  **Slice 4 (2026-11-12) partial**: 6 functions -- tiAvoidObject (the obstacle steering), IsMortionFramePassed,
+  IsNextGroup, IsNextScene, AxeThrowReset, BrainEndSpecialProc ((m) settled: no stubs left in the TU; written
+  as per-stalker part tables, SS_AI_PART_STEP, layout: host). Doubts: (n) HIDE_POLE_LIST is 0x10 bytes
+  (groups +8, groupCount +0xc) and HIDE_POLE_GROUP (0x14: links +0, linkCount +4, id +8) are named from
+  IsNextGroup alone; (o) tiAvoidObject sets its goal's y from CHARACTER +0xd0 (pad0d0, CHARA_AVOID_GOAL_Y):
+  meaning unread; the ROM's new-polygon branch sets the goal without turning dir (kept); its fourth corner is
+  read even for a triangle (kept); the turn sides (0x1ffe left or right) are not settled; (p) the track word
+  at +0x1c (BEHAVIOR_TRACK.time1c) is read as two u_shorts, frame now / frame before (TRACK_FRAMES), and
+  flags bit 0 blocks the test (TRACK_FLAG_NO_FRAMES, the same bit as TRACK_FLAG_STEP_FROM_RUNS): the
+  animation TU confirms; (q) STALKER_ID_4 is the axe stalker (Character[HIT_CHARA_ONO] = slot 4, E_04 /
+  E_14), 3 the acid one (E_RYUSAN SE), 5 and 6 share E_05 (scissors: n_hasami*, N_HASAMI*), 2 the hammer
+  (E_02). None of slice 4 runs at the title (no stalker). Next: SetMonsterPos, LetMonsterInFromShadow, then
+  the rest of the 82.
 
 - (2026-11-12, game/wideXcmd_TriggerInit.c slice 6) **code complete, verify**: test_ssXcmd_BrainSet4, the
   last stub. **(1 am) decided, Claude's call (the user may overrule):** CHARACTER.brain stays the EE word

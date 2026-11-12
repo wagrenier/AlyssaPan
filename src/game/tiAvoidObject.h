@@ -113,8 +113,21 @@ static_assert(offsetof(HIDE_POLE, parts) == 0x4a, "HIDE_POLE.parts");
 typedef struct HIDE_POLE_LIST {
     u_int poles;                        /* 0x0: HIDE_POLE[count] (EE address in the bank) */
     int count;                          /* 0x4 */
+    u_int groups;                       /* 0x8: HIDE_POLE_GROUP[groupCount] (slice 4, ssAI_IsNextGroup) */
+    int groupCount;                     /* 0xc */
 } HIDE_POLE_LIST;
-static_assert(sizeof(HIDE_POLE_LIST) == 8, "HIDE_POLE_LIST");
+static_assert(sizeof(HIDE_POLE_LIST) == 0x10, "HIDE_POLE_LIST");
+// A group of hide poles and the groups it links to (ssAI_IsNextGroup; layout: ee, bank data). The record
+// is 0x14 bytes; the bytes past id are unread so far.
+typedef struct HIDE_POLE_GROUP {
+    u_int links;                        /* 0x0: short[linkCount]: indices of linked records (EE address) */
+    u_char linkCount;                   /* 0x4 */
+    u_char pad05[3];
+    short id;                           /* 0x8: the group id (HIDE_POLE.group) */
+    u_char pad0a[0xa];
+} HIDE_POLE_GROUP;
+static_assert(sizeof(HIDE_POLE_GROUP) == 0x14, "HIDE_POLE_GROUP");
+static_assert(offsetof(HIDE_POLE_GROUP, id) == 0x8, "HIDE_POLE_GROUP.id");
 #define HIDE_POLE_FLAG_ATTACK 0x01      /* SetHideAttackPole: a stalker may strike from this pole */
 #define HIDE_POLE_FLAG_SEGMENT 0x02     /* the position is the middle of A and B (ssAI_GetPolePos) */
 #define HIDE_POLE_FLAG_SHADOW 0x10      /* a shadow polygon's pole: shadowPol is valid */
@@ -207,5 +220,34 @@ int ssAI_IsDownPlaying(struct CHARACTER *chr);                                  
 int ssAI_IsReturnPlaying(struct CHARACTER *chr);                                         // CT3 0x01860940
 int ssAI_IsDamagePlaying(struct CHARACTER *chr);                                         // CT3 0x01860a70
 int ssAI_IsRotationPlaying(struct CHARACTER *chr);                                       // CT3 0x01861830
-// A stalker's end beyond the brain (0x1498 bytes, not written yet: a later slice).
+// A stalker's effects put back at its brain's end: its own model's weapons and attack shapes, its scene bank's
+// effects, omni light, translucence, ambient and fade-away (slice 4).
 void ssAI_BrainEndSpecialProc(struct CHARACTER *chr);                                    // CT3 0x01864950
+
+// ---- slice 4 (2026-11-12): the obstacle steering, the frame and group / scene predicates, the axe reset ----
+// tiAvoidObject: chr steers along dir (a unit vector, rewritten) around what blocks its line towards Alyssa.
+// Probes start AVOID_EYE_HEIGHT above chr's feet; the first reaches as far as Alyssa (at most
+// AVOID_PROBE_MAX), the side probes AVOID_SIDE_PROBE. *lastHit is the hit polygon (HIT_DATA) chr follows,
+// NULL for none; a host pointer (the ROM's EE word). Answers 1 when the line was blocked or it turned.
+#define AVOID_EYE_HEIGHT 30.0f
+#define AVOID_PROBE_MAX 200.0f
+#define AVOID_SIDE_PROBE 60.0f
+#define AVOID_GOAL_OFFSET 100.0f        /* the goal stands this far off the followed polygon's corner */
+#define AVOID_ANGLE_15 0x0aaa           /* CHARACTER.rot units (AI_TURN_FULL a turn): the probe fan */
+#define AVOID_ANGLE_M15 0xf546
+#define AVOID_ANGLE_30 0x1554
+#define AVOID_ANGLE_M30 0xea9c
+#define AVOID_ANGLE_45 0x1ffe           /* the turn taken when a probe is clear */
+#define AVOID_ANGLE_M45 0xdff2
+// CHARACTER +0xd0 (pad0d0): the float the goal takes as its y (tiAvoidObject); its meaning is open.
+#define CHARA_AVOID_GOAL_Y 0xd0
+int tiAvoidObject(float *dir, struct CHARACTER *chr, void **lastHit);                    // CT3 0x0185e9d0
+// 1 when motion `index` of chr's table has passed `frame` since the last frame (its behaviour's first
+// track's TRACK_FRAMES word: low half the frame now, high half the frame before; a wrap counts).
+#define TRACK_FRAMES 0x1c               /* BEHAVIOR_TRACK.time1c read as two u_shorts */
+#define TRACK_FLAG_NO_FRAMES 0x1        /* BEHAVIOR_TRACK.flags (= TRACK_FLAG_STEP_FROM_RUNS): no frame passes */
+int ssAI_IsMortionFramePassed(struct CHARACTER *chr, int index, u_int frame);            // CT3 0x0185ffd0
+// 1 when hide-pole group `group` links to group `other` (bank's HIDE_POLE_GROUPs).
+int ssAI_IsNextGroup(short group, short other, int bank);                                // CT3 0x018603d0
+// 1 when a shown shadow pole of bank leads to room.
+int ssAI_IsNextScene(int bank, u_int room);                                              // CT3 0x01860490
