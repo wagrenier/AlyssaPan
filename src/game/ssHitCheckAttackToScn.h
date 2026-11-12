@@ -79,12 +79,16 @@ static_assert(offsetof(HIT_DATA, kind) == 0x19a, "HIT_DATA.kind");
 #define HIT_GRID_N 8                    /* cells per side; a cell is x + z * HIT_GRID_N */
 typedef struct HIT_SCENE_GRID {
     u_int hitData;                      /* 0x000: HIT_TABLE.hitData: u_int[], EE words of HIT_DATA */
-    u_char pad04[0xc];
-    u_int cellA[HIT_GRID_N * HIT_GRID_N]; /* 0x010: per cell, u_short[cellACount]: indices into hitData */
-    u_int cellB[HIT_GRID_N * HIT_GRID_N]; /* 0x110: the second list (the same use; what sorts a shape into
-                                           which list is the grid writer's: not read yet) */
+    u_int checkList;                    /* 0x004: u_int[checkCount]: EE words of the HIT_DATA a character's box
+                                           is tested against (ssAddHitDataToCheckList, slice 5, 2026-11-11) */
+    int checkCount;                     /* 0x008: ssHitCheckAndProcess clears it for each character */
+    u_char pad0c[4];
+    u_int cellA[HIT_GRID_N * HIT_GRID_N]; /* 0x010: per cell, u_short[cellACount]: indices into hitData --
+                                           the still shapes, sorted by the grid writer (the bank file) */
+    u_int cellB[HIT_GRID_N * HIT_GRID_N]; /* 0x110: the moving shapes (kind SS_L2W_FRAME), re-sorted each
+                                           frame by ssDivideHitDataToSpaceCell (slice 5) */
     u_char cellACount[HIT_GRID_N * HIT_GRID_N]; /* 0x210 */
-    u_char cellBCount[HIT_GRID_N * HIT_GRID_N]; /* 0x250 */
+    u_char cellBCount[HIT_GRID_N * HIT_GRID_N]; /* 0x250: ssCollisionCheck clears it once per bank and frame */
     float originX;                      /* 0x290: the grid's corner, relative to part 0's position */
     float originZ;                      /* 0x294 */
     float cellW;                        /* 0x298: a cell's size along x */
@@ -92,6 +96,30 @@ typedef struct HIT_SCENE_GRID {
 } HIT_SCENE_GRID;
 static_assert(offsetof(HIT_SCENE_GRID, cellACount) == 0x210, "HIT_SCENE_GRID.cellACount");
 static_assert(offsetof(HIT_SCENE_GRID, cellD) == 0x29c, "HIT_SCENE_GRID.cellD");
+static_assert(offsetof(HIT_SCENE_GRID, checkCount) == 0x008, "HIT_SCENE_GRID.checkCount");
+// More HIT_DATA flags (slice 5, 2026-11-11, from ssAddHitDataToCheckList; named from that one reader).
+#define HIT_DATA_FLAG_NO_COLLIDE 0x00800000u   /* set: never in a character's check list */
+#define HIT_DATA_FLAG_CHECKING 0x02000000u     /* ssHitCheckAndProcess sets it while it slides along the
+                                                  shape, so its recursion leaves the shape out */
+#define HIT_DATA_FLAG_NOT_PLAYER 0x00080000u   /* the player's character passes through it */
+#define HIT_DATA_FLAG_PLAYER_ONLY 0x00040000u  /* only the player's character collides with it */
+// ---- a character's box and the scene grid (slice 5, 2026-11-11) ----
+#define CHARA_OBB(c) ((SS_OBB *)(c)->obb)       /* CHARACTER.obb seen as its box */
+// The character's box (CHARACTER.obb) around its collision points (hits: its shape bank's HIT_TABLE,
+// colWorld), in the frame turned by *yaw (and *pitch) that the move ssHitBPos -> ssHitNPos faces; grow
+// stretches it along that move by the move's length. *yaw / *pitch == -1 ask for them to be measured
+// (and are written back); with no move the yaw is -rot and the pitch 0. The old box goes to obbPrev.
+void ssMakeCharOBB(struct CHARACTER *chara, struct HIT_TABLE *hits, int grow, int *yaw, int *pitch); // CT3 0x018acdc0
+// The grid cells (CHARACTER.cells) the box's XZ bounds cover; parts: the scene bank's parts (part 0
+// places the grid). Appends to cellCount (the caller clears it).
+void ssGetCharSpaceCell(struct CHARACTER *chara, struct MODEL_PARTS *parts, HIT_SCENE_GRID *grid); // CT3 0x018abf00
+// The scene's moving shapes (kind SS_L2W_FRAME, part not NO_HIT) into the cellB lists of the cells their
+// corners' XZ bounds cover.
+void ssDivideHitDataToSpaceCell(struct MODEL_PARTS *parts, HIT_SCENE_GRID *grid);        // CT3 0x018abc90
+// The shapes of the character's cells (cellA; also cellB when withMoving) into grid->checkList, once each,
+// leaving out NO_COLLIDE / CHECKING shapes, those of NO_HIT parts and the player / non-player ones.
+void ssAddHitDataToCheckList(struct CHARACTER *chara, struct MODEL_PARTS *parts, HIT_SCENE_GRID *grid,
+                             int withMoving);                                            // CT3 0x018ab9c0
 // A point is inside a shape's polygon when the angles it sees the corners' edges under (ahAcos units, a
 // full turn 0x10000) add up to at least this: a full turn less ~0.8%.
 #define LOS_INSIDE_ANGLE 65014.0f

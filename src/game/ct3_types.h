@@ -40,7 +40,13 @@ typedef struct CHARACTER {
     short h100;                         /* 0x100: Character_All_Init: -1; a warp copies its marker part's
                                            short at +0x54 here (MODEL_PARTS.warpH54) */
     s_char b102;                        /* 0x102: Character_All_Init: -1 */
-    u_char pad103[0x2f1 - 0x103];
+    u_char pad103[0x110 - 0x103];
+    float obb[13][4];                   /* 0x110: its collision box, an SS_OBB (ssHitCheckAttackToScn.h:
+                                           corners, centre, axes, half sizes; ssMakeCharOBB, 2026-11-11) */
+    float obbPrev[13][4];               /* 0x1e0: obb before ssMakeCharOBB last rebuilt it */
+    u_char cells[64];                   /* 0x2b0: the scene grid cells (x + z * 8) the box covers
+                                           (ssGetCharSpaceCell) */
+    u_char cellCount;                   /* 0x2f0: entries in cells */
     u_char b2f1;                        /* 0x2f1: Character_All_Init: 1 */
     u_char b2f2;                        /* 0x2f2: Character_All_Init: 0 */
     u_char pad2f3[0xd];
@@ -110,6 +116,10 @@ enum CHARA_LEG {                        /* CHARACTER.legParts[], in the ROM's or
     CHARA_LEG_IK_L,
 };
 static_assert(offsetof(CHARACTER, b2f1) == 0x2f1, "CHARACTER.b2f1");
+static_assert(offsetof(CHARACTER, obb) == 0x110, "CHARACTER.obb");
+static_assert(offsetof(CHARACTER, obbPrev) == 0x1e0, "CHARACTER.obbPrev");
+static_assert(offsetof(CHARACTER, cells) == 0x2b0, "CHARACTER.cells");
+static_assert(offsetof(CHARACTER, cellCount) == 0x2f0, "CHARACTER.cellCount");
 static_assert(offsetof(CHARACTER, w300) == 0x300, "CHARACTER.w300");
 static_assert(offsetof(CHARACTER, hp) == 0x524, "CHARACTER.hp");
 static_assert(offsetof(CHARACTER, h536) == 0x536, "CHARACTER.h536");

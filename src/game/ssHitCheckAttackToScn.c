@@ -14,6 +14,7 @@
 #include "game/ssHitCheckAttackToScn.h"
 #include "game/ct3_types.h"
 #include "ga/gaInit3dlib.h"
+#include "ga/gaSinCos.h"
 #include "game/ahRelocateSunPs2ObjectArry.h"
 #include "game/fileio.h"
 #include "game/main2.h"
@@ -990,6 +991,205 @@ int ssHitCheckOneObject(HIT_OBJ *obj, HIT_DATA *h, const float *v, float *out, H
         out[3] = h->worldN[3];          // vmulx.xyz / vadd.xyz on the loaded normal: its w
     }
     return 1;
+}
+
+// ---- a character's box and the scene grid (slice 5, 2026-11-11) ----
+
+// ssMakeCharOBB's centre-and-axes matrix before the centre goes in (@881, data 0x019398f0): row 0 the
+// centre, rows 1..3 the unit axes (w 1 as the ROM has them).
+static const float ssCharObbAxes[3][4] = { { 1, 0, 0, 1 }, { 0, 1, 0, 1 }, { 0, 0, 1, 1 } };
+#define SS_OBB_MOVE_EPS 0.001f          /* a move this long or shorter faces nowhere: the character's rot */
+
+// An angle in radians as a 0x10000-per-turn angle (the ROM's software doubles: dpmul, dpdiv, dptoli).
+static int ssRadianToAngle(double r)
+{
+    return (int)(long long)((r * 65536.0) / 6.283185307179586) & 0xffff;
+}
+
+// CT3 0x018acdc0
+// callcheck: dpmul, dpdiv, dptoli (ssRadianToAngle: the host's double)
+void ssMakeCharOBB(CHARACTER *chara, HIT_TABLE *hits, int grow, int *yaw, int *pitch)
+{
+    float rot[4][4], inv[4][4], t[4];
+    float m[4][4];                      // row 0 the centre, rows 1..3 the axes
+    memcpy(m[1], ssCharObbAxes, sizeof(ssCharObbAxes));
+    m[0][0] = m[0][1] = m[0][2] = m[0][3] = 0.0f;
+
+    for (int k = 0; k < 3; k++)
+        t[k] = ssHitNPos[k] - ssHitBPos[k];
+    t[3] = ssHitNPos[3];                // vsub.xyz: w is N's
+    float len = sqrtf(t[0] * t[0] + t[1] * t[1] + t[2] * t[2]);
+    if (SS_OBB_MOVE_EPS < len) {
+        float q = 1.0f / len;           // vrsqrt
+        for (int k = 0; k < 3; k++)
+            t[k] *= q;
+        if (*yaw == -1)
+            *yaw = ssRadianToAngle(ssRadianByO(t, 1));
+        gaSetRotMatrixY(rot, *yaw);
+        if (*pitch != 0) {
+            ssApplyMatrix(t, (const float (*)[4])rot, t);
+            if (*pitch == -1)
+                *pitch = ssRadianToAngle(ssRadianByO(t, 0));
+            gaSetRotMatrixX(inv, *pitch);
+            gaMulMatrix(rot, inv, rot);
+        }
+    } else {
+        if (*yaw == -1)
+            *yaw = -chara->rot;
+        if (*pitch == -1)
+            *pitch = 0;
+        gaSetRotMatrixY(rot, *yaw);
+    }
+    gaInversMatrix(inv, rot);
+
+    // The collision points' bounds in the turned frame.
+    int bank = BankOfHostPtr(hits);     // PORT: colWorld is an EE word of the hit table's bank
+    const float (*pts)[4] = BANK_PTR(const float (*)[4], bank, hits->colWorld);
+    float mx[4], mn[4];
+    ssApplyMatrix(mn, (const float (*)[4])rot, pts[0]);
+    memcpy(mx, mn, sizeof(mx));
+    for (int i = 1; i < hits->colCount; i++) {
+        ssApplyMatrix(t, (const float (*)[4])rot, pts[i]);
+        for (int k = 0; k < 3; k++) {
+            if (mx[k] < t[k])
+                mx[k] = t[k];
+            else if (!(mn[k] <= t[k]))
+                mn[k] = t[k];
+        }
+    }
+    if (grow)
+        mx[2] += len;                   // the box reaches as far ahead as the move goes
+
+    SS_OBB *obb = CHARA_OBB(chara);
+    memcpy(chara->obbPrev, chara->obb, sizeof(chara->obbPrev));
+    for (int k = 0; k < 3; k++) {
+        t[k] = (mx[k] - mn[k]) * 0.5f;  // t's w stays: the last point's (or the move's)
+        m[0][k] = t[k] + mn[k];
+    }
+    m[0][3] = t[3];                     // vadd.xyz on the half: its w
+    memcpy(obb->half, t, sizeof(obb->half));
+    chara->obb[12][3] = t[3];           // the ROM stores the half as a whole qword
+    const float c[8][3] = {
+        { mn[0], mn[1], mn[2] }, { mx[0], mn[1], mn[2] }, { mx[0], mx[1], mn[2] }, { mn[0], mx[1], mn[2] },
+        { mn[0], mx[1], mx[2] }, { mn[0], mn[1], mx[2] }, { mx[0], mn[1], mx[2] }, { mx[0], mx[1], mx[2] },
+    };
+    for (int i = 0; i < 8; i++) {
+        obb->corner[i][0] = c[i][0];
+        obb->corner[i][1] = c[i][1];
+        obb->corner[i][2] = c[i][2];
+        obb->corner[i][3] = 1.0f;
+    }
+    gaMulMatrix(obb->corner, inv, obb->corner);         // back into the world: corners 0..3
+    gaMulMatrix(obb->corner + 4, inv, obb->corner + 4); // 4..7
+    gaMulMatrix(&chara->obb[8], inv, m);                // centre and axes (obb rows 8..11)
+}
+
+// The grid cells [x0, x1) x [z0, z1) an XZ box covers, clamped to the grid (the ROM inlines it in both
+// cell functions). Part 0's position places the grid.
+static void ssGridCellRange(const HIT_SCENE_GRID *g, const MODEL_PARTS *parts, float xMin, float xMax,
+                            float zMin, float zMax, int *x0, int *x1, int *z0, int *z1)
+{
+    const float *base = (const float *)((const u_char *)parts + PARTS_ANIM_POS);
+    float ox = g->originX + base[0];
+    float oz = g->originZ + base[2];
+    int a = (int)((xMin - ox) / g->cellW);
+    int b = (int)((xMax - ox) / g->cellW) + 1;
+    int c = (int)((zMin - oz) / g->cellD);
+    int d = (int)((zMax - oz) / g->cellD) + 1;
+    *x0 = a < 0 ? 0 : (a > HIT_GRID_N - 1 ? HIT_GRID_N - 1 : a);
+    *x1 = b < 1 ? 1 : (b > HIT_GRID_N ? HIT_GRID_N : b);
+    *z0 = c < 0 ? 0 : (c > HIT_GRID_N - 1 ? HIT_GRID_N - 1 : c);
+    *z1 = d < 1 ? 1 : (d > HIT_GRID_N ? HIT_GRID_N : d);
+}
+
+// The XZ bounds of n points (the ROM's "less than the minimum, else more than the maximum").
+static void ssXZBounds(const float (*p)[4], int n, float *xMin, float *xMax, float *zMin, float *zMax)
+{
+    *xMin = *xMax = p[0][0];
+    *zMin = *zMax = p[0][2];
+    for (int i = 1; i < n; i++) {
+        if (p[i][0] < *xMin)
+            *xMin = p[i][0];
+        else if (*xMax < p[i][0])
+            *xMax = p[i][0];
+        if (p[i][2] < *zMin)
+            *zMin = p[i][2];
+        else if (*zMax < p[i][2])
+            *zMax = p[i][2];
+    }
+}
+
+// CT3 0x018abf00
+void ssGetCharSpaceCell(CHARACTER *chara, MODEL_PARTS *parts, HIT_SCENE_GRID *grid)
+{
+    float xMin, xMax, zMin, zMax;
+    int x0, x1, z0, z1;
+    ssXZBounds((const float (*)[4])CHARA_OBB(chara)->corner, 8, &xMin, &xMax, &zMin, &zMax);
+    ssGridCellRange(grid, parts, xMin, xMax, zMin, zMax, &x0, &x1, &z0, &z1);
+    for (int z = z0; z < z1; z++)
+        for (int x = x0; x < x1; x++)
+            chara->cells[chara->cellCount++] = (u_char)(x + z * HIT_GRID_N);
+}
+
+// CT3 0x018abc90
+void ssDivideHitDataToSpaceCell(MODEL_PARTS *parts, HIT_SCENE_GRID *grid)
+{
+    int bank = BankOfHostPtr(grid);     // PORT: the words are EE addresses of the grid's bank
+    const u_int *list = BANK_PTR(const u_int *, bank, grid->hitData);
+    for (short n = 0; list[n] != 0; n++) {
+        const HIT_DATA *h = BANK_PTR(const HIT_DATA *, bank, list[n]);
+        if (h->kind != SS_L2W_FRAME || (parts[h->part].flags10 & PARTS_FLAG10_NO_HIT) != 0)
+            continue;
+        float xMin, xMax, zMin, zMax;
+        int x0, x1, z0, z1;
+        ssXZBounds((const float (*)[4])h->world, 4, &xMin, &xMax, &zMin, &zMax); // 4 also for a triangle
+        ssGridCellRange(grid, parts, xMin, xMax, zMin, zMax, &x0, &x1, &z0, &z1);
+        for (int z = z0; z < z1; z++) {
+            for (int x = x0; x < x1; x++) {
+                int cell = x + z * HIT_GRID_N;
+                u_short *idx = BANK_PTR(u_short *, bank, grid->cellB[cell]);
+                idx[grid->cellBCount[cell]++] = (u_short)n;
+            }
+        }
+    }
+}
+
+// One cell list's shapes into the check list (the ROM's two copies of one loop).
+static void ssAddCellToCheckList(const CHARACTER *chara, const MODEL_PARTS *parts, HIT_SCENE_GRID *grid,
+                                 int bank, u_int idxEe, int count)
+{
+    const u_int *list = BANK_PTR(const u_int *, bank, grid->hitData);
+    u_int *check = BANK_PTR(u_int *, bank, grid->checkList);
+    const u_short *idx = BANK_PTR(const u_short *, bank, idxEe);
+    int isPlayer = chara->id == Player_BankID;
+    for (int j = 0; j < count; j++) {
+        u_int ee = list[idx[j]];
+        const HIT_DATA *h = BANK_PTR(const HIT_DATA *, bank, ee);
+        u_int f = h->flags;
+        if ((f & (HIT_DATA_FLAG_NO_COLLIDE | HIT_DATA_FLAG_CHECKING)) != 0 ||
+            (parts[h->part].flags10 & PARTS_FLAG10_NO_HIT) != 0 ||
+            ((f & HIT_DATA_FLAG_NOT_PLAYER) != 0 && isPlayer) ||
+            ((f & HIT_DATA_FLAG_PLAYER_ONLY) != 0 && !isPlayer))
+            continue;
+        int m = 0;
+        while (m < grid->checkCount && check[m] != ee)
+            m++;
+        if (m == grid->checkCount)
+            check[grid->checkCount++] = ee; // the list keeps EE words, as the ROM's
+    }
+}
+
+// CT3 0x018ab9c0
+void ssAddHitDataToCheckList(CHARACTER *chara, MODEL_PARTS *parts, HIT_SCENE_GRID *grid, int withMoving)
+{
+    int bank = BankOfHostPtr(grid);     // PORT: the words are EE addresses of the grid's bank
+    int n = chara->cellCount;
+    for (int i = 0; i < n; i++) {
+        int cell = chara->cells[i];
+        ssAddCellToCheckList(chara, parts, grid, bank, grid->cellA[cell], grid->cellACount[cell]);
+        if (withMoving)
+            ssAddCellToCheckList(chara, parts, grid, bank, grid->cellB[cell], grid->cellBCount[cell]);
+    }
 }
 
 // ---- stubs (tools/reverse/stubgen.py) ----

@@ -1298,7 +1298,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 124..125, 24 functions keyed by their statics, 31 unkeyed; file name from the names"
   },
   "game/ssHitCheckAttackToScn.c": {
-   "notes": "Left: ssCollisionCheck (stub; needs CHARACTER +0x2f1 / +0x2f2 / +0x300..0x30c named, calls ssColCheckChar_Chara, ssHitCheckAndProcess, ssDivideHitDataToSpaceCell, ssAI_IsHaiHaiPlaying, asCharacterPositioningOnlyDeltaPos), ssColCheckChar_Chara, ssMakeCharOBB, ssDivideHitDataToSpaceCell, ssHitCheckAndProcess, ssGetCharSpaceCell, ssAddHitDataToCheckList, ssHitCheckAllObject. HIT_DATA +0x110 / +0x180 are now float localHalf / half (quad half sizes or triangle side half lengths); SS_OBB +0x00 is corner[8][4]. ssHitCheckOneObject is (obj, h, v, out, self): self == h widens h by 5; on a hit with v, out = v less its normal part. The Plane and TriangleSides tests take the HIT_DATA (PORT: the ROM passes h+0x120). The title shot is the same clock-tower scene: no attack or collision runs on the title.",
+   "notes": "Left: ssCollisionCheck (stub), ssHitCheckAndProcess (args read from the disassembly: chara, grid, charaHits, sceneParts, yaw ptr in t0, pitch ptr in t1, depth in t2 below 6, self in t3; its recursion passes depth+1 with yaw -1 and pitch 0 then -1), ssHitCheckAllObject, ssHitReCheckAllObject, ssHitCalcSlidePos2, ssColCheckChar_Chara. ssMakeCharOBB is (chara, hits, grow, int *yaw, int *pitch). New: CHARACTER obb 0x110 (SS_OBB, rows 0..7 corners, 8 centre, 9..11 axes, 12 half), obbPrev 0x1e0, cells 0x2b0, cellCount 0x2f0; HIT_SCENE_GRID checkList +4 (EE words) and checkCount +8; cellB is the moving shapes re-sorted per frame; HIT_DATA flags NO_COLLIDE 0x800000, CHECKING 0x2000000, NOT_PLAYER 0x80000, PLAYER_ONLY 0x40000 named from one reader. The check list has no bound in the ROM (bank memory), kept. Title shot unchanged: the clock-tower scene; last.png came out empty this run, shot_12720 is the scene.",
    "ranges": [
     [
      "018a9fe0",
@@ -1325,6 +1325,11 @@
      "date": "2026-11-11 23:32",
      "status": "partial",
      "summary": "slice 4: the box tests ssHitCheckOBB_OBB, ssHitCheckOBB_Plane, ssHitCheckOBB_TriangleSides (separating axes) and ssHitCheckOneObject (4 functions)"
+    },
+    {
+     "date": "2026-11-11 23:52",
+     "status": "partial",
+     "summary": "slice 5: the character box and the scene grid: ssMakeCharOBB, ssGetCharSpaceCell, ssDivideHitDataToSpaceCell, ssAddHitDataToCheckList (4 functions)"
     }
    ],
    "status": "partial",

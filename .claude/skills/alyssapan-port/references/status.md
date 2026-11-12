@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-11 23:32 at commit `0d1f85c` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-11 23:52 at commit `941bb9e` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1297**; stubs: **202**
+- reconstructed CT3 functions: **1301**; stubs: **202**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -85,7 +85,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/sound.c` | 73 | 0 |
 | `src/game/ssCalcInversMatrix2.c` | 0 | 5 |
 | `src/game/ssGrpPortalCheck.c` | 74 | 0 |
-| `src/game/ssHitCheckAttackToScn.c` | 27 | 1 |
+| `src/game/ssHitCheckAttackToScn.c` | 31 | 1 |
 | `src/game/ssSetTexUVforCubeMap.c` | 1 | 50 |
 | `src/game/tiAvoidObject.c` | 0 | 9 |
 | `src/game/tiXcmd_TransItem.c` | 85 | 8 |
@@ -102,7 +102,7 @@ Least-named game-code regions (64 KB blocks):
 - next: **game/ssHitCheckAttackToScn.c** (pinned in the queue)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
 - partial: `game/BRANCH_CLEAR.c` 173/173 -- 15 s smoke run: no fault, shot black (no host draw module yet). callcheck: GetAreaFloor's memcmp and ssTrigRemoveEvent come through ROOM_IS and AreaFloorClear (
-- partial: `game/ssHitCheckAttackToScn.c` 27/37 -- Left: ssCollisionCheck (stub; needs CHARACTER +0x2f1 / +0x2f2 / +0x300..0x30c named, calls ssColCheckChar_Chara, ssHitCheckAndProcess, ssDivideHitDataToSpaceCel
+- partial: `game/ssHitCheckAttackToScn.c` 31/37 -- Left: ssCollisionCheck (stub), ssHitCheckAndProcess (args read from the disassembly: chara, grid, charaHits, sceneParts, yaw ptr in t0, pitch ptr in t1, depth i
 - partial: `game/tiXcmd_TransItem.c` 85/93 -- Slice 10. Written: tiXcmd_UseItem (ITEM_USE_* modes from argv[4], ITEM_KIND_* from the row byte +0: give-take, signal, heal Character[0].hp up to hpMax, calm vi
 - partial: `game/wideXcmd_TriggerInit.c` 1/46 -- Title draws at 4:3 and 16:9 after 40 s (logo, 3, menu, copyright). Fix in SunTexEePtr, BankOfEeAddr, HitObjectId: free slot banks shared EE addresses with the G
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
@@ -145,6 +145,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-11 23:52 `game/ssHitCheckAttackToScn.c` partial: slice 5: the character box and the scene grid: ssMakeCharOBB, ssGetCharSpaceCell, ssDivideHitDataToSpaceCell, ssAddHitDataToCheckList (4 functions)
 - 2026-11-11 23:32 `game/ssHitCheckAttackToScn.c` partial: slice 4: the box tests ssHitCheckOBB_OBB, ssHitCheckOBB_Plane, ssHitCheckOBB_TriangleSides (separating axes) and ssHitCheckOneObject (4 functions)
 - 2026-11-11 23:13 `game/ssHitCheckAttackToScn.c` partial: slice 3: the attack checks ssHitCheckSceneAttack, ssHitCheckCharacterAttack, ssHitCheckAttack, ssHitCheckAttackToScn, and ssGetReflectVector3 (5 functions)
 - 2026-11-11 22:52 `game/ssHitCheckAttackToScn.c` partial: slice 2: CheckLOS and CheckLOS_Multi (the scene grid walk and the inside-polygon test), ssTransScnAtkHitDataL2W, ssTransAtkHitDataL2W, ssTransDmgHitDataL2W (5 f
@@ -152,7 +153,6 @@ Recent sessions:
 - 2026-11-11 22:33 `game/QuatSlerp.c` verify: split game/QuatSlerp.c: the symtab proves 0x01851f00..0x0185e9d0 is one CodeWarrior object, now game/BRANCH_CLEAR.c (173 functions, code moved unchanged); QuatS
 - 2026-11-11 22:23 `game/BRANCH_CLEAR.c` partial: marked verify -> partial: the user, 2026-11-11: the TU is wrong, it holds many objects; split it (open-items.md TOP PRIORITY)
 - 2026-11-11 22:23 `game/QuatSlerp.c` partial: marked verify -> partial: the user, 2026-11-11: the TU is wrong, it holds many objects; split it (open-items.md TOP PRIORITY)
-- 2026-11-11 22:22 `game/ssHitCheckAttackToScn.c` partial: slice 1: ssProcessHit, the attack request queue, ssHitInit, ssTransHitDataL2W and ssTransScnDmgHitDataL2W, the collision-point helpers, ssHit_GetMaxIDFromAtkID 
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
@@ -163,8 +163,8 @@ Recent sessions:
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/AA_GetDataWord.c` | todo | 0/8/15 | 4.9 | 21 | 2 |
 | `game/AA_SoundMonoSoart.c` | todo | 0/8/20 | 4.0 | 18 | 2 |
-| `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
+| `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `ga/gaObjectClippingCheck.c` | todo | 0/1/1 | 0.2 | 12 | 1 |
 | `game/asMothPause.c` | todo | 0/1/1 | 0.3 | 10 | 0 |
 | `game/ssCalcInversMatrix2.c` | todo | 0/5/5 | 5.7 | 7 | 0 |
