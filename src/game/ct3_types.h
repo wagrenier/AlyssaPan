@@ -697,26 +697,41 @@ static_assert(sizeof(DRAW_OBJ_ENTRY) == 0x1c, "DRAW_OBJ_ENTRY");
 // draws the live slots head .. tail, wrapping at ringSize.
 // The words ssParticleInit sets are named (2026-11-12); the times are in ticks, 30 per tenth of a second.
 typedef struct PARTICLE_STATE {
-    u_char pad00[0x20];
+    float accel[4];                     /* 0x00: the slots' acceleration (orbit 0); the goal orbits read x as the
+                                           pull toward the goal and y as the stop distance */
+    float dir[4];                       /* 0x10: a new slot's PARTICLE_REC_DIR before the part's matrix200 */
     u_int partRec;                      /* 0x20: EE address of the part's record (header + 0x40 + part * 0x380) */
     int idleTicks;                      /* 0x24: -100 at init */
-    float emitRate;                     /* 0x28: 0 in the data: ringSize / (lifeTenths * 6) */
+    float emitRate;                     /* 0x28: slots per 5 ticks; 0 in the data: ringSize / (lifeTenths * 6) */
     u_int emitter;                      /* 0x2c: 0 or an emitter: its word 0 gets the EE address of the
                                            matrix200 of the part in its u16 at +0xc */
-    u_char pad30[0x10];
+    u_int sizeCurve;                    /* 0x30: the slots' curves over their age (EE; 0 = none) */
+    u_int alphaCurve;                   /* 0x34 */
+    u_int uvCurve;                      /* 0x38 */
+    u_int vrgbCurve;                    /* 0x3c */
     int lifeTicks;                      /* 0x40: lifeTenths * 30 */
     u_short lifeTenths;                 /* 0x44 */
     u_short ringSize;                   /* 0x46 */
     u_short head;                       /* 0x48: the oldest live slot */
     u_short tail;                       /* 0x4a: one past the newest; head == tail: none live */
-    u_char pad4c[8];
+    u_char dirJitter;                   /* 0x4c: a new slot's dir xyz each move +-this percent of its length */
+    u_char sizeJitter;                  /* 0x4d: a new slot's size scales by 1 +- this percent */
+    u_char orbit;                       /* 0x4e: PARTICLE_ORBIT_* (ssCalcParticleOrbit) */
+    u_char pad4f;
+    u_short twistAngle;                 /* 0x50: orbit TWIST's turn and radius (tiParticleSetPosition_Twist) */
+    u_short twistRadius;                /* 0x52 */
     int part2;                          /* 0x54: 0 or a second part */
     u_int partPos;                      /* 0x58: EE address of part2's MODEL_PARTS.pos */
-    int ticks5c;                        /* 0x5c: tenths in the data, ticks after init (x 30) */
+    int prerollTicks;                   /* 0x5c: tenths in the data, ticks after init (x 30): ssParticle_main runs
+                                           the system ahead this far, 5 ticks a pass, then it stays 0 */
 } PARTICLE_STATE;
 static_assert(offsetof(PARTICLE_STATE, partRec) == 0x20, "PARTICLE_STATE.partRec");
+static_assert(offsetof(PARTICLE_STATE, sizeJitter) == 0x4d, "PARTICLE_STATE.sizeJitter");
+static_assert(offsetof(PARTICLE_STATE, vrgbCurve) == 0x3c, "PARTICLE_STATE.vrgbCurve");
+static_assert(offsetof(PARTICLE_STATE, twistRadius) == 0x52, "PARTICLE_STATE.twistRadius");
+static_assert(offsetof(PARTICLE_STATE, part2) == 0x54, "PARTICLE_STATE.part2");
 static_assert(offsetof(PARTICLE_STATE, lifeTicks) == 0x40, "PARTICLE_STATE.lifeTicks");
-static_assert(offsetof(PARTICLE_STATE, ticks5c) == 0x5c, "PARTICLE_STATE.ticks5c");
+static_assert(offsetof(PARTICLE_STATE, prerollTicks) == 0x5c, "PARTICLE_STATE.prerollTicks");
 static_assert(offsetof(PARTICLE_STATE, ringSize) == 0x46, "PARTICLE_STATE.ringSize");
 static_assert(offsetof(PARTICLE_STATE, tail) == 0x4a, "PARTICLE_STATE.tail");
 
@@ -731,7 +746,8 @@ typedef struct PARTICLE_ENTRY {
     int parts;                          /* 0x10: the part it is placed at (MODEL_PARTS, ALL_TABLE.partsPos) */
     u_int objs;                         /* 0x14: its ring slots' draw objects (-> ParticleObject[bank][i]) */
     u_int data;                         /* 0x18: its ring records (-> ParticleData[bank][i]) */
-    u_char pad1c[4];
+    u_int colors;                       /* 0x1c: 0 or 0x20 bytes per slot, its four vertex colours (a new slot's
+                                           draw object +0x6c points at its own: ssParticlePush_Back) */
     u_int tbuffer;                      /* 0x20: the texture's upload packet */
     u_int drawCtrl;                     /* 0x24: GA_DRAWCTRL_DATA */
 } PARTICLE_ENTRY;

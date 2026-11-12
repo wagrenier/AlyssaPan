@@ -2,7 +2,9 @@
 // Reconstructed: the ambient colour, the part motion blur's counters, init, update and end, the particle
 // tables' end, the screen blur off and the Z clear (2026-11-12); the reflection maps, a character's ambient
 // change, the particle init and stop, HQDOF end, DOF clip range and the curve cache clear (2026-11-12, slice 2); the
-// particle curve readers, the per-slot setters and the ring life helpers (2026-11-12, slice 3); the
+// particle curve readers, the per-slot setters and the ring life helpers (2026-11-12, slice 3); the particle
+// main loop, emission and push-backs, the blur draw-table insert, the DOF slice clip, particle all-off and
+// hazy end (2026-11-12, slice 4); the
 // rest are stubs (tools/reverse/stage.py).
 
 #include <math.h>
@@ -15,6 +17,8 @@
 #include "ga/gaInitDrawObject.h"
 #include "game/BRANCH_CLEAR.h"
 #include "game/ahRelocateSunPs2ObjectArry.h"
+#include "game/LinkMatrixTree.h"
+#include "game/Clipping_Portal.h"
 #include "game/ahalloc.h"
 #include "game/ssGrpPortalCheck.h"
 #include "game/ct3_types.h"
@@ -760,23 +764,194 @@ void ssChangeCharAmbientColor(void)
     }
 }
 
-// stub of CT3 0x0189ae30
+#define CAM_EE 0x01ae7c40u              /* Cam[]'s EE address (bss), for the words that hold one */
+#define PARTICLE_TICKS_PER_TENTH 30     /* 300 ticks a second (the ROM's x * 300 / 10) */
+#define PARTICLE_IDLE_INIT (-100)       /* PARTICLE_STATE.idleTicks at init */
+
+int ParticlePassTicks[BANK_MAX];        /* sbss 0x019408b0 */
+
+static float DOF_NearClip;              /* sbss 0x01940e3c */
+static float DOF_FarClip;               /* sbss 0x01940e40 */
+
+// One frame of bank `bank`'s first-kind particle systems at tick `total`: each emits, drops its expired
+// slots and moves the rest. A system with run-ahead ticks left runs passes 5 ticks apart until they are
+// used up (the frame it starts); afterwards one pass a frame.
+static void ParticleBankPass(int bank, int total)
+{
+    const u_int *list = BANK_PTR(const u_int *, bank, All_table_TBL[bank]->particles);
+    int i;
+
+    if (list == NULL)                   /* PORT: the ROM reads the list unchecked */
+        return;
+    for (i = 0; list[i] != 0; i++) {
+        const PARTICLE_ENTRY *ent = BANK_PTR(const PARTICLE_ENTRY *, bank, list[i]);
+        PARTICLE_STATE *st = BANK_PTR(PARTICLE_STATE *, bank, ent->state);
+        u_short part = (u_short)ent->parts;     /* lhu +0x10 */
+
+        if (st->prerollTicks == 0) {
+            int now = total - ParticlePassTicks[bank];
+            int enabled = ssTrigCheckEnable(part, bank);
+
+            ssGenerateParticle(ent, ParticleObject[bank][i], ParticleData[bank][i], enabled, now, bank);
+            ssCalcParticleLifeSpan(ent, ParticleObject[bank][i], ParticleData[bank][i], now, bank);
+            ssCalcParticleOrbit(ent, ParticleObject[bank][i], ParticleData[bank][i], now, bank);
+            continue;
+        }
+        while (st->prerollTicks > 0) {
+            int now = total - st->prerollTicks - ParticlePassTicks[bank];
+            int enabled = ssTrigCheckEnable(part, bank);
+
+            ssGenerateParticle(ent, ParticleObject[bank][i], ParticleData[bank][i], enabled, now, bank);
+            ssCalcParticleLifeSpan(ent, ParticleObject[bank][i], ParticleData[bank][i], now, bank);
+            ssCalcParticleOrbit(ent, ParticleObject[bank][i], ParticleData[bank][i], now, bank);
+            st->prerollTicks -= PARTICLE_PREROLL_STEP;
+        }
+    }
+}
+
+// CT3 0x0189ae30
+// Per frame (main): the global banks' particles on the global clock, the scene banks' on the scene clock
+// (not behaviour banks, and not while paused unless PAUSE_RUNNING). A bank not drawn or forced still adds
+// the frame's ticks to its ParticlePassTicks instead, so its systems' time stands still. A group of banks
+// counts once.
 void ssParticle_main(void)
 {
-    ALYSSAPAN_STUB("ssParticle_main", 0x0189ae30);
+    int bank;
+
+    for (bank = 0; bank < BANK_SCENE_MAX; bank++) {
+        if (BankInfo[bank].drawOn == 0 || (BankInfo[bank].flags & BANK_FLAG_ANIM_FORCE_STOP))
+            ParticlePassTicks[bank] += gGlobalNextTicksInterval;
+        else
+            ParticleBankPass(bank, gGlobalTotalTicks);
+        if (BankInfo[bank].groupCount != 0)
+            bank += BankInfo[bank].groupCount - 1;
+    }
+    if (pause != 0 && (pause & PAUSE_RUNNING) == 0)
+        return;
+    for (bank = BANK_SCENE_MAX; bank < BANK_MAX; bank++) {
+        if (BankInfo[bank].drawOn == 0 || BankInfo[bank].type == BANK_TYPE_BEHAVIOR
+            || (BankInfo[bank].flags & BANK_FLAG_ANIM_FORCE_STOP))
+            ParticlePassTicks[bank] += gNextTicksInterval;
+        else
+            ParticleBankPass(bank, gTotalTicks);
+        if (BankInfo[bank].groupCount != 0)
+            bank += BankInfo[bank].groupCount - 1;
+    }
 }
 
-// stub of CT3 0x01896a90
+// CT3 0x0189a750
+// The slots the system emits this pass: emitRate per 5 ticks since its last emission (the first pass only
+// starts the clock). Disabled, it emits none but its clock still moves on. A mesh emitter takes its slots'
+// places from the mesh's vertices in turn.
+void ssGenerateParticle(const PARTICLE_ENTRY *ent, u_char *objs, u_char *data, int enabled, int now,
+                        int bank)
+{
+    PARTICLE_STATE *st = BANK_PTR(PARTICLE_STATE *, bank, ent->state);
+    int n;
+    int i;
+
+    if (st->idleTicks == PARTICLE_IDLE_INIT) {
+        st->idleTicks = now;
+        return;
+    }
+    n = (int)((st->emitRate * (float)(now - st->idleTicks)) / PARTICLE_EMIT_STEP);
+    if (n == 0)
+        return;
+    if (enabled) {
+        if (st->emitter == 0) {
+            for (i = 0; i < n; i++)
+                if (ssParticlePush_Back(objs, data, ent->obj, st, ent, now, bank) == 0)
+                    break;
+        } else {
+            const u_char *em = BANK_PTR(const u_char *, bank, st->emitter);
+            u_short count;
+            u_int verts;
+            u_int vert = 0;
+
+            memcpy(&count, em + PARTICLE_EMITTER_VERT_COUNT, sizeof(count));
+            memcpy(&verts, em + PARTICLE_EMITTER_VERTS, sizeof(verts));
+            for (i = 0; i < n; i++)
+                if (ssMeshParticleGetNextVertID2(&vert, count, verts, objs, data, ent, st, now, bank) == 0)
+                    break;
+        }
+    }
+    st->idleTicks = now;
+}
+
+// CT3 0x018969f0
+// The ring's copies from the newest back to the oldest (at most ringMax), as draw list words.
+int ssAddBlurObjToDrawTableInOrder(u_int *out, const PART_BLUR_OBJ *obj, int bank)
+{
+    const PART_BLUR_MAX_OBJ *max = obj->max;
+    u_int idx = max->tail;
+    int n = 0;
+    int i;
+
+    for (i = 0; i < max->ringMax; i++) {
+        if (idx == max->head)
+            break;
+        if (idx == 0)
+            idx = (u_int)(max->ringMax + 1) & 0xff;
+        idx = (idx - 1) & 0xff;
+        out[n++] = BankEeAddr(bank, obj->copies + idx * PART_BLUR_COPY_SIZE);
+    }
+    return n;
+}
+
+// CT3 0x01896a90
+// main_rtn's passes: the bank's blur copies go into its draw list `table`. Sorted in place (table ==
+// list, objSortWithBlurIdx's order in aftSortALLpartBlurObj), each object's copies follow its sorted row,
+// the rows after it moved up to make room; otherwise list's count - 1 entries are copied and every blur
+// object's copies appended, then the 0 end.
 void ssPartMotionBlurInsertObjToDrawTable(int bank, void *table, u_int *list, int count, int mode)
 {
-    ALYSSAPAN_STUB("ssPartMotionBlurInsertObjToDrawTable", 0x01896a90);
+    u_int *out = (u_int *)table;
+    int blur = ssGetNumBlurDrawObjForScene(bank, mode);
+    int last = count - 1;
+    int n;
+    int k;
+
+    if (out == list) {
+        for (k = NumPartBlurObj[mode][bank] - 1; k >= 0; k--) {
+            const PART_BLUR_OBJ *obj = aftSortALLpartBlurObj[k];
+
+            for (; obj->sortedIndex < last; last--)
+                out[last + blur] = list[last];
+            blur -= ssGetNumBlurDrawObj(obj->max);
+            ssAddBlurObjToDrawTableInOrder(&out[obj->sortedIndex + blur + 1], obj, bank);
+        }
+        return;
+    }
+    for (n = 0; n < count - 1; n++)
+        out[n] = list[n];
+    for (k = 0; k < NumPartBlurObj[mode][bank]; k++)
+        n += ssAddBlurObjToDrawTableInOrder(&out[n], ALLpartBlurObj[mode][bank][k], bank);
+    out[n] = 0;
 }
 
-// stub of CT3 0x0189da90
-int ssDOF_ClipObjectFromZRange(u_char *obj, u_int mode)
+#define DOF_MODE_SLICE_MAX 2            /* dofMode below: the object's depth decides */
+#define DOF_NEAR_CLIP_ALL (-10000.0f)   /* DOF_NearClip of the pass that draws the other objects */
+
+// CT3 0x0189da90
+// Whether the object is drawn in the current depth-of-field slice: by its centre's view depth (the
+// matrix at +0x58 applied to DRAW_OBJ_CENTER, VU0), near <= z < far; an object of another mode only in
+// the pass whose near clip is -10000.
+int ssDOF_ClipObjectFromZRange(u_char *obj, u_int mode, int bank)
 {
-    ALYSSAPAN_STUB("ssDOF_ClipObjectFromZRange", 0x0189da90);
-    return {};
+    u_int matEE;
+    const float (*m)[4];
+    float c[4];
+    float z;
+
+    if (mode >= DOF_MODE_SLICE_MAX)
+        return DOF_NearClip == DOF_NEAR_CLIP_ALL;
+    memcpy(&matEE, obj + DRAW_OBJ_W58, sizeof(matEE));
+    m = BANK_PTR(const float (*)[4], bank, matEE);
+    memcpy(c, obj + DRAW_OBJ_CENTER, sizeof(c));
+    z = m[0][2] * c[0] + m[1][2] * c[1] + m[2][2] * c[2] + m[3][2] * c[3];
+    if (z < DOF_NearClip)
+        return 0;
+    return z < DOF_FarClip;
 }
 
 // stub of CT3 0x0189b510
@@ -791,11 +966,6 @@ void ssBGT_HQDOF_WriteBackFB(int alpha)
     ALYSSAPAN_STUB("ssBGT_HQDOF_WriteBackFB", 0x0189b390);
 }
 
-#define CAM_EE 0x01ae7c40u              /* Cam[]'s EE address (bss), for the words that hold one */
-#define PARTICLE_TICKS_PER_TENTH 30     /* 300 ticks a second (the ROM's x * 300 / 10) */
-#define PARTICLE_IDLE_INIT (-100)       /* PARTICLE_STATE.idleTicks at init */
-
-int ParticlePassTicks[BANK_MAX];        /* sbss 0x019408b0 */
 
 // The EE address of a field of bank `scene`'s part record `part` (tiParticleInit's PartFieldEE).
 static u_int ParticlePartEE(int scene, int part, size_t offset)
@@ -835,7 +1005,7 @@ void ssParticleInit(int scene)
         st->tail = 0;
         st->idleTicks = PARTICLE_IDLE_INIT;
         st->lifeTicks = (int)st->lifeTenths * (PARTICLE_TICKS_PER_TENTH * 10) / 10;
-        st->ticks5c = st->ticks5c * (PARTICLE_TICKS_PER_TENTH * 10) / 10;
+        st->prerollTicks = st->prerollTicks * (PARTICLE_TICKS_PER_TENTH * 10) / 10;
         if (st->emitRate == 0.0f)
             st->emitRate = (float)st->ringSize / ((float)st->lifeTenths * 6.0f);
         st->partRec = ParticlePartEE(scene, ent->parts, PARTS_RECORDS);
@@ -959,10 +1129,12 @@ void ssTrigHQDOFStart(int a, int b)
     ALYSSAPAN_STUB("ssTrigHQDOFStart", 0x0189b5a0);
 }
 
-// stub of CT3 0x0189d2f0
+// CT3 0x0189d2f0
+// The trigger command's hazy screen off: back to the normal pass, if the hazy pass is the one on.
 void ssTrigHazyScreenEnd(void)
 {
-    ALYSSAPAN_STUB("ssTrigHazyScreenEnd", 0x0189d2f0);
+    if (DrawMode == DRAW_MODE_HAZY)
+        DrawMode = DRAW_MODE_NORMAL;
 }
 
 // stub of CT3 0x0189d310
@@ -971,10 +1143,50 @@ void ssTrigHazyScreenStart(int level, int time)
     ALYSSAPAN_STUB("ssTrigHazyScreenStart", 0x0189d310);
 }
 
-// stub of CT3 0x01898710
+// CT3 0x01898710
+// The trigger command's particle all-off: the system whose trigger part is `particle` is disabled and its
+// ring emptied at once (head = tail; a second-kind ring's count 0 too). The part's kind says which list
+// holds it; the first system that matches is the one.
 void ssTrigParticleAllOffImmediately(int particle, int bank)
 {
-    ALYSSAPAN_STUB("ssTrigParticleAllOffImmediately", 0x01898710);
+    u_short part = (u_short)particle;
+    u_char kind = ((MODEL_PARTS *)pModelPartsHeader[bank])[part].kind;
+    const ALL_TABLE *tbl = All_table_TBL[bank];
+    int l;
+    int i;
+
+    if (kind == PARTS_KIND_PARTICLE) {
+        const u_int *list = BANK_PTR(const u_int *, bank, tbl->particles);
+
+        for (i = 0; list != NULL && list[i] != 0; i++) {        /* PORT: NULL checked */
+            const PARTICLE_ENTRY *ent = BANK_PTR(const PARTICLE_ENTRY *, bank, list[i]);
+
+            if ((u_int)ent->parts == part) {
+                PARTICLE_STATE *st = BANK_PTR(PARTICLE_STATE *, bank, ent->state);
+
+                ssTrigSetEnable(particle, 0, 0, bank);
+                st->head = st->tail;
+                return;
+            }
+        }
+    } else if (kind == PARTS_KIND_PARTICLE2) {
+        const u_int lists[2] = {tbl->particles2, tbl->particles2After};
+
+        for (l = 0; l < 2; l++) {
+            const u_int *list = BANK_PTR(const u_int *, bank, lists[l]);
+
+            for (i = 0; list != NULL && list[i] != 0; i++) {
+                PARTICLE2_ENTRY *ent = BANK_PTR(PARTICLE2_ENTRY *, bank, list[i]);
+
+                if (ent->parts == part) {
+                    ssTrigSetEnable(particle, 0, 0, bank);
+                    ent->head = ent->tail;
+                    ent->count = 0;
+                    return;
+                }
+            }
+        }
+    }
 }
 
 // stub of CT3 0x018988b0
@@ -1051,8 +1263,6 @@ void ssParticleCashClear(void)
 }
 
 // The depth-of-field slice main_rtn_DOF draws (ssBGT_DOFSetDrawEnvPreRend sets it per pass).
-static float DOF_NearClip;              /* sbss 0x01940e3c */
-static float DOF_FarClip;               /* sbss 0x01940e40 */
 
 // CT3 0x0189deb0
 void ssSetDOFClipRange(float nearClip, float farClip)
@@ -1379,4 +1589,332 @@ void ssParticleSetSize(void *curve, u_char *rec, int now)
     memcpy(&base, rec + PARTICLE_REC_BASE_W + 4, sizeof(base));
     h *= base;
     memcpy(rec + PARTICLE_REC_SIZE_W + 4, &h, sizeof(h));
+}
+
+// ---- the first particle kind's emission (ssGenerateParticle calls them) ------------------------------------
+
+// A new slot's record: the template object's four qwords (+0x60: pos, size, two unread) copied to
+// PARTICLE_REC_POS, the slot object's +0x60 then points at the record's copy.
+#define PARTICLE_OBJ_BLOCK 0x60         /* u_int: EE address of the object's four qwords (pos, size, ..) */
+#define PARTICLE_REC_POS 0x40           /* float[4]: the slot's position (world, after emission) */
+#define PARTICLE_REC_BLOCK_SIZE 0x40    /* the four qwords */
+#define PARTICLE_REC_DIR 0x80           /* float[4]: PARTICLE_STATE.dir through the part's matrix200 */
+#define PARTICLE_REC_START 0x90         /* float[4]: the position it was emitted at */
+#define PARTICLE_REC_TICK 0xac          /* int: the tick of its last move (the motions' dt; emission sets it) */
+#define PARTICLE_COLORS_STRIDE 0x20     /* PARTICLE_ENTRY.colors: one slot's colour block */
+#define PARTICLE_JITTER_PERCENT 100.0f
+
+// The part's matrix200 through PARTICLE_STATE.partRec (the record's EE address: header + 0x40 + part * 0x380).
+static float (*ParticlePartMatrix(const PARTICLE_STATE *st, int bank))[4]
+{
+    MODEL_PARTS *part = (MODEL_PARTS *)(BANK_PTR(u_char *, bank, st->partRec) - PARTS_RECORDS);
+
+    return part->matrix200;
+}
+
+// ssParticlePush_Back and ssMeshParticlePush_Back (the ROM has the body twice): the template object
+// (ent->obj, 0x80 bytes) goes to the tail slot with the record's block, birth, size and direction set.
+// meshPos: NULL -- the template's position through the part's matrix200; else the mesh vertex through the
+// emitter's matrix (its word 0). 0 when the ring is full.
+static int ParticlePushSlot(u_char *objs, u_char *data, u_int objEE, PARTICLE_STATE *st,
+                            const PARTICLE_ENTRY *ent, const float *meshPos, const float (*meshMat)[4],
+                            int now, int bank)
+{
+    u_char copy[PARTICLE_OBJ_SIZE];
+    u_short tail = st->tail;
+    u_short next = (u_short)((tail + 1u) % st->ringSize);
+    u_char *rec;
+    float dir[4];
+    float (*m)[4];
+    u_int ee;
+    int i;
+
+    memcpy(copy, BANK_PTR(const u_char *, bank, objEE), sizeof(copy));
+    if (next == st->head)
+        return 0;
+    memcpy(dir, st->dir, sizeof(dir));
+    if (st->dirJitter != 0) {
+        float len = sqrtf(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]);
+
+        for (i = 0; i < 3; i++)
+            dir[i] += (len * (float)(tnRand(st->dirJitter * 2) - st->dirJitter)) / PARTICLE_JITTER_PERCENT;
+    }
+    rec = data + tail * PARTICLE_REC_SIZE;
+    memcpy(rec + PARTICLE_REC_BORN, &now, sizeof(now));
+    memcpy(rec + PARTICLE_REC_TICK, &now, sizeof(now));
+    memcpy(&ee, copy + PARTICLE_OBJ_BLOCK, sizeof(ee));
+    memcpy(rec + PARTICLE_REC_POS, BANK_PTR(const u_char *, bank, ee), PARTICLE_REC_BLOCK_SIZE);
+    ee = BankEeAddr(bank, rec + PARTICLE_REC_POS);
+    memcpy(copy + PARTICLE_OBJ_BLOCK, &ee, sizeof(ee));
+    if (st->sizeJitter != 0) {
+        float scale = (float)(tnRand(st->sizeJitter * 2) - st->sizeJitter) / PARTICLE_JITTER_PERCENT + 1.0f;
+        float *size = (float *)(rec + PARTICLE_REC_SIZE_W);
+
+        size[0] *= scale;
+        size[1] *= scale;
+    }
+    memcpy(rec + PARTICLE_REC_BASE_W, rec + PARTICLE_REC_SIZE_W, 2 * sizeof(float));
+    if (ent->colors != 0) {
+        ee = ent->colors + tail * PARTICLE_COLORS_STRIDE;
+        memcpy(copy + PARTICLE_OBJ_COLORS, &ee, sizeof(ee));
+    }
+    m = ParticlePartMatrix(st, bank);
+    ApplyMatrix4((float *)(rec + PARTICLE_REC_DIR), m, dir);
+    if (meshPos == NULL)
+        ApplyMatrix4((float *)(rec + PARTICLE_REC_POS), m, (const float *)(rec + PARTICLE_REC_POS));
+    else
+        ApplyMatrix4((float *)(rec + PARTICLE_REC_POS), (float (*)[4])meshMat, meshPos);
+    memcpy(rec + PARTICLE_REC_START, rec + PARTICLE_REC_POS, 4 * sizeof(float));
+    memcpy(objs + tail * PARTICLE_OBJ_SIZE, copy, sizeof(copy));
+    st->tail = next;
+    return 1;
+}
+
+// CT3 0x018983a0
+int ssParticlePush_Back(u_char *objs, u_char *data, u_int obj, PARTICLE_STATE *st,
+                        const PARTICLE_ENTRY *ent, int now, int bank)
+{
+    return ParticlePushSlot(objs, data, obj, st, ent, NULL, NULL, now, bank);
+}
+
+// CT3 0x01898020
+// The slot placed at mesh vertex `vert` (the emitter's vertices through its matrix, word 0).
+int ssMeshParticlePush_Back(u_char *objs, u_char *data, u_int obj, PARTICLE_STATE *st,
+                            const PARTICLE_ENTRY *ent, u_int vert, int now, int bank)
+{
+    const u_char *em = BANK_PTR(const u_char *, bank, st->emitter);
+    u_int matEE;
+    u_int vertsEE;
+
+    memcpy(&matEE, em, sizeof(matEE));
+    memcpy(&vertsEE, em + PARTICLE_EMITTER_VERTS, sizeof(vertsEE));
+    return ParticlePushSlot(objs, data, obj, st, ent,
+                            BANK_PTR(const float *, bank, vertsEE) + vert * 4,
+                            BANK_PTR(const float (*)[4], bank, matEE), now, bank);
+}
+
+// CT3 0x0189a640
+// The mesh's vertices are drawn without repeats: the cursor counts down from count, a random one of the
+// first cursor + 1 is emitted from and swapped to the cursor's place (a Fisher-Yates shuffle, in place in
+// the bank's vertex list); at 0 the cursor starts over.
+int ssMeshParticleGetNextVertID2(u_int *vert, u_short count, u_int verts, u_char *objs, u_char *data,
+                                 const PARTICLE_ENTRY *ent, PARTICLE_STATE *st, int now, int bank)
+{
+    float (*v)[4] = BANK_PTR(float (*)[4], bank, verts);
+    u_int pick;
+
+    if (*vert == 0)
+        *vert = count;
+    pick = (u_int)tnRand((int)*vert);
+    *vert -= 1;
+    if (ssMeshParticlePush_Back(objs, data, ent->obj, st, ent, pick, now, bank) == 0)
+        return 0;
+    if (pick != *vert) {
+        float t[4];
+
+        memcpy(t, v[*vert], sizeof(t));
+        memcpy(v[*vert], v[pick], sizeof(t));
+        memcpy(v[pick], t, sizeof(t));
+    }
+    return 1;
+}
+
+// ---- the first particle kind's motions (ssCalcParticleOrbit) -----------------------------------------------
+
+#define PARTICLE_ORBIT_PLAIN 0          /* PARTICLE_STATE.orbit: accel and direction (ssParticleSetPosition) */
+#define PARTICLE_ORBIT_GOAL 1           /* pulled toward part2's position */
+#define PARTICLE_ORBIT_GOAL_STOP 2      /* the same, standing still within the stop distance */
+#define PARTICLE_ORBIT_WIND 4           /* tiParticleSetPosition_WIND (Clipping_Portal.c) */
+#define PARTICLE_ORBIT_TWIST 6          /* tiParticleSetPosition_Twist */
+#define PARTICLE_TICKS_PER_SECOND 300.0f
+
+// The slot's seconds since its last move (PARTICLE_REC_TICK), which becomes now.
+static float ParticleStep(u_char *rec, int now)
+{
+    int last;
+
+    memcpy(&last, rec + PARTICLE_REC_TICK, sizeof(last));
+    memcpy(rec + PARTICLE_REC_TICK, &now, sizeof(now));
+    return (float)(now - last) / PARTICLE_TICKS_PER_SECOND;
+}
+
+// The ROM's step (xyz; w kept): pos += dir * dt + a * dt^2, dir += a * 2dt; the object's centre follows.
+static void ParticleIntegrate(u_char *obj, u_char *rec, const float *a, float dt)
+{
+    float *pos = (float *)(rec + PARTICLE_REC_POS);
+    float *dir = (float *)(rec + PARTICLE_REC_DIR);
+    int i;
+
+    for (i = 0; i < 3; i++) {
+        float move = dir[i] * dt + a[i] * (dt * dt);
+
+        dir[i] += a[i] * (dt * 2.0f);
+        pos[i] += move;
+    }
+    gaCopyVectorXYZ((float *)(obj + DRAW_OBJ_CENTER), pos);
+}
+
+// The pull toward the goal (part2's position): its unit vector times accel.x; dist: the distance.
+static void ParticleGoalPull(const PARTICLE_STATE *st, const u_char *rec, float *a, float *dist, int bank)
+{
+    const float *goal = BANK_PTR(const float *, bank, st->partPos);
+    const float *pos = (const float *)(rec + PARTICLE_REC_POS);
+    float d[3];
+    float len;
+    int i;
+
+    for (i = 0; i < 3; i++)
+        d[i] = goal[i] - pos[i];
+    len = sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+    for (i = 0; i < 3; i++)
+        a[i] = d[i] / len * st->accel[0];
+    *dist = len;
+}
+
+// CT3 0x018997f0
+// Orbit PLAIN: the slot moves along its direction under the system's acceleration.
+void ssParticleSetPosition(const PARTICLE_STATE *st, u_char *obj, u_char *rec, int now)
+{
+    float dt = ParticleStep(rec, now);
+
+    ParticleIntegrate(obj, rec, st->accel, dt);
+}
+
+// CT3 0x018994e0
+// A goal orbit whose goal part is off (PARTS_FLAG_FOG on part2): the slot drifts along its direction.
+void tiParticleSetPositionGoalDisable(u_char *obj, u_char *rec, int now)
+{
+    float dt = ParticleStep(rec, now);
+    float *pos = (float *)(rec + PARTICLE_REC_POS);
+    const float *dir = (const float *)(rec + PARTICLE_REC_DIR);
+    int i;
+
+    for (i = 0; i < 3; i++)
+        pos[i] += dir[i] * dt;
+    gaCopyVectorXYZ((float *)(obj + DRAW_OBJ_CENTER), pos);
+}
+
+// CT3 0x018996c0
+// Orbit GOAL: accelerated toward the goal part's position. PORT: bank resolves partPos.
+void tiParticleSetPositionToGoal(const PARTICLE_STATE *st, u_char *obj, u_char *rec, int now, int bank)
+{
+    float dt = ParticleStep(rec, now);
+    float a[3];
+    float dist;
+
+    ParticleGoalPull(st, rec, a, &dist, bank);
+    ParticleIntegrate(obj, rec, a, dt);
+}
+
+// CT3 0x01899550
+// Orbit GOAL_STOP: as GOAL while farther than accel.y from the goal; within it the slot stands still.
+void tiParticleSetPositionToGoal_Stop(const PARTICLE_STATE *st, u_char *obj, u_char *rec, int now, int bank)
+{
+    float dt = ParticleStep(rec, now);
+    float a[3];
+    float dist;
+
+    ParticleGoalPull(st, rec, a, &dist, bank);
+    if (st->accel[1] < dist)
+        ParticleIntegrate(obj, rec, a, dt);
+}
+
+// stub of CT3 0x01899320 -- orbit TWIST: the plain step, then the position turned about the direction
+// (asMakeRotMatrixByQuartanion by twistAngle) around a centre twistRadius from the start point; the VU0
+// sequence still to read.
+void tiParticleSetPosition_Twist(const PARTICLE_STATE *st, u_char *obj, u_char *rec, int now)
+{
+    (void)st;
+    (void)obj;
+    (void)rec;
+    (void)now;
+    ALYSSAPAN_STUB("tiParticleSetPosition_Twist", 0x01899320);
+}
+
+// The live slots head .. tail of a ring (wrapping at ringSize): the first, then each next; -1 at the end.
+static int ParticleFirst(const PARTICLE_STATE *st)
+{
+    return st->head == st->tail ? -1 : st->head;
+}
+
+static int ParticleNext(const PARTICLE_STATE *st, int slot)
+{
+    slot = (slot + 1) % st->ringSize;
+    return slot == st->tail ? -1 : slot;
+}
+
+#define FOR_LIVE_SLOTS(st, k) for ((k) = ParticleFirst(st); (k) >= 0; (k) = ParticleNext((st), (k)))
+
+// CT3 0x018998e0
+// Per pass (ssParticle_main): every live slot moves by the system's orbit kind, then the size, alpha, UV
+// and colour curves run over all of them, each pass with a cleared curve cache. A goal orbit whose goal
+// part has PARTS_FLAG_FOG set drifts instead. Orbit kinds 3 and 5 move nothing (ROM).
+void ssCalcParticleOrbit(const PARTICLE_ENTRY *ent, u_char *objs, u_char *data, int now, int bank)
+{
+    PARTICLE_STATE *st = BANK_PTR(PARTICLE_STATE *, bank, ent->state);
+    int goalOff = 0;
+    int k;
+
+    if (st->head == st->tail)
+        return;
+    if (st->orbit == PARTICLE_ORBIT_GOAL || st->orbit == PARTICLE_ORBIT_GOAL_STOP)
+        goalOff = (((MODEL_PARTS *)pModelPartsHeader[bank])[st->part2].flags & PARTS_FLAG_FOG) != 0;
+    FOR_LIVE_SLOTS(st, k) {
+        u_char *obj = objs + k * PARTICLE_OBJ_SIZE;
+        u_char *rec = data + k * PARTICLE_REC_SIZE;
+
+        switch (st->orbit) {
+        case PARTICLE_ORBIT_TWIST:
+            tiParticleSetPosition_Twist(st, obj, rec, now);
+            break;
+        case PARTICLE_ORBIT_WIND:
+            tiParticleSetPosition_WIND((const float *)st, obj, rec, now);
+            break;
+        case PARTICLE_ORBIT_GOAL_STOP:
+            if (goalOff)
+                tiParticleSetPositionGoalDisable(obj, rec, now);
+            else
+                tiParticleSetPositionToGoal_Stop(st, obj, rec, now, bank);
+            break;
+        case PARTICLE_ORBIT_GOAL:
+            if (goalOff)
+                tiParticleSetPositionGoalDisable(obj, rec, now);
+            else
+                tiParticleSetPositionToGoal(st, obj, rec, now, bank);
+            break;
+        case PARTICLE_ORBIT_PLAIN:
+            ssParticleSetPosition(st, obj, rec, now);
+            break;
+        default:
+            break;
+        }
+    }
+    if (st->sizeCurve != 0) {
+        ssParticleCashClear();
+        FOR_LIVE_SLOTS(st, k)
+            ssParticleSetSize(BANK_PTR(void *, bank, st->sizeCurve), data + k * PARTICLE_REC_SIZE, now);
+    }
+    if (st->alphaCurve != 0) {
+        u_int colorsEE;
+        const s_char *src;
+
+        ssParticleCashClear();
+        memcpy(&colorsEE, BANK_PTR(const u_char *, bank, ent->obj) + PARTICLE_OBJ_COLORS, sizeof(colorsEE));
+        src = BANK_PTR(const s_char *, bank, colorsEE) + PARTICLE_COLOR_BASE;
+        FOR_LIVE_SLOTS(st, k)
+            ssParticleSetAlpha(BANK_PTR(void *, bank, st->alphaCurve), objs + k * PARTICLE_OBJ_SIZE,
+                               data + k * PARTICLE_REC_SIZE, src, now, bank);
+    }
+    if (st->uvCurve != 0) {
+        ssParticleCashClear();
+        FOR_LIVE_SLOTS(st, k)
+            ssParticleSetUV(BANK_PTR(void *, bank, st->uvCurve), objs + k * PARTICLE_OBJ_SIZE,
+                            data + k * PARTICLE_REC_SIZE, now);
+    }
+    if (st->vrgbCurve != 0) {
+        ssParticleCashClear();
+        FOR_LIVE_SLOTS(st, k)
+            ssParticleSetVRGB(BANK_PTR(void *, bank, st->vrgbCurve), objs + k * PARTICLE_OBJ_SIZE,
+                              data + k * PARTICLE_REC_SIZE, now, bank);
+    }
 }

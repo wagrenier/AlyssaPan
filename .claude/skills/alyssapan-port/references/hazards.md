@@ -7,6 +7,21 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-12, ssSetTexUVforCubeMap.c slice 4) **Heap blocks in a draw list get a virtual EE address**:
+  ssPartMotionBlurInsertObjToDrawTable puts the blur copies (gHeapJunc, not bank data) into draw lists of
+  `u_int` EE words that main_rtn reads with BANK_PTR. ssAddBlurObjToDrawTableInOrder stores
+  `BankEeAddr(bank, copy)`; BankEePtr maps it back because `(int)(ee - BankImageEE)` sign-extends the
+  32-bit difference. This holds only while the heap and the bank images are static arrays in the exe image
+  (gJuncAllocArea, gBankSlotArea_host: within 2 GB of each other). Move either to a separate allocation and
+  the round trip breaks silently.
+- (2026-11-12, same slice) **MSVC's C check (layoutcheck) rejected** `return (float (*)[4])(p - X + offsetof(...));`
+  in a function returning `float (*)[4]` (C2059) while gcc took it: write it through a typed local
+  (`MODEL_PARTS *part = ...; return part->matrix200;`).
+- (2026-11-12, same slice) **The particle push-backs copy the template before the full test** (the ROM's
+  order; harmless) and read the first ring's records through the template object's +0x60 word: the record's
+  block (pos, size, two unread qwords) is copied from the template's, and the slot's object then points at
+  the record's own copy (an EE address in the bank: BankEeAddr).
+
 - (2026-11-12, ssSetTexUVforCubeMap.c slice 3) **The particle curve readers share one cache tick**:
   every reader (size, refractive index, VRGB, alpha, UV, 2D size) answers from the `cash*` statics when
   the age equals `cashTicks`, whichever reader filled them. Correct only because callers run

@@ -1340,7 +1340,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 103..103, 3 functions keyed by their statics, 33 unkeyed; file name from the names"
   },
   "game/ssSetTexUVforCubeMap.c": {
-   "notes": "Slice 3: the six curve readers (tiParticleGetSizeValue vec4 keys 0x20, tiParticleGetRefractive_IndexValue, ssParticleGetVRGBValue, ssParticleGetAlphaValue, ssParticleGetUVValue, ssParticleGetSizeValue 2D; CURVE_KEY_* structs, one shared cash tick: hazards.md), the setters ssParticleSetVRGB / SetUV / SetAlpha / SetSize (slot record 0xc0: PARTICLE_REC_* in the header; the slot object word +0x6c is the EE address of its four vertex colours; PORT: VRGB and Alpha take a bank), ssParticlePop_Front, ssParticleLifeCheck, ssCalcParticleLifeSpan (PORT: takes a bank). Next: ssParticle_main with ssGenerateParticle, ssParticlePush_Back, ssMeshParticlePush_Back, ssMeshParticleGetNextVertID2, then ssCalcParticleOrbit with ssParticleSetPosition and the tiParticleSetPosition* motions (they call the setters above; ssParticleSetAlpha src is the fourth argument, four signed RGBA words, origin unread). Smoke run: the title clock-tower room draws as before; no first-kind particle is emitted yet, so nothing on screen proves the readers.",
+   "notes": "Slice 4: ssParticle_main (ParticleBankPass static helper: global banks on the global clock, scene banks on the scene clock; prerollTicks, was ticks5c, runs the system ahead 5 ticks a pass), ssGenerateParticle (emitRate per 5 ticks; mesh emitters via ssMeshParticleGetNextVertID2, a Fisher-Yates draw over the emitter vertices), ssParticlePush_Back and ssMeshParticlePush_Back (one static body, ParticlePushSlot: record block from the template object +0x60, dir and size jitter, PARTICLE_REC_DIR / _START / _TICK, PARTICLE_ENTRY.colors +0x1c), ssCalcParticleOrbit with ssParticleSetPosition, tiParticleSetPositionToGoal, _ToGoal_Stop, _GoalDisable (PARTICLE_ORBIT_* kinds, PARTICLE_STATE accel / curves / orbit / twist fields named), ssAddBlurObjToDrawTableInOrder and ssPartMotionBlurInsertObjToDrawTable (blur copies get virtual EE addresses through BankEeAddr: hazards.md), ssDOF_ClipObjectFromZRange (PORT: takes the bank; main.c passes it), ssTrigParticleAllOffImmediately (PARTS_KIND_PARTICLE 0x15 / PARTICLE2 0x18), ssTrigHazyScreenEnd. Stub: tiParticleSetPosition_Twist (VU0 rotation about the direction, twistAngle / twistRadius at state +0x50 / +0x52). callcheck MISSING lines are calls inside the static helpers (ParticleBankPass, ParticlePushSlot, ParticleIntegrate): explained. Smoke run: the title clock-tower room draws as before, no crash; the particles now run but nothing on screen shows them in this scene. Next: tiParticleSetPosition_Twist, ssPartMotionBlurPush_Back, tiOneFrameMotionBlurUpdate, ssPartMotionBlurStart / End, then the BGT screen effects.",
    "ranges": [
     [
      "018951d0",
@@ -1362,6 +1362,11 @@
      "date": "2026-11-12 01:07",
      "status": "partial",
      "summary": "reconstruct 13 functions (particle curve readers, per-slot setters, ring life helpers)"
+    },
+    {
+     "date": "2026-11-12 01:40",
+     "status": "partial",
+     "summary": "reconstruct 15 functions, stub 1 (particle main loop, emission, push-backs, orbit and motions, blur draw-table insert, DOF slice clip, particle all-off, hazy end)"
     }
    ],
    "status": "partial",

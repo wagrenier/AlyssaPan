@@ -236,7 +236,7 @@ void main_rtn_GHOST_DOF(int bank, int mode, int chara, int pass, int charaIndex,
             sunSetupTBufferData(BANK_PTR(void *, bank, ent->tbuffer), *tex);
             sunBGT_LoadGSTexClutData_VIF1(BANK_PTR(void *, bank, ent->tbuffer));
         }
-        if (ssDOF_ClipObjectFromZRange(obj, (u_int)ent->dofMode) == 0)
+        if (ssDOF_ClipObjectFromZRange(obj, (u_int)ent->dofMode, bank) == 0)
             continue;
         *(int *)(obj + DRAW_OBJ_ATTR) = parts->attr;
         if (tex != NULL) {
@@ -1441,7 +1441,7 @@ void main_rtn_DOF(int bank, int mode, int chara, int pass, int charaIndex, void 
             sunSetupTBufferData(BANK_PTR(void *, bank, ent->tbuffer), *tex);
             sunBGT_LoadGSTexClutData_VIF1(BANK_PTR(void *, bank, ent->tbuffer));
         }
-        if (ssDOF_ClipObjectFromZRange(obj, (u_int)ent->dofMode) == 0)
+        if (ssDOF_ClipObjectFromZRange(obj, (u_int)ent->dofMode, bank) == 0)
             continue;
         if (ctrlNow != ent->drawCtrlArgs && ent->drawCtrlArgs != 0) {
             gaBGT_ExecDrawCtrlData_VIF1(BANK_PTR(GA_DRAWCTRL_DATA *, bank, ent->drawCtrl));

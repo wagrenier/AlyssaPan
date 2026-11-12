@@ -133,7 +133,8 @@ void ssBGT_BlurSetDrawEnvPostRend(void);                                        
 void ssBGT_DOFDrawSprite(int pass, int level);                                           // CT3 0x0189db60
 void ssBGT_DOFSetDrawEnvPostRend(int pass, int level);                                   // CT3 0x0189dc40
 void ssBGT_DOFSetDrawEnvPreRend(int pass, int level);                                    // CT3 0x0189dd70
-int ssDOF_ClipObjectFromZRange(u_char *obj, u_int mode);                                // CT3 0x0189da90
+// 1: the object is drawn in this depth-of-field slice. PORT: bank resolves the object's matrix word (+0x58).
+int ssDOF_ClipObjectFromZRange(u_char *obj, u_int mode, int bank);                       // CT3 0x0189da90
 int ssGetNumBlurDrawObjForScene(int scene, int mode);                                    // CT3 0x01896920
 void ssBGT_ZBufferClear(void);                                                           // CT3 0x0189dec0
 void ssPartMotionBlurInsertObjToDrawTable(int bank, void *table, u_int *list, int count, int mode); // CT3 0x01896a90
@@ -196,3 +197,44 @@ void ssParticleSetUV(void *curve, u_char *obj, u_char *rec, int now);           
 void ssParticleSetAlpha(void *curve, u_char *obj, u_char *rec, const s_char *src, int now,
                         int bank);                                                      // CT3 0x018991a0
 void ssParticleSetSize(void *curve, u_char *rec, int now);                              // CT3 0x018992c0
+
+// The emitter of a mesh-shaped system (PARTICLE_STATE.emitter): words read so far.
+#define PARTICLE_EMITTER_VERTS 0x08     /* u_int: EE address of the mesh's vertices */
+#define PARTICLE_EMITTER_PART 0x0c      /* u_short: the part whose matrix200 ssParticleInit writes to word 0 */
+#define PARTICLE_EMITTER_VERT_COUNT 0x0e /* u_short: the mesh's vertex count */
+#define PARTICLE_EMIT_STEP 5.0f         /* ssGenerateParticle: emitRate is per 5 ticks (1/60 s) */
+#define PARTICLE_PREROLL_STEP 5         /* ssParticle_main: the run-ahead's ticks per pass */
+
+// One emission pass of a system (ssParticle_main, per entry and pass): enabled = the trigger part is on.
+// PORT: bank resolves the entry's EE words (every ss particle function below takes it).
+void ssGenerateParticle(const PARTICLE_ENTRY *ent, u_char *objs, u_char *data, int enabled, int now,
+                        int bank);                                                       // CT3 0x0189a750
+// A new slot at the ring's tail (0 when the ring is full).
+int ssParticlePush_Back(u_char *objs, u_char *data, u_int obj, PARTICLE_STATE *st,
+                        const PARTICLE_ENTRY *ent, int now, int bank);                   // CT3 0x018983a0
+// A new slot at mesh vertex vert (the emitter's vertices through its matrix).
+int ssMeshParticlePush_Back(u_char *objs, u_char *data, u_int obj, PARTICLE_STATE *st,
+                            const PARTICLE_ENTRY *ent, u_int vert, int now, int bank);  // CT3 0x01898020
+// The next mesh vertex to emit from (vert: the cursor) and its slot (0 when the ring is full).
+int ssMeshParticleGetNextVertID2(u_int *vert, u_short count, u_int verts, u_char *objs, u_char *data,
+                                 const PARTICLE_ENTRY *ent, PARTICLE_STATE *st, int now,
+                                 int bank);                                              // CT3 0x0189a640
+void ssCalcParticleOrbit(const PARTICLE_ENTRY *ent, u_char *objs, u_char *data, int now,
+                         int bank);                                                      // CT3 0x018998e0
+// The motions of one live slot (obj its draw object, rec its record): dt from the record's last move.
+void ssParticleSetPosition(const PARTICLE_STATE *st, u_char *obj, u_char *rec, int now); // CT3 0x018997f0
+void tiParticleSetPositionGoalDisable(u_char *obj, u_char *rec, int now);               // CT3 0x018994e0
+void tiParticleSetPositionToGoal(const PARTICLE_STATE *st, u_char *obj, u_char *rec, int now,
+                                 int bank);                                             // CT3 0x018996c0
+void tiParticleSetPositionToGoal_Stop(const PARTICLE_STATE *st, u_char *obj, u_char *rec, int now,
+                                      int bank);                                        // CT3 0x01899550
+void tiParticleSetPosition_Twist(const PARTICLE_STATE *st, u_char *obj, u_char *rec, int now); // CT3 0x01899320
+
+// The part kinds the trigger command's particle all-off tells apart (MODEL_PARTS.kind).
+#define PARTS_KIND_PARTICLE 0x15        /* an ALL_TABLE.particles system's trigger part */
+#define PARTS_KIND_PARTICLE2 0x18       /* an ALL_TABLE.particles2 / particles2After system's */
+
+// The copies of a blur object as draw list words (newest first). PORT: bank gives the copies (gHeapJunc)
+// a virtual EE address BANK_PTR maps back.
+int ssAddBlurObjToDrawTableInOrder(u_int *out, const PART_BLUR_OBJ *obj, int bank);     // CT3 0x018969f0
+#define PART_BLUR_COPY_SIZE 0x140       /* one copy in PART_BLUR_OBJ.copies */
