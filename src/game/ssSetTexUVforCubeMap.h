@@ -33,7 +33,21 @@ typedef struct PART_BLUR_MAX_OBJ {
     u_char tail;                        /* 0xe2: where the next copy goes */
     u_char count;                       /* 0xe3: objs' length */
     const float *ambColor;              /* PORT: ambPos as a host pointer (BankEePtr; the record has no bank) */
+    int bank;                           /* PORT: the bank whose parts it blurs (the copies' EE words: BankEeAddr) */
 } PART_BLUR_MAX_OBJ;
+
+// One copy in a PART_BLUR_OBJ's ring (PART_BLUR_COPY_SIZE bytes, EE layout: main_rtn draws it as a draw
+// list entry). Every word in it is an EE address (BankEeAddr of the blurred part's bank, hazards.md).
+#define BLUR_COPY_ENTRY 0x00            /* DRAW_OBJ_ENTRY: the blurred entry's, obj / drawCtrlArgs / drawCtrl
+                                           redirected to the copy's object and the PART_BLUR_OBJ's draw control */
+#define BLUR_COPY_OBJ 0x20              /* the entry's ga draw object's first BLUR_COPY_OBJ_SIZE bytes */
+#define BLUR_COPY_OBJ_SIZE 0x80
+#define BLUR_COPY_MAT58 0xc0            /* float[4][4]: the matrix the object's +0x58 word points at */
+#define BLUR_COPY_MAT5C 0x100           /* float[4][4]: the matrix the object's +0x5c word points at */
+// The EE head of a PART_BLUR_OBJ (ct3_types.h has no ga types): the entry's draw control settings with
+// alpha blending and the alpha test on, and the GS data built from them, which every copy draws with.
+#define PART_BLUR_OBJ_ARGS 0x00         /* GA_DRAWCTRL_ARGS */
+#define PART_BLUR_OBJ_DRAWCTRL 0x80     /* GA_DRAWCTRL_DATA */
 static_assert(offsetof(PART_BLUR_MAX_OBJ, prevMatrix) == 0x80, "PART_BLUR_MAX_OBJ.prevMatrix");
 static_assert(offsetof(PART_BLUR_MAX_OBJ, color) == 0xc0, "PART_BLUR_MAX_OBJ.color");
 static_assert(offsetof(PART_BLUR_MAX_OBJ, alphaPercent) == 0xd0, "PART_BLUR_MAX_OBJ.alphaPercent");
@@ -100,6 +114,7 @@ void ssCalcReflectCubeMap(int bank, const REFLECT_ENTRY *ent, const float *eye, 
 
 extern PART_BLUR_MAX_OBJ *PartBlurMaxObj[BANK_MAX][PART_BLUR_MAX_OBJ_MAX]; /* bss 0x01a42280 */
 extern u_char **ParticleData[BANK_MAX];         /* sbss 0x01940a10: per particle list entry, its records */
+extern u_char *ss2DpData;                       /* 0x0193f778: the 2D particles' records (ssTrigVaselineStart, _WaveStart) */
 
 int ssGetNumBlurDrawObj(const PART_BLUR_MAX_OBJ *max);                                   // CT3 0x018968d0
 void ssPartMotionBlurUpdateAlpha(PART_BLUR_MAX_OBJ *max);                                // CT3 0x018965e0
@@ -145,10 +160,11 @@ void ssParticleInit(int scene);                                                 
 
 // The screen effects the trigger commands start and end (ssTrigExecuteActCmd, 2026-11-11): the arguments in
 // the order the command reads them; the ROM call sites give the counts (Wave: 12, the last four on the stack).
-void ssTrigParticleStart(int particle, int bank, int arg);                               // CT3 0x018988b0
+void ssTrigParticleStart(int particle, int bank, int prerollTenths);                     // CT3 0x018988b0
 void ssTrigParticleStop(int particle, int bank);                                         // CT3 0x018988a0
 void ssTrigParticleAllOffImmediately(int particle, int bank);                            // CT3 0x01898710
-void ssPartMotionBlurStart(int part, int a, int bank, int b, int c);                     // CT3 0x018976d0
+// ringMax: the ring keeps ringMax + 1 copies; mode PART_BLUR_MODE_*; alphaPercent: ONE_FRAME's copies' alpha.
+void ssPartMotionBlurStart(int part, int ringMax, int bank, int mode, int alphaPercent); // CT3 0x018976d0
 void ssPartMotionBlurEnd(int part, int bank);                                            // CT3 0x01897140
 void ssTrigScreenBlurStart(int level);                                                   // CT3 0x0189d920
 void ssTrigHazyScreenStart(int level, int time);                                         // CT3 0x0189d310
@@ -158,7 +174,7 @@ void ssTrigWaveStart(int a, int b, int c, int d, int e, int f, int g, int h, int
 void ssTrigWaveEnd(void);                                                                // CT3 0x0189ce30
 void ssTrigVaselineStart(int a, int b, int c, int d, int e, int f, int g, int h, int i); // CT3 0x0189bd40
 void ssTrigVaselineEnd(void);                                                            // CT3 0x0189b920
-void ssTrigHQDOFStart(int a, int b);                                                     // CT3 0x0189b5a0
+void ssTrigHQDOFStart(int cameraOffset, int opacity);                                    // CT3 0x0189b5a0
 void ssTrigHQDOFEnd(void);                                                               // CT3 0x0189b580
 
 // The particle curve readers (from tiCalc_Orbit, 2026-11-11; argument order from the disassembly). age: the

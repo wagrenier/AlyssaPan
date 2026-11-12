@@ -1340,7 +1340,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 103..103, 3 functions keyed by their statics, 33 unkeyed; file name from the names"
   },
   "game/ssSetTexUVforCubeMap.c": {
-   "notes": "Slice 4: ssParticle_main (ParticleBankPass static helper: global banks on the global clock, scene banks on the scene clock; prerollTicks, was ticks5c, runs the system ahead 5 ticks a pass), ssGenerateParticle (emitRate per 5 ticks; mesh emitters via ssMeshParticleGetNextVertID2, a Fisher-Yates draw over the emitter vertices), ssParticlePush_Back and ssMeshParticlePush_Back (one static body, ParticlePushSlot: record block from the template object +0x60, dir and size jitter, PARTICLE_REC_DIR / _START / _TICK, PARTICLE_ENTRY.colors +0x1c), ssCalcParticleOrbit with ssParticleSetPosition, tiParticleSetPositionToGoal, _ToGoal_Stop, _GoalDisable (PARTICLE_ORBIT_* kinds, PARTICLE_STATE accel / curves / orbit / twist fields named), ssAddBlurObjToDrawTableInOrder and ssPartMotionBlurInsertObjToDrawTable (blur copies get virtual EE addresses through BankEeAddr: hazards.md), ssDOF_ClipObjectFromZRange (PORT: takes the bank; main.c passes it), ssTrigParticleAllOffImmediately (PARTS_KIND_PARTICLE 0x15 / PARTICLE2 0x18), ssTrigHazyScreenEnd. Stub: tiParticleSetPosition_Twist (VU0 rotation about the direction, twistAngle / twistRadius at state +0x50 / +0x52). callcheck MISSING lines are calls inside the static helpers (ParticleBankPass, ParticlePushSlot, ParticleIntegrate): explained. Smoke run: the title clock-tower room draws as before, no crash; the particles now run but nothing on screen shows them in this scene. Next: tiParticleSetPosition_Twist, ssPartMotionBlurPush_Back, tiOneFrameMotionBlurUpdate, ssPartMotionBlurStart / End, then the BGT screen effects.",
+   "notes": "Slice 5: tiParticleSetPosition_Twist (VU0 read from the disassembly: the plain step, then T(-c) R T(c) about the new direction, c = start - unit((dir+1) x dir) * twistRadius, all four words to pos and the object centre), ssPartMotionBlurStart / End / Push_Back, tiOneFrameMotionBlurUpdate (ring copies are EE layout, BLUR_COPY_* in the header; PORT field PART_BLUR_MAX_OBJ.bank gives their BankEeAddr words; PART_BLUR_OBJ.head holds the blended draw control args and data, PART_BLUR_OBJ_ARGS / _DRAWCTRL; static helpers BlurFillCopy, BlurObjMatrix, BlurRestoreEntries, BlurDrawList; AllEnd now uses BlurRestoreEntries), ssTrigParticleStart (prerollTicks = tenths x 30), ssTrigHQDOFStart (both bytes clamped 1..100), ssTrigHazyScreenStart, ssTrigScreenBlurStart, ssTrigVaselineEnd (frees ss2DpData, no DrawMode test, ROM), ssTrigWaveEnd; ss2DpData defined here (0x0193f778). callcheck MISSING lines are calls inside the static helpers: explained. Smoke run: the title clock-tower scene as before, no crash; no blur or 2D particle shows in it. Next: the 2D particle system as one unit (ss2DpInfo 36 bytes at 0x01939c90 to lay out from ss2DParticlePush_Back 0x0189c7f0, ssCalc2DParticleOrbit 0x0189c4b0, ssGetScreenRange; records 0x160 bytes = SS_draw_diamond GS packet copy 0x150 + vx, vy, x, y, life, size), which writes GS packets directly: decide the host draw form (records keep their params, a host draw module draws the diamonds) before writing ss2DParticleSetDrawData2, the vaseline / wave starts and the BGT screen passes.",
    "ranges": [
     [
      "018951d0",
@@ -1367,6 +1367,11 @@
      "date": "2026-11-12 01:40",
      "status": "partial",
      "summary": "reconstruct 15 functions, stub 1 (particle main loop, emission, push-backs, orbit and motions, blur draw-table insert, DOF slice clip, particle all-off, hazy end)"
+    },
+    {
+     "date": "2026-11-12 01:53",
+     "status": "partial",
+     "summary": "reconstruct 11 functions (twist orbit, part motion blur start, end, push-back and one-frame update, particle start preroll, screen-pass triggers for HQDOF, hazy, blur, vaseline end, wave end)"
     }
    ],
    "status": "partial",

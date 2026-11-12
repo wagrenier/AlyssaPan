@@ -896,7 +896,8 @@ static inline u_int BankEeAddr(int bank, const void *host)
 // named. The pointers are host pointers (ssPartMotionBlurStart allocates the block from gHeapJunc).
 struct PART_BLUR_MAX_OBJ;
 typedef struct PART_BLUR_OBJ {
-    u_char pad000[0x110];
+    u_char head[0x110];                 /* 0x00: draw control args and data (PART_BLUR_OBJ_ARGS / _DRAWCTRL,
+                                           ssSetTexUVforCubeMap.h) */
     int listIndex;                      /* 0x110: its entry's index in the bank's objTrans list */
     int sortedIndex;                    /* 0x114: objSortWithBlurIdx: its row in the sorted table */
     DRAW_OBJ_ENTRY *entry;              /* 0x118: the bank's draw list entry it blurs (ssPartMotionBlurAllEnd

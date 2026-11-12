@@ -7,6 +7,13 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-12, ssSetTexUVforCubeMap.c slice 5) **Part motion blur: host blocks, EE copies.** PART_BLUR_MAX_OBJ
+  and PART_BLUR_OBJ are host structs (sizeof, not the ROM's 0x100 / 0x140: index objs as an array, never by
+  0x140), but each ring copy is EE layout (PART_BLUR_COPY_SIZE, BLUR_COPY_* offsets) because main_rtn draws
+  it as a draw list entry: every word in it is a BankEeAddr of the record's bank, kept in the PORT field
+  PART_BLUR_MAX_OBJ.bank (Push_Back has no bank argument). ONE_FRAME mode also points the real entries' POS
+  word at the heap record's colour (a virtual EE address, the hazard below). ssPartMotionBlurEnd /
+  _Start bound the ROM's unchecked list walks (PartBlurMaxObj's 16 slots, ALLpartBlurObj's 48 with its 0 end).
 - (2026-11-12, ssSetTexUVforCubeMap.c slice 4) **Heap blocks in a draw list get a virtual EE address**:
   ssPartMotionBlurInsertObjToDrawTable puts the blur copies (gHeapJunc, not bank data) into draw lists of
   `u_int` EE words that main_rtn reads with BANK_PTR. ssAddBlurObjToDrawTableInOrder stores

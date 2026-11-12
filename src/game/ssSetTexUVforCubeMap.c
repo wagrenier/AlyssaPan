@@ -154,6 +154,109 @@ int ssGetNumBlurDrawObjForScene(int scene, int mode)
     return total;
 }
 
+// One ring copy of the blur object's entry (Push_Back and tiOneFrameMotionBlurUpdate share the body): the
+// two matrices, the draw object's first 0x80 bytes with its matrix words (and, given colorEE, its POS word)
+// pointing into the copy, and the entry with its object and draw control redirected to the copy's.
+static void BlurFillCopy(u_char *copy, const PART_BLUR_OBJ *o, const float (*m58)[4], const float (*m5c)[4],
+                         u_int colorEE, int bank)
+{
+    const DRAW_OBJ_ENTRY *src = o->entry;
+    DRAW_OBJ_ENTRY *ent = (DRAW_OBJ_ENTRY *)(copy + BLUR_COPY_ENTRY);
+    u_char *obj = copy + BLUR_COPY_OBJ;
+    u_int ee;
+
+    memcpy(copy + BLUR_COPY_MAT58, m58, 16 * sizeof(float));
+    memcpy(copy + BLUR_COPY_MAT5C, m5c, 16 * sizeof(float));
+    memcpy(obj, BANK_PTR(const u_char *, bank, src->obj), BLUR_COPY_OBJ_SIZE);
+    if (colorEE != 0)
+        memcpy(obj + DRAW_OBJ_POS, &colorEE, sizeof(colorEE));
+    ee = BankEeAddr(bank, copy + BLUR_COPY_MAT58);
+    memcpy(obj + DRAW_OBJ_W58, &ee, sizeof(ee));
+    ee = BankEeAddr(bank, copy + BLUR_COPY_MAT5C);
+    memcpy(obj + DRAW_OBJ_W5C, &ee, sizeof(ee));
+    *ent = *src;
+    ent->obj = BankEeAddr(bank, obj);
+    ent->drawCtrlArgs = BankEeAddr(bank, o->head + PART_BLUR_OBJ_ARGS);
+    ent->drawCtrl = BankEeAddr(bank, o->head + PART_BLUR_OBJ_DRAWCTRL);
+}
+
+// The matrix a draw object's +0x58 / +0x5c word points at.
+static const float (*BlurObjMatrix(int bank, const DRAW_OBJ_ENTRY *ent, int word))[4]
+{
+    const u_char *obj = BANK_PTR(const u_char *, bank, ent->obj);
+    u_int ee;
+
+    memcpy(&ee, obj + word, sizeof(ee));
+    return BANK_PTR(const float (*)[4], bank, ee);
+}
+
+// CT3 0x01896720
+// TRAIL mode, per frame: each blur object's entry, as it is drawn now, becomes the ring's newest copy (the
+// copy's POS word points at the record's shared colour); a full ring drops its oldest.
+void ssPartMotionBlurPush_Back(PART_BLUR_MAX_OBJ *max)
+{
+    int bank = max->bank;                               /* PORT: the ROM's words are EE addresses */
+    u_int colorEE = BankEeAddr(bank, max->color);
+    u_int ring = (u_int)(max->ringMax + 1) & 0xff;
+    u_char tail = max->tail;
+    int i;
+
+    for (i = 0; i < max->count; i++) {
+        const PART_BLUR_OBJ *o = &max->objs[i];
+
+        BlurFillCopy(o->copies + tail * PART_BLUR_COPY_SIZE, o, BlurObjMatrix(bank, o->entry, DRAW_OBJ_W58),
+                     BlurObjMatrix(bank, o->entry, DRAW_OBJ_W5C), colorEE, bank);
+    }
+    max->tail = (u_char)((tail + 1) % ring);
+    if (max->tail == max->head)
+        max->head = (u_char)((max->head + 1) % ring);
+}
+
+// CT3 0x01897430
+// ONE_FRAME mode, per frame: the copies' colour is the part's with its alpha scaled by alphaPercent around
+// -128; copy j of ringMax gets the part's matrix j / ringMax of the way from last frame's to this frame's
+// (both of its matrices), so the ring smears one frame's motion. This frame's matrix becomes prevMatrix.
+void tiOneFrameMotionBlurUpdate(int bank, PART_BLUR_MAX_OBJ *max)
+{
+    const MODEL_PARTS *part = &((const MODEL_PARTS *)pModelPartsHeader[bank])[max->parts];
+    float cur[4][4];
+    float m[4][4];
+    int i, j, r, c;
+
+    memcpy(max->color, max->ambColor, sizeof(max->color));
+    max->color[3] = (max->color[3] + 128.0f) * (max->alphaPercent / 100.0f) - 128.0f;
+    memcpy(cur, part->matrix340, sizeof(cur));
+    for (i = 0; i < max->count; i++) {
+        const PART_BLUR_OBJ *o = &max->objs[i];
+
+        for (j = 0; j < max->ringMax; j++) {
+            float f = (float)j / (float)max->ringMax;
+
+            for (r = 0; r < 4; r++)
+                for (c = 0; c < 4; c++)
+                    m[r][c] = max->prevMatrix[r][c] + (cur[r][c] - max->prevMatrix[r][c]) * f;
+            BlurFillCopy(o->copies + j * PART_BLUR_COPY_SIZE, o, m, m, 0, bank);
+        }
+    }
+    memcpy(max->prevMatrix, cur, sizeof(cur));
+}
+
+// The record's entries get back the POS word and draw control they had before the blur (a mode other
+// than TRAIL changed them; ssPartMotionBlurEnd and _AllEnd).
+static void BlurRestoreEntries(const PART_BLUR_MAX_OBJ *max, int bank)
+{
+    int j;
+
+    for (j = 0; j < max->count; j++) {
+        DRAW_OBJ_ENTRY *ent = max->objs[j].entry;
+        GA_DRAWCTRL_ARGS *args = BANK_PTR(GA_DRAWCTRL_ARGS *, bank, ent->drawCtrlArgs);
+
+        memcpy(BANK_PTR(u_char *, bank, ent->obj) + DRAW_OBJ_POS, &max->ambPos, sizeof(max->ambPos));
+        *args = max->args;
+        gaSetupDrawCtrlData(BANK_PTR(GA_DRAWCTRL_DATA *, bank, ent->drawCtrl), *args);
+    }
+}
+
 // CT3 0x01896d50
 // Per frame (main): the blurred parts of the drawn global banks always; of the other drawn banks (not
 // behaviour banks) unless paused (PAUSE_RUNNING still runs). A group of banks counts once. A record in
@@ -212,18 +315,8 @@ void ssPartMotionBlurAllEnd(int scene)
             break;
         objs = max->objs;
         copies = objs[0].copies;
-        if (max->mode != PART_BLUR_MODE_TRAIL) {
-            int j;
-
-            for (j = 0; j < max->count; j++) {
-                DRAW_OBJ_ENTRY *ent = objs[j].entry;
-                GA_DRAWCTRL_ARGS *args = BANK_PTR(GA_DRAWCTRL_ARGS *, scene, ent->drawCtrlArgs);
-
-                *(u_int *)(BANK_PTR(u_char *, scene, ent->obj) + DRAW_OBJ_POS) = max->ambPos;
-                *args = max->args;
-                gaSetupDrawCtrlData(BANK_PTR(GA_DRAWCTRL_DATA *, scene, ent->drawCtrl), *args);
-            }
-        }
+        if (max->mode != PART_BLUR_MODE_TRAIL)
+            BlurRestoreEntries(max, scene);
         _SunFree(&gHeapJunc, (void **)&copies);
         _SunFree(&gHeapJunc, (void **)&objs);
         _SunFree(&gHeapJunc, (void **)&max);
@@ -328,22 +421,6 @@ void ssBGT_ZBufferClear(void)
 }
 
 // ---- stubs (tools/reverse/stubgen.py) ----
-
-// stub of CT3 0x01896720 -- copies each blurred entry (its draw object, matrices and header) into the ring's
-// tail slot; needs the ring copies' layout, which ssPartMotionBlurStart builds.
-void ssPartMotionBlurPush_Back(PART_BLUR_MAX_OBJ *max)
-{
-    (void)max;
-    ALYSSAPAN_STUB("ssPartMotionBlurPush_Back", 0x01896720);
-}
-
-// stub of CT3 0x01897430 -- fills every ring copy with a matrix between prevMatrix and the part's own.
-void tiOneFrameMotionBlurUpdate(int bank, PART_BLUR_MAX_OBJ *max)
-{
-    (void)bank;
-    (void)max;
-    ALYSSAPAN_STUB("tiOneFrameMotionBlurUpdate", 0x01897430);
-}
 
 // ---- reflection maps --------------------------------------------------------------------------------------
 
@@ -1102,16 +1179,163 @@ void tnChangeCharAmbientColorSet(short *set)
     }
 }
 
-// stub of CT3 0x01897140
+// CT3 0x01897140
+// The trigger command's motion blur off for the bank's part: its record leaves PartBlurMaxObj (the list
+// closes up), its blur objects leave both ALLpartBlurObj lists, its entries get their draw state back
+// (a mode other than TRAIL) and its three blocks go back to gHeapJunc.
 void ssPartMotionBlurEnd(int part, int bank)
 {
-    ALYSSAPAN_STUB("ssPartMotionBlurEnd", 0x01897140);
+    PART_BLUR_MAX_OBJ **slots = PartBlurMaxObj[bank];
+    PART_BLUR_MAX_OBJ *max = NULL;
+    PART_BLUR_OBJ *objs;
+    u_char *copies;
+    int i, j, mode;
+
+    /* ROM: the copy runs one slot ahead past each match; PORT: bounded at the bank's last slot */
+    for (i = 0, j = 0; i < PART_BLUR_MAX_OBJ_MAX && slots[i] != NULL; i++, j++) {
+        if (slots[i]->parts == (u_short)part) {
+            max = slots[i];
+            j++;
+        }
+        slots[i] = j < PART_BLUR_MAX_OBJ_MAX ? slots[j] : NULL;
+        if (slots[i] == NULL)
+            break;
+    }
+    if (max == NULL)
+        return;
+    for (mode = 0; mode < PART_BLUR_MODES; mode++) {
+        PART_BLUR_OBJ **list = ALLpartBlurObj[mode][bank];
+        int k;
+
+        for (k = NumPartBlurObj[mode][bank] - 1; k >= 0; k--) {
+            int n = NumPartBlurObj[mode][bank];
+
+            if (list[k]->max->parts != (u_short)part)
+                continue;
+            /* ROM: list[x] = list[x + 1] up to n - 1, reading the 0 end; PORT: the end written, never read */
+            for (i = k; i < n - 1; i++)
+                list[i] = list[i + 1];
+            list[n - 1] = NULL;
+            NumPartBlurObj[mode][bank]--;
+        }
+    }
+    objs = max->objs;
+    copies = objs[0].copies;
+    if (max->mode != PART_BLUR_MODE_TRAIL)
+        BlurRestoreEntries(max, bank);
+    _SunFree(&gHeapJunc, (void **)&copies);
+    _SunFree(&gHeapJunc, (void **)&objs);
+    _SunFree(&gHeapJunc, (void **)&max);
 }
 
-// stub of CT3 0x018976d0
-void ssPartMotionBlurStart(int part, int a, int bank, int b, int c)
+#define PART_BLUR_LISTS 2               /* ALL_TABLE.objOpaque (ALLpartBlurObj[0]), objTrans ([1]) */
+
+// The bank's draw list `list` (0 objOpaque, 1 objTrans) as host words.
+static const u_int *BlurDrawList(int bank, int list)
 {
-    ALYSSAPAN_STUB("ssPartMotionBlurStart", 0x018976d0);
+    const ALL_TABLE *tbl = All_table_TBL[bank];
+
+    return BANK_PTR(const u_int *, bank, list == 0 ? tbl->objOpaque : tbl->objTrans);
+}
+
+// CT3 0x018976d0
+// The trigger command's motion blur on for the bank's part (once: a part with a record is left alone).
+// Every entry of the two draw lists drawn at the part gets a blur object (its draw control with alpha
+// blending and the alpha test on) and a ring of ringMax + 1 copies; the objects join ALLpartBlurObj[list]
+// in their list order. TRAIL starts with an empty ring; ONE_FRAME with a full one (tail = ringMax), and
+// redirects the entries themselves: their POS word to the record's colour, their draw control blended
+// (the record keeps the old settings for the end).
+void ssPartMotionBlurStart(int part, int ringMax, int bank, int mode, int alphaPercent)
+{
+    PART_BLUR_MAX_OBJ **slots = PartBlurMaxObj[bank];
+    PART_BLUR_MAX_OBJ *max;
+    PART_BLUR_OBJ *objs;
+    u_char *copies;
+    int count = 0;
+    int slot;
+    int list, i, k;
+
+    for (slot = 0; slot < PART_BLUR_MAX_OBJ_MAX && slots[slot] != NULL; slot++)
+        if (slots[slot]->parts == (u_short)part)
+            return;
+    if (slot == PART_BLUR_MAX_OBJ_MAX)
+        return;                                         /* PORT: the ROM writes past the bank's slots */
+    for (list = 0; list < PART_BLUR_LISTS; list++) {
+        const u_int *words = BlurDrawList(bank, list);
+
+        for (i = 0; words[i] != 0; i++)
+            if (BANK_PTR(const DRAW_OBJ_ENTRY *, bank, words[i])->parts == part)
+                count++;
+    }
+    objs = (PART_BLUR_OBJ *)_SunAlloc(&gHeapJunc, count * (int)sizeof(PART_BLUR_OBJ), 0x40);
+    copies = (u_char *)_SunAlloc(&gHeapJunc, count * (ringMax + 1) * PART_BLUR_COPY_SIZE, 0x40);
+    max = (PART_BLUR_MAX_OBJ *)_SunAlloc(&gHeapJunc, (int)sizeof(PART_BLUR_MAX_OBJ), 0x40);
+    slots[slot] = max;
+    if (slot + 1 < PART_BLUR_MAX_OBJ_MAX)
+        slots[slot + 1] = NULL;
+    max->mode = (u_char)mode;
+    max->parts = (u_short)part;
+    max->ringMax = (u_char)ringMax;
+    max->head = 0;
+    if (mode == PART_BLUR_MODE_ONE_FRAME) {
+        max->tail = (u_char)ringMax;
+        max->alphaPercent = (float)(u_char)alphaPercent;
+    } else {
+        max->tail = 0;
+    }
+    max->count = (u_char)count;
+    max->objs = objs;
+    max->ambPos = All_table_TBL[bank]->partsPos + (u_int)part * 0x10;
+    max->ambColor = BANK_PTR(const float *, bank, max->ambPos);
+    max->bank = bank;
+    memcpy(max->prevMatrix, ((const MODEL_PARTS *)pModelPartsHeader[bank])[part].matrix340,
+           sizeof(max->prevMatrix));
+    k = 0;
+    for (list = 0; list < PART_BLUR_LISTS; list++) {
+        const u_int *words = BlurDrawList(bank, list);
+        PART_BLUR_OBJ **blur = ALLpartBlurObj[list][bank];
+
+        for (i = 0; words[i] != 0; i++) {
+            DRAW_OBJ_ENTRY *ent = BANK_PTR(DRAW_OBJ_ENTRY *, bank, words[i]);
+            PART_BLUR_OBJ *o = &objs[k];
+            GA_DRAWCTRL_ARGS *args = (GA_DRAWCTRL_ARGS *)(o->head + PART_BLUR_OBJ_ARGS);
+            u_int n;
+
+            if (ent->parts != part)
+                continue;
+            *args = *BANK_PTR(const GA_DRAWCTRL_ARGS *, bank, ent->drawCtrlArgs);
+            args->abe = 1;
+            args->ate = 1;
+            o->listIndex = i;
+            o->entry = ent;
+            o->copies = copies + k * (ringMax + 1) * PART_BLUR_COPY_SIZE;
+            o->max = max;
+            if (mode == PART_BLUR_MODE_ONE_FRAME) {
+                GA_DRAWCTRL_ARGS *own = BANK_PTR(GA_DRAWCTRL_ARGS *, bank, ent->drawCtrlArgs);
+                u_int colorEE = BankEeAddr(bank, max->color);
+
+                memcpy(BANK_PTR(u_char *, bank, ent->obj) + DRAW_OBJ_POS, &colorEE, sizeof(colorEE));
+                max->args = *own;
+                own->abe = 1;
+                own->ate = 1;
+                gaSetupDrawCtrlData(BANK_PTR(GA_DRAWCTRL_DATA *, bank, ent->drawCtrl), *own);
+            }
+            gaSetupDrawCtrlData((GA_DRAWCTRL_DATA *)(o->head + PART_BLUR_OBJ_DRAWCTRL), *args);
+            /* in list order: the objects after it move up one */
+            for (n = NumPartBlurObj[list][bank]; n != 0; n--) {
+                if (blur[n - 1]->listIndex < i)
+                    break;
+                blur[n] = blur[n - 1];
+            }
+            blur[n] = o;
+            NumPartBlurObj[list][bank]++;
+            k++;
+            if (NumPartBlurObj[list][bank] >= PART_BLUR_MAX - 1)
+                break;                                  /* PORT: room for the 0 end; the ROM has no check */
+        }
+        blur[NumPartBlurObj[list][bank]] = NULL;
+    }
+    max->count = (u_char)k;                             /* PORT: == count unless a list was full */
 }
 
 // CT3 0x0189b580
@@ -1123,10 +1347,26 @@ void ssTrigHQDOFEnd(void)
         DrawMode = DRAW_MODE_NORMAL;
 }
 
-// stub of CT3 0x0189b5a0
-void ssTrigHQDOFStart(int a, int b)
+#define HQDOF_PERCENT_MAX 100           /* ssTrigHQDOFStart: both settings in 1..100 (0 reads as 1) */
+
+// A command byte as a 1..100 setting.
+static u_char HQDOFClamp(u_char v)
 {
-    ALYSSAPAN_STUB("ssTrigHQDOFStart", 0x0189b5a0);
+    if (v == 0)
+        return 1;
+    return v < HQDOF_PERCENT_MAX + 1 ? v : HQDOF_PERCENT_MAX;
+}
+
+// CT3 0x0189b5a0
+// The trigger command's HQ depth of field on (when no screen pass is): the eye jitter and each sample's
+// weight, each clamped to 1..100.
+void ssTrigHQDOFStart(int cameraOffset, int opacity)
+{
+    if (DrawMode == DRAW_MODE_NORMAL) {
+        HQDOFCameraOffset = HQDOFClamp((u_char)cameraOffset);
+        HQDOFOpacity = HQDOFClamp((u_char)opacity);
+        DrawMode = DRAW_MODE_HQDOF;
+    }
 }
 
 // CT3 0x0189d2f0
@@ -1137,10 +1377,16 @@ void ssTrigHazyScreenEnd(void)
         DrawMode = DRAW_MODE_NORMAL;
 }
 
-// stub of CT3 0x0189d310
+// CT3 0x0189d310
+// The trigger command's hazy screen on (when no screen pass is): DRAW_MODE_HAZY at `level`, fading in over
+// `time` (HazeTransTime).
 void ssTrigHazyScreenStart(int level, int time)
 {
-    ALYSSAPAN_STUB("ssTrigHazyScreenStart", 0x0189d310);
+    if (DrawMode == DRAW_MODE_NORMAL) {
+        DrawMode = DRAW_MODE_HAZY;
+        HazeTransTime = time;
+        ScreenHazyLevel = level;
+    }
 }
 
 // CT3 0x01898710
@@ -1189,10 +1435,27 @@ void ssTrigParticleAllOffImmediately(int particle, int bank)
     }
 }
 
-// stub of CT3 0x018988b0
-void ssTrigParticleStart(int particle, int bank, int arg)
+#define PARTICLE_PREROLL_TICKS_PER_TENTH 30     /* the command's tenths of a second, as ticks: x 300 / 10 */
+
+// CT3 0x018988b0
+// The trigger command's particle start: the particle's trigger part enabled at once, and the first system
+// of the bank's list drawn at that part runs prerollTenths ahead (ssParticle_main's preroll).
+void ssTrigParticleStart(int particle, int bank, int prerollTenths)
 {
-    ALYSSAPAN_STUB("ssTrigParticleStart", 0x018988b0);
+    const u_int *list;
+    int i;
+
+    ssTrigSetEnable(particle, 1, 0, bank);
+    list = BANK_PTR(const u_int *, bank, All_table_TBL[bank]->particles);
+    for (i = 0; list != NULL && list[i] != 0; i++) {            /* PORT: NULL checked */
+        const PARTICLE_ENTRY *ent = BANK_PTR(const PARTICLE_ENTRY *, bank, list[i]);
+
+        if ((u_int)ent->parts == ((u_int)particle & 0xffff)) {
+            BANK_PTR(PARTICLE_STATE *, bank, ent->state)->prerollTicks =
+                (prerollTenths * (PARTICLE_PREROLL_TICKS_PER_TENTH * 10)) / 10;
+            return;
+        }
+    }
 }
 
 // CT3 0x018988a0
@@ -1202,16 +1465,25 @@ void ssTrigParticleStop(int particle, int bank)
     ssTrigSetEnable(particle, 0, 0, bank);
 }
 
-// stub of CT3 0x0189d920
+// CT3 0x0189d920
+// The trigger command's screen blur on (when no screen pass is): DRAW_MODE_BLUR at `level`.
 void ssTrigScreenBlurStart(int level)
 {
-    ALYSSAPAN_STUB("ssTrigScreenBlurStart", 0x0189d920);
+    if (DrawMode == DRAW_MODE_NORMAL) {
+        DrawMode = DRAW_MODE_BLUR;
+        ScreenBlurLevel = level;
+    }
 }
 
-// stub of CT3 0x0189b920
+u_char *ss2DpData;                      /* 0x0193f778: the 2D particles' records (vaseline, wave), gHeapJunc */
+
+// CT3 0x0189b920
+// The trigger command's vaseline off: the 2D particle records go back to gHeapJunc and the normal pass is
+// on, whichever pass was (ROM: no DrawMode test, unlike ssTrigWaveEnd).
 void ssTrigVaselineEnd(void)
 {
-    ALYSSAPAN_STUB("ssTrigVaselineEnd", 0x0189b920);
+    _SunFree(&gHeapJunc, (void **)&ss2DpData);
+    DrawMode = DRAW_MODE_NORMAL;
 }
 
 // stub of CT3 0x0189bd40
@@ -1220,10 +1492,15 @@ void ssTrigVaselineStart(int a, int b, int c, int d, int e, int f, int g, int h,
     ALYSSAPAN_STUB("ssTrigVaselineStart", 0x0189bd40);
 }
 
-// stub of CT3 0x0189ce30
+// CT3 0x0189ce30
+// The trigger command's wave off, if the wave pass is the one on: its 2D particle records go back to
+// gHeapJunc.
 void ssTrigWaveEnd(void)
 {
-    ALYSSAPAN_STUB("ssTrigWaveEnd", 0x0189ce30);
+    if (DrawMode == DRAW_MODE_WAVE) {
+        _SunFree(&gHeapJunc, (void **)&ss2DpData);
+        DrawMode = DRAW_MODE_NORMAL;
+    }
 }
 
 // stub of CT3 0x0189ce60
@@ -1819,16 +2096,44 @@ void tiParticleSetPositionToGoal_Stop(const PARTICLE_STATE *st, u_char *obj, u_c
         ParticleIntegrate(obj, rec, a, dt);
 }
 
-// stub of CT3 0x01899320 -- orbit TWIST: the plain step, then the position turned about the direction
-// (asMakeRotMatrixByQuartanion by twistAngle) around a centre twistRadius from the start point; the VU0
-// sequence still to read.
+// CT3 0x01899320
+// Orbit TWIST: the plain step, then the position turned by twistAngle about the new direction
+// (asMakeRotMatrixByQuartanion), around a centre twistRadius from the start point: the start point less
+// the unit vector of (dir + (1,1,1)) x dir times the radius. VU0: the turn is T(-c) R T(c) applied to the
+// whole qword (row vectors), and the record's position and the object's centre both get all four words.
 void tiParticleSetPosition_Twist(const PARTICLE_STATE *st, u_char *obj, u_char *rec, int now)
 {
-    (void)st;
-    (void)obj;
-    (void)rec;
-    (void)now;
-    ALYSSAPAN_STUB("tiParticleSetPosition_Twist", 0x01899320);
+    float *pos = (float *)(rec + PARTICLE_REC_POS);
+    float *dir = (float *)(rec + PARTICLE_REC_DIR);
+    const float *start = (const float *)(rec + PARTICLE_REC_START);
+    alignas(16) float rot[4][4];
+    float m[4][4];
+    float up[3], n[3], c[3], out[4], q;
+    int i, j;
+
+    ParticleIntegrate(obj, rec, st->accel, ParticleStep(rec, now));
+    asMakeRotMatrixByQuartanion(rot, dir, st->twistAngle);
+    for (i = 0; i < 3; i++)
+        up[i] = dir[i] + 1.0f;                          /* vaddw.xyz: + vf0w */
+    n[0] = up[1] * dir[2] - dir[1] * up[2];             /* vopmula / vopmsub: up x dir */
+    n[1] = up[2] * dir[0] - dir[2] * up[0];
+    n[2] = up[0] * dir[1] - dir[0] * up[1];
+    q = 1.0f / sqrtf(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
+    for (i = 0; i < 3; i++)
+        c[i] = start[i] - n[i] * q * (float)st->twistRadius;
+    /* T(-c) R: R's rows 0..2, row 3 R[3] - c . R; then (T(-c) R) T(c) adds c * w to each row's xyz */
+    for (j = 0; j < 4; j++) {
+        for (i = 0; i < 3; i++)
+            m[i][j] = rot[i][j];
+        m[3][j] = rot[3][j] - c[0] * rot[0][j] - c[1] * rot[1][j] - c[2] * rot[2][j];
+    }
+    for (i = 0; i < 4; i++)
+        for (j = 0; j < 3; j++)
+            m[i][j] += c[j] * m[i][3];
+    for (j = 0; j < 4; j++)
+        out[j] = pos[0] * m[0][j] + pos[1] * m[1][j] + pos[2] * m[2][j] + pos[3] * m[3][j];
+    memcpy(pos, out, sizeof(out));
+    memcpy(obj + DRAW_OBJ_CENTER, out, sizeof(out));
 }
 
 // The live slots head .. tail of a ring (wrapping at ringSize): the first, then each next; -1 at the end.
