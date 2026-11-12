@@ -1,7 +1,6 @@
 {
  "queue": [
   "alyssapan/rendering/ui_canvas.cpp",
-  "game/tkXDTrg_GetSceneHash.c",
   "game/asUseArrow.c",
   "game/asMothRouteSearch.c",
   "game/asXcmd.c",
@@ -1300,7 +1299,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 137..137, 20 functions keyed by their statics, 73 unkeyed; file name from the names"
   },
   "game/tkXDTrg_GetSceneHash.c": {
-   "notes": "Left: tkXDTrg_ActorProc_Ini (0x018ebf90, old-form Ini that builds part names from the scene name; stubbed to answer 1 and reset the record). Callcheck MISSING on the kind procs and AlsOpn are the shared static helpers (DoorKindOpen / DoorKindClose / DoorPlaySE / DoorAnimPlaying). Guesses and PORT choices in open-items.md Open questions (slice 3). Smoke run ends on the content warning screen; no door on screen yet.",
+   "notes": "Callcheck MISSING asFindModelPartsID in Ini is the DoorFindPart helper. The part names settle h48 h4c and the kind entries' +4 as SE / TDS parts (open-items.md slice 4). Smoke run ends on the content warning screen; no door on screen yet, so verify.",
    "ranges": [
     [
      "018e90a0",
@@ -1322,9 +1321,14 @@
      "date": "2026-11-11 21:20",
      "status": "partial",
      "summary": "slice 3: the DoorTrigger x command and its actor dispatcher (code parser, scene heads, door records), the Ini_New and IniMon parsers, Alyssa's door open and close, MonDraw, CharacterInit (DTrgPraAls, DTrgPraMon); 12 functions"
+    },
+    {
+     "date": "2026-11-11 21:26",
+     "status": "verify",
+     "summary": "slice 4: tkXDTrg_ActorProc_Ini, the old-form door record that finds its camera cut and parts by name (Cam_Dor, TDS_Dor, CP_Dor, HT_Dor, SE_Dor plus the room and door); the file's 50 functions are all written"
     }
    ],
-   "status": "partial",
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 138..138, 15 functions keyed by their statics, 35 unkeyed; file name from the names"
   },
   "game/tnXcmd.c": {

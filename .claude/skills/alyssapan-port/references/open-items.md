@@ -1660,6 +1660,16 @@ apply here):
 
 ## Open questions
 
+- (2026-11-11, game/tkXDTrg_GetSceneHash.c slice 4) tkXDTrg_ActorProc_Ini (the old form, 15+ arguments)
+  read: the file's 50 functions are all written (verify: no door on screen yet). It finds the door's parts
+  by name, "<prefix>_Dor<room>_<door>[_<suffix>]" with room = argv[3] (the other room, also otherBank's
+  bank) and door = argv[0]'s 2 digits; argv[2] / argv[3] go to camRoom[0..4] / [5..9]. **Answered by the
+  names:** +0x4c (h4c) is the TDS_Dor part and +0x4e (trigUse) TDS_Dor.._Cam; +0x48 (h48) is SE_Dor.._n,
+  +0x4a / +0x46 SE_Dor.._o / .._c (so the "sound objects" are model parts: a sound's position); a kind's
+  +2 / +4 are SE_Dor.._Ham_n / _Ham_o (Vit_ for kind index 2): +4 is the kind's open sound part, not
+  unknown. Rename h48 / h4c / kind.h4 when their readers are read. **PORT:** Ini_Error is called without
+  its (id, bank, door, name) arguments (the host's prints nothing).
+
 - (2026-11-11, game/tkXDTrg_GetSceneHash.c slice 3) The dispatcher, the Ini_New / IniMon parsers, AlsOpn /
   AlsClo, MonDraw, CharacterInit and the x command read. **Answered:** slots 0 / 2 are Alyssa's open / close
   (DTRG_SLOT_ALS_*); +0x40 is the warp part; DTrgPraMon and DTrgPraAls are written by door 99's trigger

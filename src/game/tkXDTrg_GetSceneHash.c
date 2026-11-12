@@ -10,6 +10,8 @@
 // Slice 2 (2026-11-11): the door actor procs (AnimToFrameDoor .. AlsCam, Ini_Error): the record's slots,
 // the kinds' open / close and the door flags' three runs. Left: tkXDTrg_ActorProc (the dispatcher), _Ini,
 // _AlsOpn, tkXDTrg_MonDraw, tkXcmd_DoorTrigger and the rest of the 50.
+// Slice 4 (2026-11-11): tkXDTrg_ActorProc_Ini, the old form that finds the door's parts by name
+// ("<prefix>_Dor<room>_<door>[_<suffix>]"). The file's 50 functions are all written.
 
 #include "game/tkXDTrg_GetSceneHash.h"
 
@@ -1352,17 +1354,107 @@ int tkXcmd_DoorTrigger(int argc, char **argv, int bank)
     return tkXDTrg_ActorProc((u_int)argc, argv, bank);
 }
 
-// ---- stubs ----
+// ---- the old-form door Ini (slice 4, 2026-11-11) ----
 
-// stub of CT3 0x018ebf90 (slice 4: the old-form Ini builds part names from the scene's name). Answers 1
-// like the ROM so the trigger moves on; the record keeps DoorRecordReset's state only.
+// The door's name, "<room>_<door>": the other room's 4 characters (argv[3]) and the door's 2 (argv[0]);
+// _1748's "0a99_99" is the template. Every part the old form finds is "<prefix>_Dor<name>[_<suffix>]".
+#define DOOR_NAME_TEMPLATE "0a99_99"            /* .rodata 0x01936e68 (_1748) */
+#define DOOR_NAME_LEN 7
+#define DOOR_NAME_DOOR 5                        /* the door's 2 digits in the name */
+#define DOOR_PART_CAM "Cam_Dor" DOOR_NAME_TEMPLATE  /* 0x01936e70 (_1749): the camera cut */
+#define DOOR_PART_TDS "TDS"                     /* 0x01936e80 (_1750): over "Cam": TDS_Dor<name> */
+#define DOOR_PART_SUFFIX_CAM "_Cam"             /* 0x01936e88 (_1751) */
+#define DOOR_PART_CP "CP_Dor" DOOR_NAME_TEMPLATE    /* 0x01936e90 (_1752): Alyssa's warp part */
+#define DOOR_PART_HT "HT"                       /* 0x01936ea0 (_1753): over "CP": the hit parts */
+#define DOOR_PART_SUFFIX_C "_c"                 /* 0x01936ea8 (_1754) */
+#define DOOR_PART_SUFFIX_UGD "Ugd"              /* 0x01936eb0 (_1755): the open hit part, not DTRG_FLAG_SIDE */
+#define DOOR_PART_SE "SE"                       /* 0x01936eb8 (_1756): over "HT": the sound objects */
+#define DOOR_PART_SUFFIX_N "n"                  /* 0x01936ec0 (_1757) */
+#define DOOR_PART_SUFFIX_HAM "Ham_n"            /* 0x01936ec8 (_1758): every kind's but the Vit's */
+#define DOOR_PART_SUFFIX_VIT "Vit_n"            /* 0x01936ed0 (_1759): DTRG_KIND_VIT's */
+#define DOOR_PART_NAME_END 13                   /* "XX_Dor0a12_05": where the suffix is appended */
+#define DOOR_PART_SUFFIX_AT 14                  /* "XX_Dor0a12_05_": the suffix's first character */
+#define DOOR_PART_KIND_STATE 18                 /* "XX_Dor0a12_05_Ham_": its 'n' / 'o' */
+
+// Find one named part of the bank (the ROM's Ini_Error reports a miss; the host's prints nothing).
+static u_short DoorFindPart(int bank, const char *name)
+{
+    u_short id = (u_short)asFindModelPartsID(pModelPartsHeader[bank], ahGetHash(name));
+
+    tkXDTrg_ActorProc_Ini_Error();
+    return id;
+}
+
+// CT3 0x018ebf90
+// A door record from the trigger's old form (15 arguments or more): argv[0] the door's 2 digits, argv[1]
+// the code ('u' at 1: DTRG_FLAG_SIDE), argv[2] / argv[3] the camera's room and the other room (whose bank
+// otherBank is), argv[4] the part, argv[5] the portal, argv[6] the event, then pairs (kind 1..6, its
+// event). The camera cut and the other parts are found by name from the door's name: Cam_Dor (the cut),
+// TDS_Dor (h4c) and TDS_Dor.._Cam (trigUse), CP_Dor (the warp part), HT_Dor.._c and .._Ugd or .._o (the
+// hit parts, closed / open), SE_Dor.._n / .._o / .._c (h48, the open and close sound objects), and per
+// kind SE_Dor.._Ham_n / _o (Vit_ for DTRG_KIND_VIT: the kind's sound object and h4).
 int tkXDTrg_ActorProc_Ini(int argc, char **argv, int bank, DTRG_PRA_DOR *door)
 {
-    (void)argc;
-    (void)argv;
-    (void)bank;
+    char name[DOOR_NAME_LEN + 1] = DOOR_NAME_TEMPLATE;
+    char part[0x28];
+    int i;
+
     DoorRecordReset(door);
-    ALYSSAPAN_STUB("tkXDTrg_ActorProc_Ini", 0x018ebf90);
+    door->flags = (u_short)((argv[1][1] == 'u' ? DTRG_FLAG_SIDE : 0) | DTRG_FLAG_USED);
+    memcpy(&door->camRoom[0], argv[2], 4);
+    door->camRoom[4] = '\0';
+    memcpy(&door->camRoom[5], argv[3], 4);
+    door->camRoom[9] = '\0';
+    door->otherBank = (short)GetBankID(&door->camRoom[5]);
+    memcpy(name, &door->camRoom[5], 4);
+    memcpy(name + DOOR_NAME_DOOR, argv[0], 2);
+    door->part = (u_short)atoi(argv[4]);
+    door->trigPortal = (u_short)atoi(argv[5]);
+    door->event = (short)atoi(argv[6]);
+    for (i = 0; i < (short)(argc - 7); i += 2) {
+        short value = (short)atoi(argv[8 + i]);
+        door->kind[atoi(argv[7 + i]) - 1].event = value;
+    }
+
+    strcpy(part, DOOR_PART_CAM);
+    memcpy(part + 7, name, DOOR_NAME_LEN);
+    door->camCut = asFindCamera(bank, ahGetHash(part));
+    tkXDTrg_ActorProc_Ini_Error();
+    memcpy(part, DOOR_PART_TDS, 3);
+    door->h4c = (short)DoorFindPart(bank, part);
+    strcat(part, DOOR_PART_SUFFIX_CAM);
+    door->trigUse = DoorFindPart(bank, part);
+
+    strcpy(part, DOOR_PART_CP);
+    memcpy(part + 6, name, DOOR_NAME_LEN);
+    door->warpPart = DoorFindPart(bank, part);
+    memcpy(part, DOOR_PART_HT, 2);
+    strcat(part + DOOR_PART_NAME_END, DOOR_PART_SUFFIX_C);
+    door->trigHitClosed = DoorFindPart(bank, part);
+    if ((door->flags & DTRG_FLAG_SIDE) == 0) {
+        strcpy(part + DOOR_PART_SUFFIX_AT, DOOR_PART_SUFFIX_UGD);
+    } else {
+        part[DOOR_PART_SUFFIX_AT] = 'o';
+    }
+    door->trigHitOpen = DoorFindPart(bank, part);
+
+    memcpy(part, DOOR_PART_SE, 2);
+    strcpy(part + DOOR_PART_SUFFIX_AT, DOOR_PART_SUFFIX_N);
+    door->h48 = (short)DoorFindPart(bank, part);
+    part[DOOR_PART_SUFFIX_AT] = 'o';
+    door->seObjOpen = (short)DoorFindPart(bank, part);
+    part[DOOR_PART_SUFFIX_AT] = 'c';
+    door->seObjClose = (short)DoorFindPart(bank, part);
+
+    for (i = 0; i < DTRG_KIND_COUNT; i++) {
+        if (door->kind[i].event == -1) {
+            continue;
+        }
+        strcpy(part + DOOR_PART_SUFFIX_AT, i == DTRG_KIND_VIT ? DOOR_PART_SUFFIX_VIT : DOOR_PART_SUFFIX_HAM);
+        door->kind[i].seObj = (short)DoorFindPart(bank, part);
+        part[DOOR_PART_KIND_STATE] = 'o';
+        door->kind[i].h4 = (short)DoorFindPart(bank, part);
+    }
     return 1;
 }
 

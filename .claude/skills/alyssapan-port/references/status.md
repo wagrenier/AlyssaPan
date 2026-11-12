@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-11 21:20 at commit `5b966fd` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-11 21:26 at commit `d36241c` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1234**; stubs: **234**
+- reconstructed CT3 functions: **1235**; stubs: **233**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -88,7 +88,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/ssSetTexUVforCubeMap.c` | 1 | 50 |
 | `src/game/tiAvoidObject.c` | 0 | 8 |
 | `src/game/tiXcmd_TransItem.c` | 85 | 8 |
-| `src/game/tkXDTrg_GetSceneHash.c` | 49 | 1 |
+| `src/game/tkXDTrg_GetSceneHash.c` | 50 | 0 |
 | `src/game/tnXcmd.c` | 0 | 8 |
 | `src/game/wideXcmd_DebugPrint.c` | 109 | 0 |
 | `src/game/wideXcmd_TriggerInit.c` | 1 | 43 |
@@ -97,11 +97,10 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 64 TUs: todo 29, partial 4, verify 32, done 8, blocked 1
-- next: **game/tkXDTrg_GetSceneHash.c** (pinned in the queue)
-- pinned queue: alyssapan/rendering/ui_canvas.cpp, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
+- 64 TUs: todo 29, partial 3, verify 33, done 8, blocked 1
+- next: **game/asUseArrow.c** (pinned in the queue)
+- pinned queue: alyssapan/rendering/ui_canvas.cpp, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
 - partial: `game/tiXcmd_TransItem.c` 85/93 -- Slice 10. Written: tiXcmd_UseItem (ITEM_USE_* modes from argv[4], ITEM_KIND_* from the row byte +0: give-take, signal, heal Character[0].hp up to hpMax, calm vi
-- partial: `game/tkXDTrg_GetSceneHash.c` 49/50 -- Left: tkXDTrg_ActorProc_Ini (0x018ebf90, old-form Ini that builds part names from the scene name; stubbed to answer 1 and reset the record). Callcheck MISSING o
 - partial: `game/wideXcmd_TriggerInit.c` 1/46 -- Title draws at 4:3 and 16:9 after 40 s (logo, 3, menu, copyright). Fix in SunTexEePtr, BankOfEeAddr, HitObjectId: free slot banks shared EE addresses with the G
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
@@ -133,12 +132,14 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/movie.c` 20/21 -- Playback kept in the ROM shape: host EE kernel runs the decoder thread and vblank handler, sdk/libmpeg decodes, the picture goes through AA_GetDataWord.c displa
 - verify: `game/sound.c` 69/69 -- All 69 written. SSLoadSEfromLoadPoint takes the bank image (BankInfo +0x1c); All_table_TBL[bank] is image + 0x80, so the old +0xd4 record is ALL_TABLE.sound, wo
 - verify: `game/ssGrpPortalCheck.c` 59/59 -- Code complete. The black screen was the ga objects' +0x38 word (EE address of the part's partsPos, the ambient light0 adds) left 0 by the ssSetAmbColorToAllObj 
+- verify: `game/tkXDTrg_GetSceneHash.c` 50/50 -- Callcheck MISSING asFindModelPartsID in Ini is the DoorFindPart helper. The part names settle h48 h4c and the kind entries' +4 as SE / TDS parts (open-items.md 
 - verify: `game/wideXcmd_DebugPrint.c` 109/109 -- All 109 functions written. Nothing on screen reaches it yet (the shot is the warning screen): verify in gameplay. New stubs ssHitAddAttackRequest, ssHit_GetMaxI
 - verify: `game/xcmd_tn.c` 57/57 -- All 57 functions written. VistaVision: ON or on brings the bars in, argv[1] 1 slides, a fourth argument makes ON skippable; statics VistaVisionEndCheck, VistaVi
 - blocked: `alyssapan/rendering/ui_canvas.cpp` 0/0 -- Blocked on ga/gaBGT_DrawObject.c (host draw module for ga draw objects) and the camera (asEyeForcusUP2CamMat.c camera_init0 / camera_view stubs); triggers are n
 
 Recent sessions:
 
+- 2026-11-11 21:26 `game/tkXDTrg_GetSceneHash.c` verify: slice 4: tkXDTrg_ActorProc_Ini, the old-form door record that finds its camera cut and parts by name (Cam_Dor, TDS_Dor, CP_Dor, HT_Dor, SE_Dor plus the room and
 - 2026-11-11 21:20 `game/tkXDTrg_GetSceneHash.c` partial: slice 3: the DoorTrigger x command and its actor dispatcher (code parser, scene heads, door records), the Ini_New and IniMon parsers, Alyssa's door open and clo
 - 2026-11-11 21:08 `game/tkXDTrg_GetSceneHash.c` partial: slice 2: the door actor procs (AnimToFrameDoor, AnimRangeDoor, ChangeCamera, CmnClo, the ScW / ScM / Axe / Vit / Ham Opn, OpnOut and Clo, Sht, HitPtl, AlsCam, I
 - 2026-11-11 20:56 `game/tkXDTrg_GetSceneHash.c` partial: slice 1: the branch scene tables (ScnTbl and the Br tables), scene ids, door flags, the door-trigger state init, CloseCancel, the door bridge draw (tkBri_DoorDr
@@ -146,7 +147,6 @@ Recent sessions:
 - 2026-11-11 20:11 `game/Clipping_Portal.c` verify: slice 15: tiCalc_HurikoOPEN and tiCalc_HurikoCLOSED, one pendulum solver (pull to rest pose, normal drag, springs, accel clamp, damping, length constraint, caps
 - 2026-11-11 19:54 `game/Clipping_Portal.c` partial: slice 14: tiCalc_Leaf, tiCalc_Twist (turn about the velocity around startPos less radius along unit (vel+1) x vel), tiGetTransRotMatrix, tiGetDegFromVec, tiPart
 - 2026-11-11 19:45 `game/Clipping_Portal.c` partial: slice 13: the translucent-character and ghost passes (tiChara_Translucence_Start / End / Start2 / End2, host composite from a capture at the inverse FIX), tiXFa
-- 2026-11-11 19:35 `alyssapan/rendering/title_wide.cpp` done: the title at any aspect: ga frame scissored to the 4:3 box, CLAMP_1 REGION_REPEAT drawn as a repeat of its cell
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
