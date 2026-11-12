@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-11 19:54 at commit `eacf6e2` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-11 20:12 at commit `1932f38` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1181**; stubs: **241**
+- reconstructed CT3 functions: **1183**; stubs: **239**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -57,7 +57,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/AlignedNum.c` | 4 | 0 |
 | `src/game/ArtoolDebugOpen.c` | 15 | 0 |
 | `src/game/Character_Init.c` | 48 | 1 |
-| `src/game/Clipping_Portal.c` | 71 | 2 |
+| `src/game/Clipping_Portal.c` | 73 | 0 |
 | `src/game/Convert.c` | 0 | 2 |
 | `src/game/CpDivideEECom.c` | 0 | 10 |
 | `src/game/IOPGetFileSize.c` | 4 | 0 |
@@ -97,10 +97,9 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 64 TUs: todo 30, partial 5, verify 30, done 8, blocked 1
-- next: **game/Clipping_Portal.c** (pinned in the queue)
-- pinned queue: game/Clipping_Portal.c, alyssapan/rendering/ui_canvas.cpp, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
-- partial: `game/Clipping_Portal.c` 71/73 -- Smoke run unchanged (content warning screen at 4:3); none of the new code is on its path. callcheck MISSING on tiCalc_Leaf / _Leaf_WIND is the calls moved into 
+- 64 TUs: todo 30, partial 4, verify 31, done 8, blocked 1
+- next: **game/wideXcmd_DebugPrint.c** (pinned in the queue)
+- pinned queue: alyssapan/rendering/ui_canvas.cpp, game/wideXcmd_DebugPrint.c, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
 - partial: `game/tiXcmd_TransItem.c` 85/93 -- Slice 10. Written: tiXcmd_UseItem (ITEM_USE_* modes from argv[4], ITEM_KIND_* from the row byte +0: give-take, signal, heal Character[0].hp up to hpMax, calm vi
 - partial: `game/wideXcmd_DebugPrint.c` 107/109 -- Next slice: asCharacterMortionFunctionOperation (0x1578, VU0 and the per-character trigger chains: split it if needed) -- the last function of the TU. New stubs
 - partial: `game/wideXcmd_TriggerInit.c` 1/46 -- Title draws at 4:3 and 16:9 after 40 s (logo, 3, menu, copyright). Fix in SunTexEePtr, BankOfEeAddr, HitObjectId: free slot banks shared EE addresses with the G
@@ -118,6 +117,7 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/AlignedNum.c` 4/4 -- WaitLoop is split in Ghidra: WaitLoop 0x0189f650 plus WaitLoop_body 0x0189f680 (game-inferred), one C function. The j at 0x0189f718 belongs to the next object (
 - verify: `game/ArtoolDebugOpen.c` 15/15 -- Smoke run: FlInit prints no error, so the pack directory loads and sceCdSearchFile finds the pack; no run reads a file yet (main2 and fileio.c are stubs), the s
 - verify: `game/Character_Init.c` 48/49 -- All 49 functions written; nothing on screen reaches the card yet (main2 is a stub), shot black as before. The save image layout is in architecture.md (The save 
+- verify: `game/Clipping_Portal.c` 73/73 -- Smoke run unchanged (content warning screen at 4:3); no pendulum is on its path, so verify. callcheck lists the two entry points calls under the static HurikoSw
 - verify: `game/IOPGetFileSize.c` 4/4 -- All 4 functions written. No host server answers FSYS_IOP SUNA yet (sif.cpp answers zeros), so a loose file's size reads 0: a host FSYS_IOP server on io::Disc is
 - verify: `game/LinkMatrixTree.c` 4/4 -- Code complete, nothing on screen shows it yet: the smoke run still crashes at main.c 2106 (ActressMP NULL, the known blocker) and the shot stays black. LinkMatr
 - verify: `game/PicPaz.c` 9/10 -- The smoke run passes aaXcmd_MovieFedeOutCancel: both title movies start and are skipped; the shot stays flat grey since TITL draws nothing yet (title_trace.cpp 
@@ -138,6 +138,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-11 20:11 `game/Clipping_Portal.c` verify: slice 15: tiCalc_HurikoOPEN and tiCalc_HurikoCLOSED, one pendulum solver (pull to rest pose, normal drag, springs, accel clamp, damping, length constraint, caps
 - 2026-11-11 19:54 `game/Clipping_Portal.c` partial: slice 14: tiCalc_Leaf, tiCalc_Twist (turn about the velocity around startPos less radius along unit (vel+1) x vel), tiGetTransRotMatrix, tiGetDegFromVec, tiPart
 - 2026-11-11 19:45 `game/Clipping_Portal.c` partial: slice 13: the translucent-character and ghost passes (tiChara_Translucence_Start / End / Start2 / End2, host composite from a capture at the inverse FIX), tiXFa
 - 2026-11-11 19:35 `alyssapan/rendering/title_wide.cpp` done: the title at any aspect: ga frame scissored to the 4:3 box, CLAMP_1 REGION_REPEAT drawn as a repeat of its cell
@@ -145,7 +146,6 @@ Recent sessions:
 - 2026-11-11 18:57 `game/wideXcmd_TriggerInit.c` partial: ssXcmd_SetAllControlDisable (the title script waited on its stub after START); EE resolvers skip free banks so ATLD's textures bind: the title screen draws
 - 2026-11-11 18:37 `game/Clipping_Portal.c` partial: slice 11: the GS frame-buffer copies -- tiDrawShadingOff (the shade-off: 2^level capture stretched back, turned half-alpha copies), CaptureDBuffer, tiVRAMViewer
 - 2026-11-11 18:20 `game/Clipping_Portal.c` partial: slice 10: tiGenerateParticle and tiGetmatL2WFromMeshEmitter (ring emission: part or mesh-emitter start, jittered dir and scale, life, refractive index), tiLight
-- 2026-11-11 18:08 `game/Clipping_Portal.c` partial: slice 9: tiHurikoReset (rest pose back in the part frame), tiGetNewNormalData (pendulum vertex normals), tiGetCharaDirection, tiFreeBossData; HURIKO_JOINT norma
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
@@ -157,8 +157,8 @@ Recent sessions:
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/AA_GetDataWord.c` | todo | 0/8/15 | 4.9 | 21 | 2 |
 | `game/AA_SoundMonoSoart.c` | todo | 0/8/20 | 4.0 | 18 | 2 |
-| `game/asUseArrow.c` | todo | 0/7/11 | 6.4 | 17 | 1 |
 | `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
+| `game/asUseArrow.c` | todo | 0/7/11 | 6.4 | 17 | 1 |
 | `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
 | `game/tkXDTrg_GetSceneHash.c` | todo | 0/8/50 | 21.0 | 15 | 2 |
 
@@ -205,5 +205,5 @@ Recent sessions:
 | `018bff20` | AA_strFileOpen | 2 | sym | stub | game/AA_videoCallback.c |
 | `018d2120` | CpCall_IOPSndDriver_2 | 2 | sym | stub | game/CpDivideEECom.c |
 | `018d1e80` | CpCheckEE_IOPComEnd | 2 | sym | stub | game/CpDivideEECom.c |
-| `018915a0` | tiCalc_HurikoCLOSED | 2 | sym | stub | game/Clipping_Portal.c |
+| `018c0310` | AA_cpuCycles | 2 | sym | stub | game/AA_cpuCycles.c |
 

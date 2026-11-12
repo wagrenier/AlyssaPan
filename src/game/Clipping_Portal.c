@@ -1442,10 +1442,10 @@ void tiHurikoReset(int bank, HURIKO *h)
             for (n = 1; n < j->copies; n++) {
                 memcpy(HurikoRef(bank, j->posRef, n), p, sizeof t);
             }
-            j->swing40[0] = j->swing40[1] = j->swing40[2] = 0.0f; // sqc2 vf0: (0, 0, 0, 1)
-            j->swing40[3] = 1.0f;
-            j->swing50[0] = j->swing50[1] = j->swing50[2] = 0.0f;
-            j->swing50[3] = 1.0f;
+            j->vel[0] = j->vel[1] = j->vel[2] = 0.0f; // sqc2 vf0: (0, 0, 0, 1)
+            j->vel[3] = 1.0f;
+            j->step[0] = j->step[1] = j->step[2] = 0.0f;
+            j->step[3] = 1.0f;
         }
     }
 }
@@ -3118,22 +3118,237 @@ float tiGetDegFromVec(float *v, char axis)
     return 0.0f;
 }
 
-// stub of CT3 0x01892310
-void tiCalc_HurikoOPEN(HURIKO *h, int bank, int ticks)
+// ---- the pendulum swing (tiCalc_HurikoOPEN / _CLOSED, 2026-11-11 slice 15) ----
+
+static HURIKO_HIT *hFace[HURIKO_HITS_MAX];      /* sbss 0x0193d650 (local): this swing's live plane hits */
+static HURIKO_HIT *hCapsule[HURIKO_HITS_MAX];   /* sbss 0x0193d720 (local): ... its capsule hits */
+
+// p against the swing's live hits, capsules first; answers whether any pushed it out.
+static int HurikoHits(float *p, int bank, int nCapsule, int nFace)
 {
-    (void)h;
-    (void)bank;
-    (void)ticks;
-    ALYSSAPAN_STUB("tiCalc_HurikoOPEN", 0x01892310);
+    int hit = 0;
+    int i;
+
+    for (i = 0; i < nCapsule; i++) {
+        hit |= tiCheckHit_Capsule(p, hCapsule[i], bank) & 0xff;
+    }
+    for (i = 0; i < nFace; i++) {
+        hit |= tiCheckHit_Face(p, hFace[i]) & 0xff;
+    }
+    return hit;
 }
 
-// stub of CT3 0x018915a0
+// The spring toward one neighbour (HURIKO_FLAG_SPRINGS): acc += unit(other - p) * stiffness * (distance -
+// rest).
+static void HurikoSpring(float *acc, const float *p, const float *other, float rest, float stiffness)
+{
+    float d[4];
+    float len;
+    int e;
+
+    for (e = 0; e < 4; e++) {
+        d[e] = other[e] - p[e];
+    }
+    len = gaNormalizeVector3XYZ(d, d);
+    for (e = 0; e < 4; e++) {
+        acc[e] += d[e] * (stiffness * (len - rest));
+    }
+}
+
+// The seam between two chains' joints a and b (HURIKO_FLAG_SEAMS): their midpoint against the hits; when
+// it is pushed out, both joints move by the push.
+static void HurikoSeam(float *a, float *b, int bank, int nCapsule, int nFace)
+{
+    float mid[4], was[4];
+    int e;
+
+    gaInterVectorXYZ(mid, a, b, 0.5f);
+    memcpy(was, mid, sizeof was);
+    if (HurikoHits(mid, bank, nCapsule, nFace) == 0) {
+        return;
+    }
+    for (e = 0; e < 4; e++) {
+        float d = mid[e] - was[e];
+
+        b[e] += d;
+        a[e] += d;
+    }
+}
+
+// The two ROM functions are one solver; CLOSED links the last chain to the first (the side springs always
+// pull, and the seam between the last chain and chain 0 is tested first). Per step, with dt =
+// gGlobalNextTicksInterval / 5 (the ticks argument scales only the wind):
+//   - every master vertex into world space (the part's matrix200);
+//   - each non-root joint, chain by chain from the root down: the pull back to its rest pose (up + (0,-1,0)
+//     * length + matrix200 * restDir) times gravity * dt^2 / length, less the step's motion along the
+//     joint's world normal (wind-relative with HURIKO_FLAG_WIND) times drag / mass, less the step change /
+//     mass; the springs; the clamp; then p += vel + acc / 2, vel = (vel + acc) * damping, p put back at
+//     length from the joint above, and pushed out of the hits (a hit clears the velocity);
+//   - the seams; then the roots back to their local position and every other joint's world position kept
+//     in pos, its vertex (and copies) back into part space.
+static void HurikoSwing(HURIKO *h, int bank, int ticks, int closed)
+{
+    static const float down[4] = { 0.0f, HURIKO_REST_DOWN_Y, 0.0f, 0.0f }; /* @500 0x01938a00, @724 0x01938a10 */
+    float dt = gGlobalNextTicksInterval < 0 ? 0.0f : (float)gGlobalNextTicksInterval / 5.0f;
+    float pull = dt * dt * h->gravity;
+    float invMass = 1.0f / h->mass;
+    float drag = invMass * h->drag;
+    int nc = h->chains;
+    int nj = h->joints;
+    u_int flags = h->flags;
+    MODEL_PARTS *part = HurikoPart(bank, HurikoWord0(h));
+    float (*m)[4] = part->matrix200;
+    u_int *hits = BANK_PTR(u_int *, bank, h->hits);
+    float inv[4][4];
+    float wind[4] = { 0.0f, 0.0f, 0.0f, 1.0f }; // sqc2 vf0
+    int nFace = 0, nCapsule = 0;
+    float t[4];
+    int c, k, n, e;
+
+    gaInversMatrix(inv, m);
+    if (flags & HURIKO_FLAG_WIND) {
+        for (n = 0; n < WIND_MAX; n++) {
+            WIND *w = WindList[n];
+
+            if (w != NULL && ssTrigCheckEnable((u_short)w->part, w->bank) != 0 &&
+                (w->radius == 0.0f || tiCheckWindForce(m[3], w) != 0)) {
+                for (e = 0; e < 4; e++) {
+                    wind[e] += w->world10[e];
+                }
+            }
+        }
+        for (e = 0; e < 4; e++) {
+            wind[e] *= (float)ticks / 300.0f;
+        }
+    }
+    // the live hits (their part shown), planes and capsules apart
+    for (n = 0; hits != NULL && hits[n] != 0; n++) { // PORT: the ROM reads a 0 list at EE address 0
+        HURIKO_HIT *hit = BANK_PTR(HURIKO_HIT *, bank, hits[n]);
+
+        if (*BANK_PTR(u_int *, bank, hit->partFlags) & PARTS_FLAG_HIDDEN) {
+            continue;
+        }
+        if (hit->pairInA == 0) {
+            if (nFace < HURIKO_HITS_MAX) // PORT: the ROM does not bound its 50 slots
+                hFace[nFace++] = hit;
+        } else if (nCapsule < HURIKO_HITS_MAX) {
+            hCapsule[nCapsule++] = hit;
+        }
+    }
+    // every master vertex into world space
+    for (n = 0; n < nc * nj; n++) {
+        float *p = HurikoRef(bank, HurikoJointAt(bank, h, n / nj, n % nj)->posRef, 0);
+
+        PortApplyMatrix(t, m, p);
+        memcpy(p, t, sizeof t);
+    }
+    for (c = 0; c < nc; c++) {
+        for (k = 1; k < nj; k++) {
+            HURIKO_JOINT *j = HurikoJointAt(bank, h, c, k);
+            float *p = HurikoRef(bank, j->posRef, 0);
+            const float *up = BANK_PTR(const float *, bank, j->up);
+            float len = j->length;
+            float nrm[4], rest[4], move[4], change[4], rel[4], acc[4], d[4];
+            float along;
+
+            PortApplyMatrix(nrm, m, HurikoRef(bank, j->normalRef, 0));
+            PortApplyMatrix(rest, m, j->restDir);
+            for (e = 0; e < 4; e++) {
+                float target = up[e] + (down[e] * len + rest[e]);
+
+                acc[e] = (p[e] - target) * (pull / len);
+                move[e] = p[e] - j->pos[e];
+                change[e] = move[e] - j->step[e];
+                rel[e] = move[e] - wind[e];
+            }
+            along = gaInnerProductXYZ((flags & HURIKO_FLAG_WIND) ? rel : move, nrm);
+            for (e = 0; e < 4; e++) {
+                acc[e] = (acc[e] - nrm[e] * (drag * along)) - change[e] * invMass;
+            }
+            memcpy(j->step, move, sizeof move);
+            if (flags & HURIKO_FLAG_SPRINGS) {
+                HurikoSpring(acc, p, up, len, h->stiffness);
+                if (k != nj - 1) {
+                    HurikoSpring(acc, p, BANK_PTR(const float *, bank, j->down), j->downLen, h->stiffness);
+                }
+                if (closed || c != 0) {
+                    HurikoSpring(acc, p, BANK_PTR(const float *, bank, j->left), j->leftLen, h->stiffness);
+                }
+                if (closed || c != nc - 1) {
+                    HurikoSpring(acc, p, BANK_PTR(const float *, bank, j->right), j->rightLen, h->stiffness);
+                }
+            }
+            if (h->maxAccel > 0.0f) {
+                float q = 1.0f / sqrtf(acc[0] * acc[0] + acc[1] * acc[1] + acc[2] * acc[2]);
+
+                if (h->maxAccel < 1.0f / q) {
+                    for (e = 0; e < 4; e++) {
+                        acc[e] = acc[e] * q * h->maxAccel;
+                    }
+                }
+            }
+            for (e = 0; e < 4; e++) {
+                p[e] = (p[e] + j->vel[e]) + acc[e] * 0.5f;
+                j->vel[e] = (j->vel[e] + acc[e]) * h->damping;
+                d[e] = p[e] - up[e];
+            }
+            gaNormalizeVectorXYZ(d, d);
+            for (e = 0; e < 4; e++) {
+                p[e] = up[e] + d[e] * len;
+            }
+            j->hit = HurikoHits(p, bank, nCapsule, nFace);
+            if (j->hit != 0) {
+                j->vel[0] = j->vel[1] = j->vel[2] = 0.0f; // sqc2 vf0
+                j->vel[3] = 1.0f;
+            }
+        }
+    }
+    if (flags & HURIKO_FLAG_SEAMS) {
+        if (closed) {
+            for (k = 1; k < nj; k++) {
+                HurikoSeam(HurikoRef(bank, HurikoJointAt(bank, h, nc - 1, k)->posRef, 0),
+                           HurikoRef(bank, HurikoJointAt(bank, h, 0, k)->posRef, 0), bank, nCapsule, nFace);
+            }
+        }
+        for (k = 1; k < nj; k++) {
+            for (c = 1; c < nc; c++) {
+                HurikoSeam(HurikoRef(bank, HurikoJointAt(bank, h, c - 1, k)->posRef, 0),
+                           HurikoRef(bank, HurikoJointAt(bank, h, c, k)->posRef, 0), bank, nCapsule, nFace);
+            }
+        }
+    }
+    // the roots back to their local position; the others keep their world position and go back to part space
+    for (c = 0; c < nc; c++) {
+        HURIKO_JOINT *root = HurikoJointAt(bank, h, c, 0);
+
+        memcpy(HurikoRef(bank, root->posRef, 0), root->pos, sizeof root->pos);
+        for (k = 1; k < nj; k++) {
+            HURIKO_JOINT *j = HurikoJointAt(bank, h, c, k);
+            float *p = HurikoRef(bank, j->posRef, 0);
+
+            memcpy(j->pos, p, sizeof j->pos);
+            PortApplyMatrix(t, inv, p);
+            memcpy(p, t, sizeof t);
+            for (n = 1; n < j->copies; n++) {
+                memcpy(HurikoRef(bank, j->posRef, n), p, sizeof t);
+            }
+        }
+    }
+}
+
+// CT3 0x01892310: tiHurikoUpdate -- swing an open pendulum (a curtain: the first and last chains have one
+// side neighbour each).
+void tiCalc_HurikoOPEN(HURIKO *h, int bank, int ticks)
+{
+    HurikoSwing(h, bank, ticks, 0);
+    // callcheck: gaInversMatrix, ssTrigCheckEnable, tiCheckWindForce, gaInnerProductXYZ, gaNormalizeVector3XYZ, gaNormalizeVectorXYZ, tiCheckHit_Capsule, tiCheckHit_Face, gaInterVectorXYZ (HurikoSwing makes them)
+}
+
+// CT3 0x018915a0: tiHurikoUpdate -- swing a closed pendulum (a skirt: the last chain links to the first).
 void tiCalc_HurikoCLOSED(HURIKO *h, int bank, int ticks)
 {
-    (void)h;
-    (void)bank;
-    (void)ticks;
-    ALYSSAPAN_STUB("tiCalc_HurikoCLOSED", 0x018915a0);
+    HurikoSwing(h, bank, ticks, 1);
+    // callcheck: gaInversMatrix, ssTrigCheckEnable, tiCheckWindForce, gaInnerProductXYZ, gaNormalizeVector3XYZ, gaNormalizeVectorXYZ, tiCheckHit_Capsule, tiCheckHit_Face, gaInterVectorXYZ (HurikoSwing makes them)
 }
 
 // CT3 0x0188c6e0: ORBIT_TRANS_WIND: tiCalc_Trans with the winds added to the acceleration -- each live

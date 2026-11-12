@@ -81,8 +81,8 @@ static_assert(offsetof(LIGHT_BELT2_VERT, width0) == 0x10, "LIGHT_BELT2_VERT.widt
 #define PARTS_FLAG43_BELT (PARTS_FLAG43_WARPED | PARTS_FLAG43_TRANS)   /* a two-part belt sets both (3) on its parts */
 
 // ---- pendulums (huriko; tiHurikoUpdate, 2026-11-11 slice 3) ----
-// A bank's pendulums (ALL_TABLE.huriko, a 0-ended list of EE words). layout: ee -- bank data; only the
-// trigger part and the flags are read so far (tiCalc_HurikoOPEN / _CLOSED, tiHurikoReset name the rest).
+// A bank's pendulums (ALL_TABLE.huriko, a 0-ended list of EE words). layout: ee -- bank data; the swing
+// parameters named from tiCalc_HurikoOPEN / _CLOSED (2026-11-11 slice 15).
 typedef struct HURIKO {
     short trigPart;                     /* 0x00: ssTrigCheckEnable's part: the pendulum swings while enabled;
                                            tiHurikoInit reads the word as its model part (the high half 0),
@@ -90,14 +90,21 @@ typedef struct HURIKO {
     u_char pad02[2];
     u_short chains;                     /* 0x04: chains of joints (tiHurikoInit) */
     u_short joints;                     /* 0x06: joints per chain, the root first */
-    u_char pad08[8];
+    float drag;                         /* 0x08: / mass: the step's motion along the joint's normal is damped */
+    float mass;                         /* 0x0c: the step change (this step less the last) is taken back / mass */
     u_int jointTable;                   /* 0x10: EE word -> u_int[chains * joints]: HURIKO_JOINT EE words,
                                            chain-major */
-    u_char pad14[4];
+    u_int hits;                         /* 0x14: EE word -> a 0-ended list of HURIKO_HIT EE words */
     u_int flags;                        /* 0x18: HURIKO_FLAG_* */
+    float gravity;                      /* 0x1c: times dt^2 / length: the pull back to the rest pose */
+    float stiffness;                    /* 0x20: HURIKO_FLAG_SPRINGS: the springs to the four neighbours */
+    float damping;                      /* 0x24: the velocity is scaled by it each step */
+    float maxAccel;                     /* 0x28: > 0: a step's acceleration is clamped to it */
 } HURIKO;
-static_assert(offsetof(HURIKO, chains) == 0x04, "HURIKO.chains");
-static_assert(offsetof(HURIKO, jointTable) == 0x10, "HURIKO.jointTable");
+static_assert(offsetof(HURIKO, drag) == 0x08, "HURIKO.drag");
+static_assert(offsetof(HURIKO, hits) == 0x14, "HURIKO.hits");
+static_assert(offsetof(HURIKO, gravity) == 0x1c, "HURIKO.gravity");
+static_assert(offsetof(HURIKO, maxAccel) == 0x28, "HURIKO.maxAccel");
 static_assert(offsetof(HURIKO, flags) == 0x18, "HURIKO.flags");
 
 // One joint of a pendulum chain (tiHurikoInit, 2026-11-11 slice 4). layout: ee -- bank data.
@@ -108,22 +115,29 @@ typedef struct HURIKO_JOINT {
                                            (tiGetNewNormalData writes [0], copies it to the rest) */
     int copies;                         /* 0x08: the vertex's copies (posRef / normalRef entries) */
     float length;                       /* 0x0c: the rest offset from the joint above, straight down */
-    u_char pad10[0x10];
+    float downLen;                      /* 0x10: the spring to the joint below: its rest length */
+    float leftLen;                      /* 0x14: ... to the previous chain's */
+    float rightLen;                     /* 0x18: ... to the next chain's */
+    int hit;                            /* 0x1c: the last step pushed it out of a hit (velocity cleared) */
     u_int up;                           /* 0x20: EE address of the joint above's position (k >= 1) */
     u_int down;                         /* 0x24: ... of the joint below's (not set on the last joint) */
     u_int left;                         /* 0x28: ... of the same joint in the previous chain (cyclic) */
     u_int right;                        /* 0x2c: ... in the next chain (cyclic) */
     float restDir[4];                   /* 0x30: part-local: world pos - (up's world pos + (0,-1,0) * length),
                                            w 0 (k >= 1) */
-    float swing40[4];                   /* 0x40: tiHurikoReset sets (0, 0, 0, 1) (VU0 vf0); the swing's,
-                                           read by tiCalc_HurikoOPEN / _CLOSED (not yet) */
-    float swing50[4];                   /* 0x50: ... the same */
+    float vel[4];                       /* 0x40: the swing's velocity (world); tiHurikoReset and a hit set
+                                           (0, 0, 0, 1) (VU0 vf0) */
+    float step[4];                      /* 0x50: the last step's motion (world position - pos); tiHurikoReset
+                                           sets (0, 0, 0, 1) */
     float pos[4];                       /* 0x60: k >= 1: the world position's xyz; the root: its local
                                            position (all four words) */
 } HURIKO_JOINT;
 static_assert(offsetof(HURIKO_JOINT, copies) == 0x08, "HURIKO_JOINT.copies");
 static_assert(offsetof(HURIKO_JOINT, length) == 0x0c, "HURIKO_JOINT.length");
-static_assert(offsetof(HURIKO_JOINT, swing40) == 0x40, "HURIKO_JOINT.swing40");
+static_assert(offsetof(HURIKO_JOINT, downLen) == 0x10, "HURIKO_JOINT.downLen");
+static_assert(offsetof(HURIKO_JOINT, hit) == 0x1c, "HURIKO_JOINT.hit");
+static_assert(offsetof(HURIKO_JOINT, vel) == 0x40, "HURIKO_JOINT.vel");
+static_assert(offsetof(HURIKO_JOINT, step) == 0x50, "HURIKO_JOINT.step");
 static_assert(offsetof(HURIKO_JOINT, up) == 0x20, "HURIKO_JOINT.up");
 static_assert(offsetof(HURIKO_JOINT, restDir) == 0x30, "HURIKO_JOINT.restDir");
 static_assert(offsetof(HURIKO_JOINT, pos) == 0x60, "HURIKO_JOINT.pos");
@@ -152,9 +166,14 @@ static_assert(sizeof(HURIKO_HIT) == 0x40, "HURIKO_HIT");
 // when inside. PORT: the capsule takes the bank (its radius is behind the a word).
 int tiCheckHit_Face(float *p, HURIKO_HIT *hit);                                          // CT3 0x01890f30
 int tiCheckHit_Capsule(float *p, HURIKO_HIT *hit, int bank);                             // CT3 0x01890fe0
-#define HURIKO_FLAG_CLOSED 0x1          /* tiCalc_HurikoCLOSED swings it, else tiCalc_HurikoOPEN */
+#define HURIKO_FLAG_CLOSED 0x1          /* tiCalc_HurikoCLOSED swings it (the last chain links to the first),
+                                           else tiCalc_HurikoOPEN */
+#define HURIKO_FLAG_SPRINGS 0x2         /* springs to the joints above, below and beside (stiffness) */
 #define HURIKO_FLAG_DISABLED 0x4        /* its trigger was off (set each frame it is off) */
 #define HURIKO_FLAG_RESET 0x8           /* re-enabled: tiHurikoReset on the next enabled frame */
+#define HURIKO_FLAG_SEAMS 0x10          /* the midpoints between neighbouring chains are hit-tested too */
+#define HURIKO_FLAG_WIND 0x80000000u    /* the live winds blow on it */
+#define HURIKO_HITS_MAX 50              /* hFace / hCapsule: 200 bytes each (symtab) */
 
 // ---- lens flares (tiLensFlaresInit, 2026-11-11 slice 7) ----
 // A bank's lens flares (ALL_TABLE.lensFlares, a 0-ended list of EE words). layout: ee -- bank data; every

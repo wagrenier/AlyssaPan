@@ -1426,7 +1426,17 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    Clipping_Portal.c and host pointers in the prototype: ssCalcParticleOrbit's TU (the first particle
    system) owns that layout and decides; its first argument is the system header, whose first quad is the
    acceleration; (la) vecOne (sdata 0x01939e80, (1, 1, 1, 1)) is now defined in unassigned_data.cpp.
-   Left: tiCalc_HurikoCLOSED (0xd20), tiCalc_HurikoOPEN (0xbc4) -- the TU's last stubs.
+   ~~Left: tiCalc_HurikoCLOSED (0xd20), tiCalc_HurikoOPEN (0xbc4)~~ written 2026-11-11 (slice 15): **the
+   TU's code is complete (verify: no smoke run reaches a pendulum yet)**. Open from slice 15: (lb) the two
+   ROM functions are one static solver (HurikoSwing, closed flag), so callcheck lists their calls under
+   the helper -- explained; (lc) HURIKO drag / mass / gravity / stiffness / damping / maxAccel (+0x08 /
+   +0x0c / +0x1c..+0x28), hits (+0x14), HURIKO_FLAG_SPRINGS (2) / _SEAMS (0x10) / _WIND (0x80000000) and
+   HURIKO_JOINT downLen / leftLen / rightLen / hit / vel / step are named from this reader only, by what
+   the arithmetic does: the bank data's real values (a skirt or curtain in a stage bank) should confirm
+   them; (ld) dt is always gGlobalNextTicksInterval / 5 (the ticks argument, gNextTicksInterval for
+   character banks, scales only the wind), as the ROM does -- a paused character's cloth still swings by
+   the global clock; (le) hFace / hCapsule (50 slots each) are bounded on the host (PORT), the ROM is not;
+   (lf) the max-accel clamp's length is taken from xyz (the vaddbc pair's lanes read as the usual sum).
 
 8. **(2026-11-11, the user: "queue the title blockers") The way to the title screen.** A probe run
    (16:25, reverted: every stubbed x command answering XCMD_DONE, AA_movie returning at once) showed the

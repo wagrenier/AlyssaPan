@@ -1,6 +1,5 @@
 {
  "queue": [
-  "game/Clipping_Portal.c",
   "alyssapan/rendering/ui_canvas.cpp",
   "game/wideXcmd_DebugPrint.c",
   "game/tkXDTrg_GetSceneHash.c",
@@ -501,7 +500,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 105..105, 36 functions keyed by their statics, 13 unkeyed; file name from the names"
   },
   "game/Clipping_Portal.c": {
-   "notes": "Smoke run unchanged (content warning screen at 4:3); none of the new code is on its path. callcheck MISSING on tiCalc_Leaf / _Leaf_WIND is the calls moved into the static helpers LeafFace / LeafStepTurn. Open: open-items 7 ky (PARTICLE2_TWIST runs past 0x80), kz (PTCL_* record layout owned by ssCalcParticleOrbit). Next: tiCalc_HurikoCLOSED (0xd20) and tiCalc_HurikoOPEN (0xbc4), the TU's last stubs.",
+   "notes": "Smoke run unchanged (content warning screen at 4:3); no pendulum is on its path, so verify. callcheck lists the two entry points calls under the static HurikoSwing: explained. Open: open-items 7 lb..lf (field names from this reader only, dt from the global clock, host bound on the 50 hit slots). Next: the queue (tus.py next).",
    "ranges": [
     [
      "01889cd0",
@@ -509,11 +508,6 @@
     ]
    ],
    "sessions": [
-    {
-     "date": "2026-11-11 15:12",
-     "status": "partial",
-     "summary": "slice 3: tiParticleUpdate, tiCalc_LifeSpan, tiHurikoUpdate, gaNormalizeVectorXYZ, tiSet_CharaTranslucenceOFF; HURIKO, ALL_TABLE.huriko, PARTICLE2.life / age, BANK_TYPE_BEHAVIOR; six helper stubs"
-    },
     {
      "date": "2026-11-11 15:31",
      "status": "partial",
@@ -568,9 +562,14 @@
      "date": "2026-11-11 19:54",
      "status": "partial",
      "summary": "slice 14: tiCalc_Leaf, tiCalc_Twist (turn about the velocity around startPos less radius along unit (vel+1) x vel), tiGetTransRotMatrix, tiGetDegFromVec, tiParticleSetPosition_WIND; leaf face and step/turn shared with _Leaf_WIND; PARTICLE2_TWIST; vecOne"
+    },
+    {
+     "date": "2026-11-11 20:11",
+     "status": "verify",
+     "summary": "slice 15: tiCalc_HurikoOPEN and tiCalc_HurikoCLOSED, one pendulum solver (pull to rest pose, normal drag, springs, accel clamp, damping, length constraint, capsule and plane hits, chain seams; CLOSED links last chain to first); HURIKO swing parameters and HURIKO_JOINT spring lengths, vel, step named; hFace and hCapsule; the TU has no stubs left"
     }
    ],
-   "status": "partial",
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 88..88, 21 functions keyed by their statics, 52 unkeyed; file name from the names"
   },
   "game/Convert.c": {
