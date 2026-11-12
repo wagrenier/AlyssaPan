@@ -1710,3 +1710,34 @@ The auto-load at boot (MemorycardAutoLoad, xcmd_tn.c) has its own states (mcMain
   with the size from that picture (w_image_w / _h, which AA_ReTagSet reuses).
 - sceMpegGetPicture's room is 0x400 macroblocks (512 x 512); sceMpegSetDecodeMode(-1, -1, 0) drops B
   pictures while AA_shouldSkip says the video lags, (-1, -1, -1) restores them.
+
+## The movie's audio decoder, game/AA_SoundMonoSoart.c (2026-11-12)
+
+- The object is SCE's ezmpegstr **audiodec.c**, AA_-prefixed where movie.c / copy2area.c call it, plus
+  two CT3 additions. Its symtab run (local chunk 106) holds `_0_buf` (bss 0x01a41a80, 0x800, the silence
+  the create sends to iopZero) and `@472` ("Cannot allocate IOP memory\n"): one object, 0x018bb610..0x018bc690.
+- AudioDec (0x7c): state 0 (0 header, 1 preset, 2 playing, 3 pause), SShd 0x04 + SSbd 0x24 (the 40-byte
+  header the put fills first), hdrCount 0x2c, then the EE ring: data 0x30, put 0x34, count 0x38, size
+  0x3c, totalBytes 0x40; **CT3's stamp rings**: EE ring stamps 0x44 (ptr, size 0x48, count 0x4c, put
+  0x50) and IOP ring stamps 0x54..0x60, each record {pts u_long, pos, len} (16 bytes); then ezmpegstr's
+  IOP side: iopBuff 0x64, iopBuffSize 0x68, iopLastPos 0x6c, iopPausePos 0x70, totalBytesSent 0x74,
+  iopZero 0x78. audioDecInit (once, AA_MovieIOPInit) takes iopBuff and iopZero with
+  sceSifAllocSysMemory(0, ..); AA_audioDecDelete frees nothing (returns 1).
+- **The audio clock**: AA_audioDecEndPut stamps the bytes it puts with the packet's pts (split at the
+  ring's wrap); sendToIOP carries the stamps of the bytes it DMAs over to the IOP ring; every
+  AA_audioDecSendToIOP reads the SPU2's play address (sdrdrv 0x8100) and hands
+  AA_syncClockInAudio(stamp.pts + (pos - stamp.pos) * 0.46875) -- 90 kHz ticks per byte of 48 kHz
+  stereo 16-bit. In the preset state the position is 0. (iopGetArea never writes v0: the play position
+  reaches the lookup through it, which is why Ghidra shows iopGetArea "returning" it.)
+- **Mono** (AA_SOUND_MODE != 0, the options' monaural): sendToIOP first copies each 0x400-byte unit's left
+  half over its right (AA_MonSoart / AA_SoundMonoSoart), in the EE ring itself.
+- sdrdrv calls: 0x8010 SetParam (core 0 BVOLL / BVOLR: changeInputVolume), 0x80e0 BlockTrans (start mode
+  0x13 from iopBuff + iopPausePos, ring size rounded down to units; stop mode 2 answers the address),
+  0x80d0 VoiceTrans (the pause writes iopZero's 0x800 bytes to SPU 0x4000, core 0's input area), 0x8100
+  BlockTransStatus, 0x8180 (Ass_StopIopDataTrans(0) after each movie: sceSdStopTrans by its place in the
+  table, open-items.md (hk)). The resume's volume is BGM_MASTER_VOLUME_BUFF (0..20) * 0x666, at most 0x7fff;
+  AA_audioDecStart is a one-instruction jump to AA_audioDecResume.
+- ROM quirks kept or guarded: sendToIOP's slot-0 case reads stamp record eeTsCount - 1 (past the ring once
+  the count outgrows it: the port reads it only inside the ring); the middle-stamp loop steps modulo the
+  IOP ring's size and audioDecCreate clears the IOP ring for the EE ring's count (both rings are 0x40, so
+  neither matters).

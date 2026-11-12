@@ -11,3 +11,5 @@ u_int AA_cpuCycles(void);                                                       
 int AA_syncGetSkew(void);                                                                // CT3 0x018c0320
 // The display tells the clock which picture went out (AA_vblankHandler: the even field of `pts`).
 void AA_syncClockInVideo(u_long pts);                                                    // CT3 0x018c03c0
+// The sound tells the clock the pts it plays (AA_audioDecSendToIOP, from the IOP ring's stamps).
+void AA_syncClockInAudio(u_long pts);                                                    // CT3 0x018c0400

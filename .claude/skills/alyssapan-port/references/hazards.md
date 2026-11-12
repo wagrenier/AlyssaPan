@@ -7,6 +7,11 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-12, AA_SoundMonoSoart.c) **A value Ghidra shows as a void function's "return" can be the
+  caller's own**: AA_audioDecSendToIOP sets v0 = the play position, calls iopGetArea (which never writes
+  v0), and uses v0 after; Ghidra reads it as iopGetArea's answer. Before trusting a return from a callee
+  the decompiler calls void, `mipsdis.py` the callee and grep it for v0.
+
 - (2026-11-12, AA_mpegTS.c) **An 8-byte function that decompiles to a whole body is a tail jump**:
   Ghidra shows `j callee; addiu a0,a0,0x48` (AA_videoDecBeginPut -> AA_viBufBeginPut) with the callee
   inlined, semaphores and all. callcheck flags it (missing the callee, extra WaitSema): read any

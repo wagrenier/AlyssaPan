@@ -393,12 +393,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 107..107, 4 functions keyed by their statics, 9 unkeyed; file name from the names"
   },
   "game/AA_SoundMonoSoart.c": {
+   "notes": "verify: smoke runs skip movies, so no audio path runs; the 30 s run still reaches the title screen. callcheck lists fptodp / dpmul / __fixdfdi missing: the soft-float helpers are folded into AA_bytesToPts. Doubts (hk) 0x8180 read as sceSdStopTrans, (hl) the 24-bit status mask dropped on the host, (hm) core 0 auto-DMA mixing unproven, (hn) BeginPut / EndPut declared from this side; see open-items.md.",
    "ranges": [
     [
      "018bb610",
      "018bc690"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-12 10:36",
+     "status": "verify",
+     "summary": "all 20 functions: ezmpegstr audiodec.c with CT3's EE / IOP time-stamp rings (the audio clock via AA_syncClockInAudio) and the monaural mode; new sceSdRemote shim (sdk/sif.cpp) on the host libsd"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 106..106, 14 functions keyed by their statics, 6 unkeyed; file name from the names"
   },
   "game/AA_cpuCycles.c": {

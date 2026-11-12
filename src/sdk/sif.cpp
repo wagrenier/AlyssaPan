@@ -12,11 +12,13 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <cstdarg>
 #include <cctype>
 #include <mutex>
 #include <string_view>
 #include <thread>
 
+#include "libsd.h"
 #include "sdremote.h"
 #include "sif.h"
 #include "sifcmd.h"
@@ -205,6 +207,67 @@ int sceSifFreeIopHeap(void *addr)
 int sceSdRemoteInit(void)
 {
     return 0;
+}
+
+// sdremote's call (sdk/sdremote.h): sdrdrv's RPC becomes the libsd call itself (sdk/iop.cpp), on the
+// caller's thread, as RosePan's libsdr does. `wait` 0 would post it; nothing in CT3 does.
+int sceSdRemote(int wait, int fno, ...)
+{
+    (void)wait;
+    auto iopPtr = [](int a) { return reinterpret_cast<u_char *>(static_cast<std::uintptr_t>(static_cast<u_int>(a))); };
+    std::va_list ap;
+    va_start(ap, fno);
+    int ret = 0;
+    switch (fno)
+    {
+    case SDR_SET_PARAM: {
+        const int entry = va_arg(ap, int);
+        const int value = va_arg(ap, int);
+        sceSdSetParam(static_cast<u_short>(entry), static_cast<u_short>(value));
+        break;
+    }
+    case SDR_VOICE_TRANS: {
+        const int chan = va_arg(ap, int);
+        const int mode = va_arg(ap, int);
+        const int iop = va_arg(ap, int);
+        const int spu = va_arg(ap, int);
+        const int size = va_arg(ap, int);
+        ret = sceSdVoiceTrans(static_cast<short>(chan), static_cast<u_int>(mode), iopPtr(iop), static_cast<u_int>(spu),
+                              static_cast<u_int>(size));
+        break;
+    }
+    case SDR_BLOCK_TRANS: {
+        const int chan = va_arg(ap, int);
+        const int mode = va_arg(ap, int);
+        const int iop = va_arg(ap, int);
+        const int size = va_arg(ap, int);
+        // The pause passes four arguments, the resume five: the fifth exists only for the CONT mode.
+        const int start = mode == SD_BLOCK_TRANS_CONT ? va_arg(ap, int) : 0;
+        ret = sceSdBlockTrans(static_cast<short>(chan), static_cast<u_short>(mode), iopPtr(iop), static_cast<u_int>(size),
+                              static_cast<u_int>(start));
+        break;
+    }
+    case SDR_BLOCK_TRANS_STATUS: {
+        // The movie passes the channel alone: flag 0, the play address.
+        const int chan = va_arg(ap, int);
+        ret = sceSdBlockTransStatus(static_cast<short>(chan), 0);
+        break;
+    }
+    case SDR_STOP_TRANS: {
+        // Voice transfers end at once on the host: only the channel's auto-DMA has something to stop.
+        const int chan = va_arg(ap, int);
+        sceSdBlockTrans(static_cast<short>(chan), SD_BLOCK_TRANS_STAT, nullptr, 0, 0);
+        break;
+    }
+    default: {
+        static std::atomic<int> reported{0};
+        if (reported.fetch_add(1) < 8)
+            alyssapan::log::warning("sceSdRemote: function 0x{:x} not wired", fno);
+        break;
+    }
+    }
+    va_end(ap);
+    return ret;
 }
 
 // sdremote's EE -> IOP copy (sdk/sdremote.h): the ROM's SIF DMA, done at once.

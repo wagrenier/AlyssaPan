@@ -946,6 +946,22 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    no room). **Next for the movie: AA_viBuf.c** (the ring: on the host the IPU DMA has no meaning; feed
    MpegStream and free room by AlyssaPanMpegVideoPending), AA_scTag2.c (with (hf)), AA_videoCallback.c,
    AA_cpuCycles.c, then a run with movies on.
+   **game/AA_SoundMonoSoart.c (2026-11-12, verify: no smoke run plays a movie): all 20 written**
+   (ezmpegstr's audiodec.c with CT3's stamp rings and mono; architecture.md "The movie's audio decoder").
+   New host piece: **sceSdRemote** (sdk/sif.cpp, RosePan's libsdr shape: SetParam, VoiceTrans,
+   BlockTrans, BlockTransStatus, 0x8180 as a stop of the channel's auto-DMA) -- part of item 2 (e).
+   AudioDec is layout: host (data and the stamp rings host pointers; iopBuff / iopZero IOP addresses in
+   u_ints). AA_audioDecStart / Reset / Resume / Pause / BeginPut / EndPut are now void as in the ROM.
+   Claude's calls and doubts (the user may overrule): (hk) sdrdrv 0x8180 is read as sceSdStopTrans from
+   its place after SetSpu2IntrHandler (0x8170) and the caller's name; no sdrdrv table was read to prove it;
+   (hl) the ROM masks the SPU2 status to 24 bits before taking iopBuff off it (the pause and the send);
+   the host's IOP addresses sit above 0x10000000 and its status carries no flags, so the port drops the
+   mask; (hm) the auto-DMA here is core 0 (input area 0x4000), where RXSNDDRV-era code used core 1:
+   when a movie first plays with sound, check that alyssapan/iop/spu2_voices mixes core 0's input at
+   BVOL; (hn) AA_audioDecBeginPut / EndPut (copy2area.c's callers, not written) are declared from this
+   side: EndPut's third argument is the packet's 64-bit pts. **Next for the movie: AA_viBuf.c,
+   AA_scTag2.c, AA_videoCallback.c / copy2area.c, AA_cpuCycles.c (now also AA_syncClockInAudio), then a run
+   with movies on.**
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
    class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~

@@ -25,3 +25,9 @@ void AA_syncClockInVideo(u_long pts)
 {
     ALYSSAPAN_STUB("AA_syncClockInVideo", 0x018c03c0);
 }
+
+// stub of CT3 0x018c0400
+void AA_syncClockInAudio(u_long pts)
+{
+    ALYSSAPAN_STUB("AA_syncClockInAudio", 0x018c0400);
+}
