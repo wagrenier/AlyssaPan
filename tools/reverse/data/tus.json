@@ -1401,7 +1401,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 89..89, 13 functions keyed by their statics, 83 unkeyed; file name from the names"
   },
   "game/tiAvoidObject.c": {
-   "notes": "Next: ssAI_main and charaMain, CompCharaDir, SetPanicGaugeAndBGMVol, the motion predicates (IsBend, IsDown, IsDamage, IsReturn, IsRotation), the hearing, hide and door checks, SetMonsterPos, LetMonsterInFromShadow, PanicSet, then BrainEnd, MonsterDraw, AxeThrowReset. Open: open-items.md tiAvoidObject.c slice 2 (e) HIDE_POLE +0x4a is the part index, (g) the group portal matrix word at MODEL_PARTS +0xcc resolved in the scene bank. Smoke shot: the same clock-tower title scene; SceneInit runs without a crash, nothing in this slice draws.",
+   "notes": "Next: ssAI_BrainEndSpecialProc (0x01864950, stub), SetMonsterPos, LetMonsterInFromShadow, AxeThrowReset, tiAvoidObject, then the rest. Open: open-items.md tiAvoidObject.c slice 3 (h) brain field names, (j) motion kind 1 and 3 versus the stair kinds, (k) CHARACTER.lightBank looks like the room bank, (l) event 0x49 is probably Alyssa down in general. callcheck: CompCharaDir lacks dpdiv, dpmul, dptoli (the C double arithmetic) and BrainEnd lacks ssGetBankID (in the static helper ssAI_ParkBank): explained. Smoke shot: the same clock-tower title scene; ssAI_main runs every frame without a crash, no stalker is active at the title.",
    "ranges": [
     [
      "0185e9d0",
@@ -1418,6 +1418,11 @@
      "date": "2026-11-12 06:31",
      "status": "partial",
      "summary": "slice 2: the hide poles and the scene init (10 functions): ssAI_SceneInit, TransAllPoleData, GetPolePos, GetPoleGroupID, GetPoleScnName, GetPoleScnBnkID, GetShadowPolID, GetPairScnLinkPoleID, CheckPoleFlg, IsGetShadowPol; HIDE_POLE moved to tiAvoidObject.h and filled in"
+    },
+    {
+     "date": "2026-11-12 06:58",
+     "status": "partial",
+     "summary": "slice 3: 17 functions -- ssAI_main, ssAI_charaMain with the 13 mode tables (64 brain functions declared and stubbed in the three brain TUs), CompCharaDir, SetPanicGaugeAndBGMVol, PanicSet, the hearing, hide-attack and door checks, the bend, down, return, damage and rotation predicates, BrainEnd, MonsterDraw"
     }
    ],
    "status": "partial",

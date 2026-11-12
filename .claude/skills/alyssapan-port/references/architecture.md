@@ -1575,3 +1575,23 @@ The auto-load at boot (MemorycardAutoLoad, xcmd_tn.c) has its own states (mcMain
   objects the key's sub-records name (ANIM_SUBKEY +0x10), and for COPY tracks a word of ALL_TABLE +0x30
   stored through each grouped sun object record's word 2. The packed keys' `_nw` writers skip a vertex
   whose first short is -0x8000 (or whose w is 0): BEHAVIOR_TRACK.length bit 0x2000000.
+
+## The stalkers' AI, game/tiAvoidObject.c (2026-11-12, slices 1..3)
+
+- Each frame main calls `ssAI_main`: for the nine stalker slots (`ssAtkCharaList2`), a character with a
+  brain (CHARACTER.brain, a handle into CharaBrainHost) runs `ssAI_charaMain` unless TRG_CHAR_STOP_CHAR
+  holds the characters; then the panic rise and the brain's tick count; then the appearance timer.
+- A brain is a 0x280-byte block whose first byte is its mode (SS_AI_SEARCH, _APPROACH, _TRACE, _ATTACK,
+  _RETURN, _HIDE_ATK; 0xff halted). `ssAI_charaMain` calls three function tables, each entry picked by a
+  byte of the brain: the damage handler (`ssAI_DamageMode[brain +0x231]`, non-zero = it took the frame),
+  the mode's function (`ssAI_<Mode>Mode[brain +0x232 + mode]`), then the mode's change function
+  (`ssAI_Chg<Mode>Mode[brain +0x238 + mode]`). The tables (data 0x01938430..0x01938574) hold the brains of
+  ssBrain_ChgHideAtk1.c (the plain stalkers, entry 0), tiBrain_ChgTrace_Ghost.c (the ghosts) and
+  tiBrain_ChgTrace_BOSS_BALOWS.c (the bosses: HAMM, VITRIOL, AXE, SCISSORS_W / _M, BALOWS).
+- The kinds by CHARACTER.id: 2..6 the stalkers (scene banks E_02, E_03, E_04 with E_14, E_05 for 5 and 6),
+  0x1d..0x1f the ghost kinds (an event each), 0x20 a boss. Each kind has its own motion indices for turn,
+  damage and return (`ssAI_Is*Playing`).
+- `ssAI_SetPanicGaugeAndBGMVol` turns a stalker's distance to Alyssa into panic: in her room, within the
+  brain's far range, rise by near / mid / far band (ranges tripled while she hides), cut by height
+  difference; threat source 2, 1 while hiding (x1.4), 0 for approach / attack (x3). `ssAI_BrainEnd` parks a
+  character at (1e7, -1e7, 0) with its scene banks and hides it.

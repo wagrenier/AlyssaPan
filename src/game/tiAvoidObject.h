@@ -61,7 +61,8 @@ void ssAI_SceneInit(int scene);                                                 
 void ssAI_MemSaveData(u_char *data);                                                     // CT3 0x018662a0
 void ssAI_MemLoadInit(u_char *data);                                                     // CT3 0x018662d0
 struct CHARACTER;
-void ssAI_BrainEnd(struct CHARACTER *chara, int brain);                                  // CT3 0x01865e20 (main2.c)
+// Ends chr's brain: chr goes into motion and is parked out of the world, hidden, its brain freed.
+void ssAI_BrainEnd(struct CHARACTER *chr, int motion);                                   // CT3 0x01865e20
 // 1 while the character plays a door push or pull opening (ssAI_IsDoorPushOpenPlaying / _Pull).
 int ssAI_IsDoorOpenPlaying(struct CHARACTER *chr);                                       // CT3 0x01860d00
 int ssAI_IsDoorPullOpenPlaying(struct CHARACTER *chr);                                   // CT3 0x01860d40
@@ -132,3 +133,79 @@ short ssAI_GetShadowPolID(s_char shadowPol, int bank);                          
 short ssAI_GetPairScnLinkPoleID(short pole, int bank);                                   // CT3 0x01862c40
 int ssAI_CheckPoleFlg(short pole, int bank, u_char flag);                                // CT3 0x018600a0
 int ssAI_IsGetShadowPol(u_char shadowPol, int bank);                                     // CT3 0x0185ff40
+
+// ---- slice 3 (2026-11-12): the frame's driver, the mode dispatch, the facing, the panic, the predicates ----
+// The brain's modes (BRAIN_MODE, its first byte): the symtab names each by its table (ssAI_<Mode>Mode,
+// ssAI_Chg<Mode>Mode). 0xff = halted (ssAI_main, when Alyssa is down). wideXcmd_TriggerInit.c's AI_MODE_*
+// are the same values under older names (AI_MODE_CHASE = SS_AI_APPROACH, AI_MODE_NO_CHASE = SS_AI_RETURN).
+enum SS_AI_MODE {
+    SS_AI_SEARCH = 0,
+    SS_AI_APPROACH = 1,
+    SS_AI_TRACE = 2,
+    SS_AI_ATTACK = 3,
+    SS_AI_RETURN = 4,
+    SS_AI_HIDE_ATK = 5,
+    SS_AI_MODE_COUNT = 6,
+    SS_AI_HALTED = 0xff,
+};
+// The brain's fields this TU reads (the 0x280-byte brain of test_ssXcmd_BrainSet4; names from these uses).
+#define BRAIN_MODE 0x000                /* u_char: SS_AI_* */
+#define BRAIN_STOP_MOTION 0x004         /* short: -1 while the brain runs; while TRG_CHAR_STOP_CHAR holds the
+                                           characters, the motion it was at when they stopped */
+#define BRAIN_PANIC_NEAR 0x188          /* float: within it the distance rise is BRAIN_PANIC_RISE_NEAR */
+#define BRAIN_PANIC_MID 0x18c           /* float: within it BRAIN_PANIC_RISE_MID */
+#define BRAIN_PANIC_FAR 0x190           /* float: within it BRAIN_PANIC_RISE_FAR; beyond it no rise */
+#define BRAIN_PANIC_RISE_NEAR 0x194     /* float */
+#define BRAIN_PANIC_RISE_MID 0x198      /* float */
+#define BRAIN_PANIC_RISE_FAR 0x19c      /* float */
+#define BRAIN_PANIC_SCALE 0x1a0         /* float: ssAI_PanicSet multiplies every rise by it */
+#define BRAIN_HEAR_RATE 0x1cc           /* u_char: per cent per unit of noise (ssAI_CheckHearingRate) */
+#define BRAIN_HEAR_RATE_INVISIBLE 0x1cd /* u_char: the same while TRIG_EVENT_INVISIBLE */
+#define BRAIN_TICKS 0x1d0               /* int: gNextTicksInterval summed while the brain runs */
+#define BRAIN_NO_REACTION_TIME 0x21c  /* int: ssAI_BrainEnd sets the no-reaction timer from it */
+#define BRAIN_DAMAGE_FN 0x231           /* u_char: the ssAI_DamageMode entry; 0x232..0x237 the entries of
+                                           the six modes (BRAIN_MODE_FN + mode) */
+#define BRAIN_MODE_FN 0x232
+#define BRAIN_CHG_MODE_FN 0x238         /* u_char[6]: the ssAI_Chg<Mode>Mode entry of each mode */
+#define BRAIN_END_MOTION 0x24e          /* short: the motion after the halt (main2.c's BRAIN_ID: ssAI_BrainEnd's
+                                           second argument, ssAI_ForceBrainEnd's motion) */
+#define BRAIN_TURN_MOTION_BACK 0x268    /* short: the turn motion for a turn of a half to three quarters */
+#define BRAIN_TURN_MOTION 0x26a         /* short: the turn motion for a quarter to a half turn */
+#define BRAIN_HALT_MOTION 0x26c         /* short: the motion a halted stalker plays (ssAI_main) */
+// CHARACTER.h100 of a stalker that left: AI_H100_NONE (-2) becomes this, and the next frame drops its light
+// bank, room and shadow flags.
+#define AI_H100_GONE (-3)
+#define AI_ID_20 0x20                   /* CHARACTER.id of slot 32 (BALOWS_CHARA): the predicates' boss kind */
+#define AI_TURN_FULL 0x10000            /* CHARACTER.rot units per turn */
+#define AI_FACE_TURN_SPEED 1000         /* ssAI_main: a halted stalker turns towards Alyssa this fast */
+// Trigger events (global) this slice tests.
+#define TRIG_EVENT_AI_NO_MODE_CHANGE 0xd0 /* set: no brain changes its mode (ssAI_charaMain) */
+#define TRIG_EVENT_AI_D2 0xd2           /* removed every frame by ssAI_main (with 0xd1, 0xd3) */
+#define TRIG_EVENT_DOOR_CLOSED 500      /* + door (0..AI_DOOR_MAX): the door is closed (ssAI_IsDoorClose) */
+#define TRIG_EVENT_DOOR_OPEN_FULL 600   /* + door: the door is open all the way (ssAI_IsDoorOpenFull) */
+#define AI_DOOR_MAX 0x62
+// ssAI_CheckHideAreaAtkRate: the chance (per cent) of a strike at each hiding level (TRIG_VAR_HIDE_POINT;
+// 4 and above always, 0 never).
+#define AI_HIDE_ATK_RATE_1 0x25
+#define AI_HIDE_ATK_RATE_2 0x32
+#define AI_HIDE_ATK_RATE_3 0x4b
+#define AI_HIDE_LEVEL_SURE 4
+
+void ssAI_charaMain(struct CHARACTER *chr);                                              // CT3 0x01863c30
+// Turns chr's rot towards the direction dir (a unit vector) by at most speed (rot units); a turn of a
+// quarter to three quarters plays the turn motion unless noMotion or a turn already plays.
+void ssAI_CompCharaDir(struct CHARACTER *chr, const float *dir, int speed, int noMotion); // CT3 0x01863980
+void ssAI_SetPanicGaugeAndBGMVol(struct CHARACTER *chr);                                 // CT3 0x0185f470
+// PanicSet(rise * the brain's BRAIN_PANIC_SCALE, source), except in SS_AI_RETURN.
+void ssAI_PanicSet(float rise, struct CHARACTER *chr, int source);                       // CT3 0x0185f930
+int ssAI_CheckHearingRate(struct CHARACTER *chr, int noise);                             // CT3 0x0185fd40
+int ssAI_CheckHideAreaAtkRate(void);                                                     // CT3 0x0185fe10
+int ssAI_IsDoorOpenFull(int door);                                                       // CT3 0x0185feb0
+int ssAI_IsDoorClose(int door);                                                          // CT3 0x0185fef0
+int ssAI_IsBendPlaying(struct CHARACTER *chr);                                           // CT3 0x018608e0
+int ssAI_IsDownPlaying(struct CHARACTER *chr);                                           // CT3 0x01860910
+int ssAI_IsReturnPlaying(struct CHARACTER *chr);                                         // CT3 0x01860940
+int ssAI_IsDamagePlaying(struct CHARACTER *chr);                                         // CT3 0x01860a70
+int ssAI_IsRotationPlaying(struct CHARACTER *chr);                                       // CT3 0x01861830
+// A stalker's end beyond the brain (0x1498 bytes, not written yet: a later slice).
+void ssAI_BrainEndSpecialProc(struct CHARACTER *chr);                                    // CT3 0x01864950

@@ -1719,6 +1719,27 @@ apply here):
   SetPanicGaugeAndBGMVol, the motion predicates (IsBend / IsDown / IsDamage / IsReturn / IsRotation), the
   hearing / hide / door checks, SetMonsterPos, LetMonsterInFromShadow, PanicSet, then BrainEnd, MonsterDraw,
   AxeThrowReset.
+  **Slice 3 (2026-11-12) partial**: 17 functions -- ssAI_main (no longer a reached stub), ssAI_charaMain
+  with the 13 mode tables (0x01938430..0x01938574, defined here: their 64 brain functions declared in
+  ssBrain_ChgHideAtk1.h / tiBrain_ChgTrace_Ghost.h / tiBrain_ChgTrace_BOSS_BALOWS.h, stubbed by stubgen),
+  CompCharaDir, SetPanicGaugeAndBGMVol, PanicSet, CheckHearingRate, CheckHideAreaAtkRate, IsDoorOpenFull,
+  IsDoorClose, IsBend / IsDown / IsReturn / IsDamage / IsRotationPlaying, BrainEnd, MonsterDraw. Doubts:
+  (h) the brain fields (tiAvoidObject.h BRAIN_*: mode, stop motion +4, panic ranges / rises / scale
+  +0x188..+0x1a0, hearing rates +0x1cc / +0x1cd, ticks +0x1d0, no-reaction time +0x21c, table indices
+  +0x231..+0x23d, end / turn / halt motions +0x24e / +0x268 / +0x26a / +0x26c) are named from these uses;
+  BRAIN_END_MOTION is main2.c's BRAIN_ID (a motion, not an id: main2.c can switch to the header's name);
+  wideXcmd_TriggerInit.c's AI_MODE_* duplicate SS_AI_* under older names -- fold them when that file is
+  touched; (i) the brain functions' prototypes (void / int (CHARACTER *)) come from the one call site:
+  their TUs confirm; (j) MOTION_REC_KIND 1 = bend, 3 = down (IsBend / IsDown) are the same values
+  asCheckAlyssaOnStairway reads as stair kinds: one of the two names is wrong, or the kind is a posture;
+  (k) CHARACTER.lightBank (+0xa0) is what MonsterDraw tests for a drawn bank (BankInfo[].drawOn) and what
+  ssAI_main clears when a stalker leaves: it may be the stalker's room bank rather than a light's; (l)
+  ssAI_main halts a stalker on TRIG_EVENT_BOSS_ALYS_DEAD (0x49) outside TRIG_EVENT_BOSS_BATTLE: the event
+  is probably "Alyssa is down" in general, not only in a battle (sound.h's name); TRIG_EVENT_AI_D2 (0xd2)
+  and TRIG_EVENT_AI_NO_MODE_CHANGE (0xd0) are named from this use; charaMain's mode-change gate tests
+  TRIG_EVENT_MC_LOADED (0x99), odd beside that name (like (b)); (m) ssAI_BrainEndSpecialProc (0x01864950,
+  0x1498 bytes) is a stub: a stalker's end does not yet do its special part. Next: BrainEndSpecialProc,
+  SetMonsterPos, LetMonsterInFromShadow, AxeThrowReset, tiAvoidObject, then the rest of the 82.
 
 - (2026-11-12, game/wideXcmd_TriggerInit.c slice 6) **code complete, verify**: test_ssXcmd_BrainSet4, the
   last stub. **(1 am) decided, Claude's call (the user may overrule):** CHARACTER.brain stays the EE word
