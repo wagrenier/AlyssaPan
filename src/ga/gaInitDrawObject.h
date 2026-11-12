@@ -215,8 +215,9 @@ static_assert(sizeof(GA_LOADENV) == 0x70, "GA_LOADENV");
 typedef struct GA_SPR_WORK {
     u_char pad000[0x14];
     u_int divRedrawPacketEE;            /* 0x014: ga_div_redraw_gspacket_work (0x01957e40), uncached-accelerated */
-    u_char pad018[0x8];
-    u_int divRedrawIndexEE;             /* 0x020: gaBGT_DrawObject: ga_div_redraw_index_work (0x01a2be40) */
+    u_int gsIndexEndEE;                 /* 0x018: trans_for_gs: the end of ga_div_redraw_gsindex_work's list */
+    u_int gsVertexEE;                   /* 0x01c: trans_for_gs / the clipper: the next free GA_GS_VERTEX */
+    u_int divRedrawIndexEE;            /* 0x020: gaBGT_DrawObject: ga_div_redraw_index_work (0x01a2be40) */
     u_int divRedrawVertexEE;            /* 0x024: gaBGT_DrawObject: ga_div_redraw_vertex_work (0x01a2c640) */
     u_int bigDivIndexEE;                /* 0x028: gaBGT_DrawObject: the big-polygon cursor, from
                                            ga_bigdiv_index_work (0x0193e6c0); moved = gaDrawObject_SetBig */
@@ -281,6 +282,7 @@ typedef struct GA_SPR_WORK {
     float half23c;                      /* 0x23c: 0.5 */
 } GA_SPR_WORK;
 static_assert(offsetof(GA_SPR_WORK, divRedrawPacketEE) == 0x14, "GA_SPR_WORK.divRedrawPacketEE");
+static_assert(offsetof(GA_SPR_WORK, gsVertexEE) == 0x1c, "GA_SPR_WORK.gsVertexEE");
 static_assert(offsetof(GA_SPR_WORK, viewScaleX) == 0x30, "GA_SPR_WORK.viewScaleX");
 static_assert(offsetof(GA_SPR_WORK, zOffset) == 0x48, "GA_SPR_WORK.zOffset");
 static_assert(offsetof(GA_SPR_WORK, work21) == 0x60, "GA_SPR_WORK.work21");

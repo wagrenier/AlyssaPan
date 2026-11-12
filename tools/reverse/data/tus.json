@@ -1,7 +1,6 @@
 {
  "queue": [
-  "alyssapan/rendering/ui_canvas.cpp",
-  "ga/gaDrawObject_Redraw_Polygon.c"
+  "alyssapan/rendering/ui_canvas.cpp"
  ],
  "settings": {
   "data_dir": "C:/Users/willi/Documents/Decomp/Clocl Tower 3",
@@ -228,12 +227,21 @@
    "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 11 unkeyed; file name from the names"
   },
   "ga/gaDrawObject_Redraw_Polygon.c": {
+   "notes": "Probe on the NEW path: 2 divided triangles -> 7 emitted, all inside the 512x448 screen (clipping right). The packet is built ROM-exact but not sent (kv: the host draws the whole object), so the title shot is unchanged (clock-tower scene, 4:3). Doubts lh3..lm3 in open-items.md: obj +0x38 added to every colour, GA_LIGHT_SET named from this reader, the highlight replaces alpha.",
    "ranges": [
     [
      "0189f718",
      "018a0880"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-12 14:21",
+     "status": "verify",
+     "summary": "all 6 functions: trans_for_gs (VU0 screen transform, lit kind with 4 directional + 4 point lights and the alpha highlight), the guard-band clipper and DivSub, both redraws and Outputs; the four redraw buffers defined here"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 6 unkeyed; file name from the names"
   },
   "ga/gaInit3dlib.c": {

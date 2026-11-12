@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-12 13:54 at commit `70f0d25` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-12 14:21 at commit `0a2bea9` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,15 +30,15 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1699**; stubs: **101**
+- reconstructed CT3 functions: **1709**; stubs: **100**
 
 | file | reconstructed | stubs |
 |---|---|---|
 | `src/ga/gaBGT_DrawObject.c` | 9 | 0 |
 | `src/ga/gaDma.c` | 16 | 0 |
 | `src/ga/gaDmaSync_VIF1.c` | 6 | 0 |
-| `src/ga/gaDrawObject.c` | 15 | 0 |
-| `src/ga/gaDrawObject_Redraw_Polygon.c` | 0 | 1 |
+| `src/ga/gaDrawObject.c` | 13 | 0 |
+| `src/ga/gaDrawObject_Redraw_Polygon.c` | 12 | 0 |
 | `src/ga/gaInit3dlib.c` | 25 | 0 |
 | `src/ga/gaInitDrawObject.c` | 24 | 0 |
 | `src/ga/gaInitInterrupt.c` | 3 | 0 |
@@ -103,14 +103,15 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 10, verify 56, done 10, blocked 1
-- next: **ga/gaDrawObject_Redraw_Polygon.c** (pinned in the queue)
-- pinned queue: alyssapan/rendering/ui_canvas.cpp, ga/gaDrawObject_Redraw_Polygon.c
+- 65 TUs: todo 9, verify 57, done 10, blocked 1
+- next: **ga/wait.c** (frontier score 6)
+- pinned queue: alyssapan/rendering/ui_canvas.cpp
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaDmaSync_VIF1.c` 5/5 -- Host: kicks leave CHCR.STR clear (the transfer is over), so the syncs return at once; the BGT send keeps the copy and the flip, the packet goes nowhere (draw mo
 - verify: `ga/gaDrawObject.c` 11/11 -- All 11 functions written. Not reached by the smoke run (gaObjectClippingCheck stub; title scene draws through nc2): title scene unchanged at 4:3. Open: the bill
+- verify: `ga/gaDrawObject_Redraw_Polygon.c` 6/6 -- Probe on the NEW path: 2 divided triangles -> 7 emitted, all inside the 512x448 screen (clipping right). The packet is built ROM-exact but not sent (kv: the hos
 - verify: `ga/gaInit3dlib.c` 25/25 -- 15 s smoke run: no fault, shot black (no host draw module). gaMulMatrix is dst = b * a (hazards.md). gaSetZRollMatrix now reaches gaSinCos: ga/gaSinCos.c is que
 - verify: `ga/gaInitDrawObject.c` 24/24 -- No ROM caller for the texture three (the game uses its sun* copies in QuatSlerp.c): complete, nothing on screen can show them. Shot black as before: packets go 
 - verify: `ga/gaInitInterrupt.c` 3/3 -- GCC object; wait_vsync_state (data 0x0192e790), ga_main_timer, ga_down_timer defined here. gaWaitVSync takes no argument and returns the CSR FIELD bit; main.c c
@@ -166,6 +167,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-12 14:21 `ga/gaDrawObject_Redraw_Polygon.c` verify: all 6 functions: trans_for_gs (VU0 screen transform, lit kind with 4 directional + 4 point lights and the alpha highlight), the guard-band clipper and DivSub, b
 - 2026-11-12 13:54 `game/ssCalcInversMatrix2.c` verify: all 5 functions: ssCalcInversMatrix2 (4x4 inverse), ssHitMakeAttackOBB and ssHitMakeDamageOBB (the attack and body boxes), ssHit_information and ssHit_informati
 - 2026-11-12 13:31 `ga/gaSearchNearLight4.c` verify: gaSearchNearLight4 reconstructed from the MMI code and VU0 micros 0x048/0x054/0x064: four nearest lights per position by squared distance times w squared, below
 - 2026-11-12 13:18 `game/asMothOperate.c` verify: asMothOperate written: the moths state machine (rest, wait, fly the route, circle Alyssa, land and rattle, hit, dead), the three-part moves through asMothRouteS
@@ -173,11 +175,9 @@ Recent sessions:
 - 2026-11-12 12:40 `alyssapan/core/junc_heap.cpp` done: gHeapJunc was corrupted, not exhausted: ssParticleInit sized ParticleObject and ParticleData as count * 4 and stored 8-byte host pointers, overwriting the next 
 - 2026-11-12 12:39 `game/Character_Init.c` partial: marked verify -> partial: Character_Init (CT3 0x018b3a60) is still a stub and the NEW path now reaches it (junc_heap.cpp run, 2026-11-12): the room scene 0A02 s
 - 2026-11-12 12:30 `alyssapan/core/newgame_trace.cpp` done: The silent wait after NEW: the title music ADS stream held gADSOpenSync at 1 waiting for SNDDRV.IRX to acknowledge SND_CMD_ADS_OPEN, so FlProc read nothing and 
-- 2026-11-12 11:50 `game/AA_scTag2.c` verify: all 7 functions written: the movie ring's DMA tag, D3 and D4 CHCR writes, FIFO index, pts region test, B-picture skip history, two-span copy
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `ga/gaDrawObject_Redraw_Polygon.c` | todo | 0/1/6 | 4.3 | 7 | 1 |
 | `game/AA_cpuCycles.c` | todo | 0/4/4 | 0.3 | 6 | 0 |
 | `ga/wait.c` | todo | 0/2/20 | 0.1 | 6 | 0 |
 | `game/copy2area.c` | todo | 0/2/2 | 0.5 | 2 | 0 |
@@ -190,7 +190,6 @@ Recent sessions:
 | `018a8690` | gaDMAStopMessage_VIF1 | 5 | sym | stub | ga/wait.c |
 | `018c0310` | AA_cpuCycles | 2 | sym | stub | game/AA_cpuCycles.c |
 | `018c0320` | AA_syncGetSkew | 2 | sym | stub | game/AA_cpuCycles.c |
-| `0189f720` | gaDrawObject_Redraw_Polygon | 2 | sym | stub | ga/gaDrawObject_Redraw_Polygon.c |
 | `018817b0` | ssAI_SetTraceMode | 1 | sym | stub | game/ssBrain_ChgHideAtk1.c |
 | `018c03c0` | AA_syncClockInVideo | 1 | sym | stub | game/AA_cpuCycles.c |
 | `018a8698` | gaDMAStopMessage_GIF | 1 | sym | stub | ga/wait.c |

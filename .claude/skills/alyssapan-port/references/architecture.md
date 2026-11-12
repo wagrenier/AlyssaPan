@@ -684,6 +684,34 @@ Read with `vudis.py 18ff430 335 --all` (mind hazards.md's vudis misprints). Micr
   none written: both cursors back to the start. **SetBig** appends the big list's polygons whole at the
   cursors (after SetNear's).
 
+## The divided polygons' redraw, ga/gaDrawObject_Redraw_Polygon.c (2026-11-12)
+
+The EE redraws what SetBig / SetNear left, straight to the GS (VIF DIRECT through the MFIFO), not on VU1.
+Buffers (symtab bss): ga_div_redraw_vertex_work 0x01a2c640 / _index_work 0x01a2be40 (SetBig / SetNear's,
+now defined here), ga_div_redraw_gsvertex_work 0x01a0be40 (0x20000, GA_GS_VERTEX 0x40 each),
+_gsindex_work 0x01a07e40 (0x4000), _gspacket_work 0x01957e40 (0xb0000; GA_SPR_WORK 0x14 is its cursor,
+uncached 0x2xxxxxxx, back to the start at +0x9a000). GA_SPR_WORK 0x18 / 0x1c are the gs list's end and the
+gs vertex cursor.
+- **trans_for_gs(obj, obj[0])** (VU0 macro code; it saves obj +0x70 / +0x78 to 0x78 / 0xc0 first): q =
+  work[6] / z; screen = (work26 + work21 x q, work27 + work22 y q, objZ + work23 x 16 q), fog w = (obj
+  +0x74 + work9) x 16 + work25 / (work24 + |v|^2); STQ = ((s, t) + obj +0x78) q, q; colour clamped 0..255;
+  guard = (x viewScaleX q, y viewScaleY q, z), flags = VCLIPw against 0.5 (GA_SPR_WORK 0x4c) & 0xf. The
+  colour is the record's + the qword at obj +0x38 (GA_OBJ_POSITION -- added to every colour: what that
+  qword is for the ga object is open), or, for GA_LIGHT_KIND_1, lit from obj +0x5c (light matrix) and
+  obj +0x3c + 0x10 (GA_LIGHT_SET, 16 qwords SoA: 4 directional + 4 point lights; the file has the
+  formulas) with an alpha highlight when obj +0x30 != 0. 0x42000038 / 0x42000039 in the listing are EI /
+  DI (COP0) around the VRSQRTs, and 0x4bxxx9ff words are VCLIPw (mipsdis prints them as .word).
+- **The clipper** walks the gs list while it grows: all three vertices outside one plane -> dropped; any
+  flag -> _DivSub cuts at the first of -y, +y, -x, +x (bounds GA_SPR_WORK 0x230 = -0.5, 0x234 = +0.5) and
+  appends two vertices and one or two triangles (one out: (A, B, n1), (B, n2, n1); two out: (A, n1, n2));
+  the cut points keep only the planes still to test (CF & 7 / 3 / 1 / 0). Inside triangles go to the packet
+  as ST(Q) / FTOI0 RGBA / FTOI0 XYZF x 3 (gaDrawObject1_*: a 3-qword header from GA_OBJ_PRIM_TABLE first).
+- **Output**: head qword (0, 0, 0, DIRECT qwc + 1), GIFtag GA_SPR_WORK 0x90 (0xa0) with NLOOP = count | EOP;
+  the chain at scratchpad 0x9e0 (REF to the draw attr's upload, then REF to the packet), fromSPR (D8) into
+  the MFIFO once the ring (D_RBSR) has room. The port builds the packet but does not send it ((kv)).
+- Proven on the NEW path (2026-11-12 probe): 2 divided triangles -> 19 list entries, 7 emitted triangles
+  whose vertices span exactly x 2048..2560, y 2048..2496 (12.4 GS units / 16): the 512 x 448 screen.
+
 ## The attack boxes and hit records, game/ssCalcInversMatrix2.c (2026-11-12)
 
 One object (symtab local chunk 102, 0x018a88e0..0x018a9fe0, 5 functions): ssCalcInversMatrix2 (a 4x4

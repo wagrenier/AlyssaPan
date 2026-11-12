@@ -1779,6 +1779,29 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    unseen; (lg3) callcheck lists SdSetParamSE and SetPositionalParam_Alys as missing: they are in the
    static MothPlaySE.
 
+   **ga/gaDrawObject_Redraw_Polygon.c (verify, 2026-11-12 14:25, scheduled run):** all 6 functions
+   (trans_for_gs, the guard-band clipper and _DivSub, both redraws and Outputs; architecture.md "The
+   divided polygons' redraw"). The four redraw buffers are defined here now (ga_div_redraw_vertex_work /
+   _index_work moved from gaDrawObject.c); GA_SPR_WORK 0x18 / 0x1c named gsIndexEndEE / gsVertexEE. A probe
+   on the NEW path (build.py --run 50 --pad "600:START*10,800:START*10") ran it once: 2 divided triangles,
+   7 emitted, every vertex inside the 512 x 448 screen -- the clipping is right. **(kv) stands**: the
+   packet is built ROM-exact but not sent (the host draws the whole object), so nothing on screen changes:
+   the title shot is the clock-tower scene as before (4:3; no wide shot taken: this TU draws nothing).
+   Open: (lh3) trans_for_gs adds the qword at obj +0x38 (GA_OBJ_POSITION, "the object's position" in
+   gaBGT_DrawObject.h; main_rtn writes a particle's position through it) to every vertex colour, in both
+   kinds -- for these objects it may be an ambient colour, not a position: whoever reads the ga object's
+   +0x38 for drawing settles the name; (li3) GA_LIGHT_SET (the obj +0x3c light work past its VIF head:
+   4 directional + 4 point lights SoA, then 8 colours) is named from this reader alone -- gaBGT_DrawObject's
+   light1 set-up sends the same 17 qwords to VU1, whose program would confirm it; the point-light term
+   max(n . p, 0) x (1 / |p| - 1) is transcribed as the ROM computes it (VSUBA / VMADD) and looks odd; (lj3)
+   the highlight replaces alpha (vf7.w) with obj +0x30 x -intensity0 x (r . -dir0)^4 when the word at obj
+   +0x30 is non-zero: the GS alpha is then a specular, unverified on screen; (lk3) the ROM's two loops in
+   trans_for_gs are do-whiles (one record transformed even with none); the host's are whiles -- the
+   callers test for none first, so no difference; (ll3) the draw attr's upload is read only from the
+   scratchpad (as gaBGT_DrawObject.c's SetupClipTail); (lm3) if a picture ever needs the divided polygons
+   (e.g. the host draw stops covering them), the packet in ga_div_redraw_gspacket_work is what to draw:
+   GS vertices with Q, so a host GS-triangle path in the draw module would be the way.
+
 ## Decisions
 
 - 2026-11-11 (Claude, scheduled run 19:15, for the user to overrule): **the ga 2D frame stays 4:3.** The

@@ -493,12 +493,8 @@ void gaDrawObject_VertexLocalView_Billboard(u_char *obj, u_int packetEE)
 
 // ---- the big list's set-up (slice 2) ----
 
-// The redraw buffers GA_SPR_WORK's 0x20 / 0x24 cursors walk (symtab objects; gaDrawObject_Redraw_Polygon
-// reads them). PORT: defined here until the TU that owns them is written; the host keeps them at the same
-// EE addresses' offsets, as the division lists.
-GA_REDRAW_VERTEX ga_div_redraw_vertex_work[GA_DIV_REDRAW_VERTICES];  // CT3 0x01a2c640
-GA_REDRAW_PRIM ga_div_redraw_index_work[GA_DIV_REDRAW_PRIMS];        // CT3 0x01a2be40
-
+// The redraw buffers GA_SPR_WORK's 0x20 / 0x24 cursors walk (symtab objects, defined with their reader in
+// gaDrawObject_Redraw_Polygon.c; the host keeps them at the same EE addresses' offsets, as the division lists).
 static GA_REDRAW_VERTEX *RedrawVertexPtr(u_int ee)
 {
     if (ee - GA_DIV_REDRAW_VERTEX_WORK_EE < sizeof(ga_div_redraw_vertex_work))
