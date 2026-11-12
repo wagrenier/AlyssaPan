@@ -214,7 +214,24 @@ typedef struct HIT_TABLE {
     u_char pad00[0x24];
     int count;                          /* 0x24: records in recs */
     u_int recs;                         /* 0x28: HIT_REC[count] (EE word of the bank) */
+    u_char pad2c[0x2b0 - 0x2c];
+    int objHitCount;                    /* 0x2b0: records in objHits (asUseArrow.c, 2026-11-11) */
+    u_int objHits;                      /* 0x2b4: HIT_OBJ_REC[objHitCount] (EE word of the bank) */
 } HIT_TABLE;
+static_assert(offsetof(HIT_TABLE, objHits) == 0x2b4, "HIT_TABLE.objHits");
+// What a bank's objects hit this frame (asUseArrow.c's readers name it; the collision TU writes it).
+typedef struct HIT_OBJ_REC {
+    u_char pad00[0x10];
+    u_int object;                       /* 0x10: EE word of the bank: the object; its short at
+                                           HIT_OBJ_ID is the id an ARROW carries (hitId) */
+    u_char pad14[4];
+    int id;                             /* 0x18: asAttackedArrowInformation's key */
+    short chara;                        /* 0x1c: the Character[] it hit (asArrowOperate) */
+    u_char kind;                        /* 0x1e: asArrowOperate: 0 places the arrow, 1 (ARROW_HIT_KIND*) */
+    u_char pad1f;
+} HIT_OBJ_REC;
+static_assert(sizeof(HIT_OBJ_REC) == 0x20, "HIT_OBJ_REC");
+#define HIT_OBJ_ID 0xda                 /* object: short, an arrow's hitId */
 typedef struct HIT_REC {
     u_int attacker;                     /* 0x00: EE word: the attacking object (HIT_ATTACKER_KIND at +0x1a2) */
     short attack;                       /* 0x04: the attack (a character's: its motion; an object's:

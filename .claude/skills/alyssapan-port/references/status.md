@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-11 21:26 at commit `d36241c` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-11 21:35 at commit `3c1405f` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1235**; stubs: **233**
+- reconstructed CT3 functions: **1245**; stubs: **227**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -72,7 +72,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/asMothOperate.c` | 0 | 1 |
 | `src/game/asMothPause.c` | 0 | 1 |
 | `src/game/asMothRouteSearch.c` | 0 | 2 |
-| `src/game/asUseArrow.c` | 0 | 7 |
+| `src/game/asUseArrow.c` | 10 | 1 |
 | `src/game/asXcmd.c` | 0 | 20 |
 | `src/game/copy2area.c` | 0 | 1 |
 | `src/game/fileio.c` | 40 | 0 |
@@ -97,9 +97,10 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 64 TUs: todo 29, partial 3, verify 33, done 8, blocked 1
+- 64 TUs: todo 28, partial 4, verify 33, done 8, blocked 1
 - next: **game/asUseArrow.c** (pinned in the queue)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
+- partial: `game/asUseArrow.c` 10/11 -- asArrowOperate (CT3 0x01866d80, 0x1230 bytes) is the next slice and the only stub left; field uses tallied in open-items.md Open questions (2026-11-11 asUseArro
 - partial: `game/tiXcmd_TransItem.c` 85/93 -- Slice 10. Written: tiXcmd_UseItem (ITEM_USE_* modes from argv[4], ITEM_KIND_* from the row byte +0: give-take, signal, heal Character[0].hp up to hpMax, calm vi
 - partial: `game/wideXcmd_TriggerInit.c` 1/46 -- Title draws at 4:3 and 16:9 after 40 s (logo, 3, menu, copyright). Fix in SunTexEePtr, BankOfEeAddr, HitObjectId: free slot banks shared EE addresses with the G
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
@@ -139,6 +140,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-11 21:35 `game/asUseArrow.c` partial: slice 1: 10 of 11 functions (arrow records, shoot, aim, state, lookups); ARROW and ARROW_INFO types; HIT_TABLE object hits
 - 2026-11-11 21:26 `game/tkXDTrg_GetSceneHash.c` verify: slice 4: tkXDTrg_ActorProc_Ini, the old-form door record that finds its camera cut and parts by name (Cam_Dor, TDS_Dor, CP_Dor, HT_Dor, SE_Dor plus the room and
 - 2026-11-11 21:20 `game/tkXDTrg_GetSceneHash.c` partial: slice 3: the DoorTrigger x command and its actor dispatcher (code parser, scene heads, door records), the Ini_New and IniMon parsers, Alyssa's door open and clo
 - 2026-11-11 21:08 `game/tkXDTrg_GetSceneHash.c` partial: slice 2: the door actor procs (AnimToFrameDoor, AnimRangeDoor, ChangeCamera, CmnClo, the ScW / ScM / Axe / Vit / Ham Opn, OpnOut and Clo, Sht, HitPtl, AlsCam, I
@@ -146,22 +148,21 @@ Recent sessions:
 - 2026-11-11 20:33 `game/wideXcmd_DebugPrint.c` verify: slice 10: asCharacterMortionFunctionOperation (attack and no-hit windows, per-character run events, Alyssa's stairs and panic triggers, turn speed, lever mash e
 - 2026-11-11 20:11 `game/Clipping_Portal.c` verify: slice 15: tiCalc_HurikoOPEN and tiCalc_HurikoCLOSED, one pendulum solver (pull to rest pose, normal drag, springs, accel clamp, damping, length constraint, caps
 - 2026-11-11 19:54 `game/Clipping_Portal.c` partial: slice 14: tiCalc_Leaf, tiCalc_Twist (turn about the velocity around startPos less radius along unit (vel+1) x vel), tiGetTransRotMatrix, tiGetDegFromVec, tiPart
-- 2026-11-11 19:45 `game/Clipping_Portal.c` partial: slice 13: the translucent-character and ghost passes (tiChara_Translucence_Start / End / Start2 / End2, host composite from a capture at the inverse FIX), tiXFa
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
 | `game/ssSetTexUVforCubeMap.c` | partial | 1/50/96 | 35.3 | 117 | 10 |
 | `game/CpDivideEECom.c` | todo | 0/10/18 | 3.3 | 80 | 10 |
 | `ga/gaDrawObject.c` | todo | 0/11/11 | 6.9 | 39 | 0 |
-| `game/ssHitCheckAttackToScn.c` | todo | 0/8/37 | 32.0 | 28 | 3 |
 | `game/tiAvoidObject.c` | todo | 0/8/82 | 30.5 | 28 | 4 |
+| `game/ssHitCheckAttackToScn.c` | todo | 0/8/37 | 32.0 | 28 | 3 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/AA_GetDataWord.c` | todo | 0/8/15 | 4.9 | 21 | 2 |
 | `game/AA_SoundMonoSoart.c` | todo | 0/8/20 | 4.0 | 18 | 2 |
 | `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
-| `game/asUseArrow.c` | todo | 0/7/11 | 6.4 | 17 | 1 |
 | `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `ga/gaObjectClippingCheck.c` | todo | 0/1/1 | 0.2 | 12 | 1 |
+| `game/asMothPause.c` | todo | 0/1/1 | 0.3 | 10 | 0 |
 
 ## Frontier (called by reconstructed code, not written yet)
 
@@ -177,7 +178,6 @@ Recent sessions:
 | `018a51e8` | gaDrawObject_VertexLocalViewWithClippingFlagSet_Billboard | 6 | sym | stub | ga/gaDrawObject.c |
 | `018a5fe0` | gaDrawObject_MakeVertexReferenceTable | 6 | sym | stub | ga/gaDrawObject.c |
 | `01896920` | ssGetNumBlurDrawObjForScene | 5 | sym | stub | game/ssSetTexUVforCubeMap.c |
-| `01866c10` | asShootArrowSetting | 5 | sym | stub | game/asUseArrow.c |
 | `01899070` | ssParticleCashClear | 5 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `018ab180` | CheckLOS | 4 | sym | stub | game/ssHitCheckAttackToScn.c |
 | `01896a90` | ssPartMotionBlurInsertObjToDrawTable | 4 | sym | stub | game/ssSetTexUVforCubeMap.c |
@@ -207,4 +207,5 @@ Recent sessions:
 | `0189dec0` | ssBGT_ZBufferClear | 2 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `0189d900` | ssTrigScreenBlurEnd | 2 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `018aa8e0` | ssHitAddAttackRequest | 2 | sym | stub | game/ssHitCheckAttackToScn.c |
+| `01882c10` | asInitMothInfo | 2 | sym | stub | game/asMothRouteSearch.c |
 

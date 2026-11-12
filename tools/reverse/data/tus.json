@@ -914,12 +914,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 83..83, 1 functions keyed by their statics, 1 unkeyed; file name from the names"
   },
   "game/asUseArrow.c": {
+   "notes": "asArrowOperate (CT3 0x01866d80, 0x1230 bytes) is the next slice and the only stub left; field uses tallied in open-items.md Open questions (2026-11-11 asUseArrow.c slice 1). Smoke run reaches the content-warning screen; nothing here draws yet.",
    "ranges": [
     [
      "018665e0",
      "01867fb0"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-11 21:35",
+     "status": "partial",
+     "summary": "slice 1: 10 of 11 functions (arrow records, shoot, aim, state, lookups); ARROW and ARROW_INFO types; HIT_TABLE object hits"
+    }
+   ],
+   "status": "partial",
    "why": "tumap.py (bootstrap 5): symtab local chunks 79..79, 2 functions keyed by their statics, 9 unkeyed; file name from the names"
   },
   "game/asXcmd.c": {

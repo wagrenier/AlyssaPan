@@ -1660,6 +1660,17 @@ apply here):
 
 ## Open questions
 
+- (2026-11-11, game/asUseArrow.c slice 1) 10 of 11 functions written; **asArrowOperate (0x1230 bytes,
+  CT3 0x01866d80) is the next slice** (stage: work/stage/tu_game_asUseArrow.c). ARROW (0x50) and
+  ARROW_INFO (host layout) are in asUseArrow.h; HIT_TABLE gained objHitCount / objHits (+0x2b0 / +0x2b4)
+  and HIT_OBJ_REC (0x20) in wideXcmd_DebugPrint.h, named from these readers. **To confirm:** (a) the
+  HIT_OBJ_REC.object word and its +0xda short are read as EE words of ArrowInfo.bank (the collision TU
+  says whose bank); (b) ARROW_STATE_5 and ARROW_HIT_KIND0/1 are named from asArrowOperate's writes only;
+  (c) the two bow part hashes (ARROW_PART_HASH_NOCK / _AIM) are named by use: dir = aim - nock;
+  (d) asGetTheArrowRad sets kind 3 (BOW_ARROW_NONE's value) on a steep arrow: ARROW_KIND_STEEP is a
+  guess at why; (e) asAttackedArrowInformation / asArrowInformation return ARROW * (the ROM an EE
+  address; their callers tiBrain_Damage_BOSS1, ssXcmd_AXE_CheckHitAndCompDir are not written yet).
+
 - (2026-11-11, game/tkXDTrg_GetSceneHash.c slice 4) tkXDTrg_ActorProc_Ini (the old form, 15+ arguments)
   read: the file's 50 functions are all written (verify: no door on screen yet). It finds the door's parts
   by name, "<prefix>_Dor<room>_<door>[_<suffix>]" with room = argv[3] (the other room, also otherBank's
