@@ -4,7 +4,10 @@
 // ssRadianByO. Slice 2 (2026-11-11): the line-of-sight tests CheckLOS and CheckLOS_Multi, and the attack
 // and damage objects' local -> world (ssTrans*AtkHitDataL2W, ssTransDmgHitDataL2W). Slice 3 (2026-11-11):
 // the attack checks. Slice 4 (2026-11-11): the box tests -- ssHitCheckOBB_OBB, ssHitCheckOBB_Plane,
-// ssHitCheckOBB_TriangleSides (separating axes) and ssHitCheckOneObject.
+// ssHitCheckOBB_TriangleSides (separating axes) and ssHitCheckOneObject. Slice 5 (2026-11-11): the
+// character box and the scene grid. Slice 6 (2026-11-12): the slide -- ssHitCheckAllObject,
+// ssHitReCheckAllObject, ssHitCalcSlidePos2, ssHitCheckAndProcess -- and the frame's collision of one
+// character, ssCollisionCheck (with ssColCheckChar_Chara): the TU's code is complete.
 
 #include <float.h>
 #include <math.h>
@@ -21,6 +24,7 @@
 #include "game/BRANCH_CLEAR.h"
 #include "game/QuatSlerp.h"
 #include "game/ssCalcInversMatrix2.h"
+#include "game/tiAvoidObject.h"
 #include "game/unassigned_data.h"
 #include "game/wideXcmd_DebugPrint.h"
 
@@ -1192,10 +1196,443 @@ void ssAddHitDataToCheckList(CHARACTER *chara, MODEL_PARTS *parts, HIT_SCENE_GRI
     }
 }
 
-// ---- stubs (tools/reverse/stubgen.py) ----
+// ---- the slide along the shapes the box meets (slice 6, 2026-11-12) ----
 
-// stub of CT3 0x018b1a40
+// 1 << i: the bisection step's divisor (data 0x019398d0, 16 shorts; ssHitReCheckAllObject reads 0..5).
+const u_short ssPow_2data[16] = { 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768 };
+
+#define SS_HIT_FACE_MOVE_MIN 0.1f       /* a move shorter than this faces along the box's third axis */
+#define SS_HIT_VEL_MIN2 0.01f           /* |vel|^2 above: a moving shape is tested whichever way it faces */
+#define SS_HIT_RECHECK_START (-2.0f)    /* ssHitCheckAllObject's first bisection parameter */
+
+// CT3 0x018b0950
+// The shapes of c[0..n) that the box still meets when its centre is moved to base + c.move * (t - 1);
+// those go to the front. Two or more: back off by 2 / 2^depth; none: forward by as much; until depth 6,
+// where c[0] becomes the shape the character stands on (self) when it is among them, else the one whose
+// normal faces the move most (the lowest dot; c[0]'s dot is not rewritten).
+void ssHitReCheckAllObject(float t, CHARACTER *chara, const float *base, SS_HIT_CAND *c, int n, int depth,
+                           HIT_DATA *self)
+{
+    if (depth >= SS_HIT_RECHECK_DEPTH) {
+        float best = c[0].dot;
+        for (int i = 1; i < n; i++) {
+            if (c[i].hit == self) {
+                c[0].hit = self;
+                memcpy(c[0].out, c[i].out, sizeof(c[0].out));
+                memcpy(c[0].move, c[i].move, sizeof(c[0].move));
+                return;
+            }
+            if (c[i].dot <= best) {
+                c[0].hit = c[i].hit;
+                best = c[i].dot;
+                memcpy(c[0].out, c[i].out, sizeof(c[0].out));
+                memcpy(c[0].move, c[i].move, sizeof(c[0].move));
+            }
+        }
+        return;
+    }
+    SS_OBB *box = CHARA_OBB(chara);
+    int kept = 0;
+    for (int i = 0; i < n; i++) {
+        for (int k = 0; k < 3; k++)
+            box->center[k] = c[i].move[k] * (t - 1.0f) + base[k];
+        box->center[3] = c[i].move[3];  // vmulx.xyz / vadd.xyz on the loaded move: its w is stored
+        if (ssHitCheckOneObject((HIT_OBJ *)box, c[i].hit, NULL, NULL, self) != 0) {
+            c[kept].hit = c[i].hit;
+            c[kept].dot = c[i].dot;
+            memcpy(c[kept].out, c[i].out, sizeof(c[kept].out));
+            memcpy(c[kept].move, c[i].move, sizeof(c[kept].move));
+            kept++;
+        }
+    }
+    float step = 2.0f / (float)ssPow_2data[depth];
+    if (kept >= 2)
+        ssHitReCheckAllObject(t - step, chara, base, c, kept, depth + 1, self);
+    else if (kept == 0)
+        ssHitReCheckAllObject(t + step, chara, base, c, n, depth + 1, self);
+}
+
+// CT3 0x018b0c30
+// The shape of the grid's check list the character's box meets on its move ssHitBPos -> ssHitNPos (NULL
+// for none), with *out the move slid along it. A still shape counts only when it faces the move (its
+// normal . the move's direction < 0); a moving one (SS_L2W_FRAME, |vel|^2 > 0.01) always, its move taken
+// relative to its own. When several meet, ssHitReCheckAllObject picks one by moving the box's centre
+// along the move (put back afterwards).
+// callcheck: gaInnerProductXYZ, ssHitCheckOneObject, ssHitReCheckAllObject
+HIT_DATA *ssHitCheckAllObject(CHARACTER *chara, HIT_SCENE_GRID *grid, float *out, HIT_DATA *self)
+{
+    SS_OBB *box = CHARA_OBB(chara);
+    SS_HIT_CAND cand[SS_HIT_CAND_MAX];
+    float move[4], dir[4], slid[4];
+    float dot = 1.0f;
+    for (int k = 0; k < 3; k++)
+        move[k] = ssHitNPos[k] - ssHitBPos[k];
+    move[3] = ssHitNPos[3];             // vsub.xyz: w is the register's, N's
+    memcpy(dir, move, sizeof(dir));
+    float len2 = move[0] * move[0] + move[1] * move[1] + move[2] * move[2];
+    ssVuUnitXYZ(dir);
+    if (sqrtf(len2) < SS_HIT_FACE_MOVE_MIN)
+        memcpy(dir, box->axis[2], sizeof(dir));
+    int bank = BankOfHostPtr(grid);     // PORT: the list holds EE words of the grid's bank
+    const u_int *list = BANK_PTR(const u_int *, bank, grid->checkList);
+    int n = 0;
+    for (int i = 0; i < grid->checkCount; i++) {
+        HIT_DATA *h = BANK_PTR(HIT_DATA *, bank, list[i]);
+        int test = h->kind == SS_L2W_FRAME && !(gaInnerProductXYZ(h->vel, h->vel) <= SS_HIT_VEL_MIN2);
+        if (!test) {
+            dot = gaInnerProductXYZ(h->worldN, dir);
+            test = dot < 0.0f;
+        }
+        if (!test || ssHitCheckOneObject((HIT_OBJ *)box, h, move, slid, self) == 0)
+            continue;
+        if (n >= SS_HIT_CAND_MAX)
+            break;                      // PORT: the ROM's 0xc00 stack bytes hold 64 and are not checked
+        SS_HIT_CAND *c = &cand[n++];
+        c->hit = h;
+        memcpy(c->out, slid, sizeof(c->out));
+        if (h->kind == SS_L2W_FRAME) {
+            float u[4];
+            for (int k = 0; k < 3; k++)
+                c->move[k] = move[k] - h->vel[k];
+            c->move[3] = move[3];
+            memcpy(u, c->move, sizeof(u));
+            ssVuUnitXYZ(u);
+            c->dot = gaInnerProductXYZ(h->worldN, u);
+        } else {
+            memcpy(c->move, move, sizeof(c->move));
+            c->dot = dot;
+        }
+    }
+    if (n == 0)
+        return NULL;
+    if (n >= 2) {
+        float base[4];
+        memcpy(base, box->center, sizeof(base));
+        ssHitReCheckAllObject(SS_HIT_RECHECK_START, chara, base, cand, n, 0, self);
+        memcpy(box->center, base, sizeof(base));
+    }
+    memcpy(out, cand[0].out, sizeof(cand[0].out));
+    return cand[0].hit;
+}
+
+// dst.xyz = a.xyz + b.xyz, dst.w = a.w (the VU's vadd.xyz on a register loaded from a; dst may be b).
+static void ssVAddXYZ(float *dst, const float *a, const float *b)
+{
+    float r[4] = { a[0] + b[0], a[1] + b[1], a[2] + b[2], a[3] };
+    memcpy(dst, r, sizeof(r));
+}
+
+static const float ssVuZero[4] = { 0.0f, 0.0f, 0.0f, 1.0f }; /* vf0 */
+
+#define SS_SLIDE_GAP 0.3f               /* how far off the shape's plane the box is put back */
+#define SS_SLIDE_MIN 0.001f             /* a move or its part along the normal at or below this is none */
+#define SS_SLIDE_SPLIT_MIN2 0.01f       /* |part|^2 above: ssHitCheckAndProcess moves along that part again */
+#define SS_SLIDE_FACING_STEEP (-0.4f)   /* facing . a floor's normal below: the slide is stretched by 1.5 */
+#define SS_SLIDE_STEEP_SCALE 1.5f
+
+// CT3 0x018b1390
+// The box (obb) has met h on the move ssHitBPos -> ssHitNPos: put ssHitBPos where the box just clears h's
+// plane (SS_SLIDE_GAP off it, counting the box's reach along the normal), moving the character's
+// collision points (hits) with it, then aim ssHitNPos along *slid from there -- shortened by what the
+// put-back already covered, or nothing for SS_STOP shapes (and STAND ones the slide goes down).
+// callcheck: gaInnerProductXYZ, ssMoveAllHitObjCoordinate
+void ssHitCalcSlidePos2(HIT_TABLE *hits, SS_OBB *obb, HIT_DATA *h, float *slid)
+{
+    float u[4], c[4], a[3][4], n[4];
+    for (int k = 0; k < 3; k++)
+        u[k] = ssHitNPos[k] - ssHitBPos[k];
+    u[3] = ssHitNPos[3];
+    float len = sqrtf(u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
+    ssVuUnitXYZ(u);
+    memcpy(c, obb->center, sizeof(c));
+    for (int i = 0; i < 3; i++) {
+        for (int k = 0; k < 3; k++)
+            a[i][k] = obb->axis[i][k] * obb->half[i];
+        a[i][3] = obb->axis[i][3];
+    }
+    memcpy(n, h->worldN, sizeof(n));
+    // The box's reach along the normal (the ROM adds axis 1's, axis 0's, then axis 2's).
+    float r1 = fabsf(gaInnerProductXYZ(a[1], n));
+    float r0 = fabsf(gaInnerProductXYZ(a[0], n));
+    float r2 = fabsf(gaInnerProductXYZ(a[2], n));
+    float reach = r2 + (r0 + r1);
+    float s;
+    if (len == 0.0f) {
+        s = (SS_SLIDE_GAP + (h->planeD + reach)) - gaInnerProductXYZ(n, c);
+        for (int k = 0; k < 3; k++)
+            u[k] = n[k] * s;
+        u[3] = n[3];
+    } else {
+        float k0 = gaInnerProductXYZ(n, u);
+        if (fabsf(k0) <= SS_SLIDE_MIN) {
+            memcpy(u, ssVuZero, sizeof(u));
+        } else {
+            s = (SS_SLIDE_GAP + (h->planeD + reach)) - gaInnerProductXYZ(n, c);
+            float t = s / k0;
+            if (t <= 0.0f) {
+                for (int k = 0; k < 3; k++)
+                    u[k] = n[k] * s;
+                u[3] = n[3];
+            } else {
+                for (int k = 0; k < 3; k++)
+                    u[k] *= t;
+                float back = sqrtf(u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
+                if (len < back) {
+                    // The put-back is longer than the move: the move stays as it was, nothing moves.
+                    for (int k = 0; k < 3; k++)
+                        slid[k] = ssHitNPos[k] - ssHitBPos[k];
+                    slid[3] = ssHitNPos[3];
+                    return;
+                }
+                float f = (len - back) / len;
+                for (int k = 0; k < 3; k++)
+                    slid[k] *= f;
+            }
+        }
+    }
+    ssVAddXYZ(ssHitBPos, u, ssHitBPos);
+    ssMoveAllHitObjCoordinate(hits, u);
+    if ((h->flags & HIT_DATA_FLAG_STOP) != 0 ||
+        ((h->flags & HIT_DATA_FLAG_STAND) != 0 && slid[1] < 0.0f)) {
+        memcpy(ssHitNPos, ssHitBPos, sizeof(ssHitNPos));
+        memcpy(slid, ssVuZero, sizeof(ssVuZero));
+        return;
+    }
+    ssVAddXYZ(ssHitNPos, slid, ssHitBPos);
+}
+
+// ssMakeCharOBB with the box facing ssHitBPos -> ssHitBPos + toward (ssHitNPos put back afterwards).
+static void ssMakeCharOBBFacing(CHARACTER *chara, HIT_TABLE *hits, const float *toward, int *yaw, int *pitch)
+{
+    float keep[4];
+    memcpy(keep, ssHitNPos, sizeof(keep));
+    ssVAddXYZ(ssHitNPos, toward, ssHitBPos);
+    ssMakeCharOBB(chara, hits, 0, yaw, pitch);
+    memcpy(ssHitNPos, keep, sizeof(keep));
+}
+
+// CT3 0x018b0f30
+// The character's move ssHitBPos -> ssHitNPos against the scene grid's shapes (hits: its shape bank's
+// HIT_TABLE, parts: the scene bank's parts): the box stretched along the move, its cells' shapes (the
+// moving ones too below depth 5), the one it meets (ssHitCheckAllObject); then the box is rebuilt facing
+// the slide (STAND shapes: facing the normal, a FLOOR's slide stretched when the character faces down
+// it), put back off the shape (ssHitCalcSlidePos2), and the slide is tried again, horizontal part then
+// vertical, with the shape left out (CHECKING). Answers the last shape met, NULL for none; depth 6 stops.
+// callcheck: ssMakeCharOBB, gaSetRotMatrixY, gaInnerProductXYZ, ssHitCalcSlidePos2, ssSplitVectorHandV, ssMoveAllHitObjCoordinate
+HIT_DATA *ssHitCheckAndProcess(CHARACTER *chara, HIT_SCENE_GRID *grid, HIT_TABLE *hits, MODEL_PARTS *parts,
+                               int *yaw, int *pitch, int depth, HIT_DATA *self)
+{
+    if (depth >= SS_HIT_PROCESS_DEPTH)
+        return NULL;
+    ssMakeCharOBB(chara, hits, 1, yaw, pitch);
+    chara->cellCount = 0;
+    grid->checkCount = 0;
+    ssGetCharSpaceCell(chara, parts, grid);
+    ssAddHitDataToCheckList(chara, parts, grid, depth == SS_HIT_PROCESS_DEPTH - 1 ? 0 : 1);
+    float slid[4];
+    HIT_DATA *h = ssHitCheckAllObject(chara, grid, slid, self);
+    if (h == NULL)
+        return NULL;
+    HIT_DATA *met = h;
+    if ((h->flags & HIT_DATA_FLAG_STAND) != 0) {
+        if ((h->flags & LOS_HIT_FLAG_FLOOR) != 0) {
+            float m[4][4];
+            gaSetRotMatrixY(m, chara->rot);
+            if (gaInnerProductXYZ(m[2], h->worldN) < SS_SLIDE_FACING_STEEP)
+                for (int k = 0; k < 3; k++)
+                    slid[k] *= SS_SLIDE_STEEP_SCALE;
+        }
+        *yaw = -1;
+        *pitch = -1;
+        ssMakeCharOBBFacing(chara, hits, h->worldN, yaw, pitch);
+    } else {
+        *yaw = -1;
+        *pitch = -1;
+        float dir[4];
+        memcpy(dir, slid, sizeof(dir));
+        float len = sqrtf(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]);
+        ssVuUnitXYZ(dir);
+        if (len <= SS_SLIDE_MIN)
+            ssMakeCharOBB(chara, hits, 0, yaw, pitch);
+        else
+            ssMakeCharOBBFacing(chara, hits, dir, yaw, pitch);
+    }
+    ssHitCalcSlidePos2(hits, CHARA_OBB(chara), h, slid);
+    float hv[4], vv[4];
+    ssSplitVectorHandV(hv, vv, slid);
+    h->flags |= HIT_DATA_FLAG_CHECKING;
+    if (!(gaInnerProductXYZ(hv, hv) <= SS_SLIDE_SPLIT_MIN2)) {
+        ssVAddXYZ(ssHitNPos, hv, ssHitBPos);
+        *yaw = -1;
+        *pitch = 0;
+        HIT_DATA *r = ssHitCheckAndProcess(chara, grid, hits, parts, yaw, pitch, depth + 1, self);
+        if (r != NULL)
+            met = r;
+        float d[4];
+        for (int k = 0; k < 3; k++)
+            d[k] = ssHitNPos[k] - ssHitBPos[k];
+        d[3] = ssHitNPos[3];
+        if (gaInnerProductXYZ(d, d) != 0.0f) {
+            ssVAddXYZ(ssHitBPos, d, ssHitBPos);
+            ssMoveAllHitObjCoordinate(hits, d);
+        }
+    }
+    if (!(gaInnerProductXYZ(vv, vv) <= SS_SLIDE_SPLIT_MIN2)) {
+        ssVAddXYZ(ssHitNPos, vv, ssHitBPos);
+        *pitch = -1;                    // the ROM leaves *yaw as the last call left it
+        HIT_DATA *r = ssHitCheckAndProcess(chara, grid, hits, parts, yaw, pitch, depth + 1, self);
+        if (r != NULL)
+            met = r;
+    }
+    h->flags &= ~HIT_DATA_FLAG_CHECKING;
+    return met;
+}
+
+// ---- the frame's collision of one character (slice 6, 2026-11-12) ----
+
+#define SS_FALL_STEP 3.0f               /* the fall per CHARACTER.fallSteps (b2f1) */
+#define SS_FALL_STEPS_LANDED 3          /* b2f1 when a floor is met */
+#define SS_FALL_FRAMES_MAX 0xfe         /* b2f2 stops counting here */
+#define SS_STAND_MOVE_SCALE 0.8f        /* an AI character's move on a STAND floor */
+#define SS_MOVE_MIN2 0.001f             /* |pos change|^2 at or below: the character is not moved */
+
+// The scene shape an EE word of the character's w300[] names in its scene bank (NULL for 0).
+static HIT_DATA *ssCharaShape(int bank, int ee)
+{
+    return BANK_PTR(HIT_DATA *, bank, (u_int)ee);
+}
+
+// CT3 0x018b1840
+// a (Alyssa) against b (another character in the same scene): their boxes (a's stretched along its move
+// ssHitBPos -> ssHitNPos, b's where it stands) overlap in XZ (half[2] each, as radii) and in y (half[1]):
+// ssHitNPos is pushed out along the XZ line between the centres by the overlap -- or, while Alyssa
+// crawls, she stays where she was (ssHitBPos and ssHitNPos back to posBefore, rot to rotBefore). hits: a's
+// shape bank's HIT_TABLE. 1 when they overlap.
+// callcheck: ssMakeCharOBB, ssAI_IsHaiHaiPlaying
+int ssColCheckChar_Chara(CHARACTER *a, CHARACTER *b, HIT_TABLE *hits)
+{
+    if (a->lightBank != b->lightBank)
+        return 0;
+    int yaw = 0, pitch = 0;
+    ssMakeCharOBB(a, hits, 1, &yaw, &pitch);
+    float keep[4];
+    memcpy(keep, ssHitNPos, sizeof(keep));
+    memcpy(ssHitNPos, ssHitBPos, sizeof(ssHitNPos));
+    ssMakeCharOBB(b, BANK_PTR(HIT_TABLE *, b->bank, All_table_TBL[b->bank]->hits), 0, &yaw, &pitch);
+    memcpy(ssHitNPos, keep, sizeof(keep));
+    const SS_OBB *ba = CHARA_OBB(a), *bb = CHARA_OBB(b);
+    float d[4];
+    for (int k = 0; k < 3; k++)
+        d[k] = ba->center[k] - bb->center[k];
+    d[3] = ba->center[3];
+    float dy = fabsf(d[1]);
+    d[1] = 0.0f;
+    float dist = sqrtf(d[0] * d[0] + d[2] * d[2]);
+    ssVuUnitXYZ(d);
+    float over = (ba->half[2] + bb->half[2]) - dist;
+    if (over <= 0.0f || ba->half[1] + bb->half[1] <= dy)
+        return 0;
+    if (a->id == 0 && ssAI_IsHaiHaiPlaying(a) != 0) {
+        memcpy(ssHitBPos, &a->posBefore, sizeof(ssHitBPos));
+        memcpy(ssHitNPos, &a->posBefore, sizeof(ssHitNPos));
+        a->rot = a->rotBefore;
+    } else {
+        for (int k = 0; k < 3; k++)
+            d[k] *= over;
+        ssVAddXYZ(ssHitNPos, d, ssHitNPos);
+    }
+    return 1;
+}
+
+// CT3 0x018b1a40
+// One character's move this frame (posBefore -> pos) against the scene bank `bank` (its lightBank; list:
+// the frame's colliding characters, Alyssa is pushed off the others first): the horizontal part slid
+// along the walls (w300[1] = the wall met, the last frame's w300[3] leaves its own widened), then the
+// vertical part less the fall (fallSteps * 3) against the floors (w300[0] = the floor stood on: fallSteps
+// back to 3; none: the fall grows, 2 n + 3 for n frames in the air). A move of more than ~0.03 is
+// applied (pos, asCharacterPositioningOnlyDeltaPos). The bank's moving shapes go to the world and the
+// grid once per frame (gSceneL2WStatus).
+// callcheck: ssTransColHitDataL2W, ssColCheckChar_Chara, ssSplitVectorHandV, ssTransHitDataL2W, ssDivideHitDataToSpaceCell, ssHitCheckAndProcess, ssAI_IsHaiHaiPlaying, gaInnerProductXYZ, ssMoveAllHitObjCoordinate, asCharacterPositioningOnlyDeltaPos
 void ssCollisionCheck(struct CHARACTER *chara, int bank, SS_HIT_CHARA *list, int count)
 {
-    ALYSSAPAN_STUB("ssCollisionCheck", 0x018b1a40);
+    HIT_TABLE *scn = BANK_PTR(HIT_TABLE *, bank, All_table_TBL[bank]->hits);
+    HIT_SCENE_GRID *grid = (HIT_SCENE_GRID *)scn;
+    MODEL_PARTS *sparts = (MODEL_PARTS *)(pModelPartsHeader[bank] + PARTS_HDR_RECORDS);
+    int cb = chara->bank;
+    HIT_TABLE *hits = BANK_PTR(HIT_TABLE *, cb, All_table_TBL[cb]->hits);
+    ssTransColHitDataL2W((MODEL_PARTS *)(pModelPartsHeader[cb] + PARTS_HDR_RECORDS), hits);
+    memcpy(ssHitNPos, &chara->pos, sizeof(ssHitNPos));
+    memcpy(ssHitBPos, &chara->posBefore, sizeof(ssHitBPos));
+    if (chara == &Character[0])
+        for (int i = 0; i < count; i++)
+            if (list[i].chara != chara)
+                ssColCheckChar_Chara(chara, list[i].chara, hits);
+
+    float move[4], hv[4], vv[4];
+    for (int k = 0; k < 3; k++)
+        move[k] = ssHitNPos[k] - ssHitBPos[k];
+    move[3] = ssHitNPos[3];
+    if (chara->brain != 0 && chara->w300[CHARA_HIT_FLOOR_PREV] != 0 &&
+        (ssCharaShape(bank, chara->w300[CHARA_HIT_FLOOR_PREV])->flags & HIT_DATA_FLAG_STAND) != 0) {
+        for (int k = 0; k < 3; k++)
+            move[k] *= SS_STAND_MOVE_SCALE;
+        ssVAddXYZ(ssHitNPos, move, ssHitBPos);
+    }
+    ssSplitVectorHandV(hv, vv, move);
+    if (gSceneL2WStatus[bank] == 0) {
+        gSceneL2WStatus[bank] = 1;
+        memset(grid->cellBCount, 0, sizeof(grid->cellBCount));
+        ssTransHitDataL2W(sparts, scn, SS_L2W_FRAME);
+        ssDivideHitDataToSpaceCell(sparts, grid);
+    }
+
+    // The horizontal part, against the walls.
+    ssVAddXYZ(ssHitNPos, hv, ssHitBPos);
+    int yaw = -1, pitch = 0;
+    HIT_DATA *wall = ssHitCheckAndProcess(chara, grid, hits, sparts, &yaw, &pitch, 0,
+                                          ssCharaShape(bank, chara->w300[CHARA_HIT_WALL_PREV]));
+    chara->w300[CHARA_HIT_WALL] = (int)BankEeAddr(bank, wall); // PORT: the word stays the shape's EE address
+    if (wall != NULL && chara->id == 0 && ssAI_IsHaiHaiPlaying(chara) != 0) {
+        memcpy(ssHitBPos, &chara->posBefore, sizeof(ssHitBPos));
+        memcpy(ssHitNPos, &chara->posBefore, sizeof(ssHitNPos));
+        chara->rot = chara->rotBefore;
+    }
+    float d[4];
+    for (int k = 0; k < 3; k++)
+        d[k] = ssHitNPos[k] - ssHitBPos[k];
+    d[3] = ssHitNPos[3];
+    if (gaInnerProductXYZ(d, d) != 0.0f) {
+        ssVAddXYZ(ssHitBPos, d, ssHitBPos);
+        ssMoveAllHitObjCoordinate(hits, d);
+    }
+
+    // The vertical part and the fall, against the floors.
+    vv[1] -= SS_FALL_STEP * (float)chara->b2f1;
+    ssVAddXYZ(ssHitNPos, vv, ssHitBPos);
+    pitch = -1;                         // the ROM keeps the yaw the wall pass left
+    HIT_DATA *ground = ssHitCheckAndProcess(chara, grid, hits, sparts, &yaw, &pitch, 0,
+                                           ssCharaShape(bank, chara->w300[CHARA_HIT_FLOOR_PREV]));
+    if (ground != NULL) {
+        chara->b2f2 = 0;
+        chara->b2f1 = SS_FALL_STEPS_LANDED;
+        chara->w300[CHARA_HIT_FLOOR] = (int)BankEeAddr(bank, ground);
+    } else {
+        chara->b2f2++;
+        int steps = (chara->b2f2 + 1) * 2 + 1;
+        if (chara->b2f2 >= 0xff)
+            chara->b2f2 = SS_FALL_FRAMES_MAX;
+        if (steps <= 0)
+            steps = 1;
+        else if (steps > 0xff)
+            steps = 0xff;
+        chara->b2f1 = (u_char)steps;
+    }
+
+    for (int k = 0; k < 3; k++)
+        d[k] = ssHitNPos[k] - ((float *)&chara->pos)[k];
+    d[3] = ssHitNPos[3];
+    if (!(gaInnerProductXYZ(d, d) <= SS_MOVE_MIN2)) {
+        memcpy(&chara->pos, ssHitNPos, sizeof(ssHitNPos));
+        asCharacterPositioningOnlyDeltaPos(chara->bank, d);
+    }
 }

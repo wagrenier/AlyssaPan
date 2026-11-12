@@ -1181,6 +1181,32 @@ the branch scene tables and a few tk x commands.
   which never flips a sign); then the quad / sides test, and for a triangle whose sides miss, the crossing
   edge must pierce it (the CheckLOS angle sum, >= 65014). The shape the caller stands on (5th argument) is
   tested 5 wider; with a motion vector, out = v - (v.n) n (w = n's).
+- **A character's frame of collision (slice 6, 2026-11-12), ssCollisionCheck(chara, bank, list, n):**
+  ssHitBPos / ssHitNPos = posBefore / pos. Alyssa (Character[0]) is first pushed off every other listed
+  character in the same scene bank (ssColCheckChar_Chara: XZ overlap of half[2] radii, y overlap of
+  half[1]; pushed along the centres' XZ line by the overlap; while she crawls -- ssAI_IsHaiHaiPlaying --
+  she is put back to posBefore / rotBefore instead). An AI character (brain != 0) on a STAND floor
+  (HIT_DATA flag 0x400000) moves at 0.8. The move is split horizontal / vertical (ssSplitVectorHandV);
+  the scene's moving shapes go to the world and the grid once per bank and frame. The horizontal part runs
+  ssHitCheckAndProcess against the walls (the result -> **w300[1]**), the vertical part less
+  **b2f1 * 3** (the fall) against the floors (-> **w300[0]**; met: b2f1 = 3, b2f2 = 0; none: b2f2 counts
+  frames in the air up to 0xfe and b2f1 = 2 (b2f2 + 1) + 1, max 255). pos is updated (and
+  asCharacterPositioningOnlyDeltaPos) when it moved more than |d|^2 0.001. **w300[0..3] are EE words of
+  HIT_DATA in the scene bank**: floor, wall, last frame's floor, last frame's wall -- the last ones are
+  each pass's `self` (tested 5 wider). CHARA_TARGET / CHARA_TARGET2 (wideXcmd_DebugPrint.h) are these:
+  their +0x194 flags / +0x90 normal are the shape's.
+- **ssHitCheckAndProcess** (recursive, depth < 6): box stretched along the move (ssMakeCharOBB grow 1),
+  its grid cells, their shapes (the moving ones too, below depth 5) into the check list,
+  **ssHitCheckAllObject** picks the shape met (a still one only when its normal faces the move; a moving
+  one with |vel|^2 > 0.01 always, its move relative to vel; several: **ssHitReCheckAllObject** bisects
+  the box's centre along the move from t = -2 in steps of 2 / 2^depth (ssPow_2data) for 6 steps, then
+  takes `self` if among them, else the lowest normal . move). The box is rebuilt facing the slide
+  (STAND shapes: facing the normal; a FLOOR (0x100000) STAND shape's slide is stretched 1.5 when the
+  character's facing . normal < -0.4), **ssHitCalcSlidePos2** puts ssHitBPos 0.3 off the plane (counting
+  the box's reach |a_i half_i . n|) and moves the character's collision points with it, then aims
+  ssHitNPos along the slide less the part already covered (STOP 0x1000000: no slide; STAND: no slide
+  down). The slide's horizontal and vertical parts recurse with the shape flagged CHECKING (0x2000000);
+  the last shape met is answered.
 
 ## The IOP side (2026-11-09)
 

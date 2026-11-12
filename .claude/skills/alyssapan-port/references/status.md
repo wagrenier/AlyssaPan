@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-11 23:52 at commit `941bb9e` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-12 00:15 at commit `c02079b` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1301**; stubs: **202**
+- reconstructed CT3 functions: **1307**; stubs: **202**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -85,9 +85,9 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/sound.c` | 73 | 0 |
 | `src/game/ssCalcInversMatrix2.c` | 0 | 5 |
 | `src/game/ssGrpPortalCheck.c` | 74 | 0 |
-| `src/game/ssHitCheckAttackToScn.c` | 31 | 1 |
+| `src/game/ssHitCheckAttackToScn.c` | 37 | 0 |
 | `src/game/ssSetTexUVforCubeMap.c` | 1 | 50 |
-| `src/game/tiAvoidObject.c` | 0 | 9 |
+| `src/game/tiAvoidObject.c` | 0 | 10 |
 | `src/game/tiXcmd_TransItem.c` | 85 | 8 |
 | `src/game/tkXDTrg_GetSceneHash.c` | 50 | 0 |
 | `src/game/tnXcmd.c` | 0 | 8 |
@@ -98,11 +98,10 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 25, partial 5, verify 36, done 8, blocked 1
-- next: **game/ssHitCheckAttackToScn.c** (pinned in the queue)
-- pinned queue: alyssapan/rendering/ui_canvas.cpp, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
+- 65 TUs: todo 25, partial 4, verify 37, done 8, blocked 1
+- next: **game/ssSetTexUVforCubeMap.c** (pinned in the queue)
+- pinned queue: alyssapan/rendering/ui_canvas.cpp, game/ssSetTexUVforCubeMap.c
 - partial: `game/BRANCH_CLEAR.c` 173/173 -- 15 s smoke run: no fault, shot black (no host draw module yet). callcheck: GetAreaFloor's memcmp and ssTrigRemoveEvent come through ROOM_IS and AreaFloorClear (
-- partial: `game/ssHitCheckAttackToScn.c` 31/37 -- Left: ssCollisionCheck (stub), ssHitCheckAndProcess (args read from the disassembly: chara, grid, charaHits, sceneParts, yaw ptr in t0, pitch ptr in t1, depth i
 - partial: `game/tiXcmd_TransItem.c` 85/93 -- Slice 10. Written: tiXcmd_UseItem (ITEM_USE_* modes from argv[4], ITEM_KIND_* from the row byte +0: give-take, signal, heal Character[0].hp up to hpMax, calm vi
 - partial: `game/wideXcmd_TriggerInit.c` 1/46 -- Title draws at 4:3 and 16:9 after 40 s (logo, 3, menu, copyright). Fix in SunTexEePtr, BankOfEeAddr, HitObjectId: free slot banks shared EE addresses with the G
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
@@ -138,6 +137,7 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/movie.c` 20/21 -- Playback kept in the ROM shape: host EE kernel runs the decoder thread and vblank handler, sdk/libmpeg decodes, the picture goes through AA_GetDataWord.c displa
 - verify: `game/sound.c` 69/69 -- All 69 written. SSLoadSEfromLoadPoint takes the bank image (BankInfo +0x1c); All_table_TBL[bank] is image + 0x80, so the old +0xd4 record is ALL_TABLE.sound, wo
 - verify: `game/ssGrpPortalCheck.c` 59/59 -- Code complete. The black screen was the ga objects' +0x38 word (EE address of the part's partsPos, the ambient light0 adds) left 0 by the ssSetAmbColorToAllObj 
+- verify: `game/ssHitCheckAttackToScn.c` 37/37 -- All 37 functions written; no smoke run reaches ssCollisionCheck yet (no character before E_00), the title shot is unchanged. CHARACTER.w300[0..3] are EE words o
 - verify: `game/tkXDTrg_GetSceneHash.c` 50/50 -- Callcheck MISSING asFindModelPartsID in Ini is the DoorFindPart helper. The part names settle h48 h4c and the kind entries' +4 as SE / TDS parts (open-items.md 
 - verify: `game/wideXcmd_DebugPrint.c` 109/109 -- All 109 functions written. Nothing on screen reaches it yet (the shot is the warning screen): verify in gameplay. New stubs ssHitAddAttackRequest, ssHit_GetMaxI
 - verify: `game/xcmd_tn.c` 57/57 -- All 57 functions written. VistaVision: ON or on brings the bars in, argv[1] 1 slides, a fourth argument makes ON skippable; statics VistaVisionEndCheck, VistaVi
@@ -145,6 +145,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-12 00:15 `game/ssHitCheckAttackToScn.c` verify: slice 6: the slide (ssHitCheckAllObject, ssHitReCheckAllObject, ssHitCalcSlidePos2, ssHitCheckAndProcess) and ssCollisionCheck with ssColCheckChar_Chara: the TU
 - 2026-11-11 23:52 `game/ssHitCheckAttackToScn.c` partial: slice 5: the character box and the scene grid: ssMakeCharOBB, ssGetCharSpaceCell, ssDivideHitDataToSpaceCell, ssAddHitDataToCheckList (4 functions)
 - 2026-11-11 23:32 `game/ssHitCheckAttackToScn.c` partial: slice 4: the box tests ssHitCheckOBB_OBB, ssHitCheckOBB_Plane, ssHitCheckOBB_TriangleSides (separating axes) and ssHitCheckOneObject (4 functions)
 - 2026-11-11 23:13 `game/ssHitCheckAttackToScn.c` partial: slice 3: the attack checks ssHitCheckSceneAttack, ssHitCheckCharacterAttack, ssHitCheckAttack, ssHitCheckAttackToScn, and ssGetReflectVector3 (5 functions)
@@ -152,14 +153,13 @@ Recent sessions:
 - 2026-11-11 22:33 `game/BRANCH_CLEAR.c` partial: marked partial -> partial: split from game/QuatSlerp.c on 2026-11-11: one CodeWarrior object 0x01851f00..0x0185e9d0 (symtab locals 1088..1162 one inseparable ru
 - 2026-11-11 22:33 `game/QuatSlerp.c` verify: split game/QuatSlerp.c: the symtab proves 0x01851f00..0x0185e9d0 is one CodeWarrior object, now game/BRANCH_CLEAR.c (173 functions, code moved unchanged); QuatS
 - 2026-11-11 22:23 `game/BRANCH_CLEAR.c` partial: marked verify -> partial: the user, 2026-11-11: the TU is wrong, it holds many objects; split it (open-items.md TOP PRIORITY)
-- 2026-11-11 22:23 `game/QuatSlerp.c` partial: marked verify -> partial: the user, 2026-11-11: the TU is wrong, it holds many objects; split it (open-items.md TOP PRIORITY)
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
 | `game/ssSetTexUVforCubeMap.c` | partial | 1/50/96 | 35.3 | 117 | 10 |
 | `game/CpDivideEECom.c` | todo | 0/10/18 | 3.3 | 80 | 10 |
 | `ga/gaDrawObject.c` | todo | 0/11/11 | 6.9 | 39 | 0 |
-| `game/tiAvoidObject.c` | todo | 0/9/82 | 30.5 | 29 | 4 |
+| `game/tiAvoidObject.c` | todo | 0/10/82 | 30.5 | 31 | 4 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/AA_GetDataWord.c` | todo | 0/8/15 | 4.9 | 21 | 2 |
 | `game/AA_SoundMonoSoart.c` | todo | 0/8/20 | 4.0 | 18 | 2 |
@@ -210,7 +210,7 @@ Recent sessions:
 | `0189f720` | gaDrawObject_Redraw_Polygon | 2 | sym | stub | ga/gaDrawObject_Redraw_Polygon.c |
 | `0189dec0` | ssBGT_ZBufferClear | 2 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `0189d900` | ssTrigScreenBlurEnd | 2 | sym | stub | game/ssSetTexUVforCubeMap.c |
+| `01860860` | ssAI_IsHaiHaiPlaying | 2 | sym | stub | game/tiAvoidObject.c |
 | `018a91d0` | ssHit_information | 1 | sym | stub | game/ssCalcInversMatrix2.c |
 | `01860d00` | ssAI_IsDoorOpenPlaying | 1 | sym | stub | game/tiAvoidObject.c |
-| `018bbeb0` | AA_audioDecSendToIOP | 1 | sym | stub | game/AA_SoundMonoSoart.c |
 

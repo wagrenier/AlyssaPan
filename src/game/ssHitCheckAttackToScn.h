@@ -180,6 +180,39 @@ extern float ssHitBPos[4];                      /* bss 0x0193ef60 */
 // passes NULLs; ssHitCheckAllObject / ssHitReCheckAllObject the rest (slice 4, 2026-11-11).
 #define SS_HIT_SELF_GROW 5.0f
 int ssHitCheckOneObject(HIT_OBJ *obj, HIT_DATA *h, const float *v, float *out, HIT_DATA *self); // CT3 0x018b0350
+// ---- the slide along the shapes the box meets (slice 6, 2026-11-12) ----
+// One shape ssHitCheckAllObject's box meets. layout: host (the ROM's: 0x30 bytes on its stack, out at 0,
+// move at 0x10, the HIT_DATA EE word at 0x20, dot at 0x24; 64 of them).
+typedef struct SS_HIT_CAND {
+    float out[4];                       /* the move slid along the shape (ssHitCheckOneObject's out) */
+    float move[4];                      /* the move, relative to a moving shape's vel */
+    HIT_DATA *hit;
+    float dot;                          /* the shape's normal . the move's direction: lower faces it more */
+} SS_HIT_CAND;
+#define SS_HIT_CAND_MAX 64
+#define SS_HIT_RECHECK_DEPTH 6          /* ssHitReCheckAllObject's bisection steps */
+extern const u_short ssPow_2data[16];   /* data 0x019398d0: 1 << i */
+void ssHitReCheckAllObject(float t, struct CHARACTER *chara, const float *base, SS_HIT_CAND *c, int n,
+                           int depth, HIT_DATA *self);                                   // CT3 0x018b0950
+HIT_DATA *ssHitCheckAllObject(struct CHARACTER *chara, HIT_SCENE_GRID *grid, float *out, HIT_DATA *self); // CT3 0x018b0c30
+// Two more HIT_DATA flags (slice 6, 2026-11-12, from ssHitCheckAndProcess / ssHitCalcSlidePos2; named from
+// those readers only): STAND -- the box is turned to face the shape's normal, and a slide down it
+// (y < 0) stops; STOP -- every move into it stops at the contact.
+#define HIT_DATA_FLAG_STAND 0x00400000u
+#define HIT_DATA_FLAG_STOP 0x01000000u
+#define SS_HIT_PROCESS_DEPTH 6          /* ssHitCheckAndProcess's recursion; at 5 the moving shapes are left out */
+int ssColCheckChar_Chara(struct CHARACTER *a, struct CHARACTER *b, struct HIT_TABLE *hits);   // CT3 0x018b1840
+// CHARACTER.w300[] as ssCollisionCheck writes it (slice 6, 2026-11-12): EE words of HIT_DATA in the
+// character's scene bank (lightBank) -- [0] the floor it stands on, [1] the wall it met, [2] / [3] last
+// frame's (ssProcessHit). CHARA_TARGET / CHARA_TARGET2 (wideXcmd_DebugPrint.h) are [0] / [1].
+#define CHARA_HIT_FLOOR 0
+#define CHARA_HIT_WALL 1
+#define CHARA_HIT_FLOOR_PREV 2
+#define CHARA_HIT_WALL_PREV 3
+void ssHitCalcSlidePos2(struct HIT_TABLE *hits, SS_OBB *obb, HIT_DATA *h, float *slid);  // CT3 0x018b1390
+HIT_DATA *ssHitCheckAndProcess(struct CHARACTER *chara, HIT_SCENE_GRID *grid, struct HIT_TABLE *hits,
+                               struct MODEL_PARTS *parts, int *yaw, int *pitch, int depth,
+                               HIT_DATA *self);                                          // CT3 0x018b0f30
 // != 0 when the box meets one of the triangle h's three sides (h->worldV, h->half). PORT: the ROM passes
 // &h->worldV and reads the half lengths 0x60 past it; here the shape itself.
 int ssHitCheckOBB_TriangleSides(const SS_OBB *box, const HIT_DATA *h);                   // CT3 0x018ad7a0

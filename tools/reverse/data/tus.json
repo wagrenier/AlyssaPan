@@ -1,7 +1,6 @@
 {
  "queue": [
   "alyssapan/rendering/ui_canvas.cpp",
-  "game/ssHitCheckAttackToScn.c",
   "game/ssSetTexUVforCubeMap.c"
  ],
  "settings": {
@@ -1298,7 +1297,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 124..125, 24 functions keyed by their statics, 31 unkeyed; file name from the names"
   },
   "game/ssHitCheckAttackToScn.c": {
-   "notes": "Left: ssCollisionCheck (stub), ssHitCheckAndProcess (args read from the disassembly: chara, grid, charaHits, sceneParts, yaw ptr in t0, pitch ptr in t1, depth in t2 below 6, self in t3; its recursion passes depth+1 with yaw -1 and pitch 0 then -1), ssHitCheckAllObject, ssHitReCheckAllObject, ssHitCalcSlidePos2, ssColCheckChar_Chara. ssMakeCharOBB is (chara, hits, grow, int *yaw, int *pitch). New: CHARACTER obb 0x110 (SS_OBB, rows 0..7 corners, 8 centre, 9..11 axes, 12 half), obbPrev 0x1e0, cells 0x2b0, cellCount 0x2f0; HIT_SCENE_GRID checkList +4 (EE words) and checkCount +8; cellB is the moving shapes re-sorted per frame; HIT_DATA flags NO_COLLIDE 0x800000, CHECKING 0x2000000, NOT_PLAYER 0x80000, PLAYER_ONLY 0x40000 named from one reader. The check list has no bound in the ROM (bank memory), kept. Title shot unchanged: the clock-tower scene; last.png came out empty this run, shot_12720 is the scene.",
+   "notes": "All 37 functions written; no smoke run reaches ssCollisionCheck yet (no character before E_00), the title shot is unchanged. CHARACTER.w300[0..3] are EE words of HIT_DATA in the scene bank: floor, wall, last floor, last wall (CHARA_HIT_*); CHARA_TARGET is the floor, CHARA_TARGET2 the wall: CharaTarget, CharaTarget2, FootGround and ContactTargetPart can now resolve them with BankEePtr(lightBank, word). New flags HIT_DATA_FLAG_STAND 0x400000 and _STOP 0x1000000 from these readers. ssAI_IsHaiHaiPlaying is a stub in tiAvoidObject.c answering 0. open-items.md Open questions 2026-11-12 has the doubts.",
    "ranges": [
     [
      "018a9fe0",
@@ -1330,9 +1329,14 @@
      "date": "2026-11-11 23:52",
      "status": "partial",
      "summary": "slice 5: the character box and the scene grid: ssMakeCharOBB, ssGetCharSpaceCell, ssDivideHitDataToSpaceCell, ssAddHitDataToCheckList (4 functions)"
+    },
+    {
+     "date": "2026-11-12 00:15",
+     "status": "verify",
+     "summary": "slice 6: the slide (ssHitCheckAllObject, ssHitReCheckAllObject, ssHitCalcSlidePos2, ssHitCheckAndProcess) and ssCollisionCheck with ssColCheckChar_Chara: the TU code is complete"
     }
    ],
-   "status": "partial",
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 103..103, 3 functions keyed by their statics, 33 unkeyed; file name from the names"
   },
   "game/ssSetTexUVforCubeMap.c": {

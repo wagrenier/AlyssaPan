@@ -60,3 +60,10 @@ void ssAI_AxeThrowReset(void)
 {
     ALYSSAPAN_STUB("ssAI_AxeThrowReset", 0x018642b0);
 }
+
+// stub of CT3 0x01860860
+int ssAI_IsHaiHaiPlaying(struct CHARACTER *chr)
+{
+    ALYSSAPAN_STUB("ssAI_IsHaiHaiPlaying", 0x01860860);
+    return {};
+}

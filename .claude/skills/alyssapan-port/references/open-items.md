@@ -1679,6 +1679,22 @@ apply here):
 
 ## Open questions
 
+- (2026-11-12, game/ssHitCheckAttackToScn.c slice 6) **the TU's 37 functions are written: verify** (no
+  smoke run reaches ssCollisionCheck yet: no character collides before E_00 loads). **CHARACTER.w300[0..3]
+  are now written**: EE words (BankEeAddr) of HIT_DATA in the character's scene bank (lightBank): floor,
+  wall, last frame's floor, last frame's wall (ssHitCheckAttackToScn.h CHARA_HIT_*). This answers item 1
+  (v), (ac) and (ah): CHARA_TARGET is the floor shape, CHARA_TARGET2 the wall, CHARA_TARGET_FLAG_F4
+  (0x100000) is LOS_HIT_FLAG_FLOOR and CHARA_TARGET_VEC (+0x90) the shape's normal. **Left for their TUs**
+  (one TU per run): CharaTarget / CharaTarget2 (wideXcmd_DebugPrint.c), FootGround (hhXcmd_DressUp.c) and
+  ContactTargetPart (ssGrpPortalCheck.c) still answer none; each can resolve the word with
+  BankEePtr(ch->lightBank, ch->w300[i]) -- a small follow-up worth queueing. To confirm: (a)
+  HIT_DATA_FLAG_STAND (0x400000) and _STOP (0x1000000) are named from these readers only; (b)
+  ssHitReCheckAllObject's start t = -2 (the box centre at base - 3 move) is the ROM's literal 0xc0000000,
+  kept, odd as it looks; (c) the candidate list keeps at most 64 (the ROM's stack area, unchecked there);
+  (d) ssAI_IsHaiHaiPlaying (tiAvoidObject.c) is a stub answering 0 -- the ROM's is 10 lines (Alyssa, motion
+  +0x398 one of 0xc0, 0xb6, 0x32, 0x31, 0x11, 0x10): its TU writes it; (e) CHARACTER.b2f1 / b2f2 are the
+  fall steps / frames in the air (ct3_types.h keeps the old names until a rename pass).
+
 - (2026-11-11, game/asXcmd.c) all 20 functions written: **verify** (script commands; no smoke run
   reaches a scene script yet; main.c's AttackTargetStack clears run). To confirm: (a) AttackTargetStack
   (0x0193fa30, now defined in asXcmd.c) is pairs {bank, target}; its reader is not written, and

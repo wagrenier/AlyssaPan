@@ -18,3 +18,6 @@ int ssAI_IsDoorOpenPlaying(struct CHARACTER *chr);                              
 void ssAI_MonsterDraw(struct CHARACTER *chr, int draw);                                  // CT3 0x0185f710
 // From asArrowOperate (asUseArrow.c, 2026-11-11): on stage 3, an arrow first pointing up.
 void ssAI_AxeThrowReset(void);                                                           // CT3 0x018642b0
+// From ssCollisionCheck / ssColCheckChar_Chara (ssHitCheckAttackToScn.c, 2026-11-12): 1 while Alyssa
+// (id 0) crawls (her motion short at +0x398 is one of the crawl motions; read from the ROM, not written).
+int ssAI_IsHaiHaiPlaying(struct CHARACTER *chr);                                         // CT3 0x01860860
