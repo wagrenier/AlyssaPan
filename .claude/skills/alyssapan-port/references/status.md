@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-12 14:52 at commit `9826356` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-12 15:08 at commit `665e496` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1717**; stubs: **94**
+- reconstructed CT3 functions: **1719**; stubs: **92**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -77,7 +77,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/asMothRouteSearch.c` | 3 | 0 |
 | `src/game/asUseArrow.c` | 11 | 0 |
 | `src/game/asXcmd.c` | 21 | 0 |
-| `src/game/copy2area.c` | 0 | 2 |
+| `src/game/copy2area.c` | 2 | 0 |
 | `src/game/fileio.c` | 40 | 0 |
 | `src/game/hhXcmd_BGM_SE_VOLUME.c` | 0 | 1 |
 | `src/game/hhXcmd_DressUp.c` | 26 | 0 |
@@ -103,8 +103,8 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 7, verify 59, done 10, blocked 1
-- next: **game/copy2area.c** (frontier score 2)
+- 65 TUs: todo 6, verify 60, done 10, blocked 1
+- next: **game/ssBrain_ChgHideAtk1.c** (frontier score 1)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
@@ -149,6 +149,7 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/asMothRouteSearch.c` 3/3 -- The route search runs only from asMothOperate (a stub); MOTH is layout host with most fields still wNN; open-items has the doubts (stage and endTicks, the twice
 - verify: `game/asUseArrow.c` 11/11 -- No arrow on screen until a stage with the bow runs. States renamed by use (4 CHARGE, 5 FLYING, 7 RETURN; ARROW_HIT_STUCK and _END). HIT_TABLE +0x2a0/+0x2a4 atta
 - verify: `game/asXcmd.c` 20/20 -- Smoke run unchanged (the content-warning screen; no scene script runs yet). PanicSet source 8 now adds to PANIC_INFO.gauge (the ROM indexes rise[8]); AttackTarg
+- verify: `game/copy2area.c` 2/2 -- Movies are skipped in smoke runs, so the PCM path is not reached; the title scene renders unchanged. Verify when a movie plays with sound: the 4-byte PCM packet
 - verify: `game/fileio.c` 40/40 -- All 40 functions written. Round2ChangeChar keeps the ROM order of its 150 Round2ChangeSectInfo pairs as three tables; round values named from the file names onl
 - verify: `game/hhXcmd_DressUp.c` 22/22 -- A smoke run now passes hhXcmd_LoadSE and stops in the m_capcom.mov decode loop (shots end at frame 420, flat grey): the movie skip host task is the next blocker
 - verify: `game/main.c` 29/29 -- Smoke run: build green, layoutcheck OK, callcheck: main_rtn_Particle2 matches the ROM (extra BankEePtr only); AllDrawObject / GlobalDrawObject / DrawObjectRefra
@@ -169,6 +170,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-12 15:08 `game/copy2area.c` verify: copy2area and AA_pcmCallback reconstructed (SCE ezmpegstr copy2area + pcmCallback)
 - 2026-11-12 14:52 `game/AA_cpuCycles.c` verify: the movie player's audio / video clock (ezmpegstr): Count, the skew in 90 kHz ticks, the two stream stamps (4 of 4)
 - 2026-11-12 14:27 `ga/wait.c` verify: the ga debug object: wait (busy delay), 17 empty dumps, the two DMA stop messages (empty in the release ROM; 20 of 20)
 - 2026-11-12 14:21 `ga/gaDrawObject_Redraw_Polygon.c` verify: all 6 functions: trans_for_gs (VU0 screen transform, lit kind with 4 directional + 4 point lights and the alpha highlight), the guard-band clipper and DivSub, b
@@ -176,11 +178,9 @@ Recent sessions:
 - 2026-11-12 13:31 `ga/gaSearchNearLight4.c` verify: gaSearchNearLight4 reconstructed from the MMI code and VU0 micros 0x048/0x054/0x064: four nearest lights per position by squared distance times w squared, below
 - 2026-11-12 13:18 `game/asMothOperate.c` verify: asMothOperate written: the moths state machine (rest, wait, fly the route, circle Alyssa, land and rattle, hit, dead), the three-part moves through asMothRouteS
 - 2026-11-12 12:47 `game/Character_Init.c` verify: Character_Init written, the TU's last stub: room join (hash, light bank, room-in flag, ambient), the place modes (keep, the scene's start part, the light bank's
-- 2026-11-12 12:40 `alyssapan/core/junc_heap.cpp` done: gHeapJunc was corrupted, not exhausted: ssParticleInit sized ParticleObject and ParticleData as count * 4 and stored 8-byte host pointers, overwriting the next 
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `game/copy2area.c` | todo | 0/2/2 | 0.5 | 2 | 0 |
 | `game/ssBrain_ChgHideAtk1.c` | todo | 0/15/34 | 29.6 | 1 | 0 |
 
 ## Frontier (called by reconstructed code, not written yet)
@@ -188,5 +188,4 @@ Recent sessions:
 | CT3 addr | name | call sites | provenance | state | inferred file |
 |---|---|---|---|---|---|
 | `018817b0` | ssAI_SetTraceMode | 1 | sym | stub | game/ssBrain_ChgHideAtk1.c |
-| `018bf9d0` | copy2area | 1 | sym | stub | game/copy2area.c |
 

@@ -1225,12 +1225,21 @@
    "why": "starts at asXcmd_PanicSet 0x018dab60: 0x018dab3c..0x018dab60 is aa_to_big's loop tail (game/PicPaz.c)"
   },
   "game/copy2area.c": {
+   "notes": "Movies are skipped in smoke runs, so the PCM path is not reached; the title scene renders unchanged. Verify when a movie plays with sound: the 4-byte PCM packet header is skipped and the pts passed to AA_audioDecEndPut.",
    "ranges": [
     [
      "018bf9d0",
      "018bfbf0"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-12 15:08",
+     "status": "verify",
+     "summary": "copy2area and AA_pcmCallback reconstructed (SCE ezmpegstr copy2area + pcmCallback)"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 111..111, 2 functions keyed by their statics, 0 unkeyed; file name from the names"
   },
   "game/ct3_types.h": {

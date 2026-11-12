@@ -1,5 +1,5 @@
-// game/copy2area.h -- CT3 game/copy2area.c: the declarations other TUs call (game/movie.c first,
-// 2026-11-10). Prototypes from the call sites; the TU that writes these functions confirms them.
+// game/copy2area.h -- CT3 game/copy2area.c (0x018bf9d0..0x018bfbf0): the declarations other TUs call.
+// Prototypes confirmed against the ROM by the TU (2026-11-12).
 #pragma once
 
 #include "sdk/scetypes.h"
