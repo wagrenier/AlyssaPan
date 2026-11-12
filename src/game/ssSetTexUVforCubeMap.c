@@ -1662,8 +1662,10 @@ void ssParticleInit(int scene)
     if (count == 0)
         return;
     ParticlePassTicks[scene] = 0;
-    ParticleObject[scene] = (u_char **)_SunAlloc(&gHeapJunc, count * 4, 0x10);
-    ParticleData[scene] = (u_char **)_SunAlloc(&gHeapJunc, count * 4, 0x10);
+    // PORT: host pointers are 8 bytes; the ROM asks count * 4 (two 12-byte asks for 0A02's three
+    // entries overran into the next block headers and cut gHeapJunc short, hazards.md).
+    ParticleObject[scene] = (u_char **)_SunAlloc(&gHeapJunc, count * (int)sizeof(u_char *), 0x10);
+    ParticleData[scene] = (u_char **)_SunAlloc(&gHeapJunc, count * (int)sizeof(u_char *), 0x10);
     list = BANK_PTR(const u_int *, scene, All_table_TBL[scene]->particles);
     if (list == NULL)
         return;

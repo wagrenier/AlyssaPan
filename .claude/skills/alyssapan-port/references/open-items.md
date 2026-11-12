@@ -1726,6 +1726,17 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    a one-shot ADS never reports its end with the stand-in (adsActive stays 1 until a stop): a script that
    waits for a stream to end would wait for good -- the real driver decides; (la3) the stand-in's
    replies are all zeros, as before (CpExchangeTransBuffer's gAdrIOPStat stays 0).
+   **alyssapan/core/junc_heap.cpp (done, 2026-11-12 12:40, Claude, scheduled run):** gHeapJunc was not
+   exhausted but **corrupted**: ssParticleInit (ssSetTexUVforCubeMap.c) took ParticleObject / ParticleData
+   as count * 4 bytes and stored 8-byte host pointers, overwriting the next block headers (hazards.md);
+   the heap's free remainder vanished, so the next 16416-byte ask failed and a NULL was written through.
+   Fixed (count * sizeof(u_char *)). The repro (build.py --run 50 --pad "600:START*10,800:START*10") now
+   runs the full 50 s with no heap error and no crash, and reaches three new stubs: **Character_Init**
+   (game/Character_Init.c, CT3 0x018b3a60, 387 instructions: the TU is now partial and queued first),
+   ssCalcInversMatrix2 (game/ssCalcInversMatrix2.c, 5 functions) and gaSearchNearLight4
+   (ga/gaSearchNearLight4.c): the frontier after Character_Init. The shots after NEW are black (the room
+   draws nothing with Alyssa's setup stubbed). Checked: no other _SunAlloc in the tree (gHeapJunc,
+   gHeapSound, gHeapGlobalScene) sizes host pointers by 4; the remaining * 4 asks are int tables.
 
 ## Decisions
 

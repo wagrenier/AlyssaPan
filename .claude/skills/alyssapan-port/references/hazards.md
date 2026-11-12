@@ -7,6 +7,14 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-12, junc_heap.cpp) **A SunAlloc of `count * 4` for a pointer table overruns on the host.**
+  ssParticleInit asked gHeapJunc for ParticleObject / ParticleData as count * 4 (the ROM's pointer size);
+  the host writes 8-byte pointers, so 0A02's three entries (12 bytes each) ran into the next block
+  headers, overwrote tag and size with a pointer (sizes 0x7ff6, tags negative), cut the heap's free
+  remainder off ("sunAlloc error / JUNC size=16416") and crashed. Every heap ask for an array of pointers
+  is count * sizeof(void *). A heap map with negative USER SIZE or SIZE near 32726 is this; a probe
+  that walks the heap at each _SunAlloc / _SunFree (sizes sum to heap->size, next == block + size) and
+  prints the caller (return address minus __ImageBase, then addr2line) finds the writer in one run.
 - (2026-11-12, newgame_trace.cpp) **Shot numbers count host presents, the scripted pad counts the game's
   pad reads -- two clocks.** Presents run unpaced (about 3,300 a second in smoke runs: shot_150000 is 45 s
   in), while gaPadRead runs 30 times a second (one read per game frame: CT3 runs at 30 fps). So

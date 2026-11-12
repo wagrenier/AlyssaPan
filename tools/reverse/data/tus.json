@@ -1,6 +1,6 @@
 {
  "queue": [
-  "alyssapan/core/junc_heap.cpp",
+  "game/Character_Init.c",
   "alyssapan/rendering/ui_canvas.cpp"
  ],
  "settings": {
@@ -11,6 +11,15 @@
  },
  "tus": {
   "alyssapan/core/junc_heap.cpp": {
+   "notes": "Next blocker: Character_Init (game/Character_Init.c, CT3 0x018b3a60, still a stub; TU marked partial and queued first); then ssCalcInversMatrix2.c and gaSearchNearLight4.c, both reached in the same run. Shots after NEW are black (the room draws nothing yet). Heap probe method in hazards.md.",
+   "sessions": [
+    {
+     "date": "2026-11-12 12:40",
+     "status": "done",
+     "summary": "gHeapJunc was corrupted, not exhausted: ssParticleInit sized ParticleObject and ParticleData as count * 4 and stored 8-byte host pointers, overwriting the next block headers and cutting off the heap's free remainder (sunAlloc error JUNC 16416, then a NULL write). Now count * sizeof(u_char *); the NEW repro runs 50 s with no heap error or crash."
+    }
+   ],
+   "status": "done",
    "task": "After NEW the first room scene 0A02.BIN loads, then sunAlloc error / JUNC size=16416 and size=464 and the run crashes (access violation). Find what exhausts gHeapJunc (0x96000 bytes, main.c) -- a host size larger than the EE one, a block never freed, or a free the ROM does that the port skips -- fix it, then the crash. Repro: build.py --run 50 --pad 600:START*10,800:START*10 (pad reads are 30 a second). open-items.md item 8, newgame_trace.cpp note."
   },
   "alyssapan/core/movie_skip.cpp": {
@@ -658,9 +667,14 @@
      "date": "2026-11-10 01:22",
      "status": "verify",
      "summary": "slice 5: data_save_set and data_load_set over the save image (MC_SAVE_DATA), mc_free_area, mc_check3, mc_save_system_init, MemorycardAutoLoad with its Init / InsertedCheck / FreeCheck, ContinueBackupGet, the mc_Getinfo readers, Set_AA_New_McAlloc_Mode: the TU's code is complete"
+    },
+    {
+     "date": "2026-11-12 12:39",
+     "status": "partial",
+     "summary": "marked verify -> partial: Character_Init (CT3 0x018b3a60) is still a stub and the NEW path now reaches it (junc_heap.cpp run, 2026-11-12): the room scene 0A02 sets Alyssa up through it"
     }
    ],
-   "status": "verify",
+   "status": "partial",
    "why": "tumap.py (bootstrap 5): symtab local chunks 105..105, 36 functions keyed by their statics, 13 unkeyed; file name from the names"
   },
   "game/Clipping_Portal.c": {
