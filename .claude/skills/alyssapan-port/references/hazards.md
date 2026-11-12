@@ -47,6 +47,11 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
   tnXcmd_LoadWait had its loads requested and FSMltLoadProc waiting in HEAD_WAIT because FlProc held every
   read for gADSOpenSync (the ADS stream's open handshake, with no sound driver). A probe in the x-command
   dispatch (ssTrigExecuteActCmd), FSMltLoadProc's Phase and FlProc's state finds this in three runs.
+- (2026-11-12, alyssa_pose.cpp) **A state seen only under gdb is not a port bug until a smoke run shows
+  it.** Under gdb Alyssa's motion 0 looked frozen and the screen stayed black after NEW; plain smoke runs
+  with the same pad script reach the room every time and the motion loops. And **a probe every N calls
+  aliases with an N-call loop**: a 60-frame idle sampled every 60 calls looked like a 13x slow advance.
+  Sample at a prime interval, or log the delta per call.
 - (2026-11-12) **gdbrun.py with --pad is unpaced** (pad reads ran at about 55,000 a second under gdb), so
   frame-numbered pad scripts fire at once there; and `py gdbrun.py --help` starts the game (no help):
   give it a `timeout`.
