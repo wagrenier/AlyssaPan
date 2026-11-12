@@ -1,6 +1,9 @@
 {
  "queue": [
-  "alyssapan/rendering/ui_canvas.cpp"
+  "alyssapan/rendering/ui_canvas.cpp",
+  "ga/gaSearchNearLight4.c",
+  "game/ssCalcInversMatrix2.c",
+  "ga/gaDrawObject_Redraw_Polygon.c"
  ],
  "settings": {
   "data_dir": "C:/Users/willi/Documents/Decomp/Clocl Tower 3",
@@ -1094,12 +1097,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 87..87, 7 functions keyed by their statics, 23 unkeyed; file name from the names"
   },
   "game/asMothOperate.c": {
+   "notes": "No moth is armed on the NEW path, so nothing past the early return ran (verify). Queue refilled in smoke-run order: asMothOperate, gaSearchNearLight4, ssCalcInversMatrix2, gaDrawObject_Redraw_Polygon. The NEW run shows a 3D room at shot 32400 and ends black: look at the black end next. callcheck lists SdSetParamSE and SetPositionalParam_Alys as missing: they are in the static MothPlaySE. Doubts lb3..lg3 in open-items.md.",
    "ranges": [
     [
      "01882d60",
      "01883ca0"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-12 13:18",
+     "status": "verify",
+     "summary": "asMothOperate written: the moths state machine (rest, wait, fly the route, circle Alyssa, land and rattle, hit, dead), the three-part moves through asMothRouteSearch, the flutter and hit SEs; MOTH fields named and used in asXcmd.c and asMothPause.c"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 84..84, 1 functions keyed by their statics, 0 unkeyed; file name from the names"
   },
   "game/asMothPause.c": {

@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-12 12:47 at commit `b54df25` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-12 13:18 at commit `7d0d326` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1692**; stubs: **108**
+- reconstructed CT3 functions: **1693**; stubs: **107**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -72,7 +72,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/ahRelocateSunPs2ObjectArry.c` | 93 | 0 |
 | `src/game/ahalloc.c` | 7 | 0 |
 | `src/game/asEyeForcusUP2CamMat.c` | 30 | 0 |
-| `src/game/asMothOperate.c` | 0 | 1 |
+| `src/game/asMothOperate.c` | 1 | 0 |
 | `src/game/asMothPause.c` | 1 | 0 |
 | `src/game/asMothRouteSearch.c` | 3 | 0 |
 | `src/game/asUseArrow.c` | 11 | 0 |
@@ -103,9 +103,9 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 13, verify 53, done 10, blocked 1
-- next: **ga/gaDrawObject_Redraw_Polygon.c** (frontier score 7)
-- pinned queue: alyssapan/rendering/ui_canvas.cpp
+- 65 TUs: todo 12, verify 54, done 10, blocked 1
+- next: **ga/gaSearchNearLight4.c** (pinned in the queue)
+- pinned queue: alyssapan/rendering/ui_canvas.cpp, ga/gaSearchNearLight4.c, game/ssCalcInversMatrix2.c, ga/gaDrawObject_Redraw_Polygon.c
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
@@ -140,6 +140,7 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/ahRelocateSunPs2ObjectArry.c` 93/93 -- All 93 functions written; nothing reaches the general body yet (the two written callers pass one flag each; asCharacterAnimationExecute and asResetCharacterPosi
 - verify: `game/ahalloc.c` 7/7 -- Host block header is 0x20 bytes (EE 0x10). SunAllocInit runs at boot; nothing calls _SunAlloc yet. AlignedNum is a stub answering 0, so game/AlignedNum.c is que
 - verify: `game/asEyeForcusUP2CamMat.c` 30/30 -- The smoke run calls camera_main with CAMERA_MODE_SCENE each frame; the debug modes and the cut step are not reached. Shot still black: the first object lands at
+- verify: `game/asMothOperate.c` 1/1 -- No moth is armed on the NEW path, so nothing past the early return ran (verify). Queue refilled in smoke-run order: asMothOperate, gaSearchNearLight4, ssCalcInv
 - verify: `game/asMothPause.c` 1/1 -- Complete; callcheck clean. No moths are armed at the title so nothing can show it: verify. Queue refilled from a probe run pressing START: asMothPause was the o
 - verify: `game/asMothRouteSearch.c` 3/3 -- The route search runs only from asMothOperate (a stub); MOTH is layout host with most fields still wNN; open-items has the doubts (stage and endTicks, the twice
 - verify: `game/asUseArrow.c` 11/11 -- No arrow on screen until a stage with the bow runs. States renamed by use (4 CHARGE, 5 FLYING, 7 RETURN; ARROW_HIT_STUCK and _END). HIT_TABLE +0x2a0/+0x2a4 atta
@@ -163,6 +164,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-12 13:18 `game/asMothOperate.c` verify: asMothOperate written: the moths state machine (rest, wait, fly the route, circle Alyssa, land and rattle, hit, dead), the three-part moves through asMothRouteS
 - 2026-11-12 12:47 `game/Character_Init.c` verify: Character_Init written, the TU's last stub: room join (hash, light bank, room-in flag, ambient), the place modes (keep, the scene's start part, the light bank's
 - 2026-11-12 12:40 `alyssapan/core/junc_heap.cpp` done: gHeapJunc was corrupted, not exhausted: ssParticleInit sized ParticleObject and ParticleData as count * 4 and stored 8-byte host pointers, overwriting the next 
 - 2026-11-12 12:39 `game/Character_Init.c` partial: marked verify -> partial: Character_Init (CT3 0x018b3a60) is still a stub and the NEW path now reaches it (junc_heap.cpp run, 2026-11-12): the room scene 0A02 s
@@ -170,18 +172,16 @@ Recent sessions:
 - 2026-11-12 11:50 `game/AA_scTag2.c` verify: all 7 functions written: the movie ring's DMA tag, D3 and D4 CHCR writes, FIFO index, pts region test, B-picture skip history, two-span copy
 - 2026-11-12 11:34 `game/AA_viBuf.c` verify: reconstruct 13 functions (verify)
 - 2026-11-12 11:13 `ga/gaObjectClippingCheck.c` verify: gaObjectClippingCheck written: bounding sphere vs near/far and VU0 micro 0x068 side planes, done natively
-- 2026-11-12 10:53 `game/AA_videoCallback.c` verify: all 11 functions: ezmpegstr videoCallback, readbuf.c and strfile.c with CT3's packed rows and retry counter; new host drive stream sceCdStInit/StStart/StRead/St
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
+| `game/ssCalcInversMatrix2.c` | todo | 0/5/5 | 5.7 | 12 | 1 |
+| `ga/gaSearchNearLight4.c` | todo | 0/1/1 | 0.4 | 9 | 1 |
 | `ga/gaDrawObject_Redraw_Polygon.c` | todo | 0/1/6 | 4.3 | 7 | 1 |
-| `game/ssCalcInversMatrix2.c` | todo | 0/5/5 | 5.7 | 7 | 0 |
-| `ga/wait.c` | todo | 0/2/20 | 0.1 | 6 | 0 |
 | `game/AA_cpuCycles.c` | todo | 0/4/4 | 0.3 | 6 | 0 |
-| `ga/gaSearchNearLight4.c` | todo | 0/1/1 | 0.4 | 4 | 0 |
+| `ga/wait.c` | todo | 0/2/20 | 0.1 | 6 | 0 |
 | `game/copy2area.c` | todo | 0/2/2 | 0.5 | 2 | 0 |
 | `game/ssBrain_ChgHideAtk1.c` | todo | 0/15/34 | 29.6 | 1 | 0 |
-| `game/asMothOperate.c` | todo | 0/1/1 | 3.8 | 1 | 0 |
 
 ## Frontier (called by reconstructed code, not written yet)
 
@@ -197,7 +197,6 @@ Recent sessions:
 | `018817b0` | ssAI_SetTraceMode | 1 | sym | stub | game/ssBrain_ChgHideAtk1.c |
 | `018a91d0` | ssHit_information | 1 | sym | stub | game/ssCalcInversMatrix2.c |
 | `018c03c0` | AA_syncClockInVideo | 1 | sym | stub | game/AA_cpuCycles.c |
-| `01882d60` | asMothOperate | 1 | sym | stub | game/asMothOperate.c |
 | `018a88e0` | ssCalcInversMatrix2 | 1 | sym | stub | game/ssCalcInversMatrix2.c |
 | `018a8698` | gaDMAStopMessage_GIF | 1 | sym | stub | ga/wait.c |
 | `018bf9d0` | copy2area | 1 | sym | stub | game/copy2area.c |

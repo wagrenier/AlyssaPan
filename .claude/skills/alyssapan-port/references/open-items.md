@@ -1747,6 +1747,33 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    (ga/gaSearchNearLight4.c): the frontier after Character_Init. The shots after NEW are black (the room
    draws nothing with Alyssa's setup stubbed). Checked: no other _SunAlloc in the tree (gHeapJunc,
    gHeapSound, gHeapGlobalScene) sizes host pointers by 4; the remaining * 4 asks are int tables.
+   **Queue refill (2026-11-12 13:08, Claude, scheduled run, for the user to overrule):** the pinned queue
+   held only the blocked ui_canvas.cpp again. A probe run on the NEW path (build.py --run 50 --pad
+   "600:START*10,800:START*10") reached, in this order: gaDrawObject_Redraw_Polygon (already at the
+   title), asMothOperate, gaSearchNearLight4, ssCalcInversMatrix2, then s_open.mov (the opening movie,
+   skipped). Queued in that order with the NEW-path stubs first: game/asMothOperate.c,
+   ga/gaSearchNearLight4.c, game/ssCalcInversMatrix2.c, ga/gaDrawObject_Redraw_Polygon.c (last: (kv) says
+   the host draw already covers the divided polygons). **A room draws after NEW**: shot 32400 of that run
+   shows a 3D room (double doors, candelabra, carved panels, tiled floor) at 4:3; the run ends black
+   (shots 36000.. and last.png), and the shots from 21600 to 28800 are black too (s_open.mov skipped,
+   loading). The black end is the next thing to look at (a fade, a scene change, or a wait); the 0-byte /
+   black progress pngs (ks2) come from that black end, not from a broken copy.
+   **game/asMothOperate.c (verify, 2026-11-12 13:20):** the TU's one function and its static
+   iPauseFrame$85. MOTH's fields are named (asMothRouteSearch.h: state / phase / next / frames, angle,
+   radius, swing, home[3], routeCount / routeStep, speed, nearTicks / farTicks; MOTH_STATE_REST .. DEAD,
+   MOTH_PHASE_*, MOTH_ARG_*; MothInfo.w03 is shown); asXcmd.c and asMothPause.c now use them (asMothPause's
+   provisional MOTH_STATE_5 / MOTH_RELEASE_* are gone: state ON_ALYSSA -> next FLY, phase AIM_AWAY). No
+   moth is armed on the NEW path (no Z_GA load), so nothing ran past the early return. Open: (lb3) the
+   events and the variable are named from this use only (asMothOperate.h): TRIG_EVENT_MOTHS_OUT 0x52,
+   MOTHS_HIDE 0x257 (= PANIC_ON_257), MOTHS_SPARE_3D4, MOTH_ON_ALYSSA 0xd1 (= AI_APPEAR_NOW), and
+   TRIG_VAR_MOTH_STATES 0x30; (lc3) MOTH_ALYSSA_PART_HASH = CHARA_AXIS_HASH_ROW2 -- the part's name is
+   unknown; (ld3) the look / look2 roles (MOTH_ARG_LOOK, _LOOK2) are guessed from how they move (100
+   ahead of the body; look2 at the body's height), and arg[0] is both the body part and the SE's sound
+   object id (SdSetParamSE OBJ_ID), as the ROM passes it; (le3) parking writes part 0 (the bank root)
+   for any resting / waiting moth, so one resting moth parks the whole bank each frame: ROM-exact, odd;
+   (lf3) a zero-length move (out == body) gives a NaN direction (vrsqrt of 0) on both ROM and host:
+   unseen; (lg3) callcheck lists SdSetParamSE and SetPositionalParam_Alys as missing: they are in the
+   static MothPlaySE.
 
 ## Decisions
 

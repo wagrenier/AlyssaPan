@@ -1248,6 +1248,22 @@ the branch scene tables and a few tk x commands.
   to half a turn and turned about hitDir in stepAround steps per full turn (asMakeRotMatrixByQuartanion
   units, 0x10000 a turn) until a clear end is found. asMothOperate passes 0x5ed0 / 0x1555 and shortens
   the target by 0.8 while the answer is 1.
+- **asMothOperate** (every frame from asCharacterOperate; 2026-11-12): paused (MothInfo.paused) for more
+  than 2 frames sets BANK_FLAG_ANIM_FORCE_STOP on the moth bank. It runs while the bank is drawn and not
+  paused (or event 0x257 is set); it frees the moths when BankInfo[bank].name no longer matches the armed
+  name, or Alyssa's lightBank is not the first moth's route bank. Event 0x52 off, 0x8c, 0x257, or stage
+  variable 0x1d == 3 without event 0x3d4 parks the bank (part 0's drawOnPos y = 1e8). Each moth moves three
+  parts of the moth bank by drawOnPos (arg[0] body, arg[1] / arg[2] the look parts; arg[3] its hit shape):
+  REST (1; next WAIT places them on the route bank's home parts) -> WAIT (2: 54000 ticks after the
+  stage's endTicks) -> FLY (3: route points are route-bank parts, reached within 50; in the SEEK phase,
+  Alyssa (+120 y) nearer than the point turns it to CIRCLE unless event 0x97, invisible) -> CIRCLE (4:
+  radius 50 about Alyssa's part 0x61cb2103161c34f0, turned by her rot + sin(angle) * 16384, swinging 30
+  up and down; 600 ticks on the circle land it, 3000 off it send it back) -> ON_ALYSSA (5: a pad rattle,
+  120 frames, goal 10; event 0xd1 registered; ends when the rattle ends (C_0000 SE 0x3c), Alyssa's motion
+  record kind2 is 4, or event 0x97). A scene hit on its hit shape (ALL_TABLE.hits scnHits, HIT_DATA.part
+  == arg[3]) -> HIT (6: Z_GA SE 1, 200 ticks) -> DEAD (7). Moves: speed 45 * ticks / 5 / 10 *
+  anim_play_slow / 100 towards the target, cut by 0.8 while asMothRouteSearch hits; Z_GA SE 0 at random
+  every 120+ ticks. Variable 0x30 gets each moth's new state, 4 bits a moth.
 
 ## Hits and collision, game/ssHitCheckAttackToScn.c (2026-11-11, slice 1)
 

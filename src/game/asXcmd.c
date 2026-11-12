@@ -172,8 +172,8 @@ int asXcmd_ForceOperateAnimation(int argc, char **argv, int bank)
 }
 
 // CT3 0x018db000: moth argv[0] of the armed bank: its route (any old one freed). With no route numbers
-// (argc 4: argv[1..3] unused) it rests (state 1); else it takes the script's bank, argv[1..3], and the
-// route argv[4..] (w20 points, w22 the step), and w02 2 starts it.
+// (argc 4: argv[1..3] unused) it rests (MOTH_STATE_REST); else it takes the script's bank, argv[1..3], and the
+// route argv[4..] (routeCount points, routeStep the step), and next MOTH_STATE_WAIT starts it.
 int asXcmd_SetMoth(int argc, char **argv, int bank)
 {
     MOTH *moth;
@@ -187,34 +187,34 @@ int asXcmd_SetMoth(int argc, char **argv, int bank)
     if (moth->mem != NULL) {
         _SunFree(&gHeapJunc, &moth->mem);
         moth->mem = NULL;
-        moth->w04 = 0;
-        moth->w24 = 0;
-        moth->w0e = 0;
-        moth->w10 = 0;
+        moth->frames = 0;
+        moth->speed = 0;
+        moth->angle = 0;
+        moth->radius = 0;
         moth->timer = 0;
         memset(moth->target, 0, sizeof(moth->target));
     }
-    moth->w20 = (short)(argc - 4);
-    if (moth->w20 == 0) {
-        moth->state = 1;
-        moth->w02 = 0;
+    moth->routeCount = (short)(argc - 4);
+    if (moth->routeCount == 0) {
+        moth->state = MOTH_STATE_REST;
+        moth->next = 0;
         moth->bank = 0;
-        moth->w14 = 0;
-        moth->w16 = 0;
-        moth->w18 = 0;
-        moth->w22 = 0;
+        moth->home[0] = 0;
+        moth->home[1] = 0;
+        moth->home[2] = 0;
+        moth->routeStep = 0;
     } else {
         moth->bank = (u_char)bank;
-        moth->w14 = (short)atoi(argv[1]);
-        moth->w16 = (short)atoi(argv[2]);
-        moth->w18 = (short)atoi(argv[3]);
-        moth->mem = _SunAlloc(&gHeapJunc, (u_short)moth->w20 * 2, 2);
+        moth->home[0] = (short)atoi(argv[1]);
+        moth->home[1] = (short)atoi(argv[2]);
+        moth->home[2] = (short)atoi(argv[3]);
+        moth->mem = _SunAlloc(&gHeapJunc, (u_short)moth->routeCount * 2, 2);
         route = (short *)moth->mem;
-        for (i = 0; i < (u_short)moth->w20; i++) {
+        for (i = 0; i < (u_short)moth->routeCount; i++) {
             route[i] = (short)atoi(argv[i + 4]);
         }
-        moth->w22 = 0;
-        moth->w02 = 2;
+        moth->routeStep = 0;
+        moth->next = MOTH_STATE_WAIT;
     }
     return XCMD_DONE;
 }
@@ -239,7 +239,7 @@ int asXcmd_I_have_x_Mothes(int argc, char **argv, int bank)
     strcpy(MothInfo.bankName, BankInfo[bank].name);
     MothInfo.stage = strcmp(MothInfo.bankName, MOTH_STAGE_1A_BANK) == 0 ? MOTH_STAGE_1A : MOTH_STAGE_OTHER;
     MothInfo.list = (MOTH *)_SunAlloc(&gHeapJunc, MothInfo.count * (int)sizeof(MOTH), 0x50);
-    MothInfo.w03 = 0;
+    MothInfo.shown = 0;
     MothInfo.clatter = -1;
     for (i = 0; i < MothInfo.count; i++) {
         moth = &MothInfo.list[i];
@@ -247,19 +247,19 @@ int asXcmd_I_have_x_Mothes(int argc, char **argv, int bank)
         moth->arg[1] = (short)atoi(argv[i * 4 + 1]);
         moth->arg[2] = (short)atoi(argv[i * 4 + 2]);
         moth->arg[3] = (short)atoi(argv[i * 4 + 3]);
-        moth->state = 1;
-        moth->w04 = 0;
-        moth->w24 = 0;
-        moth->w0e = 0;
-        moth->w10 = 0;
+        moth->state = MOTH_STATE_REST;
+        moth->frames = 0;
+        moth->speed = 0;
+        moth->angle = 0;
+        moth->radius = 0;
         moth->bank = 0;
-        moth->w14 = 0;
-        moth->w16 = 0;
-        moth->w18 = 0;
+        moth->home[0] = 0;
+        moth->home[1] = 0;
+        moth->home[2] = 0;
         moth->mem = NULL;
-        moth->w20 = 0;
-        moth->w22 = 0;
-        moth->w02 = 0;
+        moth->routeCount = 0;
+        moth->routeStep = 0;
+        moth->next = 0;
         moth->timer = 0;
         memset(moth->target, 0, sizeof(moth->target));
     }

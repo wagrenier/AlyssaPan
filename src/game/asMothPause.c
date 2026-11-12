@@ -28,10 +28,10 @@ void asMothPause(int mode)
         for (i = 0; i < MothInfo.count; i++) {
             MOTH *moth = &MothInfo.list[i];
 
-            if (moth->state == MOTH_STATE_5) {
-                moth->w02 = MOTH_RELEASE_W02;
-                moth->w04 = 0;
-                moth->w01 = MOTH_RELEASE_W01;
+            if (moth->state == MOTH_STATE_ON_ALYSSA) {
+                moth->next = MOTH_STATE_FLY;
+                moth->frames = 0;
+                moth->phase = MOTH_PHASE_AIM_AWAY;
             }
         }
         if (MothInfo.clatter != -1)
