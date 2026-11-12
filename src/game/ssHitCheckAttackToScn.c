@@ -1,9 +1,12 @@
 // game/ssHitCheckAttackToScn.c -- Clock Tower 3: the hit and collision module (ssHit*, ssCollision*, ssTrans*L2W,
 // CheckLOS). Slice 1 (2026-11-11): the frame's collision pass (ssProcessHit), the attack request list,
 // ssHitInit and the hit shapes' local -> world (ssTrans*HitDataL2W), the small hit-data helpers and
-// ssRadianByO; the collision tests themselves are still stubs.
+// ssRadianByO. Slice 2 (2026-11-11): the line-of-sight tests CheckLOS and CheckLOS_Multi, and the attack
+// and damage objects' local -> world (ssTrans*AtkHitDataL2W, ssTransDmgHitDataL2W).
 
+#include <float.h>
 #include <math.h>
+#include <string.h>
 
 #include "common/alyssapan_stub.h"
 #include "game/ssHitCheckAttackToScn.h"
@@ -13,6 +16,7 @@
 #include "game/fileio.h"
 #include "game/main2.h"
 #include "game/BRANCH_CLEAR.h"
+#include "game/QuatSlerp.h"
 #include "game/unassigned_data.h"
 #include "game/wideXcmd_DebugPrint.h"
 
@@ -44,7 +48,7 @@ static void ssApplyMatrix(float *out, const float (*m)[4], const float *v)
         out[i] = r[i];
 }
 
-// The rows' sum the velocity is measured on: ((r1 + r0) + r2) + r3, r3 left out with HIT_DATA_FLAG_SIX.
+// The rows' sum the velocity is measured on: ((r1 + r0) + r2) + r3, r3 left out with HIT_DATA_FLAG_TRIANGLE.
 static void ssHitRowSum(float *out, const float (*w)[4], int six)
 {
     for (int k = 0; k < 4; k++) {
@@ -60,8 +64,8 @@ static void ssHitRowSum(float *out, const float (*w)[4], int six)
 // in the per-frame mode also the velocity, from `before` (NULL: the shape's world frame as it is).
 static void ssTransOneHitData(MODEL_PARTS *part, HIT_DATA *h, int mode, float (*before)[4])
 {
-    int six = (h->flags & HIT_DATA_FLAG_SIX) != 0;
-    ssApplyMatrix(h->worldPt, part->matrix180, h->localPt);
+    int six = (h->flags & HIT_DATA_FLAG_TRIANGLE) != 0;
+    ssApplyMatrix(h->worldN, part->matrix180, h->localN);
     if (mode == SS_L2W_FRAME) {
         float b[4], a[4];
         if (before != NULL)
@@ -88,7 +92,7 @@ static void ssTransOneHitData(MODEL_PARTS *part, HIT_DATA *h, int mode, float (*
         h->w180[1] = h->w110[1];
         h->w180[2] = h->w110[2];
     }
-    h->planeD = gaInnerProductXYZ(h->worldPt, h->world[0]);
+    h->planeD = gaInnerProductXYZ(h->worldN, h->world[0]);
 }
 
 // CT3 0x018aa830
@@ -127,6 +131,179 @@ void ssHitAddAttackRequest(int chara, int atk, int kind, int power, int target, 
     }
 }
 
+// ---- line of sight (slice 2, 2026-11-11) ----
+// CheckLOS and CheckLOS_Multi are one body in the ROM, inlined twice (only registers differ): the grid
+// walk and the polygon test are LosGatherShapes / LosCrossing here.
+
+#define LOS_CANDIDATE_MAX 256           /* the ROM's 0x400-byte stack list (it never checks the bound) */
+#define LOS_FACING_EPS -0.0001f         /* normal . dir below this: the segment runs into the front face */
+#define LOS_T_NONE 1.1f                 /* CheckLOS's nearest t before any hit (past the segment's end) */
+
+// The EE FPU's divide: x / 0 is +-FLT_MAX (the signs' xor), never inf or NaN. CheckLOS divides by the
+// segment's x extent, which a vertical segment (tiCharaFootAdjust's) leaves 0.
+static double LosEeDiv(float a, float b)
+{
+    if (b == 0.0f)
+        return (signbit(a) != signbit(b)) ? -(double)FLT_MAX : (double)FLT_MAX;
+    return (double)(a / b);
+}
+
+// The grid cells the segment's XZ line crosses within its bounding box, then the shapes listed in them
+// (each once; NO_LOS shapes and shapes of NO_HIT parts left out). Answers the shape count.
+static int LosGatherShapes(int bank, const LOS_SEG *seg, HIT_DATA **out)
+{
+    u_char *hdr = pModelPartsHeader[bank];
+    MODEL_PARTS *parts = (MODEL_PARTS *)(hdr + PARTS_HDR_RECORDS);
+    const HIT_SCENE_GRID *g = BANK_PTR(const HIT_SCENE_GRID *, bank, All_table_TBL[bank]->hits);
+    const float *base = (const float *)((u_char *)parts + PARTS_ANIM_POS); // part 0's position
+    u_char cells[HIT_GRID_N * HIT_GRID_N];
+    int cellCount = 0;
+    float dir[4];
+
+    for (int k = 0; k < 4; k++)
+        dir[k] = seg->to[k] - seg->from[k];
+    float xMax = seg->from[0] < seg->to[0] ? seg->to[0] : seg->from[0];
+    float xMin = seg->from[0] < seg->to[0] ? seg->from[0] : seg->to[0];
+    float zMax = seg->from[2] < seg->to[2] ? seg->to[2] : seg->from[2];
+    float zMin = seg->from[2] < seg->to[2] ? seg->from[2] : seg->to[2];
+    float ox = g->originX + base[0];
+    float oz = g->originZ + base[2];
+    int x0 = (int)((xMin - ox) / g->cellW);
+    int z0 = (int)((zMin - oz) / g->cellD);
+    int x1 = (int)((xMax - ox) / g->cellW) + 1;
+    int z1 = (int)((zMax - oz) / g->cellD) + 1;
+    x0 = x0 < 0 ? 0 : (x0 > HIT_GRID_N - 1 ? HIT_GRID_N - 1 : x0);
+    x1 = x1 < 1 ? 1 : (x1 > HIT_GRID_N ? HIT_GRID_N : x1);
+    z0 = z0 < 0 ? 0 : (z0 > HIT_GRID_N - 1 ? HIT_GRID_N - 1 : z0);
+    z1 = z1 < 1 ? 1 : (z1 > HIT_GRID_N ? HIT_GRID_N : z1);
+
+    // The line z + k x + c = 0 through the segment; a cell is taken when it changes sign along its bottom,
+    // right or top edge. PORT: in double, so a vertical segment's +-FLT_MAX slope keeps the signs the EE's
+    // clamped arithmetic gives instead of inf - inf.
+    double k = -LosEeDiv(dir[2], dir[0]);
+    double c = -((double)seg->from[2] + k * seg->from[0]);
+    for (int z = z0; z < z1; z++) {
+        double zLo = oz + g->cellD * (float)z;
+        double zHi = oz + g->cellD * (float)(z + 1);
+        for (int x = x0; x < x1; x++) {
+            double kxLo = k * (double)(ox + g->cellW * (float)x);
+            double kxHi = k * (double)(ox + g->cellW * (float)(x + 1));
+            double loHi = c + zLo + kxHi;
+            if ((c + zLo + kxLo) * loHi <= 0.0 || loHi * (c + zHi + kxHi) <= 0.0 ||
+                (c + zHi + kxHi) * (c + zHi + kxLo) <= 0.0)
+                cells[cellCount++] = (u_char)(x + z * HIT_GRID_N);
+        }
+    }
+
+    const u_int *list = BANK_PTR(const u_int *, bank, g->hitData);
+    int n = 0;
+    for (int i = 0; i < cellCount; i++) {
+        for (int which = 0; which < 2; which++) {
+            int cnt = which == 0 ? g->cellACount[cells[i]] : g->cellBCount[cells[i]];
+            const u_short *idx =
+                BANK_PTR(const u_short *, bank, which == 0 ? g->cellA[cells[i]] : g->cellB[cells[i]]);
+            for (int j = 0; j < cnt; j++) {
+                HIT_DATA *h = BANK_PTR(HIT_DATA *, bank, list[idx[j]]);
+                if ((h->flags & HIT_DATA_FLAG_NO_LOS) != 0 || (parts[h->part].flags10 & PARTS_FLAG10_NO_HIT) != 0)
+                    continue;
+                int m = 0;
+                while (m < n && out[m] != h)
+                    m++;
+                if (m == n && n < LOS_CANDIDATE_MAX) // PORT: the bound (the ROM writes on past its list)
+                    out[n++] = h;
+            }
+        }
+    }
+    return n;
+}
+
+// The VU0's normalize (VMUL, two VADDbc, VRSQRT, VMULq): v * 1 / |v.xyz|.
+static void LosNormalize(float *v)
+{
+    float q = 1.0f / sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    for (int k = 0; k < 4; k++)
+        v[k] *= q;
+}
+
+// Where the segment crosses h's plane from its front, at t in [0, 1] along it; answers 1 and the point
+// when that point is inside the polygon (the angles the corners span from it add up to a full turn).
+static int LosCrossing(const HIT_DATA *h, const LOS_SEG *seg, const float *dir, float *t, float *point)
+{
+    float dn = gaInnerProductXYZ((float *)h->worldN, (float *)dir);
+    if (!(dn < LOS_FACING_EPS))
+        return 0;
+    float fn = gaInnerProductXYZ((float *)h->worldN, (float *)seg->from);
+    *t = (h->planeD - fn) / dn;
+    if (!(0.0f <= *t && *t <= 1.0f))
+        return 0;
+    for (int k = 0; k < 4; k++)
+        point[k] = seg->from[k] + dir[k] * *t;
+    int corners = (h->flags & HIT_DATA_FLAG_TRIANGLE) != 0 ? 3 : 4;
+    float v[4][4];
+    for (int i = 0; i < corners; i++) {
+        for (int k = 0; k < 4; k++)
+            v[i][k] = h->world[i][k] - point[k];
+        LosNormalize(v[i]);
+    }
+    int angle = 0;
+    for (int i = 0; i < corners; i++)
+        angle += ahAcos(gaInnerProductXYZ(v[i], v[(i + 1) % corners]));
+    return LOS_INSIDE_ANGLE <= (float)angle;
+}
+
+// CT3 0x018aa950
+// Every polygon of the scene bank the segment crosses from its front (up to LOS_MULTI_MAX), in the order
+// they were gathered; != 0 when there is one.
+// callcheck: gaInnerProductXYZ, ahAcos (LosCrossing)
+int CheckLOS_Multi(int bank, LOS_MULTI *q)
+{
+    LOS_SEG seg;
+    HIT_DATA *cand[LOS_CANDIDATE_MAX];
+    float dir[4], point[4], t;
+
+    q->count = 0;
+    memcpy(seg.from, q->from, sizeof(seg.from));
+    memcpy(seg.to, q->to, sizeof(seg.to));
+    for (int k = 0; k < 4; k++)
+        dir[k] = seg.to[k] - seg.from[k];
+    int n = LosGatherShapes(bank, &seg, cand);
+    for (int i = 0; i < n; i++) {
+        if (LosCrossing(cand[i], &seg, dir, &t, point)) {
+            q->hits[q->count++] = cand[i];
+            if (q->count == LOS_MULTI_MAX)
+                break;
+        }
+    }
+    return q->count != 0;
+}
+
+// CT3 0x018ab180
+// The nearest polygon of the scene bank the segment crosses from its front: its point and record go to
+// hit->point / hit->record (left as they were on a miss); != 0 on a hit.
+// callcheck: gaInnerProductXYZ, ahAcos (LosCrossing)
+int CheckLOS(int bank, LOS_HIT *hit)
+{
+    LOS_SEG seg = hit->seg;
+    HIT_DATA *cand[LOS_CANDIDATE_MAX];
+    HIT_DATA *best = NULL;
+    float dir[4], point[4], t;
+    float bestT = LOS_T_NONE;
+
+    for (int k = 0; k < 4; k++)
+        dir[k] = seg.to[k] - seg.from[k];
+    int n = LosGatherShapes(bank, &seg, cand);
+    for (int i = 0; i < n; i++) {
+        if (LosCrossing(cand[i], &seg, dir, &t, point) && t < bestT) {
+            memcpy(hit->point, point, sizeof(hit->point));
+            bestT = t;
+            best = cand[i];
+        }
+    }
+    if (best != NULL)
+        hit->record = best;
+    return best != NULL;
+}
+
 // CT3 0x018ac0d0
 // The scene's damage shapes of kind `mode` into the world (parts flagged PARTS_FLAG10_NO_HIT stay).
 // The per-frame velocity is measured from the part's matrix (the frame before) to its matrix180.
@@ -158,6 +335,65 @@ void ssTransColHitDataL2W(MODEL_PARTS *parts, HIT_TABLE *hits)
     int n = hits->colCount;
     for (int i = 0; i < n; i++)
         ssApplyMatrix(world[i], parts[part[i]].matrix, local[i]);
+}
+
+// The object's rows into the world by its part's world matrix, four at a time.
+static void ssTransObjRows(MODEL_PARTS *part, HIT_OBJ *obj)
+{
+    int bank = BankOfHostPtr(obj);      // PORT: the words are EE addresses of the object's bank
+    float (*local)[4] = BANK_PTR(float (*)[4], bank, obj->local);
+    float (*world)[4] = BANK_PTR(float (*)[4], bank, obj->world);
+    for (int r = 0; r < obj->rows; r += 4)
+        gaMulMatrix(world + r, part->matrix, local + r);
+}
+
+// CT3 0x018ac600
+// A scene attack object into the world.
+// callcheck: gaMulMatrix (ssTransObjRows)
+void ssTransScnAtkHitDataL2W(MODEL_PARTS *parts, HIT_OBJ *obj)
+{
+    ssTransObjRows(&parts[obj->part], obj);
+}
+
+// CT3 0x018ac730
+// The character bank's attack object for attack `atk` into the world; answers it, or NULL when there is
+// none or its part is flagged PARTS_FLAG10_NO_HIT (then nothing moves).
+// callcheck: gaMulMatrix (ssTransObjRows)
+HIT_OBJ *ssTransAtkHitDataL2W(MODEL_PARTS *parts, HIT_TABLE *hits, int atk)
+{
+    int bank = BankOfHostPtr(hits);     // PORT: the list's words are EE addresses of the table's bank
+    const u_int *objs = BANK_PTR(const u_int *, bank, hits->objs);
+    int n = hits->objCount;
+    for (int i = 0; i < n; i++) {
+        HIT_OBJ *obj = BANK_PTR(HIT_OBJ *, bank, objs[i]);
+        if (obj->atk == (s_char)atk) {
+            MODEL_PARTS *part = &parts[obj->part];
+            if ((part->flags10 & PARTS_FLAG10_NO_HIT) != 0)
+                return NULL;
+            ssTransObjRows(part, obj);
+            return obj;
+        }
+    }
+    return NULL;
+}
+
+// CT3 0x018ac840
+// The character's damage shapes into the world by their parts' matrix180 (parts flagged
+// PARTS_FLAG10_NO_HIT stay).
+void ssTransDmgHitDataL2W(MODEL_PARTS *parts, HIT_TABLE *hits)
+{
+    int bank = BankOfHostPtr(hits);     // PORT: the list's words are EE addresses of the table's bank
+    const u_int *list = BANK_PTR(const u_int *, bank, hits->hitData);
+    int n = hits->dmgObjCount;
+    for (int i = 0; i < n; i++) {
+        HIT_DMG *d = BANK_PTR(HIT_DMG *, bank, list[i]);
+        MODEL_PARTS *part = &parts[d->part];
+        if ((part->flags10 & PARTS_FLAG10_NO_HIT) == 0) {
+            for (int m = 0; m < 3; m++)
+                gaMulMatrix(d->world[m], part->matrix180, d->local[m]);
+            memcpy(d->w190, d->w0c0, sizeof(d->w190));
+        }
+    }
 }
 
 // CT3 0x018ac6a0
@@ -347,19 +583,7 @@ void ssHitGlobalInit(void)
 
 // ---- stubs (tools/reverse/stubgen.py) ----
 
-// stub of CT3 0x018ab180
-int CheckLOS(int bank, LOS_SEG *seg)
-{
-    ALYSSAPAN_STUB("CheckLOS", 0x018ab180);
-    return {};
-}
 
-// stub of CT3 0x018aa950
-int CheckLOS_Multi(int bank, LOS_MULTI *q)
-{
-    ALYSSAPAN_STUB("CheckLOS_Multi", 0x018aa950);
-    return {};
-}
 
 // stub of CT3 0x018b1a40
 void ssCollisionCheck(struct CHARACTER *chara, int bank, SS_HIT_CHARA *list, int count)

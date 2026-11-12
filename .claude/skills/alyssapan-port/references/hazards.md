@@ -7,6 +7,13 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-11, ssHitCheckAttackToScn.c slice 2) **The EE FPU never makes inf or NaN: x / 0 is +-FLT_MAX
+  and overflow clamps.** CheckLOS divides by the segment's x extent to pick grid cells; a vertical segment
+  (tiCharaFootAdjust's foot probe) gives 0 / 0, which the EE turns into a huge slope that still selects the
+  probe's cell, but the host's NaN selects none (no hit, feet never land). Port such divides with an EE-style
+  divide and the arithmetic after it in double (LosEeDiv). Also: a caller that passes a bare LOS_SEG to
+  CheckLOS gets its stack overwritten -- CheckLOS takes the LOS_HIT it fills.
+
 - (2026-11-11, title_wide.cpp) **CLAMP_1's REGION_REPEAT read as clamp smears a picture's edge into a flat
   band.** UiCanvas's DrawCall has only repeat (WMS 0) or clamp; the title's sky and fog bands tile one
   128 x 128 cell of a 256 x 256 picture (CLAMP_1 0x7f0007ff / 0x7f2007ff: MSK 0x7f, FIX 0 or 0x80) across

@@ -1298,7 +1298,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 124..125, 24 functions keyed by their statics, 31 unkeyed; file name from the names"
   },
   "game/ssHitCheckAttackToScn.c": {
-   "notes": "Left in the slice: ssCollisionCheck, ssColCheckChar_Chara, ssMakeCharOBB, ssDivideHitDataToSpaceCell, ssHitCheckAndProcess, ssGetCharSpaceCell, ssAddHitDataToCheckList, ssHitCheckAllObject; stubs still: ssHitCheckCharacterAttack, ssHitCheckSceneAttack, CheckLOS, CheckLOS_Multi. HIT_DATA (0x19c, ssHitCheckAttackToScn.h) and HIT_TABLE +0x00..0x1c, +0x2a8 named from the L2W writers; HIT_DATA_FLAG_SIX (0x40000000) meaning unread; HIT_TABLE w1c / w2b8 are the second hit lists ssTrigAttackHitCheck reads (open-items 1 k). The title screen draws as before (collision has nothing on screen yet).",
+   "notes": "Left: ssHitCheckAttackToScn, ssHitCheckOneObject, ssHitCheckOBB_TriangleSides, ssHitCheckAttack, ssCollisionCheck, ssColCheckChar_Chara, ssMakeCharOBB, ssDivideHitDataToSpaceCell, ssHitCheckAndProcess, ssGetCharSpaceCell, ssAddHitDataToCheckList, ssHitCheckAllObject; stubs still ssHitCheckCharacterAttack, ssHitCheckSceneAttack, ssCollisionCheck. CheckLOS now takes the LOS_HIT it fills (callers in asMothRouteSearch.c, Clipping_Portal.c, BRANCH_CLEAR.c updated; LosHitBlocked passed a bare LOS_SEG, a stack overrun on the EE layout). HIT_DATA: world rows are the polygon corners, worldN (+0x90, was worldPt) the normal; HIT_DATA_FLAG_SIX renamed HIT_DATA_FLAG_TRIANGLE (3 corners), new HIT_DATA_FLAG_NO_LOS 0x10000000. HIT_SCENE_GRID names a scene bank's 8x8 XZ grid (two index lists per cell, +0x10/+0x110, counts +0x210/+0x250, origin +0x290 relative to part 0's position, cell size +0x298); which list a shape goes in is the grid writer's, unread. HIT_OBJ (+0xd0 local, +0xd4 world, +0xd8 rows, +0xda part, +0xdc atk) and HIT_DMG (3 matrices, part +0x1a0) named; HIT_TABLE pad18 is dmgObjCount. Vertical segments divide 0/0: LosEeDiv keeps the EE answer (hazards.md). The title shot is the same clock-tower scene: nothing on the title runs a line of sight.",
    "ranges": [
     [
      "018a9fe0",
@@ -1310,6 +1310,11 @@
      "date": "2026-11-11 22:22",
      "status": "partial",
      "summary": "slice 1: ssProcessHit, the attack request queue, ssHitInit, ssTransHitDataL2W and ssTransScnDmgHitDataL2W, the collision-point helpers, ssHit_GetMaxIDFromAtkID and ssRadianByO (13 functions)"
+    },
+    {
+     "date": "2026-11-11 22:52",
+     "status": "partial",
+     "summary": "slice 2: CheckLOS and CheckLOS_Multi (the scene grid walk and the inside-polygon test), ssTransScnAtkHitDataL2W, ssTransAtkHitDataL2W, ssTransDmgHitDataL2W (5 functions)"
     }
    ],
    "status": "partial",

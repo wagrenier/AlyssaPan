@@ -483,10 +483,9 @@ static int FootAdjustLeg(CHARACTER *chr, u_char **leg, float (*saved)[4][4], LOS
     memcpy(hit->seg.to, foot, sizeof(hit->seg.to));
     hit->seg.from[1] += FOOT_LOS_ABOVE;
     hit->seg.to[1] -= FOOT_LOS_BELOW;
-    if (CheckLOS(chr->lightBank, &hit->seg) == 0)
+    if (CheckLOS(chr->lightBank, hit) == 0)
         return 0;
-    if (hit->record == NULL || // PORT: the stub CheckLOS leaves none
-        (*(u_int *)((u_char *)hit->record + LOS_HIT_FLAGS) & LOS_HIT_FLAG_FLOOR) == 0)
+    if ((*(u_int *)((u_char *)hit->record + LOS_HIT_FLAGS) & LOS_HIT_FLAG_FLOOR) == 0)
         return 0;
     memcpy(saved[0], LEG_M(leg[0], LEG_REC_BASE), sizeof(saved[0]));
     memcpy(saved[1], LEG_M(leg[1], LEG_REC_BASE), sizeof(saved[1]));

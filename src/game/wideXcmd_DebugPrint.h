@@ -220,7 +220,7 @@ typedef struct HIT_TABLE {
     u_int colLocal;                     /* 0x0c: float[colCount][4]: the collision points in their part's space */
     u_int colWorld;                     /* 0x10: float[colCount][4]: the same in the world (ssTransColHitDataL2W) */
     u_int colParts;                     /* 0x14: short[colCount]: each point's part (parts header index) */
-    u_char pad18;
+    u_char dmgObjCount;                 /* 0x18: HIT_DMG objects in hitData (a character bank's; ssTransDmgHitDataL2W) */
     u_char objCount;                    /* 0x19 */
     u_char colCount;                    /* 0x1a */
     u_char pad1b;

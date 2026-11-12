@@ -125,7 +125,7 @@ int asMothRouteSearch(int bank, float *from, float *to, float *out, int stepArou
 
     memcpy(los.seg.from, from, sizeof(los.seg.from));
     memcpy(los.seg.to, to, sizeof(los.seg.to));
-    if (CheckLOS(bank, &los.seg) == 0) {
+    if (CheckLOS(bank, &los) == 0) {
         memcpy(out, to, 4 * sizeof(float));
         return 0;
     }
@@ -152,7 +152,7 @@ int asMothRouteSearch(int bank, float *from, float *to, float *out, int stepArou
         while (blocked && around <= MOTH_TURN) {
             for (i = 0; i < 4; i++)
                 los.seg.to[i] = v[i] + from[i];
-            if (CheckLOS(bank, &los.seg) == 0) {
+            if (CheckLOS(bank, &los) == 0) {
                 blocked = 0;
             } else {
                 // As the ROM: the next candidate is built before the step, so each ring's first end is

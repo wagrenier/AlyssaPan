@@ -47,17 +47,18 @@ void ssCollisionCheck(struct CHARACTER *chara, int bank, SS_HIT_CHARA *list, int
 // world ones. Its +0x194 / +0x198 are LOS_HIT_FLAGS / LOS_HIT_ID (CheckLOS's hit record).
 typedef struct HIT_DATA {
     float local[4][4];                  /* 0x000: the shape's frame in its part */
-    float world[4][4];                  /* 0x040: local * the part's matrix180 (gaMulMatrix); row 0 is the plane normal */
-    float localPt[4];                   /* 0x080 */
-    float worldPt[4];                   /* 0x090: a point of the plane */
-    float vel[4];                       /* 0x0a0: kind 2: how far the rows' sum moved this frame, / 4 (/ 3 with _SIX) */
-    float localV[6][4];                 /* 0x0b0: the shape's vectors (3 used: 0, 3, 4; all 6 with HIT_DATA_FLAG_SIX) */
-    u_int w110[3];                      /* 0x110: copied to w180 (2 words; 3 with _SIX) */
+    float world[4][4];                  /* 0x040: local * the part's matrix180 (gaMulMatrix): the polygon's corners
+                                           (4; 3 with HIT_DATA_FLAG_TRIANGLE), as CheckLOS walks them */
+    float localN[4];                    /* 0x080 */
+    float worldN[4];                    /* 0x090: the plane's normal (CheckLOS: a segment crosses from its front) */
+    float vel[4];                       /* 0x0a0: kind 2: how far the corners' sum moved this frame, / 4 (/ 3) */
+    float localV[6][4];                 /* 0x0b0: the shape's vectors (3 used: 0, 3, 4; all 6 with HIT_DATA_FLAG_TRIANGLE) */
+    u_int w110[3];                      /* 0x110: copied to w180 (2 words; 3 with _TRIANGLE) */
     u_char pad11c[4];
     float worldV[6][4];                 /* 0x120: localV in the world */
     u_int w180[3];                      /* 0x180 */
     u_char pad18c[4];
-    float planeD;                       /* 0x190: worldPt . world[0] (xyz) */
+    float planeD;                       /* 0x190: worldN . world[0] (xyz): the plane's distance along its normal */
     u_int flags;                        /* 0x194: HIT_DATA_FLAG_* (LOS_HIT_FLAGS) */
     short part;                         /* 0x198: its part (parts header index; LOS_HIT_ID) */
     s_char kind;                        /* 0x19a: SS_L2W_*: which pass moves it */
@@ -66,7 +67,30 @@ typedef struct HIT_DATA {
 static_assert(offsetof(HIT_DATA, worldV) == 0x120, "HIT_DATA.worldV");
 static_assert(offsetof(HIT_DATA, planeD) == 0x190, "HIT_DATA.planeD");
 static_assert(offsetof(HIT_DATA, kind) == 0x19a, "HIT_DATA.kind");
-#define HIT_DATA_FLAG_SIX 0x40000000u   /* six vectors and three rows (the flagged shape; its meaning unread) */
+#define HIT_DATA_FLAG_TRIANGLE 0x40000000u /* three corners (and six vectors); clear: a quad (CheckLOS, 2026-11-11) */
+#define HIT_DATA_FLAG_NO_LOS 0x10000000u /* set: lines of sight pass through (CheckLOS / CheckLOS_Multi skip it) */
+// A scene bank's ALL_TABLE.hits seen as CheckLOS reads it (slice 2, 2026-11-11): the shapes sorted into an
+// 8 x 8 grid of cells over XZ, two index lists per cell. layout: ee -- bank data; the same record as
+// HIT_TABLE (wideXcmd_DebugPrint.h), whose +0x08..0x2c are a character bank's (FS_LOAD_SHAPE) instead.
+#define HIT_GRID_N 8                    /* cells per side; a cell is x + z * HIT_GRID_N */
+typedef struct HIT_SCENE_GRID {
+    u_int hitData;                      /* 0x000: HIT_TABLE.hitData: u_int[], EE words of HIT_DATA */
+    u_char pad04[0xc];
+    u_int cellA[HIT_GRID_N * HIT_GRID_N]; /* 0x010: per cell, u_short[cellACount]: indices into hitData */
+    u_int cellB[HIT_GRID_N * HIT_GRID_N]; /* 0x110: the second list (the same use; what sorts a shape into
+                                           which list is the grid writer's: not read yet) */
+    u_char cellACount[HIT_GRID_N * HIT_GRID_N]; /* 0x210 */
+    u_char cellBCount[HIT_GRID_N * HIT_GRID_N]; /* 0x250 */
+    float originX;                      /* 0x290: the grid's corner, relative to part 0's position */
+    float originZ;                      /* 0x294 */
+    float cellW;                        /* 0x298: a cell's size along x */
+    float cellD;                        /* 0x29c: along z */
+} HIT_SCENE_GRID;
+static_assert(offsetof(HIT_SCENE_GRID, cellACount) == 0x210, "HIT_SCENE_GRID.cellACount");
+static_assert(offsetof(HIT_SCENE_GRID, cellD) == 0x29c, "HIT_SCENE_GRID.cellD");
+// A point is inside a shape's polygon when the angles it sees the corners' edges under (ahAcos units, a
+// full turn 0x10000) add up to at least this: a full turn less ~0.8%.
+#define LOS_INSIDE_ANGLE 65014.0f
 // parts: pModelPartsHeader[bank] + PARTS_HDR_RECORDS; hits: the bank's ALL_TABLE.hits.
 void ssTransHitDataL2W(struct MODEL_PARTS *parts, struct HIT_TABLE *hits, int mode);     // CT3 0x018ac920
 void ssTransScnDmgHitDataL2W(struct MODEL_PARTS *parts, struct HIT_TABLE *hits, int mode); // CT3 0x018ac0d0
@@ -75,9 +99,37 @@ void ssTransScnDmgHitDataL2W(struct MODEL_PARTS *parts, struct HIT_TABLE *hits, 
 void ssTransColHitDataL2W(struct MODEL_PARTS *parts, struct HIT_TABLE *hits);            // CT3 0x018ac570
 void ssMoveAllHitObjCoordinate(struct HIT_TABLE *hits, const float *d);                  // CT3 0x018ad760
 void ssSplitVectorHandV(float *h, float *v, const float *src);                           // CT3 0x018b1820
+// An attack object (HIT_TABLE.objs of a character bank, or a scene attack; slice 2, 2026-11-11, from
+// ssTrans*AtkHitDataL2W). layout: ee -- bank data; only +0xd0.. read so far. HIT_OBJ_ID (+0xda) is its part.
+typedef struct HIT_OBJ {
+    u_char pad00[0xd0];
+    u_int local;                        /* 0xd0: EE word of the bank: float[rows][4], the shape in its part */
+    u_int world;                        /* 0xd4: EE word: float[rows][4], the same in the world */
+    short rows;                         /* 0xd8: qwords in local / world (moved 4 at a time) */
+    short part;                         /* 0xda: HIT_OBJ_ID: its part (parts header index) */
+    s_char atk;                         /* 0xdc: HIT_OBJ_ATK: the attack id it serves */
+} HIT_OBJ;
+static_assert(offsetof(HIT_OBJ, part) == 0xda, "HIT_OBJ.part");
+static_assert(offsetof(HIT_OBJ, atk) == 0xdc, "HIT_OBJ.atk");
+// A character's damage shape (a character bank's HIT_TABLE.hitData[0..dmgObjCount); slice 2, from
+// ssTransDmgHitDataL2W): three local matrices moved by the part's matrix180. layout: ee -- bank data.
+typedef struct HIT_DMG {
+    float local[3][4][4];               /* 0x000 */
+    float w0c0[4];                      /* 0x0c0: copied to w190 each time the shape moves */
+    float world[3][4][4];               /* 0x0d0 */
+    float w190[4];                      /* 0x190 */
+    short part;                         /* 0x1a0: its part (parts header index) */
+} HIT_DMG;
+static_assert(offsetof(HIT_DMG, world) == 0xd0, "HIT_DMG.world");
+static_assert(offsetof(HIT_DMG, part) == 0x1a0, "HIT_DMG.part");
+void ssTransScnAtkHitDataL2W(struct MODEL_PARTS *parts, HIT_OBJ *obj);                   // CT3 0x018ac600
+HIT_OBJ *ssTransAtkHitDataL2W(struct MODEL_PARTS *parts, struct HIT_TABLE *hits, int atk); // CT3 0x018ac730
+void ssTransDmgHitDataL2W(struct MODEL_PARTS *parts, struct HIT_TABLE *hits);            // CT3 0x018ac840
 
 // ---- line-of-sight tests (from LosHitFadeUpdateTarget's calls, BRANCH_CLEAR.c slice 5, 2026-11-10) ----
-// CheckLOS(bank, seg): != 0 when the segment from -> to hits the bank's collision.
+// CheckLOS(bank, hit): != 0 when the segment from -> to crosses a polygon of the scene bank's collision
+// from its front (slice 2, 2026-11-11); the nearest crossing's point and record are written past the
+// segment (LOS_HIT), and nothing else on a miss.
 typedef struct LOS_SEG {
     float from[4];                      /* 0x00: w 1 */
     float to[4];                        /* 0x10: w 1 */
@@ -95,16 +147,14 @@ typedef struct LOS_MULTI {
 } LOS_MULTI;
 #define LOS_HIT_ID 0x198                /* short: the hit record's id (the faded part's hitIds list) */
 int CheckLOS_Multi(int bank, LOS_MULTI *q);                                              // CT3 0x018aa950
-int CheckLOS(int bank, LOS_SEG *seg);                                                    // CT3 0x018ab180
 // ---- attack requests (from asCharacterMortionFunctionOperation's calls, 2026-11-11) ----
 // chara strikes with its shape's attack `atk` (power: the motion record's short at +0x2c; motion: its slot
 // 0 motion) against `bank` (its lightBank, or the moth's bank); a2 0, a4 -1, a5 1 at the one call site.
 void ssHitAddAttackRequest(int chara, int atk, int kind, int power, int target, int b0d, int motion, int bank); // CT3 0x018aa8e0
 // The part index (of bank's parts header) of attack `atk`.
 int ssHit_GetMaxIDFromAtkID(int bank, int atk);                                          // CT3 0x018ac6a0
-// What CheckLOS leaves after the segment on a hit, as tiCharaFootAdjust reads it (2026-11-11): the
-// caller's buffer runs on past LOS_SEG -- +0x20 the hit point, +0x30 the hit record (an EE word there).
-// layout: host (the record is a host pointer here); CheckLOS's TU confirms both and fills them.
+// What CheckLOS leaves after the segment on a hit (confirmed by CheckLOS, 2026-11-11): +0x20 the nearest
+// hit point, +0x30 its HIT_DATA (an EE word on the EE). layout: host (the record is a host pointer here).
 typedef struct LOS_HIT {
     LOS_SEG seg;                        /* 0x00 */
     float point[4];                     /* 0x20: where the segment meets the surface */
@@ -112,6 +162,7 @@ typedef struct LOS_HIT {
 } LOS_HIT;
 #define LOS_HIT_FLAGS 0x194             /* u_int in the hit record */
 #define LOS_HIT_FLAG_FLOOR 0x100000u    /* a surface feet stand on (tiCharaFootAdjust's only test) */
+int CheckLOS(int bank, LOS_HIT *hit);                                                    // CT3 0x018ab180
 // The direction of v in the plane that drops `axis` (1: the XZ plane, from z and x), radians in [0, 2pi);
 // a software double on the EE (from ssTrigLookAtCheck's call, 2026-11-11).
 double ssRadianByO(const float *v, int axis);                                            // CT3 0x018ad300

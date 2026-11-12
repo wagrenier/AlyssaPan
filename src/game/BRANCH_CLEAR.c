@@ -410,7 +410,7 @@ void DistanceAttenuationUpdate(int bank, int a1)
 // by id does not.
 static int LosHitBlocked(int bank, LOS_FADE *at, const float *eye, const float *pos, int *stop)
 {
-    LOS_SEG seg;
+    LOS_HIT seg;                        // CheckLOS writes its point and record past the segment
     LOS_MULTI q;
     int *ids;
     u_int i;
@@ -432,10 +432,10 @@ static int LosHitBlocked(int bank, LOS_FADE *at, const float *eye, const float *
         }
         return 0;
     }
-    memcpy(seg.from, eye, sizeof(seg.from));
-    seg.from[3] = 1.0f;
-    memcpy(seg.to, pos, sizeof(seg.to));
-    seg.to[3] = 1.0f;
+    memcpy(seg.seg.from, eye, sizeof(seg.seg.from));
+    seg.seg.from[3] = 1.0f;
+    memcpy(seg.seg.to, pos, sizeof(seg.seg.to));
+    seg.seg.to[3] = 1.0f;
     for (b = GLOBAL_BANK_LAST + 1; b < BANK_MAX; b++) {
         if (BankInfo[b].drawOn == 0)
             continue;

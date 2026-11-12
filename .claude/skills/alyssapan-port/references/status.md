@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-11 22:33 at commit `57c84aa` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-11 22:52 at commit `d02393c` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1283**; stubs: **202**
+- reconstructed CT3 functions: **1288**; stubs: **200**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -85,7 +85,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/sound.c` | 73 | 0 |
 | `src/game/ssCalcInversMatrix2.c` | 0 | 1 |
 | `src/game/ssGrpPortalCheck.c` | 74 | 0 |
-| `src/game/ssHitCheckAttackToScn.c` | 13 | 5 |
+| `src/game/ssHitCheckAttackToScn.c` | 18 | 3 |
 | `src/game/ssSetTexUVforCubeMap.c` | 1 | 50 |
 | `src/game/tiAvoidObject.c` | 0 | 9 |
 | `src/game/tiXcmd_TransItem.c` | 85 | 8 |
@@ -102,7 +102,7 @@ Least-named game-code regions (64 KB blocks):
 - next: **game/ssHitCheckAttackToScn.c** (pinned in the queue)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
 - partial: `game/BRANCH_CLEAR.c` 173/173 -- 15 s smoke run: no fault, shot black (no host draw module yet). callcheck: GetAreaFloor's memcmp and ssTrigRemoveEvent come through ROOM_IS and AreaFloorClear (
-- partial: `game/ssHitCheckAttackToScn.c` 13/37 -- Left in the slice: ssCollisionCheck, ssColCheckChar_Chara, ssMakeCharOBB, ssDivideHitDataToSpaceCell, ssHitCheckAndProcess, ssGetCharSpaceCell, ssAddHitDataToCh
+- partial: `game/ssHitCheckAttackToScn.c` 18/37 -- Left: ssHitCheckAttackToScn, ssHitCheckOneObject, ssHitCheckOBB_TriangleSides, ssHitCheckAttack, ssCollisionCheck, ssColCheckChar_Chara, ssMakeCharOBB, ssDivide
 - partial: `game/tiXcmd_TransItem.c` 85/93 -- Slice 10. Written: tiXcmd_UseItem (ITEM_USE_* modes from argv[4], ITEM_KIND_* from the row byte +0: give-take, signal, heal Character[0].hp up to hpMax, calm vi
 - partial: `game/wideXcmd_TriggerInit.c` 1/46 -- Title draws at 4:3 and 16:9 after 40 s (logo, 3, menu, copyright). Fix in SunTexEePtr, BankOfEeAddr, HitObjectId: free slot banks shared EE addresses with the G
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
@@ -145,6 +145,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-11 22:52 `game/ssHitCheckAttackToScn.c` partial: slice 2: CheckLOS and CheckLOS_Multi (the scene grid walk and the inside-polygon test), ssTransScnAtkHitDataL2W, ssTransAtkHitDataL2W, ssTransDmgHitDataL2W (5 f
 - 2026-11-11 22:33 `game/BRANCH_CLEAR.c` partial: marked partial -> partial: split from game/QuatSlerp.c on 2026-11-11: one CodeWarrior object 0x01851f00..0x0185e9d0 (symtab locals 1088..1162 one inseparable ru
 - 2026-11-11 22:33 `game/QuatSlerp.c` verify: split game/QuatSlerp.c: the symtab proves 0x01851f00..0x0185e9d0 is one CodeWarrior object, now game/BRANCH_CLEAR.c (173 functions, code moved unchanged); QuatS
 - 2026-11-11 22:23 `game/BRANCH_CLEAR.c` partial: marked verify -> partial: the user, 2026-11-11: the TU is wrong, it holds many objects; split it (open-items.md TOP PRIORITY)
@@ -152,7 +153,6 @@ Recent sessions:
 - 2026-11-11 22:22 `game/ssHitCheckAttackToScn.c` partial: slice 1: ssProcessHit, the attack request queue, ssHitInit, ssTransHitDataL2W and ssTransScnDmgHitDataL2W, the collision-point helpers, ssHit_GetMaxIDFromAtkID 
 - 2026-11-11 22:09 `game/asXcmd.c` verify: all 20 x commands written: panic sources, moths, arrows, hit points, slow motion, camera quake / reset / look-around, attach, auto-aim, seek bars, motion by mot
 - 2026-11-11 21:55 `game/asMothRouteSearch.c` verify: MothInfo init and destroy, and the moth route search around scene collision; MothInfo moved out of unassigned data into MOTH_INFO
-- 2026-11-11 21:47 `game/asUseArrow.c` verify: slice 2: asArrowOperate (the arrow state machine: on the bow, charge, flight, hits, return; the trigger variables); the file is complete
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
@@ -166,8 +166,8 @@ Recent sessions:
 | `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
 | `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `ga/gaObjectClippingCheck.c` | todo | 0/1/1 | 0.2 | 12 | 1 |
-| `game/ssHitCheckAttackToScn.c` | partial | 13/5/37 | 32.0 | 11 | 0 |
 | `game/asMothPause.c` | todo | 0/1/1 | 0.3 | 10 | 0 |
+| `ga/wait.c` | todo | 0/2/20 | 0.1 | 5 | 0 |
 
 ## Frontier (called by reconstructed code, not written yet)
 
@@ -177,7 +177,6 @@ Recent sessions:
 | `018d1e70` | CpGetEEIOPStatus | 14 | sym | stub | game/CpDivideEECom.c |
 | `01883ca0` | asMothPause | 10 | sym | stub | game/asMothPause.c |
 | `018a3078` | gaObjectClippingCheck | 7 | sym | stub | ga/gaObjectClippingCheck.c |
-| `018ab180` | CheckLOS | 6 | sym | stub | game/ssHitCheckAttackToScn.c |
 | `018518d0` | ConvertMatrix2Quat | 6 | sym | stub | game/Convert.c |
 | `018d1fa0` | CpSifDmaTransEEToIOP | 6 | sym | stub | game/CpDivideEECom.c |
 | `018a4fe0` | gaDrawObject_VertexLocalViewWithClippingFlagSet | 6 | sym | stub | ga/gaDrawObject.c |
@@ -197,7 +196,6 @@ Recent sessions:
 | `018a52f0` | gaDrawObject_VertexLocalView_Billboard | 3 | sym | stub | ga/gaDrawObject.c |
 | `018a5b88` | gaDrawObject_RemakeIndex | 3 | sym | stub | ga/gaDrawObject.c |
 | `018a6038` | gaDrawObject_MakeVertexReferenceTableNoClip | 3 | sym | stub | ga/gaDrawObject.c |
-| `018aa950` | CheckLOS_Multi | 2 | sym | stub | game/ssHitCheckAttackToScn.c |
 | `0189da90` | ssDOF_ClipObjectFromZRange | 2 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `018c1d80` | AA_videoDecSetStream | 2 | sym | stub | game/AA_mpegTS.c |
 | `018bff20` | AA_strFileOpen | 2 | sym | stub | game/AA_videoCallback.c |
@@ -213,4 +211,6 @@ Recent sessions:
 | `01860d00` | ssAI_IsDoorOpenPlaying | 1 | sym | stub | game/tiAvoidObject.c |
 | `018bbeb0` | AA_audioDecSendToIOP | 1 | sym | stub | game/AA_SoundMonoSoart.c |
 | `018bfde0` | AA_readBufDelete | 1 | sym | stub | game/AA_videoCallback.c |
+| `018c2080` | AA_voBufDelete | 1 | sym | stub | game/AA_mpegTS.c |
+| `018c1cf0` | AA_videoDecDelete | 1 | sym | stub | game/AA_mpegTS.c |
 
