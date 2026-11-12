@@ -208,6 +208,21 @@ the TU map's evidence.
   frame into a 512 x 512 texture there (256 x 256 at 0xe0000 when the buffer is taken) and binds it for
   the objects after the particles. The shade-off (`tiXcmd_ShadeOff` -> `tiDrawShadingOff`) is a
   2^level capture stretched back over the frame plus `ShadeOff_Level` half-alpha copies slid around a turn.
+- **Lens flares, bump and refraction (Clipping_Portal.c slice 12, 2026-11-11):** `tiDrawLensFlares`
+  projects each flare's part position (matrix_global_view, then screen_0's cx + ax * scrz x / z) and, when
+  it falls in the 512 x 448 window in front of the eye, lays the elements on the line to (256, 224): element
+  k at point + unit(centre - point) * (len * factor), len and the unit taken in x, y and the view z;
+  alpha = the part's partsPos w + 128; drawctrl_flare once, CLUTs re-uploaded only when TEX_INFO.tim
+  changes. `tiBumpSTValueUpdate` (ALL_TABLE.bumps +0x64: objOpaque indices, -1 ended) shifts a bump
+  entry's ST (draw object +0x78 / +0x7c, the VU1 header's vf30.xy) by unit(part pos - its first omni
+  light).xy * MODEL_PARTS.bumpScale (+0x5a) / 10 texels. `tiRefractionMapUpdate` (ALL_TABLE.objAfter, the
+  list after ExportDrawToTex) sets the projection distance from the bank's camera, takes the eye into the
+  part's matrix200 frame and has `SetSTValueForRefraction` write each vertex's ST: d = unit(v - eye),
+  r = n (index d.n) - d, eye + r through the part's matrix340, projected and scaled by 1/512, 1/448,
+  clamped 0..1 (index = MODEL_PARTS.refrIndex +0x58 / 16384). Scene banks 0..5 use Cam[bank]; banks past
+  them Cam[6], and only while the world runs (pause 0 or PAUSE_RUNNING). `tiCalc_Leaf_WIND`: a leaf
+  pushed along a random vertex normal by the air and by the winds whose capsule holds it, turned three
+  times by the 2..10 degree angle between its old and new velocity.
 - **main.c's globals** are taken to be the .sbss run 0x01942ab0..0x01942b48 (`pad_key_button` ..
   `gArgc`): contiguous, all used by main.c's functions, `gArgv` / `gArgc` surely its own. A guess from
   placement; the locals (symtab 895..911) are `a$1034`, `skip_wait_temp$61`, `focusPos$905` and the

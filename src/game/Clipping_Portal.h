@@ -14,7 +14,7 @@
 typedef struct WIND {
     int bank;                           /* 0x00: the bank that registered it (tiWindInit); tiWindEnd drops it */
     int part;                           /* 0x04: the model part whose matrix200 carries it */
-    u_int pad08;
+    float radius;                       /* 0x08: the wind capsule's radius (tiCheckWindForce) */
     u_int matrix;                       /* 0x0c: EE address of that part's matrix200 (part 0's when the
                                            part's kind is PARTS_KIND_WIND_ON_ROOT) */
     float local10[4];                   /* 0x10: a point in the part's frame -> world10 */
@@ -31,6 +31,7 @@ static_assert(offsetof(WIND, world40) == 0x60, "WIND.world40");
 #define PARTS_KIND_WIND_ON_ROOT 1       /* MODEL_PARTS.kind: the wind takes part 0's frame (= PARTS_KIND_ITEM_LOCKED;
                                            named from this use) */
 extern WIND *WindList[WIND_MAX];                /* sbss 0x0193d290 */
+int tiCheckWindForce(float *p, WIND *wind);                                             // CT3 0x0188c8b0
 
 // ---- light belts (tiLightBelt2Init, 2026-11-11; tiLightBelt2Update, 2026-11-11 slice 6) ----
 // A bank's light belts (ALL_TABLE.lightBelts, a 0-ended list of EE words). layout: ee -- bank data;
@@ -138,6 +139,11 @@ typedef struct HURIKO_HIT {
 static_assert(offsetof(HURIKO_HIT, matrix) == 0x14, "HURIKO_HIT.matrix");
 static_assert(offsetof(HURIKO_HIT, world0) == 0x20, "HURIKO_HIT.world0");
 static_assert(sizeof(HURIKO_HIT) == 0x40, "HURIKO_HIT");
+#define HURIKO_HIT_A_RADIUS 0x20        /* the a record's float: tiCheckHit_Capsule's radius */
+// p against the hit: a plane (world0 on it, world1 its normal) or a capsule world0..world1; p pushed out
+// when inside. PORT: the capsule takes the bank (its radius is behind the a word).
+int tiCheckHit_Face(float *p, HURIKO_HIT *hit);                                          // CT3 0x01890f30
+int tiCheckHit_Capsule(float *p, HURIKO_HIT *hit, int bank);                             // CT3 0x01890fe0
 #define HURIKO_FLAG_CLOSED 0x1          /* tiCalc_HurikoCLOSED swings it, else tiCalc_HurikoOPEN */
 #define HURIKO_FLAG_DISABLED 0x4        /* its trigger was off (set each frame it is off) */
 #define HURIKO_FLAG_RESET 0x8           /* re-enabled: tiHurikoReset on the next enabled frame */
@@ -145,7 +151,7 @@ static_assert(sizeof(HURIKO_HIT) == 0x40, "HURIKO_HIT");
 // ---- lens flares (tiLensFlaresInit, 2026-11-11 slice 7) ----
 // A bank's lens flares (ALL_TABLE.lensFlares, a 0-ended list of EE words). layout: ee -- bank data; every
 // pointer is a relocated EE word (BankEePtr). tiLensFlaresInit points each flare at its part and fills
-// each element's sprite packet; tiDrawLensFlares (unwritten) spreads the elements along the line from the
+// each element's sprite packet; tiDrawLensFlares (slice 12) spreads the elements along the line from the
 // flare's screen point to the screen centre.
 typedef struct LENS_FLARE_ELEM {
     u_int tex;                          /* 0x00: TEX_INFO, 0 = none; u0 = maxu, u1 = u0 + minu, v0 = maxv,

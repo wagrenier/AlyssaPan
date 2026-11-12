@@ -79,6 +79,14 @@ void tiVibrationOn(int port, u_char small, int large, int time)
     }
 }
 
+// The ga draw object's blocks SetSTValueForRefraction and tiCalc_Leaf_WIND read (alyssapan_drawga.h AlyssaPanGaObject has
+// them: ct3_types.h's DRAW_OBJ_PACKET_QWC / DRAW_OBJ_PACKET name the same +0x48 / +0x68 words otherwise).
+#define REFR_OBJ_VERTEX_COUNT 0x48      /* int */
+#define REFR_OBJ_POSITIONS 0x60         /* EE word: vertexCount x (x y z w) */
+#define REFR_OBJ_NORMALS 0x64           /* EE word: a qword of VIF codes, then vertexCount qwords */
+#define REFR_OBJ_ST 0x68                /* EE word: a qword of VIF codes, then vertexCount x (s t) */
+#define REFR_BLOCK_VIF_BYTES 0x10
+
 // ---- wind ----
 
 // PORT helper: out = m * v, the VU0 sequence vmulax / vmadday / vmaddaz / vmaddw (m's rows are the
@@ -1245,6 +1253,108 @@ void tiHurikoHitUpdate(void)
     }
 }
 
+// ---- hit tests: a point against a face, a capsule, a wind (slice 12, 2026-11-11) ----
+
+// PORT helper: |v| of the xyz lanes, v scaled to unit length in place, as the ROM's vmul.xyz /
+// vaddy.x / vaddz.x / vrsqrt / vmulq.xyz, then vdiv 1 / (1 / len).
+static float PortUnitXYZ(float *v)
+{
+    float q = 1.0f / sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+
+    v[0] *= q;
+    v[1] *= q;
+    v[2] *= q;
+    return 1.0f / q;
+}
+
+// out.xyz = base.xyz + dir.xyz * scale, out.w = base.w (vmulx.xyz, then vadd.xyz on the base's register).
+static void PortPushOut(float *out, const float *base, const float *dir, float scale)
+{
+    float w = base[3];
+
+    out[0] = base[0] + dir[0] * scale;
+    out[1] = base[1] + dir[1] * scale;
+    out[2] = base[2] + dir[2] * scale;
+    out[3] = w;
+}
+
+// The point of the segment a..b nearest p, the unit direction from it to p and the distance: t =
+// (p - a) . (b - a) / |b - a|^2; before a, past b, or between (near = a + (b - a) t, w a's).
+typedef enum { SEG_BEFORE_A, SEG_PAST_B, SEG_BETWEEN } SEG_SIDE;
+
+static SEG_SIDE PortSegmentNearest(const float *p, const float *a, const float *b, float near[4], float dir[4],
+                                   float *dist)
+{
+    float pa[4], ab[4], t;
+    SEG_SIDE side;
+
+    pa[0] = p[0] - a[0];
+    pa[1] = p[1] - a[1];
+    pa[2] = p[2] - a[2];
+    pa[3] = p[3];
+    ab[0] = b[0] - a[0];
+    ab[1] = b[1] - a[1];
+    ab[2] = b[2] - a[2];
+    ab[3] = b[3];
+    t = gaInnerProductXYZ(pa, ab) / gaInnerProductXYZ(ab, ab);
+    if (t < 0.0f) {
+        memcpy(near, a, sizeof(float) * 4);
+        side = SEG_BEFORE_A;
+    } else if (!(t <= 1.0f)) {
+        memcpy(near, b, sizeof(float) * 4);
+        side = SEG_PAST_B;
+    } else {
+        PortPushOut(near, a, ab, t);
+        side = SEG_BETWEEN;
+    }
+    dir[0] = p[0] - near[0];
+    dir[1] = p[1] - near[1];
+    dir[2] = p[2] - near[2];
+    dir[3] = p[3];
+    *dist = PortUnitXYZ(dir);
+    return side;
+}
+
+// CT3 0x01890f30: p against the hit's plane (world0 a point on it, world1 its normal): behind or on it
+// (d = p . n - world0 . n <= 0), p is pushed back onto the plane along the normal (xyz). Answers that.
+// (tiCalc_HurikoCLOSED, tiCalc_HurikoOPEN)
+int tiCheckHit_Face(float *p, HURIKO_HIT *hit)
+{
+    float d = gaInnerProductXYZ(p, hit->world1) - gaInnerProductXYZ(hit->world0, hit->world1);
+
+    if (d <= 0.0f)
+        PortPushOut(p, p, hit->world1, -d);
+    return d <= 0.0f;
+}
+
+// CT3 0x01890fe0: p against the capsule world0..world1 whose radius is the a record's +0x20 float: inside
+// (an end: distance <= radius; the side: < radius), p is pushed out to the surface from the nearest point
+// of the axis (its w taken from that point: the end's, or world0's along the side). Answers that.
+// PORT: bank added (the a word is an EE word of the bank's data).
+int tiCheckHit_Capsule(float *p, HURIKO_HIT *hit, int bank)
+{
+    float radius = BANK_PTR(const float *, bank, hit->a)[HURIKO_HIT_A_RADIUS / 4];
+    float near[4], dir[4], dist;
+    SEG_SIDE side = PortSegmentNearest(p, hit->world0, hit->world1, near, dir, &dist);
+
+    if (side == SEG_BETWEEN ? !(dist < radius) : !(dist <= radius))
+        return 0;
+    PortPushOut(p, near, dir, radius);
+    return 1;
+    // callcheck: gaInnerProductXYZ (PortSegmentNearest makes it)
+}
+
+// CT3 0x0188c8b0: is p inside the wind's capsule, world30..world40 of the wind's radius (an end: distance
+// <= radius; the side: < radius)? (tiCalc_Leaf_WIND, tiCalc_Trans_WIND, the pendulums)
+int tiCheckWindForce(float *p, WIND *wind)
+{
+    float near[4], dir[4], dist;
+    SEG_SIDE side = PortSegmentNearest(p, wind->world30, wind->world40, near, dir, &dist);
+
+    return side == SEG_BETWEEN ? dist < wind->radius : dist <= wind->radius;
+    // callcheck: gaInnerProductXYZ (PortSegmentNearest makes it)
+}
+
 // CT3 0x01890ea0: tiXcmd_HurikoReset -- mark a bank's pendulums DISABLED (all, or the one whose first
 // word is id), so tiHurikoUpdate resets them; byChara: bank is a character slot, its bank is taken.
 void tiHurikoReset_On(int bank, int id, int byChara)
@@ -2096,16 +2206,190 @@ void tiLensFlaresInit(int scene)
 
 // ---- stubs (tools/reverse/stubgen.py) ----
 
-// stub of CT3 0x01893850
-void tiBumpSTValueUpdate(void)
+// ---- bump mapping: the ST shift (slice 12, 2026-11-11) ----
+
+// One bank's bump-mapped entries (ALL_TABLE.bumps: objOpaque indices, -1 ended): an entry whose trigger
+// part is enabled gets its draw object's ST offset (DRAW_OBJ_UV_U / _V, the VU1 header's vf30.xy) set
+// to the unit direction from the part's first omni light (GA_LIGHT_WORK.omniPos[0], through the part's
+// attr) to the part, x and y, times bumpScale / 10 texels of its texture (1 / (TEX_INFO +0x18 + 1),
+// 1 / (+0x20 + 1): the fields ct3_types.h calls minu / minv, which tiLensFlaresInit reads as sizes).
+static void BumpSTValueUpdateBank(int bank)
 {
-    ALYSSAPAN_STUB("tiBumpSTValueUpdate", 0x01893850);
+    u_int *objs = BANK_PTR(u_int *, bank, All_table_TBL[bank]->objOpaque);
+    short *bumps = BANK_PTR(short *, bank, All_table_TBL[bank]->bumps);
+    MODEL_PARTS *parts = (MODEL_PARTS *)pModelPartsHeader[bank];
+    int i;
+
+    for (i = 0; bumps != NULL && bumps[i] != -1; i++) { // PORT: the ROM reads a 0 list at EE 0
+        DRAW_OBJ_ENTRY *ent = BANK_PTR(DRAW_OBJ_ENTRY *, bank, objs[bumps[i]]);
+        TEX_INFO *tex = BANK_PTR(TEX_INFO *, bank, ent->tex);
+        u_char *obj = BANK_PTR(u_char *, bank, ent->obj);
+        MODEL_PARTS *part = &parts[ent->parts];
+        const GA_LIGHT_WORK *light;
+        float d[4], q, scale, su, sv;
+
+        if (ssTrigCheckEnable(ent->parts & 0xffff, bank) == 0)
+            continue;
+        su = 0.0f;
+        memcpy(obj + DRAW_OBJ_UV_U, &su, sizeof(su));
+        memcpy(obj + DRAW_OBJ_UV_V, &su, sizeof(su));
+        light = BANK_PTR(const GA_LIGHT_WORK *, bank, (u_int)part->attr);
+        // vsub.xyzw, vmul.xyz, vaddy.x, vaddz.x, vrsqrt, vmulq.xyz
+        d[0] = part->pos[0] - light->omniPos[0][0];
+        d[1] = part->pos[1] - light->omniPos[0][1];
+        d[2] = part->pos[2] - light->omniPos[0][2];
+        q = 1.0f / sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+        d[0] *= q;
+        d[1] *= q;
+        scale = (float)part->bumpScale / 10.0f;
+        su = scale * (d[0] * (1.0f / (float)(tex->minu + 1)));
+        sv = scale * (d[1] * (1.0f / (float)(tex->minv + 1)));
+        memcpy(obj + DRAW_OBJ_UV_U, &su, sizeof(su));
+        memcpy(obj + DRAW_OBJ_UV_V, &sv, sizeof(sv));
+    }
 }
 
-// stub of CT3 0x0188df70
+// CT3 0x01893850: set the bump-mapped entries' ST shifts (main, each frame): the scene banks 0..5
+// always, the banks past them (not BANK_TYPE_BEHAVIOR) only while the world runs (pause 0, or
+// PAUSE_RUNNING set).
+// PORT: the ROM skips a drawn scene bank's group with groupCount - 1 unconditionally; a 0 there would
+// loop forever, so the host takes the guarded form the other loops use.
+void tiBumpSTValueUpdate(void)
+{
+    int bank;
+
+    for (bank = 0; bank < BANK_SCENE_MAX; bank++) {
+        if (BankInfo[bank].drawOn != 0) {
+            BumpSTValueUpdateBank(bank);
+            if (BankInfo[bank].groupCount != 0)
+                bank += BankInfo[bank].groupCount - 1;
+        }
+    }
+    if (pause == 0 || (pause & PAUSE_RUNNING) != 0) {
+        for (bank = BANK_SCENE_MAX; bank < BANK_MAX; bank++) {
+            if (BankInfo[bank].drawOn != 0 && BankInfo[bank].type != BANK_TYPE_BEHAVIOR) {
+                BumpSTValueUpdateBank(bank);
+                if (BankInfo[bank].groupCount != 0)
+                    bank += BankInfo[bank].groupCount - 1;
+            }
+        }
+    }    // callcheck: ssTrigCheckEnable (BumpSTValueUpdateBank makes it)
+}
+
+// ---- lens flares: the draw (slice 12, 2026-11-11) ----
+
+#define FLARE_SCREEN_W 512.0f           /* the GS window the flare's point must fall in */
+#define FLARE_SCREEN_H 448.0f
+#define FLARE_CENTRE_X 256.0f           /* the point the elements line up towards (the stack's constant) */
+#define FLARE_CENTRE_Y 224.0f
+#define FLARE_ALPHA_BIAS 128.0f         /* the part's partsPos w + 128: the sprites' alpha */
+#define FLARE_RGBAQ_BASE 0x3f80000000808080ull /* Q 1.0, RGB 0x80 (the texel as it is); alpha at bit 24 */
+#define FLARE_XYZF_Z 0x00fffffe00000000ull     /* Z 0xfffffe, F 0 */
+#define FLARE_XY_OFFSET 0x8000          /* the GS primitive offset (2048 << 4) */
+
+// One XYZF2 word: x, y in 12.4 plus the offset, as __fixdfdi truncates the double product.
+static u_long FlareXYZF(float x, float y)
+{
+    u_long ix = (u_long)((long long)((double)x * 16.0) + FLARE_XY_OFFSET) & 0xffff;
+    u_long iy = (u_long)((long long)((double)y * 16.0) + FLARE_XY_OFFSET) & 0xffff;
+
+    return ix | iy << 16 | FLARE_XYZF_Z;
+}
+
+// CT3 0x0188df70: draw every drawn bank's lens flares (DrawAllObject_Normal, ssDOF_DrawAllObject,
+// ssHQDOF_DrawAllObject). A flare whose trigger part is enabled and whose part lies in front of the
+// eye and projects inside the 512 x 448 window lays its elements along the line from that point
+// towards the screen centre (256, 224): element k sits at point + dir * (len * factor), where dir and
+// len are the unit vector and length of (centre - point) taken in x, y and the view z (the ROM's
+// vsub.xyz: the z term shortens the on-screen step). Each element is its sprite packet with the
+// RGBAQ (alpha = the part's partsPos w + 128) and the two corners (size / 2 about the point)
+// rewritten; a texture change uploads its CLUT (restarting the BGT ring) only when the TEX_INFO's
+// first word differs from the last uploaded one. drawctrl_flare is sent once, before the first
+// drawn bank.
+// PORT: the packets are sent as the ROM's; the host's gaBGT_ExecDrawCommandData_VIF1 draws no GIF
+// sprites yet (a textured sprite seam in alyssapan_drawga.h is host work: open-items).
 void tiDrawLensFlares(void)
 {
-    ALYSSAPAN_STUB("tiDrawLensFlares", 0x0188df70);
+    TEX_INFO *prevTex = NULL;           // ROM: -1 (an element with a null texture is skipped anyway)
+    u_int lastTim = 0xffffffffu;
+    int ctrlSent = 0;
+    int bank;
+
+    for (bank = BANK_SCENE_MAX; bank < BANK_MAX; bank++) {
+        if (BankInfo[bank].drawOn != 0 && BankInfo[bank].type != BANK_TYPE_BEHAVIOR) {
+            u_int *list = BANK_PTR(u_int *, bank, All_table_TBL[bank]->lensFlares);
+            int i;
+
+            if (!ctrlSent) {
+                gaBGT_ExecDrawCtrlData_VIF1(&drawctrl_flare);
+                ctrlSent = 1;
+            }
+            for (i = 0; list != NULL && list[i] != 0; i++) { // PORT: the ROM reads a 0 list at EE 0
+                LENS_FLARE *flare = BANK_PTR(LENS_FLARE *, bank, list[i]);
+                const float *partPos = BANK_PTR(const float *, bank, flare->partPos);
+                const float *partsPos = BANK_PTR(const float *, bank, flare->partsPos);
+                LENS_FLARE_ELEM *elems;
+                float scr[4], dir[3], len, q;
+                int k;
+
+                if (ssTrigCheckEnable((u_short)flare->parts, bank) == 0)
+                    continue;
+                PortApplyMatrix(scr, matrix_global_view, partPos);
+                elems = BANK_PTR(LENS_FLARE_ELEM *, bank, flare->elems);
+                if (scr[2] <= 0.0f)
+                    continue;
+                scr[0] = screen_0[SCREEN_CX] + screen_0[SCREEN_AX] * ((screen_0[SCREEN_SCRZ] * scr[0]) / scr[2]);
+                scr[1] = screen_0[SCREEN_CY] - screen_0[SCREEN_AY] * ((screen_0[SCREEN_SCRZ] * scr[1]) / scr[2]);
+                if (scr[0] < 0.0f || !(scr[0] <= FLARE_SCREEN_W) || scr[1] < 0.0f || !(scr[1] <= FLARE_SCREEN_H))
+                    continue;
+
+                // vsub.xyz, vmul.xyz, vaddy.x, vaddz.x, vrsqrt, vmulq.xyz; then vdiv: len = 1 / (1 / len)
+                dir[0] = FLARE_CENTRE_X - scr[0];
+                dir[1] = FLARE_CENTRE_Y - scr[1];
+                dir[2] = 0.0f - scr[2];
+                q = 1.0f / sqrtf(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]);
+                dir[0] *= q;
+                dir[1] *= q;
+                dir[2] *= q;
+                len = 1.0f / q;
+
+                for (k = 0; k < flare->count; k++) {
+                    LENS_FLARE_ELEM *e = &elems[k];
+                    TEX_INFO *tex = BANK_PTR(TEX_INFO *, bank, e->tex);
+                    u_long *pkt = BANK_PTR(u_long *, bank, e->packet);
+                    float half = (float)e->size * 0.5f;
+                    float step, x, y;
+
+                    if (tex == NULL)
+                        continue;
+                    PutWord64(pkt, LENS_FLARE_PKT_RGBAQ,
+                              (u_long)(partsPos[3] + FLARE_ALPHA_BIAS) << 24 | FLARE_RGBAQ_BASE);
+                    step = len * e->factor;
+                    x = scr[0] + dir[0] * step;
+                    y = scr[1] + dir[1] * step;
+                    PutWord64(pkt, LENS_FLARE_PKT_XYZF0, FlareXYZF(x - half, y - half));
+                    PutWord64(pkt, LENS_FLARE_PKT_XYZF1, FlareXYZF(x + half, y + half));
+                    FlushCache(0);
+                    if (prevTex != tex) {
+                        void *tbuffer = BANK_PTR(void *, bank, e->tbuffer);
+
+                        if (tex->tim != lastTim) {
+                            sunBGT_LoadGSTexClutData_VIF1(tbuffer);
+                            gaBGT_End();
+                            gaBGT_Start(bgt_ringbuffer, 0x8000); /* main.c BGT_RINGBUFFER_SIZE */
+                            lastTim = tex->tim;
+                        }
+                        sunBGT_ExecTBufferData_VIF1(tbuffer);
+                    }
+                    gaBGT_ExecDrawCommandData_VIF1((GA_DRAWCOMMAND_DATA *)pkt);
+                    prevTex = tex;
+                }
+            }
+        }
+        if (BankInfo[bank].groupCount != 0)
+            bank += BankInfo[bank].groupCount - 1;
+    }
+    // callcheck: __fixunssfdi, fptodp, dpmul, __fixdfdi (the float -> integer / double conversions)
 }
 
 // ---- GS frame-buffer copies (slice 11, 2026-11-11): the shade-off and its two helpers ----
@@ -2327,10 +2611,64 @@ void tiDrawShadingOff(void)
     }
 }
 
-// stub of CT3 0x01894230
+// One bank's refracting entries (ALL_TABLE.objAfter, the list drawn after ExportDrawToTex): an entry whose
+// trigger part is enabled gets its ST from SetSTValueForRefraction with the eye taken into the part's
+// frame (matrix200 inverted; a PARTS_KIND_WIND_ON_ROOT part stands for part 0, as for the winds) and the
+// part's matrix340, strength refrIndex / 16384 (read from the listed part, before that swap).
+static void RefractionMapUpdateBank(int bank, const float *eye)
+{
+    u_int *list = BANK_PTR(u_int *, bank, All_table_TBL[bank]->objAfter);
+    MODEL_PARTS *parts = (MODEL_PARTS *)pModelPartsHeader[bank];
+    int i;
+
+    for (i = 0; list != NULL && list[i] != 0; i++) { // PORT: the ROM reads a 0 list at EE 0
+        DRAW_OBJ_ENTRY *ent = BANK_PTR(DRAW_OBJ_ENTRY *, bank, list[i]);
+        MODEL_PARTS *part;
+        float inv[4][4], local[4], index;
+
+        if (ssTrigCheckEnable((u_short)ent->parts, bank) == 0)
+            continue;
+        part = &parts[ent->parts];
+        index = (float)part->refrIndex / 16384.0f;
+        if ((signed char)part->kind == PARTS_KIND_WIND_ON_ROOT)
+            part = parts;
+        gaInversMatrix(inv, part->matrix200);
+        PortApplyMatrix(local, inv, eye);
+        SetSTValueForRefraction(BANK_PTR(u_char *, bank, ent->obj), local, part->matrix340, index);
+    }
+}
+
+// CT3 0x01894230: the refraction map's texture coordinates (main, after ExportDrawToTex): the scene banks
+// 0..5 with their own camera (Cam[bank]), the banks past them (not BANK_TYPE_BEHAVIOR) with the shared
+// one, only while the world runs (pause 0, or PAUSE_RUNNING); each bank first sets the projection
+// distance from its camera's focal length (Cam[asCheckBankID(bank)].focal[3]).
+// PORT: the scene loop's group skip is guarded as in tiBumpSTValueUpdate.
 void tiRefractionMapUpdate(void)
 {
-    ALYSSAPAN_STUB("tiRefractionMapUpdate", 0x01894230);
+    float eye[4];
+    int bank;
+
+    for (bank = 0; bank < BANK_SCENE_MAX; bank++) {
+        if (BankInfo[bank].drawOn != 0) {
+            screen_0[SCREEN_SCRZ] = asFocalLength_LEICA2PS2(Cam[asCheckBankID(bank)].focal[3]);
+            // one buffer for all four answers: the position is written last (as tiParticleUpdate)
+            asViewMatrix2PosRUF(&Cam[bank].view[0][0], eye, eye, eye, eye);
+            RefractionMapUpdateBank(bank, eye);
+            if (BankInfo[bank].groupCount != 0)
+                bank += BankInfo[bank].groupCount - 1;
+        }
+    }
+    if (pause == 0 || (pause & PAUSE_RUNNING) != 0) {
+        for (bank = BANK_SCENE_MAX; bank < BANK_MAX; bank++) {
+            if (BankInfo[bank].drawOn != 0 && BankInfo[bank].type != BANK_TYPE_BEHAVIOR) {
+                asViewMatrix2PosRUF(&Cam[CAMERA_SHARED].view[0][0], eye, eye, eye, eye);
+                screen_0[SCREEN_SCRZ] = asFocalLength_LEICA2PS2(Cam[asCheckBankID(bank)].focal[3]);
+                RefractionMapUpdateBank(bank, eye);
+                if (BankInfo[bank].groupCount != 0)
+                    bank += BankInfo[bank].groupCount - 1;
+            }
+        }
+    }    // callcheck: ssTrigCheckEnable, gaInversMatrix, SetSTValueForRefraction (RefractionMapUpdateBank makes them)
 }
 
 // stub of CT3 0x0188d3f0
@@ -2498,14 +2836,107 @@ void tiCalc_Trans_WIND(int ticks, PARTICLE2 *rec, int bank)
     ALYSSAPAN_STUB("tiCalc_Trans_WIND", 0x0188c6e0);
 }
 
-// stub of CT3 0x0188c210
+#define LEAF_TICKS_PER_SECOND 300.0f   /* dt = ticks / 300 */
+#define LEAF_PUSH_DIVISOR 4.0f          /* the face's push: arg * speed * (n . -v) / 4 */
+#define LEAF_TURN_MIN 0x16c             /* the turn per step, ahAcos units (65536 a turn): 2 degrees .. */
+#define LEAF_TURN_MAX 0x71c             /* .. 10 degrees */
+
+// CT3 0x0188c210: a falling leaf in the winds (tiCalc_Orbit's ORBIT_LEAF_WIND). A random vertex normal of
+// the record's object, turned by local's rotation, is the leaf's face n; the air pushes it along n by
+// arg * |v| * (n . -v / |v|) / 4; every enabled wind whose capsule holds the leaf (or whose radius is 0)
+// adds its world10 vector; with the acceleration that moves local's row 3 by v dt + a dt^2 and makes
+// v' = v + a 2dt (dt = ticks / 300; v's w kept). The leaf turns about its own position by the angle
+// between v and v' (clamped to 2..10 degrees) three times: about n x v', about v', about n. age += ticks.
 void tiCalc_Leaf_WIND(int ticks, PARTICLE2 *rec, int arg, int bank)
 {
-    (void)ticks;
-    (void)rec;
-    (void)arg;
-    (void)bank;
-    ALYSSAPAN_STUB("tiCalc_Leaf_WIND", 0x0188c210);
+    PARTICLE2_MATS *m = RecMats(rec, bank);
+    u_char *obj = BANK_PTR(u_char *, bank, rec->obj);
+    float dt = (float)ticks / LEAF_TICKS_PER_SECOND;
+    float rot[4][4], turn[4][4], n[4], vn[4], vu[4], push[4], wind[4], a[4], vNew[4], axis[4], pos[4];
+    const float *normals;
+    u_int nrmEE;
+    int count, i, angle;
+    float speed, k;
+
+    rec->age += ticks;
+    memcpy(&nrmEE, obj + REFR_OBJ_NORMALS, sizeof(nrmEE));
+    memcpy(&count, obj + REFR_OBJ_VERTEX_COUNT, sizeof(count));
+    normals = BANK_PTR(const float *, bank, nrmEE + REFR_BLOCK_VIF_BYTES);
+
+    // the face: a random vertex normal through local's rotation (row 3 = (0, 0, 0, 1))
+    memcpy(rot, m->local, sizeof(rot));
+    rot[3][0] = rot[3][1] = rot[3][2] = 0.0f;
+    rot[3][3] = 1.0f;
+    PortApplyMatrix(n, rot, &normals[tnRand(count - 1) * 4]);
+
+    // the air's push
+    vn[0] = rec->vel[0] * -1.0f;
+    vn[1] = rec->vel[1] * -1.0f;
+    vn[2] = rec->vel[2] * -1.0f;
+    vn[3] = rec->vel[3];
+    speed = PortUnitXYZ(vn);
+    k = ((float)arg * speed * gaInnerProductXYZ(n, vn)) / LEAF_PUSH_DIVISOR;
+    push[0] = n[0] * k; // vmulx.xyz: w n's
+    push[1] = n[1] * k;
+    push[2] = n[2] * k;
+    push[3] = n[3];
+
+    // the winds
+    wind[0] = wind[1] = wind[2] = 0.0f;
+    wind[3] = 1.0f;
+    for (i = 0; i < WIND_MAX; i++) {
+        WIND *w = WindList[i];
+
+        if (w != NULL && ssTrigCheckEnable((u_short)w->part, w->bank) != 0 &&
+            (w->radius == 0.0f || tiCheckWindForce(m->local[3], w) != 0)) {
+            wind[0] += w->world10[0];
+            wind[1] += w->world10[1];
+            wind[2] += w->world10[2];
+        }
+    }
+
+    // the step
+    for (i = 0; i < 3; i++) {
+        a[i] = push[i] + wind[i] + rec->accel[i];
+        m->local[3][i] += rec->vel[i] * dt + a[i] * (dt * dt);
+    }
+    for (i = 0; i < 3; i++) {
+        vNew[i] = rec->vel[i] + a[i] * (dt * 2.0f);
+    }
+    vNew[3] = rec->vel[3];
+
+    // the turn
+    memcpy(vn, vNew, sizeof(vn));
+    PortUnitXYZ(vn);
+    memcpy(vu, rec->vel, sizeof(vu));
+    PortUnitXYZ(vu);
+    angle = ahAcos(gaInnerProductXYZ(vn, vu));
+    if (angle > LEAF_TURN_MAX)
+        angle = LEAF_TURN_MAX;
+    else if (angle < LEAF_TURN_MIN)
+        angle = LEAF_TURN_MIN;
+    axis[0] = n[1] * vn[2] - vn[1] * n[2]; // vopmula / vopmsub: n x v'
+    axis[1] = n[2] * vn[0] - vn[2] * n[0];
+    axis[2] = n[0] * vn[1] - vn[0] * n[1];
+    axis[3] = n[3]; // vopmsub.xyz into n's register: w n's
+    asMakeRotMatrixByQuartanion(turn, axis, angle);
+    memcpy(pos, m->local[3], sizeof(pos));
+    memcpy(rot, matUnit, sizeof(rot));
+    rot[3][0] += -pos[0];
+    rot[3][1] += -pos[1];
+    rot[3][2] += -pos[2];
+    gaMulMatrix(m->local, rot, m->local);
+    gaMulMatrix(m->local, turn, m->local);
+    asMakeRotMatrixByQuartanion(turn, vn, angle);
+    gaMulMatrix(m->local, turn, m->local);
+    asMakeRotMatrixByQuartanion(turn, n, angle);
+    gaMulMatrix(m->local, turn, m->local);
+    memcpy(rot, matUnit, sizeof(rot));
+    rot[3][0] += pos[0];
+    rot[3][1] += pos[1];
+    rot[3][2] += pos[2];
+    gaMulMatrix(m->local, rot, m->local);
+    memcpy(rec->vel, vNew, sizeof(vNew));
 }
 
 // stub of CT3 0x0188e8c0
@@ -2518,12 +2949,71 @@ void tiCalc_Twist(int ticks, PARTICLE2 *rec, PARTICLE2_ENTRY *ent, int bank)
     ALYSSAPAN_STUB("tiCalc_Twist", 0x0188e8c0);
 }
 
-// stub of CT3 0x01893f90
+// ---- refraction: the per-vertex ST (slice 12, 2026-11-11) ----
+
+
+// CT3 0x01893f90: refraction texture coordinates. For each vertex: d = unit(vertex - eye) (xyz; the w
+// lane is the plain difference), r = normal * (index * d . normal) - d (xyz, w 0), and the point
+// eye + r (xyz; w the eye's) through localView, projected as the screen projects (screen_0, read once
+// on entry) and scaled to 0..1 by the 512 x 448 window (clamped): the vertex's s, t. A point on the
+// eye plane (z 0) keeps its old ST.
+// PORT: obj is the host draw object; its block words are EE words of `bank`'s data, so the bank is
+// found from the pointer (BankOfHostPtr).
 void SetSTValueForRefraction(u_char *obj, float *eye, float (*localView)[4], float index)
 {
-    (void)obj;
-    (void)eye;
-    (void)localView;
-    (void)index;
-    ALYSSAPAN_STUB("SetSTValueForRefraction", 0x01893f90);
+    const float cx = screen_0[SCREEN_CX], cy = screen_0[SCREEN_CY];
+    const float ax = screen_0[SCREEN_AX], ay = screen_0[SCREEN_AY];
+    const float scrz = screen_0[SCREEN_SCRZ];
+    int bank = BankOfHostPtr(obj);
+    int count;
+    u_int posEE, nrmEE, stEE;
+    const float *pos, *nrm;
+    float *st;
+    int i;
+
+    memcpy(&count, obj + REFR_OBJ_VERTEX_COUNT, sizeof(count));
+    memcpy(&posEE, obj + REFR_OBJ_POSITIONS, sizeof(posEE));
+    memcpy(&nrmEE, obj + REFR_OBJ_NORMALS, sizeof(nrmEE));
+    memcpy(&stEE, obj + REFR_OBJ_ST, sizeof(stEE));
+    pos = BANK_PTR(const float *, bank, posEE);
+    nrm = BANK_PTR(const float *, bank, nrmEE + REFR_BLOCK_VIF_BYTES);
+    st = BANK_PTR(float *, bank, stEE + REFR_BLOCK_VIF_BYTES);
+    for (i = 0; i < count; i++) {
+        const float *v = &pos[i * 4];
+        const float *n = &nrm[i * 4];
+        float d[4], r[4], p[4], out[4], q, k, s, t;
+
+        d[0] = v[0] - eye[0];
+        d[1] = v[1] - eye[1];
+        d[2] = v[2] - eye[2];
+        d[3] = v[3] - eye[3];
+        q = 1.0f / sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+        d[0] *= q;
+        d[1] *= q;
+        d[2] *= q;
+        k = index * gaInnerProductXYZ(d, (float *)n);
+        r[0] = n[0] * k - d[0];
+        r[1] = n[1] * k - d[1];
+        r[2] = n[2] * k - d[2];
+        r[3] = 0.0f;
+        p[0] = eye[0] + r[0];
+        p[1] = eye[1] + r[1];
+        p[2] = eye[2] + r[2];
+        p[3] = eye[3];
+        PortApplyMatrix(out, localView, p);
+        if (out[2] == 0.0f)
+            continue;
+        s = (cx + ax * ((scrz * out[0]) / out[2])) * (1.0f / 512.0f);
+        t = (cy - ay * ((scrz * out[1]) / out[2])) * 0.002232143f; /* 1 / 448 as the ROM rounds it */
+        if (s < 0.0f)
+            s = 0.0f;
+        else if (!(s <= 1.0f))
+            s = 1.0f;
+        if (t < 0.0f)
+            t = 0.0f;
+        else if (!(t <= 1.0f))
+            t = 1.0f;
+        st[i * 2] = s;
+        st[i * 2 + 1] = t;
+    }
 }

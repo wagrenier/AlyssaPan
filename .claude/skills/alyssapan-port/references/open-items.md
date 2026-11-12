@@ -1382,6 +1382,25 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    `bytes` (w * h * bytes per pixel, tiVRAMViewer's), still unread by sunSetupTBufferData;
    sunSetupTBufferDataFrom (QuatSlerp.c, PORT) takes a host record for the game's own records (data and
    stack) that SunTexEePtr cannot resolve.
+   Open from slice 12 (2026-11-11: tiDrawLensFlares, tiBumpSTValueUpdate, tiRefractionMapUpdate,
+   SetSTValueForRefraction, tiCheckHit_Face / _Capsule, tiCheckWindForce, tiCalc_Leaf_WIND): (ko) **the
+   lens flares send GIF SPRITE packets the host does not draw** (gaBGT_ExecDrawCommandData_VIF1 drops
+   them): a textured-sprite seam in alyssapan_drawga.h (the packet's RGBAQ, UVs and XYZF2 corners with the
+   bound texture, 512 x 448 window anchored from DisplayGeometry at wide aspects) is host work before the
+   first scene with a flare; (kp) TEX_INFO +0x18 / +0x20 (named minu / minv) read as sizes in
+   tiLensFlaresInit (u1 = u0 + minu) and as divisors (1 / (minu + 1)) in tiBumpSTValueUpdate: they are
+   probably width - 1 / height - 1 (or widths), with +0x1c / +0x24 the offsets: rename when the texture
+   loader names them; (kq) ct3_types.h DRAW_OBJ_PACKET_QWC (+0x48) / DRAW_OBJ_PACKET (+0x68) disagree with
+   alyssapan_drawga.h (vertexCount / the ST block); Clipping_Portal.c uses its own REFR_OBJ_* names
+   (drawga's reading): reconcile in gaBGT_DrawObject.c's TU; (kr) tiBumpSTValueUpdate and
+   tiRefractionMapUpdate skip a scene bank's group with groupCount - 1 unconditionally in the ROM (0
+   would loop forever): the host guards it like the other loops; (ks) HURIKO_HIT_A_RADIUS (the a record's
+   +0x20 float) and WIND.radius (+0x08) are named from tiCheckHit_Capsule / tiCheckWindForce alone;
+   tiCheckHit_Capsule takes the bank on the host. **Next in this TU: tiCalc_HurikoCLOSED** (0xd20, a
+   spring chain: reads HURIKO words 2, 3, 6..10 (+0x08 .. +0x28, unnamed), gGlobalNextTicksInterval / 5,
+   the hits list (HURIKO +0x14) split into hFace / hCapsule by pairInA, flag 0x80000000 = winds on,
+   flag 2 = a length spring, joints' +0x30 / +0x50 / +0x60 qwords), then tiCalc_HurikoOPEN, tiCalc_Leaf,
+   tiCalc_Trans_WIND, tiCalc_Twist, tiXFadeOut_Draw and the translucence four.
 
 8. **(2026-11-11, the user: "queue the title blockers") The way to the title screen.** A probe run
    (16:25, reverted: every stubbed x command answering XCMD_DONE, AA_movie returning at once) showed the

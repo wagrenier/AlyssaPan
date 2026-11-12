@@ -394,7 +394,8 @@ typedef struct ALL_TABLE {
     u_int particles;                    /* 0x58: list of PARTICLE_ENTRY: main_rtn_Particle's */
     u_int pad5c;
     u_int objAfter;                     /* 0x60: list: after the particles; non-empty -> ExportDrawToTex */
-    u_int pad64;
+    u_int bumps;                        /* 0x64: short[] ended by -1: objOpaque indices of the bump-mapped
+                                           entries (tiBumpSTValueUpdate) */
     u_int huriko;                       /* 0x68: list of HURIKO (Clipping_Portal.h): the bank's pendulums
                                            (tiHurikoUpdate) */
     u_int shadow;                       /* 0x6c: the shadow table (relocated: 7 words, then 8 key tables);
@@ -494,7 +495,10 @@ typedef struct MODEL_PARTS {
     u_int flags;                        /* 0x50: PARTS_FLAG_* */
     short warpH54;                      /* 0x54: a warp onto this part (a marker) copies it to
                                            CHARACTER.h100 (ExecuteWarpObject) */
-    u_char pad056[0x1a];
+    u_char pad056[2];
+    short refrIndex;                    /* 0x58: tiRefractionMapUpdate: the refraction strength, / 16384 */
+    short bumpScale;                    /* 0x5a: tiBumpSTValueUpdate: the bump's ST shift in tenths of a texel */
+    u_char pad05c[0x14];
     int omniChanging;                   /* 0x70: a point light's range is easing (OmniRangeChange's
                                            REC_OMNI_CHANGING: the matrix record is the part + 0x40) */
     int omniSteps;                      /* 0x74: the steps left (REC_OMNI_STEPS) */
