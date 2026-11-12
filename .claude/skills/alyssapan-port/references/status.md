@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-12 02:33 at commit `bf701b9` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-12 02:52 at commit `fbac462` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1391**; stubs: **163**
+- reconstructed CT3 functions: **1402**; stubs: **152**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -86,7 +86,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/ssCalcInversMatrix2.c` | 0 | 5 |
 | `src/game/ssGrpPortalCheck.c` | 74 | 0 |
 | `src/game/ssHitCheckAttackToScn.c` | 37 | 0 |
-| `src/game/ssSetTexUVforCubeMap.c` | 85 | 11 |
+| `src/game/ssSetTexUVforCubeMap.c` | 96 | 0 |
 | `src/game/tiAvoidObject.c` | 0 | 10 |
 | `src/game/tiXcmd_TransItem.c` | 85 | 8 |
 | `src/game/tkXDTrg_GetSceneHash.c` | 50 | 0 |
@@ -98,11 +98,10 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 25, partial 4, verify 37, done 8, blocked 1
-- next: **game/ssSetTexUVforCubeMap.c** (pinned in the queue)
-- pinned queue: alyssapan/rendering/ui_canvas.cpp, game/ssSetTexUVforCubeMap.c
+- 65 TUs: todo 25, partial 3, verify 38, done 8, blocked 1
+- next: **game/wideXcmd_TriggerInit.c** (continuing a partial TU)
+- pinned queue: alyssapan/rendering/ui_canvas.cpp
 - partial: `game/BRANCH_CLEAR.c` 173/173 -- 15 s smoke run: no fault, shot black (no host draw module yet). callcheck: GetAreaFloor's memcmp and ssTrigRemoveEvent come through ROOM_IS and AreaFloorClear (
-- partial: `game/ssSetTexUVforCubeMap.c` 85/96 -- Slice 7: ssVaselineGetScreenPos (SS_SCREEN_RECT by value, three-band outside pick, ROM off-by-one kept, PORT guard for w 0), ss2DParticleSetDrawData2 (UV clamps
 - partial: `game/tiXcmd_TransItem.c` 85/93 -- Slice 10. Written: tiXcmd_UseItem (ITEM_USE_* modes from argv[4], ITEM_KIND_* from the row byte +0: give-take, signal, heal Character[0].hp up to hpMax, calm vi
 - partial: `game/wideXcmd_TriggerInit.c` 1/46 -- Title draws at 4:3 and 16:9 after 40 s (logo, 3, menu, copyright). Fix in SunTexEePtr, BankOfEeAddr, HitObjectId: free slot banks shared EE addresses with the G
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
@@ -139,6 +138,7 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/sound.c` 69/69 -- All 69 written. SSLoadSEfromLoadPoint takes the bank image (BankInfo +0x1c); All_table_TBL[bank] is image + 0x80, so the old +0xd4 record is ALL_TABLE.sound, wo
 - verify: `game/ssGrpPortalCheck.c` 59/59 -- Code complete. The black screen was the ga objects' +0x38 word (EE address of the part's partsPos, the ambient light0 adds) left 0 by the ssSetAmbColorToAllObj 
 - verify: `game/ssHitCheckAttackToScn.c` 37/37 -- All 37 functions written; no smoke run reaches ssCollisionCheck yet (no character before E_00), the title shot is unchanged. CHARACTER.w300[0..3] are EE words o
+- verify: `game/ssSetTexUVforCubeMap.c` 96/96 -- Slice 8, the last: every draw buffer and draw control argument read from the disassembly; statics drawctrl_ssSprite2, passTicks 274, dy 243 as the symtab has th
 - verify: `game/tkXDTrg_GetSceneHash.c` 50/50 -- Callcheck MISSING asFindModelPartsID in Ini is the DoorFindPart helper. The part names settle h48 h4c and the kind entries' +4 as SE / TDS parts (open-items.md 
 - verify: `game/wideXcmd_DebugPrint.c` 109/109 -- All 109 functions written. Nothing on screen reaches it yet (the shot is the warning screen): verify in gameplay. New stubs ssHitAddAttackRequest, ssHit_GetMaxI
 - verify: `game/xcmd_tn.c` 57/57 -- All 57 functions written. VistaVision: ON or on brings the bars in, argv[1] 1 slides, a fourth argument makes ON skippable; statics VistaVisionEndCheck, VistaVi
@@ -146,6 +146,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-12 02:52 `game/ssSetTexUVforCubeMap.c` verify: reconstruct 11 functions: the full-screen sprite passes (HQDOF write-back and pre-render, hazy, ultima, blur, DOF pre, post and draw); TU code complete
 - 2026-11-12 02:33 `game/ssSetTexUVforCubeMap.c` partial: reconstruct 7 functions (vaseline trigger, screen-position picker and draw data; vaseline and wave diamond passes and their draw environment)
 - 2026-11-12 02:17 `game/ssSetTexUVforCubeMap.c` partial: reconstruct 13 functions (2D particle simulation, wave start, screen sprite setters)
 - 2026-11-12 01:53 `game/ssSetTexUVforCubeMap.c` partial: reconstruct 11 functions (twist orbit, part motion blur start, end, push-back and one-frame update, particle start preroll, screen-pass triggers for HQDOF, hazy
@@ -153,7 +154,6 @@ Recent sessions:
 - 2026-11-12 01:07 `game/ssSetTexUVforCubeMap.c` partial: reconstruct 13 functions (particle curve readers, per-slot setters, ring life helpers)
 - 2026-11-12 01:00 `game/ssSetTexUVforCubeMap.c` partial: reconstruct 13 functions (reflection maps, ambient change, particle init, small triggers)
 - 2026-11-12 00:34 `game/ssSetTexUVforCubeMap.c` partial: reconstruct 11 functions, stub 2
-- 2026-11-12 00:15 `game/ssHitCheckAttackToScn.c` verify: slice 6: the slide (ssHitCheckAllObject, ssHitReCheckAllObject, ssHitCalcSlidePos2, ssHitCheckAndProcess) and ssCollisionCheck with ssColCheckChar_Chara: the TU
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
@@ -166,9 +166,9 @@ Recent sessions:
 | `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
 | `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `ga/gaObjectClippingCheck.c` | todo | 0/1/1 | 0.2 | 12 | 1 |
-| `game/ssSetTexUVforCubeMap.c` | partial | 85/11/96 | 35.3 | 11 | 0 |
 | `game/asMothPause.c` | todo | 0/1/1 | 0.3 | 10 | 0 |
 | `game/ssCalcInversMatrix2.c` | todo | 0/5/5 | 5.7 | 7 | 0 |
+| `ga/wait.c` | todo | 0/2/20 | 0.1 | 5 | 0 |
 
 ## Frontier (called by reconstructed code, not written yet)
 

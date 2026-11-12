@@ -275,11 +275,12 @@ void ssBGT_UltimaSetDrawEnvPostRend(void);                                      
 void ssTrigScreenBlurEnd(void);                                                          // CT3 0x0189d900
 void ssBGT_BlurDrawSprite(int level);                                                    // CT3 0x0189d940
 void ssBGT_BlurSetDrawEnvPostRend(void);                                                 // CT3 0x0189d9b0
-void ssBGT_DOFDrawSprite(int pass, int level);                                           // CT3 0x0189db60
-void ssBGT_DOFSetDrawEnvPostRend(int pass, int level);                                   // CT3 0x0189dc40
+void ssBGT_DOFDrawSprite(void);                                                           // CT3 0x0189db60
+void ssBGT_DOFSetDrawEnvPostRend(void);                                                   // CT3 0x0189dc40
 void ssBGT_DOFSetDrawEnvPreRend(int pass, int level);                                    // CT3 0x0189dd70
 // 1: the object is drawn in this depth-of-field slice. PORT: bank resolves the object's matrix word (+0x58).
 int ssDOF_ClipObjectFromZRange(u_char *obj, u_int mode, int bank);                       // CT3 0x0189da90
+void ssSetDOFClipRange(float nearClip, float farClip);                                   // CT3 0x0189deb0
 int ssGetNumBlurDrawObjForScene(int scene, int mode);                                    // CT3 0x01896920
 void ssBGT_ZBufferClear(void);                                                           // CT3 0x0189dec0
 void ssPartMotionBlurInsertObjToDrawTable(int bank, void *table, u_int *list, int count, int mode); // CT3 0x01896a90

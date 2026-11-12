@@ -1064,60 +1064,6 @@ void ssSetSpritePos(float x0, float y0, float x1, float y1, float z)
     SS_draw_sprite.xyz1[1] = zw;
 }
 
-// stub of CT3 0x0189d940
-void ssBGT_BlurDrawSprite(int level)
-{
-    ALYSSAPAN_STUB("ssBGT_BlurDrawSprite", 0x0189d940);
-}
-
-// stub of CT3 0x0189d9b0
-void ssBGT_BlurSetDrawEnvPostRend(void)
-{
-    ALYSSAPAN_STUB("ssBGT_BlurSetDrawEnvPostRend", 0x0189d9b0);
-}
-
-// stub of CT3 0x0189db60
-void ssBGT_DOFDrawSprite(int pass, int level)
-{
-    ALYSSAPAN_STUB("ssBGT_DOFDrawSprite", 0x0189db60);
-}
-
-// stub of CT3 0x0189dc40
-void ssBGT_DOFSetDrawEnvPostRend(int pass, int level)
-{
-    ALYSSAPAN_STUB("ssBGT_DOFSetDrawEnvPostRend", 0x0189dc40);
-}
-
-// stub of CT3 0x0189dd70
-void ssBGT_DOFSetDrawEnvPreRend(int pass, int level)
-{
-    ALYSSAPAN_STUB("ssBGT_DOFSetDrawEnvPreRend", 0x0189dd70);
-}
-
-// stub of CT3 0x0189d330
-void ssBGT_HazyDrawSprite(int level, int transTime)
-{
-    ALYSSAPAN_STUB("ssBGT_HazyDrawSprite", 0x0189d330);
-}
-
-// stub of CT3 0x0189d560
-void ssBGT_HazySetDrawEnvPostRend(void)
-{
-    ALYSSAPAN_STUB("ssBGT_HazySetDrawEnvPostRend", 0x0189d560);
-}
-
-// stub of CT3 0x0189d640
-void ssBGT_UltimaDrawSprite(int *frame)
-{
-    ALYSSAPAN_STUB("ssBGT_UltimaDrawSprite", 0x0189d640);
-}
-
-// stub of CT3 0x0189d820
-void ssBGT_UltimaSetDrawEnvPostRend(void)
-{
-    ALYSSAPAN_STUB("ssBGT_UltimaSetDrawEnvPostRend", 0x0189d820);
-}
-
 // ---- the diamond passes' draw environment (2026-11-12) ----
 
 alignas(16) static u_char ssTexbuffer[0x200];           /* bss 0x01941900: the screen passes' texture buffer */
@@ -1138,17 +1084,24 @@ static const GA_DRAWCTRL_ARGS SS_DIAMOND_DRAWCTRL_ARGS = {
     1, 0, 1, 1, 0, 0,       /* TEX1_1: LCM 1, MMAG 1, MMIN 1 */
     0};                     /* TEXA */
 
-// The PostRend set-up both diamond passes share (the ROM repeats it in each): the frame just drawn
-// (ga_draw_fbuf_address) becomes the texture, then the draw control. PORT: the record is the host copy.
-static void ssDiamondSetDrawEnv(void)
+// The frame buffer at fbuf becomes the screen passes' texture (ssTexbuffer from ssDOFtexture_attr; the
+// ROM repeats this set-up in every pass). PORT: the record is the host copy.
+static void ssSetScreenTexture(u_int fbuf)
 {
     TEX_INFO tex;
     memset(&tex, 0, sizeof(tex));
     tex.tim = 0x01938f80u;              /* ssDOFtexture_attr */
-    tex.tbp = (u_int)ga_draw_fbuf_address;
+    tex.tbp = fbuf;
     tex.cbp = SS_DOF_TEXTURE_CBP;
     sunSetupTBufferDataFrom(ssTexbuffer, tex, &ssDOFtexture_attr);
     sunBGT_ExecTBufferData_VIF1(ssTexbuffer);
+}
+
+// The PostRend set-up both diamond passes share: the frame just drawn (ga_draw_fbuf_address) becomes the
+// texture, then the draw control.
+static void ssDiamondSetDrawEnv(void)
+{
+    ssSetScreenTexture((u_int)ga_draw_fbuf_address);
     gaSetupDrawCtrlData(&drawctrl_ssSprite, SS_DIAMOND_DRAWCTRL_ARGS);
     gaBGT_ExecDrawCtrlData_VIF1(&drawctrl_ssSprite);
 }
@@ -1187,6 +1140,271 @@ void ssBGT_WaveDrawDiamond(void)
 void ssBGT_WaveSetDrawEnvPostRend(void)
 {
     ssDiamondSetDrawEnv();
+}
+
+// ---- the full-screen sprite passes: HQDOF write-back, hazy, ultima, blur, DOF (2026-11-12) ----
+
+alignas(16) static GA_DRAWCTRL_DATA drawctrl_ssSprite2;  /* 0x01941b00: the HQDOF / DOF sprites' draw control */
+
+#define SS_HQDOF_FBUF 0xa8000u          /* main.c's HQDOF_FBUF: the frame the HQDOF samples are drawn into */
+#define SS_SCREEN_W 512.0f              /* the ROM's frame, in pixels */
+#define SS_SCREEN_H 448.0f
+#define SS_SPRITE_GREY 0x80             /* RGB 0x80: the texture unmodulated */
+#define SS_SPRITE_ALPHA_QUARTER 0x20    /* As 0x20 of 0x80: a quarter of the source over the frame */
+
+// The sprites' draw control (the disassembly's 29 slots): flat, textured, alpha blended, UV; alpha test
+// always passes, depth test on (ZTST 1 always); ALPHA_1 (Cs - Cd) * As + Cd; FBA 1; TEX1 LCM 1, bilinear.
+static const GA_DRAWCTRL_ARGS SS_SPRITE_DRAWCTRL_ARGS = {
+    0, 1, 0, 1, 0, 1, 0, 0, /* PRMODE: TME, ABE, FST */
+    0, 1, 0, 0, 0, 0, 1, 1, /* TEST_1: ATST 1, ZTE, ZTST 1 */
+    0, 1, 0, 1, 0,          /* ALPHA_1: A 0 (Cs), B 1 (Cd), C 0 (As), D 1 (Cd) */
+    1,                      /* FBA_1 */
+    1, 0, 1, 1, 0, 0,       /* TEX1_1: LCM 1, MMAG 1, MMIN 1 */
+    0};                     /* TEXA */
+
+// The ultima strips' draw control: as SS_SPRITE_DRAWCTRL_ARGS without blending (ABE 0): the strips
+// replace the frame.
+static const GA_DRAWCTRL_ARGS SS_OPAQUE_SPRITE_DRAWCTRL_ARGS = {
+    0, 1, 0, 0, 0, 1, 0, 0, /* PRMODE: TME, FST */
+    0, 1, 0, 0, 0, 0, 1, 1, /* TEST_1: ATST 1, ZTE, ZTST 1 */
+    0, 1, 0, 1, 0,          /* ALPHA_1 (unused) */
+    1,                      /* FBA_1 */
+    1, 0, 1, 1, 0, 0,       /* TEX1_1: LCM 1, MMAG 1, MMIN 1 */
+    0};                     /* TEXA */
+
+// drawbuffer_0 over the whole frame: FRAME at the draw buffer (gaBGT_ExecDBufferData_VIF1 fills FBP),
+// 512 wide, PSMCT32; ZBUF PSMZ32 with its write mask zMsk; scissor 0..511 x 0..447; no offset, no dither.
+static void ssSetFrameDrawBuffer(u_int zMsk)
+{
+    gaSetupDBufferData(&drawbuffer_0, 0, (u_int)SS_SCREEN_W, SCE_GS_PSMCT32, 0, 0, 0, zMsk, 0, 0,
+                       (u_int)SS_SCREEN_W - 1, (u_int)SS_SCREEN_H - 1, 0, 0, 0);
+    gaBGT_ExecDBufferData_VIF1(&drawbuffer_0);
+}
+
+// CT3 0x0189b510
+// main_rtn's HQDOF pass, before its samples: drawbuffer_0 over the whole frame, Z written.
+void ssBGT_HQDOF_SetDrawEnvPreRend(void)
+{
+    ssSetFrameDrawBuffer(0);
+}
+
+// CT3 0x0189b390
+// After the HQDOF samples: the frame they were drawn into (SS_HQDOF_FBUF) laid over the draw buffer as
+// one full-screen sprite at alpha (0..128). The sprite keeps the UVs its last user left (no ssSetSpriteUV).
+void ssBGT_HQDOF_WriteBackFB(int alpha)
+{
+    ssSetFrameDrawBuffer(0);
+    ssSetScreenTexture(SS_HQDOF_FBUF);
+    gaSetupDrawCtrlData(&drawctrl_ssSprite2, SS_SPRITE_DRAWCTRL_ARGS);
+    gaBGT_ExecDrawCtrlData_VIF1(&drawctrl_ssSprite2);
+    ssSetSpriteCol(SS_SPRITE_GREY, SS_SPRITE_GREY, SS_SPRITE_GREY, alpha);
+    ssSetSpritePos(0.0f, 0.0f, SS_SCREEN_W, SS_SCREEN_H, 0.0f);
+    gaBGT_ExecDrawCommandData_VIF1((GA_DRAWCOMMAND_DATA *)&SS_draw_sprite);
+}
+
+// CT3 0x0189d560
+// The hazy pass's draw environment: the frame just drawn (ga_draw_fbuf_address) as the texture, the
+// blended sprite control.
+void ssBGT_HazySetDrawEnvPostRend(void)
+{
+    ssSetScreenTexture((u_int)ga_draw_fbuf_address);
+    gaSetupDrawCtrlData(&drawctrl_ssSprite, SS_SPRITE_DRAWCTRL_ARGS);
+    gaBGT_ExecDrawCtrlData_VIF1(&drawctrl_ssSprite);
+}
+
+#define HAZY_SHIFT_X 2.0f               /* level * 2: the left and right copies' sideways shift */
+#define HAZY_SHIFT_Y_SIDE 1.16f         /* level * 1.16: the side copies raised */
+#define HAZY_SHIFT_Y_DOWN 1.6f          /* level * 1.6: the third copy lowered */
+#define HAZY_TICKS_SCALE 300           /* the fade lasts transTime * 300 / 10 ticks */
+#define HAZY_ROUNDS 3
+
+// CT3 0x0189d330
+// The haze: the frame laid over itself three times a round, three rounds, at a quarter alpha -- shifted
+// left and up, right and up, and down, by amounts proportional to level. With transTime the shift fades
+// to 0 over transTime * 30 ticks (passTicks$274 counts them), then the haze ends.
+void ssBGT_HazyDrawSprite(int level, int transTime)
+{
+    static int passTicks;               /* sbss 0x0193e010: passTicks$274 */
+    float shiftX, shiftSide, shiftDown;
+    int i;
+
+    if (transTime == 0) {
+        float l = (float)level;
+        shiftX = l * HAZY_SHIFT_X;
+        shiftSide = l * HAZY_SHIFT_Y_SIDE;
+        shiftDown = l * HAZY_SHIFT_Y_DOWN;
+    } else {
+        int span;
+        float l, t, n, x, side, down;
+        passTicks += gNextTicksInterval;
+        span = transTime * HAZY_TICKS_SCALE / 10;
+        if (span < passTicks) {
+            passTicks = 0;
+            ssTrigHazyScreenEnd();
+            return;
+        }
+        l = (float)level;
+        t = (float)passTicks;
+        n = (float)span;
+        x = l * HAZY_SHIFT_X;
+        side = l * HAZY_SHIFT_Y_SIDE;
+        down = l * HAZY_SHIFT_Y_DOWN;
+        shiftX = x - x * t / n;
+        shiftSide = side - side * t / n;
+        shiftDown = down - down * t / n;
+    }
+    ssSetSpriteCol(SS_SPRITE_GREY, SS_SPRITE_GREY, SS_SPRITE_GREY, SS_SPRITE_ALPHA_QUARTER);
+    ssSetSpriteUV(0, 0, (int)SS_SCREEN_W, (int)SS_SCREEN_H);
+    for (i = 0; i < HAZY_ROUNDS; i++) {
+        ssSetSpritePos(-shiftX, -shiftSide, SS_SCREEN_W - shiftX, SS_SCREEN_H - shiftSide, 0.0f);
+        gaBGT_ExecDrawCommandData_VIF1((GA_DRAWCOMMAND_DATA *)&SS_draw_sprite);
+        ssSetSpritePos(shiftX, -shiftSide, shiftX + SS_SCREEN_W, SS_SCREEN_H - shiftSide, 0.0f);
+        gaBGT_ExecDrawCommandData_VIF1((GA_DRAWCOMMAND_DATA *)&SS_draw_sprite);
+        ssSetSpritePos(0.0f, shiftDown, SS_SCREEN_W, shiftDown + SS_SCREEN_H, 0.0f);
+        gaBGT_ExecDrawCommandData_VIF1((GA_DRAWCOMMAND_DATA *)&SS_draw_sprite);
+    }
+}
+
+// CT3 0x0189d820
+// The ultima pass's draw environment: the frame on display (ga_disp_fbuf_address, last frame's) as the
+// texture, the opaque control.
+void ssBGT_UltimaSetDrawEnvPostRend(void)
+{
+    ssSetScreenTexture((u_int)ga_disp_fbuf_address);
+    gaSetupDrawCtrlData(&drawctrl_ssSprite, SS_OPAQUE_SPRITE_DRAWCTRL_ARGS);
+    gaBGT_ExecDrawCtrlData_VIF1(&drawctrl_ssSprite);
+}
+
+#define ULTIMA_STRIPS 128               /* 4-pixel columns over the 512-wide frame */
+#define ULTIMA_STRIP_W 4
+#define ULTIMA_CENTRE_STRIP 80          /* the strip whose wave is fastest (x 320) */
+#define ULTIMA_FIRST_FRAME 6            /* *frame on the pass's first sprite frame (5 plain frames first) */
+#define ULTIMA_SPRITE_FRAMES 256        /* sprite frames before *frame restarts */
+#define ULTIMA_SPEED 64.0f              /* the centre strip's angle step per frame */
+#define ULTIMA_SPEED_FALLOFF 0.7f       /* less per strip away from the centre */
+#define ULTIMA_AMPLITUDE 1000.0f        /* each strip's offset: sin * 1000 pixels */
+
+// CT3 0x0189d640
+// The ultima effect: last frame redrawn as 128 vertical strips, each moved up by how far its wave
+// (dy$243, sin of (frame - 5) times a speed that falls off away from strip 80, * 1000) rose since the
+// previous frame -- the picture tears into columns sliding at their own pace. The first sprite frame
+// clears the waves; past frame 262 *frame goes back to 0 (main's counter restarts the 5 plain frames).
+void ssBGT_UltimaDrawSprite(int *frame)
+{
+    static int dy[ULTIMA_STRIPS];       /* sbss 0x0193e050: dy$243 */
+    int prev[ULTIMA_STRIPS];
+    int f = *frame;
+    int i, x;
+
+    if (f == ULTIMA_FIRST_FRAME) {
+        for (i = 0; i < ULTIMA_STRIPS; i++) {
+            prev[i] = 0;
+            dy[i] = 0;
+        }
+    }
+    for (i = 0, x = 0; i < ULTIMA_STRIPS; i++, x += ULTIMA_STRIP_W) {
+        int d = i - ULTIMA_CENTRE_STRIP;
+        float s;
+        prev[i] = dy[i];
+        if (d < 0)
+            d = -d;
+        s = ahSin((int)((float)(f - 5) * (ULTIMA_SPEED - ULTIMA_SPEED_FALLOFF * (float)d)));
+        dy[i] = (int)(ULTIMA_AMPLITUDE * s);
+        ssSetSpriteUV(x, 0, x + ULTIMA_STRIP_W, (int)SS_SCREEN_H);
+        ssSetSpritePos((float)x, -(float)(dy[i] - prev[i]), (float)(x + ULTIMA_STRIP_W), SS_SCREEN_H, 0.0f);
+        gaBGT_ExecDrawCommandData_VIF1((GA_DRAWCOMMAND_DATA *)&SS_draw_sprite);
+    }
+    if (f - ULTIMA_FIRST_FRAME > ULTIMA_SPRITE_FRAMES)
+        *frame = 0;
+}
+
+// CT3 0x0189d9b0
+// The blur pass's draw environment: the frame on display (last frame's) as the texture, the blended
+// sprite control.
+void ssBGT_BlurSetDrawEnvPostRend(void)
+{
+    ssSetScreenTexture((u_int)ga_disp_fbuf_address);
+    gaSetupDrawCtrlData(&drawctrl_ssSprite, SS_SPRITE_DRAWCTRL_ARGS);
+    gaBGT_ExecDrawCtrlData_VIF1(&drawctrl_ssSprite);
+}
+
+#define BLUR_ALPHA_BASE 0x30            /* As = level * 5 + 0x30 */
+#define BLUR_ALPHA_STEP 5
+
+// CT3 0x0189d940
+// Motion blur: last frame laid over this one, whole-screen, at alpha level * 5 + 48.
+void ssBGT_BlurDrawSprite(int level)
+{
+    ssSetSpriteCol(SS_SPRITE_GREY, SS_SPRITE_GREY, SS_SPRITE_GREY, level * BLUR_ALPHA_STEP + BLUR_ALPHA_BASE);
+    ssSetSpriteUV(0, 0, (int)SS_SCREEN_W, (int)SS_SCREEN_H);
+    ssSetSpritePos(0.0f, 0.0f, SS_SCREEN_W, SS_SCREEN_H, 0.0f);
+    gaBGT_ExecDrawCommandData_VIF1((GA_DRAWCOMMAND_DATA *)&SS_draw_sprite);
+}
+
+// The DOF passes' depth slices (ssSetDOFClipRange's near and far, view z): pass 4 is the farthest; the
+// focus pass's near is DOF_NEAR_ALL, so it takes everything in front of its far as well.
+#define DOF_NEAR_ALL (-10000.0f)
+#define DOF_SLICE_1_FAR 500.0f
+#define DOF_SLICE_2_FAR 1000.0f
+#define DOF_SLICE_3_FAR 1500.0f
+#define DOF_SLICE_4_FAR 10000.0f
+#define DOF_PASS_FAR 4
+
+// CT3 0x0189dd70
+// Before each DOF slice (pass 4 down to level): drawbuffer_0 over the whole frame, Z written, and the
+// slice's depth range -- 1: (-10000, 500), 2: (500, 1000), 3: (1000, 1500), 4: (1500, 10000), any other
+// pass (0, 0); the focus pass (pass == level) starts at -10000.
+void ssBGT_DOFSetDrawEnvPreRend(int pass, int level)
+{
+    float nearClip, farClip;
+
+    if (pass == 1) {
+        nearClip = DOF_NEAR_ALL;
+        farClip = DOF_SLICE_1_FAR;
+    } else if (pass == 2) {
+        nearClip = DOF_SLICE_1_FAR;
+        farClip = DOF_SLICE_2_FAR;
+    } else if (pass == 3) {
+        nearClip = DOF_SLICE_2_FAR;
+        farClip = DOF_SLICE_3_FAR;
+    } else if (pass == DOF_PASS_FAR) {
+        nearClip = DOF_SLICE_3_FAR;
+        farClip = DOF_SLICE_4_FAR;
+    } else {
+        nearClip = 0.0f;
+        farClip = 0.0f;
+    }
+    if (pass == level)
+        nearClip = DOF_NEAR_ALL;
+    ssSetFrameDrawBuffer(0);
+    ssSetDOFClipRange(nearClip, farClip);
+}
+
+#define SS_ZBUF_NO_WRITE 1              /* ZBUF ZMSK: depth tested, not written */
+
+// CT3 0x0189dc40
+// After a slice behind the focus: drawbuffer_0 with Z writes masked, the frame just drawn as the texture,
+// and drawctrl_ssSprite2 set up -- ssBGT_DOFDrawSprite sends it.
+void ssBGT_DOFSetDrawEnvPostRend(void)
+{
+    ssSetFrameDrawBuffer(SS_ZBUF_NO_WRITE);
+    ssSetScreenTexture((u_int)ga_draw_fbuf_address);
+    gaSetupDrawCtrlData(&drawctrl_ssSprite2, SS_SPRITE_DRAWCTRL_ARGS);
+}
+
+// CT3 0x0189db60
+// The slice blurred: the frame laid over itself three times at a quarter alpha -- 2 px left and 2 px
+// right (both 1.16 px up), then 1.6 px down. The UVs are whatever the last pass left (no ssSetSpriteUV).
+void ssBGT_DOFDrawSprite(void)
+{
+    gaBGT_ExecDrawCtrlData_VIF1(&drawctrl_ssSprite2);
+    ssSetSpriteCol(SS_SPRITE_GREY, SS_SPRITE_GREY, SS_SPRITE_GREY, SS_SPRITE_ALPHA_QUARTER);
+    ssSetSpritePos(-2.0f, -1.16f, 510.0f, 446.84f, 0.0f);
+    gaBGT_ExecDrawCommandData_VIF1((GA_DRAWCOMMAND_DATA *)&SS_draw_sprite);
+    ssSetSpritePos(2.0f, -1.16f, 514.0f, 446.84f, 0.0f);
+    gaBGT_ExecDrawCommandData_VIF1((GA_DRAWCOMMAND_DATA *)&SS_draw_sprite);
+    ssSetSpritePos(0.0f, 1.6f, 512.0f, 449.6f, 0.0f);
+    gaBGT_ExecDrawCommandData_VIF1((GA_DRAWCOMMAND_DATA *)&SS_draw_sprite);
 }
 
 // CT3 0x01895fb0
@@ -1420,18 +1638,6 @@ int ssDOF_ClipObjectFromZRange(u_char *obj, u_int mode, int bank)
     if (z < DOF_NearClip)
         return 0;
     return z < DOF_FarClip;
-}
-
-// stub of CT3 0x0189b510
-void ssBGT_HQDOF_SetDrawEnvPreRend(void)
-{
-    ALYSSAPAN_STUB("ssBGT_HQDOF_SetDrawEnvPreRend", 0x0189b510);
-}
-
-// stub of CT3 0x0189b390
-void ssBGT_HQDOF_WriteBackFB(int alpha)
-{
-    ALYSSAPAN_STUB("ssBGT_HQDOF_WriteBackFB", 0x0189b390);
 }
 
 

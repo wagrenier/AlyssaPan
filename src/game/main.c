@@ -606,8 +606,8 @@ void ssDOF_DrawAllObject(int level)
         else
             AllDrawObject(3);
         if (level < pass) {
-            ssBGT_DOFSetDrawEnvPostRend(pass, level);
-            ssBGT_DOFDrawSprite(pass, level);
+            ssBGT_DOFSetDrawEnvPostRend();
+            ssBGT_DOFDrawSprite();
         }
         pass--;
         if (pass == 0)

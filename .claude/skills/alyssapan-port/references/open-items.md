@@ -1679,6 +1679,20 @@ apply here):
 
 ## Open questions
 
+- (2026-11-12, game/ssSetTexUVforCubeMap.c slice 8) **code complete, verify**: the last 11 functions --
+  the full-screen sprite passes (HQDOF write-back and pre-render, hazy, ultima, blur, DOF pre / post /
+  draw) -- written from the disassembly (every gaSetupDBufferData / gaSetupDrawCtrlData slot read off the
+  stack; Ghidra shows only 8). Statics are the symtab's: drawctrl_ssSprite2 (0x01941b00), passTicks$274,
+  dy$243; the draw buffer is main.c's drawbuffer_0. **ssBGT_DOFDrawSprite and _DOFSetDrawEnvPostRend take
+  no arguments** (their code never reads a0 / a1): the prototypes and main.c's calls changed to (void).
+  Nothing on screen yet: the title scene runs none of these DrawModes, and the host draws none of the
+  BGT sprite / diamond packets (gaBGT_ExecDrawCommandData_VIF1 drops them; the passes read the frame
+  just drawn or on display as a texture -- the offscreen-layer seam of (kt) is what they need). That host
+  work (one native full-screen-sprite path for SS_draw_sprite reading XY / UV / RGBA, the 512 x 448 space
+  mapped through DisplayGeometry, a frame copy as its texture) is the next step for these effects; it is
+  host work, not this TU. Doubt: the ultima end test keeps the ROM's f - 6 > 256 (frame 263 restarts).
+  The smoke run's last.png came out 0 bytes (written as the run was cut off); shot_12600.png showed the
+  same clock-tower title scene as before.
 - (2026-11-12, game/ssSetTexUVforCubeMap.c slice 6) **partial**: the 2D particle simulation (ss2DParticle_main,
   ssGenerate2DParticle, Push_Back, Pop_Front, LifeCheck, LifeSpan, Orbit, SetDrawData, ssGetScreenRange),
   ssTrigWaveStart and the sprite setters (ssSetSpriteCol / _UV / _Pos) written. **Decision (Claude's, the

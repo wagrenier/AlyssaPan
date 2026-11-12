@@ -1,7 +1,6 @@
 {
  "queue": [
-  "alyssapan/rendering/ui_canvas.cpp",
-  "game/ssSetTexUVforCubeMap.c"
+  "alyssapan/rendering/ui_canvas.cpp"
  ],
  "settings": {
   "data_dir": "C:/Users/willi/Documents/Decomp/Clocl Tower 3",
@@ -1340,7 +1339,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 103..103, 3 functions keyed by their statics, 33 unkeyed; file name from the names"
   },
   "game/ssSetTexUVforCubeMap.c": {
-   "notes": "Slice 7: ssVaselineGetScreenPos (SS_SCREEN_RECT by value, three-band outside pick, ROM off-by-one kept, PORT guard for w 0), ss2DParticleSetDrawData2 (UV clamps on four sides from the disassembly), ssTrigVaselineStart (9 named arguments, DrawMode 7), ssBGT_VaselineDrawDiamond, ssBGT_WaveDrawDiamond, ssBGT_Vaseline and Wave SetDrawEnvPostRend (shared static ssDiamondSetDrawEnv; ssTexbuffer, drawctrl_ssSprite and a host copy of ssDOFtexture_attr). callcheck MISSING for the PostRends and Data2 are calls inside the static helpers: explained. Smoke run: the title clock-tower scene as before; no vaseline or wave trigger there. The host draws none of the diamond fans yet: gaBGT_ExecDrawCommandData_VIF1 drops them and the host has no frame copy to texture them with (open-items kt); that is host work. Next: the remaining BGT passes (HQDOF WriteBackFB and SetDrawEnvPreRend, Hazy, Ultima, Blur, DOF) from the disassembly, reusing ssTexbuffer and drawctrl_ssSprite.",
+   "notes": "Slice 8, the last: every draw buffer and draw control argument read from the disassembly; statics drawctrl_ssSprite2, passTicks 274, dy 243 as the symtab has them, the draw buffer is drawbuffer_0. ssBGT_DOFDrawSprite and DOFSetDrawEnvPostRend take no arguments (header and main.c changed). callcheck MISSING entries are calls inside the static helpers ssSetScreenTexture, ssSetFrameDrawBuffer, ssDiamondSetDrawEnv: explained. Smoke run: the clock-tower title scene as before; none of these DrawModes runs there and the host drops the BGT sprite packets. Next for these effects is host work: a native full-screen sprite path for SS_draw_sprite with a frame copy as texture (open-items kt and the slice 8 entry).",
    "ranges": [
     [
      "018951d0",
@@ -1382,9 +1381,14 @@
      "date": "2026-11-12 02:33",
      "status": "partial",
      "summary": "reconstruct 7 functions (vaseline trigger, screen-position picker and draw data; vaseline and wave diamond passes and their draw environment)"
+    },
+    {
+     "date": "2026-11-12 02:52",
+     "status": "verify",
+     "summary": "reconstruct 11 functions: the full-screen sprite passes (HQDOF write-back and pre-render, hazy, ultima, blur, DOF pre, post and draw); TU code complete"
     }
    ],
-   "status": "partial",
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 89..89, 13 functions keyed by their statics, 83 unkeyed; file name from the names"
   },
   "game/tiAvoidObject.c": {

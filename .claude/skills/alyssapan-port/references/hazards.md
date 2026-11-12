@@ -7,6 +7,12 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-12, ssSetTexUVforCubeMap.c slice 8) **A caller's arguments do not make a prototype.** main.c
+  (ssDOF_DrawAllObject) was written calling ssBGT_DOFDrawSprite(pass, level) and
+  _DOFSetDrawEnvPostRend(pass, level) because a0 / a1 held them at the call; the callees never read them.
+  Take the signature from the callee's disassembly, not the call site. Also: the smoke run's `last.png`
+  can be 0 bytes when the run's time limit cuts it off -- read the newest `shot_<frame>.png` instead.
+
 - (2026-11-12, ssSetTexUVforCubeMap.c slice 6) **Min / max clamps through a delay slot.** CodeWarrior
   writes `if (v < min) min = v < 0 ? 0 : v` as a bc1f whose delay slot moves the clamp value in, then a
   mov of v on the other path; Ghidra folds it into nonsense like `(fVar9 = 0.0, 0.0 <= fVar8)`
