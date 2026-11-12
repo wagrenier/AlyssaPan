@@ -434,6 +434,14 @@ the TU map's evidence.
   sceMpeg (+8 frameCount) and keeps the two handler ids at +0xd0 / +0xd4; StrFile +4 is the size, +0x34
   CT3's give-up flag (AA_movie then resets the system: "File Open Error!!"). The host keeps this shape:
   the EE kernel runs the thread and the vblank handler, sdk/libmpeg decodes with FFmpeg.
+  **Captions** (AA_GetDataWord.c, 2026-11-12): the caption file (data/caption/) is a list of records,
+  little-endian and byte-aligned: u32 time stamp (the movie's clock; -1 ends the list), u32 kind, and for
+  kind 1 four u16 (x, y, width, height in pixels) then `height` rows of `width / 2` bytes of 4-bit pixels.
+  AA_TestRead plays one due record per call into a 512 x 448 PSMT4 picture (0x1c000 bytes; the ROM keeps it
+  at AA_mpegWork + 0x1e4000); any other kind clears it. The display lays it over the movie with the CLUT
+  AA_GS_SetClut uploads to CBP 0x3e00. Pacing: shouldDelay keeps the last six AA_syncGetSkew answers in
+  voBuf +0x18 and holds a picture when all six are at or under -6000; the vblank then waits 5 fields
+  (voBuf +0x14) before asking again.
 - `game_end.dat` (0x01935308): a file the game opens by name.
 
 ## The boot screen and the ga draw object's data (2026-11-10, host task `alyssapan/rendering/ui_canvas.cpp`)

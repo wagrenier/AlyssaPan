@@ -84,3 +84,9 @@ int AA_voBufIsFull(VoBuf *f)
     ALYSSAPAN_STUB("AA_voBufIsFull", 0x018c2030);
     return {};
 }
+
+// stub of CT3 0x018c1ea0
+void AA_voBufDecCount(VoBuf *f)
+{
+    ALYSSAPAN_STUB("AA_voBufDecCount", 0x018c1ea0);
+}

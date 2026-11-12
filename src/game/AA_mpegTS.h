@@ -29,12 +29,22 @@ static_assert(offsetof(VideoDec, mpeg.frameCount) == 0x08, "VideoDec.mpeg.frameC
 static_assert(offsetof(VideoDec, hid_endimage) == 0xd0, "VideoDec.hid_endimage");
 
 // The decoded-picture queue (voBuf, sbss 0x0193f340: 0x48 bytes). AA_MemoryMapSet clears the five words
-// at +0x34 (AA_MemoryMapFree only the first); the rest is this TU's. layout: ee.
+// at +0x34 (AA_MemoryMapFree only the first); the head is this TU's (ezmpegstr's ring). CT3 grew the
+// sample's 0x14 bytes with the display's pacing state (AA_GetDataWord.c, 2026-11-12): the vblank's hold
+// count and shouldDelay's skew history. layout: ee.
+#define VOBUF_SKEWS 6                   /* shouldDelay's history of AA_syncGetSkew answers */
 typedef struct VoBuf {
-    u_char raw[0x34];
-    int w34[5];             /* 0x34..0x44 */
+    u_char raw[0x14];       /* 0x00: the ring (data, tag, write, count, size in ezmpegstr): this TU names it */
+    int delayHold;          /* 0x14: vblanks left before AA_vblankHandler asks shouldDelay again */
+    int skew[VOBUF_SKEWS];  /* 0x18: the last six skews, newest at skewIndex - 1 */
+    int skewIndex;          /* 0x30: the next skew slot, mod VOBUF_SKEWS */
+    int w34[5];             /* 0x34..0x44: w34[0] != 0 lets the vblank count AA_FadeInCount down */
 } VoBuf;
 static_assert(sizeof(VoBuf) == 0x48, "VoBuf");
+static_assert(offsetof(VoBuf, delayHold) == 0x14, "VoBuf.delayHold");
+static_assert(offsetof(VoBuf, skew) == 0x18, "VoBuf.skew");
+static_assert(offsetof(VoBuf, skewIndex) == 0x30, "VoBuf.skewIndex");
+static_assert(offsetof(VoBuf, w34) == 0x34, "VoBuf.w34");
 
 // One picture's GS upload tags (AA_voBufTag[2], sbss 0x0193f6d0: 0x30 bytes). The two words at +0x10 are
 // the tag blocks AA_MovieUseBank gives a movie bank each ("MPEG GS tag 0" / "MPEG Gs tag 1"; the ROM puts
@@ -61,3 +71,4 @@ int AA_videoDecCreate(VideoDec *vd, u_int mpegWork, int workSize, u_int viBufDat
 int AA_voBufIsFull(VoBuf *f);                                                            // CT3 0x018c2030
 void AA_voBufDelete(VoBuf *f);                                                           // CT3 0x018c2080
 void AA_voBufCreate(VoBuf *f, u_int *data, VoTag *tag, int n);                           // CT3 0x018c2090
+void AA_voBufDecCount(VoBuf *f);                                                         // CT3 0x018c1ea0

@@ -892,7 +892,25 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    (KEY_MAP_MOVIE_STOP) and tiFade_Start types 4 / 5 after the fade to black / white are named from this
    use; (gu) AA_isCountVblank (sbss 0x0193f0bc) is defined in lib/unassigned_data.cpp until
    AA_GetDataWord.c takes it; (gv) the smoke run left work/shots/last.png empty (0 bytes) while the
-   numbered shots are fine: worth a look in build.py's shot writer.
+   numbered shots are fine: worth a look in build.py's shot writer (still so on 2026-11-12).
+   **game/AA_GetDataWord.c (partial, 2026-11-12, slice 1): 10 of 15 functions** -- the caption readers
+   (AA_GetDataWord / Long / LongRead, AA_TestRead), the caption picture (AA_CleanMojiBuffer,
+   AA_test_RamInit), shouldDelay, AA_startDisplay / AA_endDisplay, AA_handler_endimage; the sbss globals
+   0x0193f0bc..0x0193f0d0 are now this TU's ((gu) done). **Next (slice 2): AA_GS_SetClut, AA_clearGsMem,
+   AA_setImageTag, AA_setImageTag2, AA_vblankHandler** -- the GS side: setImageTag builds the GIF chain that
+   uploads a decoded picture (16 x 16 RGBA32 macroblocks) and, when captions run, the 4-bit caption picture
+   (PSMT4 at TBP 0x2a00, CLUT 0x3e00), then draws it as two sprites (the picture, the captions' TEX0
+   0x2007c00e65423800) and a fade sprite whose RGBAQ word the caller patches (param 6 / 4). Decide there how
+   the host draws it: AlyssaPan_DrawUiMovie for the picture, the caption picture as a 4-bit texture with the
+   CLUT AA_GS_SetClut uploads, the fade as a flat sprite; the vblank then calls AA_handler_endimage where the
+   transfer ends. Claude's calls (2026-11-12, the user may overrule): (gw) the caption picture lives in a
+   host block, AA_MojiFBImage (AA_MojiFB()), not at AA_mpegWork + 0x1e4000 in a movie bank: the host
+   decoder needs no work memory, so AA_MoiveMojiFB / AA_MojiBuffWk only say whether there is one; (gx)
+   AA_TestRead takes a host byte cursor (const u_char **): AA_mpegTS.c's caller must start it at
+   AA_MojiImage when AA_MojiData != 0 (with (gj)); (gy) VoBuf's +0x14..+0x34 are the display's pacing
+   (delayHold, skew[6], skewIndex: shouldDelay and the vblank read them), named from this TU; the ring head
+   (+0x00..+0x14) is AA_mpegTS.c's to name; (gz) AA_syncGetSkew's sign (negative = video ahead) is read
+   from shouldDelay's use only: AA_cpuCycles.c confirms it.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
    class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~

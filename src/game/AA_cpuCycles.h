@@ -6,3 +6,6 @@
 
 // The EE's cycle counter (8 bytes in the ROM: COP0 Count, 294.912 MHz). readMpeg busy-waits on it.
 u_int AA_cpuCycles(void);                                                                // CT3 0x018c0310
+// The picture's lead over the audio clock (shouldDelay's use, 2026-11-12: six answers at or under -6000 in a
+// row make the display hold a picture). AA_cpuCycles.c confirms the sign and unit.
+int AA_syncGetSkew(void);                                                                // CT3 0x018c0320

@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-12 09:06 at commit `002fdbf` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-12 09:32 at commit `cf016d5` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1592**; stubs: **145**
+- reconstructed CT3 functions: **1602**; stubs: **142**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -49,10 +49,10 @@ Least-named game-code regions (64 KB blocks):
 | `src/ga/gaVifInit.c` | 6 | 0 |
 | `src/ga/pad_button_read.c` | 4 | 0 |
 | `src/ga/wait.c` | 0 | 2 |
-| `src/game/AA_GetDataWord.c` | 0 | 8 |
+| `src/game/AA_GetDataWord.c` | 10 | 3 |
 | `src/game/AA_SoundMonoSoart.c` | 0 | 8 |
-| `src/game/AA_cpuCycles.c` | 0 | 1 |
-| `src/game/AA_mpegTS.c` | 0 | 12 |
+| `src/game/AA_cpuCycles.c` | 0 | 2 |
+| `src/game/AA_mpegTS.c` | 0 | 13 |
 | `src/game/AA_videoCallback.c` | 0 | 11 |
 | `src/game/AlignedNum.c` | 4 | 0 |
 | `src/game/ArtoolDebugOpen.c` | 15 | 0 |
@@ -101,9 +101,10 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 20, verify 46, done 8, blocked 1
-- next: **game/AA_GetDataWord.c** (frontier score 21)
+- 65 TUs: todo 19, partial 1, verify 46, done 8, blocked 1
+- next: **game/AA_GetDataWord.c** (continuing a partial TU)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp
+- partial: `game/AA_GetDataWord.c` 10/15 -- Slice 2 is the GS side: AA_GS_SetClut, AA_clearGsMem, AA_setImageTag, AA_setImageTag2, AA_vblankHandler; decide the host draw there (AlyssaPan_DrawUiMovie for t
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
@@ -154,6 +155,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-12 09:32 `game/AA_GetDataWord.c` partial: slice 1: caption readers, caption picture, shouldDelay, display start/end, image-end handler (10 of 15)
 - 2026-11-12 09:06 `game/Convert.c` verify: ConvertMatrix2Quat and ConvertQuat2Matrix rewritten from the VU0 macro code in scalar C (const_vector_A = 1, 2, 0, 0.5; matUnit for w == 1; divide by 0 answers 
 - 2026-11-12 09:00 `ga/gaDrawObject.c` verify: slices 2-3: the billboard local views, SetBig and SetNear (near-plane cut, facing cull); the clipped view packet corrected to view space
 - 2026-11-12 08:36 `ga/gaDrawObject.c` partial: ga/gaDrawObject.c slice 1: the clipped and plain local views, the three index passes (clip flags, facing, big and near lists) and both vertex reference tables, 
@@ -161,22 +163,21 @@ Recent sessions:
 - 2026-11-12 07:54 `game/tiAvoidObject.c` verify: slice 6: the last 12 functions -- LetMonsterInFromShadow, SetMonsterPos, BarrierCheck, SerchCheck, IsTrgWithinAngle, IsGetToGLinkPole, SetNextGLinkPolePoint, Ge
 - 2026-11-12 07:32 `game/tiAvoidObject.c` partial: slice 5: 24 functions -- the kinds motion predicates (Forward, Wait, FarAttack, PostAttack, Attack, PreAttack, Find, Action), IsWarpChara, the five IsGetTo arri
 - 2026-11-12 07:18 `game/tiAvoidObject.c` partial: slice 4: 6 functions -- tiAvoidObject (the obstacle steering: LOS probes, the 15/30 degree fan, wall following off the hit polygon), ssAI_IsMortionFramePassed, 
-- 2026-11-12 06:58 `game/tiAvoidObject.c` partial: slice 3: 17 functions -- ssAI_main, ssAI_charaMain with the 13 mode tables (64 brain functions declared and stubbed in the three brain TUs), CompCharaDir, SetPa
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `game/AA_GetDataWord.c` | todo | 0/8/15 | 4.9 | 21 | 2 |
 | `game/AA_SoundMonoSoart.c` | todo | 0/8/20 | 4.0 | 18 | 2 |
+| `game/AA_mpegTS.c` | todo | 0/13/31 | 2.6 | 18 | 0 |
 | `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
-| `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
+| `game/AA_GetDataWord.c` | partial | 10/3/15 | 4.9 | 16 | 2 |
 | `ga/gaObjectClippingCheck.c` | todo | 0/1/1 | 0.2 | 12 | 1 |
 | `game/ssCalcInversMatrix2.c` | todo | 0/5/5 | 5.7 | 7 | 0 |
 | `ga/wait.c` | todo | 0/2/20 | 0.1 | 5 | 0 |
 | `ga/gaSearchNearLight4.c` | todo | 0/1/1 | 0.4 | 4 | 0 |
+| `game/AA_cpuCycles.c` | todo | 0/2/4 | 0.3 | 3 | 0 |
 | `ga/gaDrawObject_Redraw_Polygon.c` | todo | 0/1/6 | 4.3 | 2 | 0 |
-| `game/AA_cpuCycles.c` | todo | 0/1/4 | 0.3 | 2 | 0 |
 | `game/ssBrain_ChgHideAtk1.c` | todo | 0/15/34 | 29.6 | 1 | 0 |
-| `game/copy2area.c` | todo | 0/1/2 | 0.5 | 1 | 0 |
+| `game/asMothOperate.c` | todo | 0/1/1 | 3.8 | 1 | 0 |
 
 ## Frontier (called by reconstructed code, not written yet)
 
@@ -215,11 +216,11 @@ Recent sessions:
 | `018bfd20` | AA_readBufBeginGet | 1 | sym | stub | game/AA_videoCallback.c |
 | `018bfd00` | AA_readBufEndGet | 1 | sym | stub | game/AA_videoCallback.c |
 | `018c2030` | AA_voBufIsFull | 1 | sym | stub | game/AA_mpegTS.c |
-| `018bca00` | AA_startDisplay | 1 | sym | stub | game/AA_GetDataWord.c |
 | `018bc3b0` | AA_audioDecStart | 1 | sym | stub | game/AA_SoundMonoSoart.c |
 | `018c1b60` | AA_videoDecIsFlushed | 1 | sym | stub | game/AA_mpegTS.c |
 | `018bc360` | AA_audioDecReset | 1 | sym | stub | game/AA_SoundMonoSoart.c |
-| `018bc8f0` | AA_test_RamInit | 1 | sym | stub | game/AA_GetDataWord.c |
-| `018bc8a0` | AA_CleanMojiBuffer | 1 | sym | stub | game/AA_GetDataWord.c |
-| `018bc9f0` | AA_endDisplay | 1 | sym | stub | game/AA_GetDataWord.c |
+| `018c0320` | AA_syncGetSkew | 1 | sym | stub | game/AA_cpuCycles.c |
+| `018c1ea0` | AA_voBufDecCount | 1 | sym | stub | game/AA_mpegTS.c |
+| `018c1760` | AA_ReTagSet | 1 | sym | stub | game/AA_mpegTS.c |
+| `01882d60` | asMothOperate | 1 | sym | stub | game/asMothOperate.c |
 
