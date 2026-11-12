@@ -7,6 +7,11 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-12, gaDrawObject.c slice 2) **A VU0 micro's temporaries are not its output.** Slice 1 wrote
+  the clipped view's screen position (vf16..vf23, computed for CLIP) into the packet; the EE's sqc2 stores
+  vf24..vf31, the view-space matrix result. Trace which registers the EE's sqc2 reads after the vcallms,
+  not what the micro computes last. Also: in a pipelined pair of micros, each one's lower ops finish the
+  other's previous vertices (mfir.w into the other half's registers).
 - (2026-11-12, wideXcmd_TriggerInit.c slice 4) **A static's `CT3 0x...` comment annotates the next
   function for callcheck.** A static helper written right after `static int flag0_190; /* CT3 0x... */`
   was checked as that data address. Put statics just above the function that owns them (its own

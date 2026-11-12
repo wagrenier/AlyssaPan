@@ -627,6 +627,29 @@ Read with `vudis.py 18ff430 335 --all` (mind hazards.md's vudis misprints). Micr
   every vertex in order.
 - Host: gaBGT_DrawObject's LocalViewPass now also hands over an object whose polygons all went to the
   division lists (PORT: the GPU draws the whole object). The 15 s smoke run still reaches none of it.
+- **What the views put in the packet (slice 2)**: the view-space position (the matrix result, vf24..vf31,
+  sqc2'd as is), w = the clip flags from the screen position; the screen position itself only feeds CLIP
+  (and, for billboards, VU0's own sqi.xy copy). The facing test dots with the view (eye at the origin).
+- **Billboard views** (0x018a51e8 / 0x018a52f0, micro 0x0e9 / 0x112 and 0x13b / 0x148, a record each):
+  a billboard object's positions are 0x40-byte records, 4 vertex slots: slot 0 the centre (its own w is
+  used: maddw by vf10.w), slot 1 the half extents (x, y); slots 2 / 3 not read. c = centre * M;
+  d0 = r0 * sx + r1 * sy, d1 = r0 * sx - r1 * sy (r0 / r1 = scratchpad 0x300 / 0x310, xy); corners c - d0,
+  c - d1, c + d0, c + d1 (x, y; z, w the centre's). Clipped: one divide by the centre's max(z, 1e-13) for
+  all four corners' clip flags. The ROM runs two records a loop pass.
+- **SetBig** (0x018a6080) / **SetNear** (0x018a621c) fill the redraw buffers: a vertex record (0x40: view
+  qword, normal from obj +0x64 + 0x10 + offset when +0x64 is non-zero, ST from +0x68 + 0x10 + offset / 2
+  through the scratchpad qwords 0x2c0 / 0x2d0 / 0x2e0 (sd, so the qword's high half is stale), colour from
+  +0x6c + 0x10 + offset / 4 as sign-extended bytes -> floats: PEXTLB / PEXTLH / PSRAW 24 + VITOF0) per
+  corner, a primitive record (0x10: three record EE addresses, obj +0x54 + 0x10 + the entry's fourth
+  halfword) per triangle. **SetNear** runs first, from the buffers' start: zNear = the 3dlib work's +0x28
+  (scratchpad 0xec -> 0x70000400), z <= zNear is behind; all in front: copied; two in front: a quad (A, B,
+  A', B'; triangles (A, B, A') and (B, B', A')) with A' / B' = C + (X - C) * (zNear - C.z) / (X.z - C.z);
+  one in front: (A, A', A''), A' = A - (A - X) * (A.z - zNear) / (A.z - X.z); normals renormalised, STs
+  lerp x, y, colours xyzw. The vertices are rotated first so the behind / in-front one is where the cut
+  wants it (eight cases, 0x018a629c..0x018a6764). Then, unless double-sided, a sentinel record (0x70000000
+  x4) and an in-place facing cull (micro 0x155 / 0x161, FMAND Sx; keep Sx set, clear with GA_OBJ_FLAG_FLIP);
+  none written: both cursors back to the start. **SetBig** appends the big list's polygons whole at the
+  cursors (after SetNear's).
 
 ## The file layer, game/ArtoolDebugOpen.c (2026-11-10)
 

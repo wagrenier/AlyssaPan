@@ -1581,14 +1581,20 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    this one use: asMothOperate.c's TU names the states; MOTH_PAUSE_OFF / ON are not yet used by the
    callers (they pass 0 / 1).
 
-   **ga/gaDrawObject.c (partial, 2026-11-12, slice 1):** written: the clipped and plain local views, the
-   three index passes, both reference tables (architecture.md "The local view and index passes"). Left:
-   (ku) the billboard views (VertexLocalView*_Billboard, micro 0x0e9 / 0x112 and 0x13b / 0x148 with the
-   Z-roll rows at scratchpad 0x300; positions read 2 qwords a 0x40 stride?) -- until then a billboard's
-   index pass reads a stale vertex block (DrawClipped skips billboards anyway); (kv) gaDrawObject_SetBig /
-   SetNear (0x19c / 0x954 bytes) -- on the host the whole object is drawn, so they and
-   gaDrawObject_Redraw_Polygon must not draw the divided polygons again: decide when they are written
-   (Claude's call so far: the host draw covers them); (kw) GA_OBJ_FLAG_DOUBLE_SIDED (0x02) and
+   **ga/gaDrawObject.c (verify, 2026-11-12, slices 1-3):** all 11 functions written: the clipped and
+   plain local views, the billboard views, the three index passes, both reference tables, SetBig and
+   SetNear (architecture.md "The local view and index passes"). Slice 2 corrected slice 1's clipped view:
+   the packet holds the view-space position (w = the clip flags), not the screen position. Open: (ku) the
+   billboard Z-roll rows at scratchpad 0x300 / 0x310 have no writer in the ga library (nothing in
+   0x01890000..0x018c0000 stores there): find it (gaSetZRollMatrix? a sq through a pointer) -- until then the
+   rows are whatever the scratchpad holds; the host's DrawClipped still skips billboards (the draw module
+   would turn them with the full matrix: a billboard path in the module is the fix); (kv) SetBig /
+   SetNear fill ga_div_redraw_vertex_work / _index_work (defined in gaDrawObject.c until their owning TU
+   is written) -- on the host the whole object is drawn, so gaDrawObject_Redraw_Polygon must not draw the
+   divided polygons again (Claude's call so far: the host draw covers them; the records are kept
+   ROM-exact for when a picture needs them); the components the ROM leaves as stale VU registers (a
+   near point's view w, normal w, ST z / w; normals when the object has none) are 0 on the host;
+   GA_OBJ_PRIM_TABLE (obj +0x54) is named from SetBig's use only; (kw) GA_OBJ_FLAG_DOUBLE_SIDED (0x02) and
    GA_OBJ_FLAG_FLIP (0x01) are named from the index passes: both are also the VU1 variant bits; (kx) the
    VU0 floats are taken as IEEE (no denormals / inf on VU0), and the first vertex's max(z, zMin) assumes the
    warm-up leaves vf3.z clean; (ky) no smoke run reaches this code (gaObjectClippingCheck is a stub, the

@@ -34,6 +34,32 @@ typedef struct GA_LOCAL_VERTEX {
 } GA_LOCAL_VERTEX;
 static_assert(sizeof(GA_LOCAL_VERTEX) == 0x10, "GA_LOCAL_VERTEX");
 
+// obj +0x54 (u_int EE): a head qword, then a table SetBig points each divided polygon into: + 0x10 + the
+// index entry's fourth halfword (a byte offset). What it holds is the redraw's (Redraw_Polygon, unread).
+#define GA_OBJ_PRIM_TABLE 0x54
+
+// The redraw buffers SetBig / SetNear fill (GA_SPR_WORK 0x24 / 0x20 walk them; Redraw_Polygon reads them).
+// One vertex record per corner of a divided polygon (SetBig's sqc2 at +0x00 / 0x10 / 0x20 / 0x30).
+typedef struct GA_REDRAW_VERTEX {
+    float view[4];              /* 0x00: the local-view qword (xyz, w = the clip flags as a word) */
+    float normal[4];            /* 0x10: obj +0x64's, when it has normals */
+    float st[4];                /* 0x20: s, t; the high half is the staging qword's leftovers */
+    float colour[4];            /* 0x30: the V4-8 colour, sign-extended, as floats */
+} GA_REDRAW_VERTEX;
+static_assert(sizeof(GA_REDRAW_VERTEX) == 0x40, "GA_REDRAW_VERTEX");
+
+// One primitive record: its three vertex records' EE addresses and its GA_OBJ_PRIM_TABLE entry.
+typedef struct GA_REDRAW_PRIM {
+    u_int vertexEE[3];          /* 0x0 */
+    u_int primTableEE;          /* 0xc */
+} GA_REDRAW_PRIM;
+static_assert(sizeof(GA_REDRAW_PRIM) == 0x10, "GA_REDRAW_PRIM");
+
+#define GA_DIV_REDRAW_VERTICES (0x4000 / 0x40)  /* ga_div_redraw_vertex_work: 0x4000 bytes */
+#define GA_DIV_REDRAW_PRIMS (0x800 / 0x10)      /* ga_div_redraw_index_work: 0x800 bytes */
+extern GA_REDRAW_VERTEX ga_div_redraw_vertex_work[GA_DIV_REDRAW_VERTICES];  // CT3 0x01a2c640
+extern GA_REDRAW_PRIM ga_div_redraw_index_work[GA_DIV_REDRAW_PRIMS];        // CT3 0x01a2be40
+
 void gaDrawObject_VertexLocalViewWithClippingFlagSet(u_char *obj, u_int packetEE);           // CT3 0x018a4fe0
 void gaDrawObject_VertexLocalView(u_char *obj, u_int packetEE);                              // CT3 0x018a5100
 void gaDrawObject_VertexLocalViewWithClippingFlagSet_Billboard(u_char *obj, u_int packetEE); // CT3 0x018a51e8

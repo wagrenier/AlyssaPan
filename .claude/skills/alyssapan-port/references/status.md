@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-12 08:36 at commit `1115764` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-12 09:00 at commit `7197794` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,14 +30,14 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1583**; stubs: **151**
+- reconstructed CT3 functions: **1589**; stubs: **147**
 
 | file | reconstructed | stubs |
 |---|---|---|
 | `src/ga/gaBGT_DrawObject.c` | 9 | 0 |
 | `src/ga/gaDma.c` | 16 | 0 |
 | `src/ga/gaDmaSync_VIF1.c` | 6 | 0 |
-| `src/ga/gaDrawObject.c` | 9 | 4 |
+| `src/ga/gaDrawObject.c` | 15 | 0 |
 | `src/ga/gaDrawObject_Redraw_Polygon.c` | 0 | 1 |
 | `src/ga/gaInit3dlib.c` | 25 | 0 |
 | `src/ga/gaInitDrawObject.c` | 24 | 0 |
@@ -101,14 +101,14 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 21, partial 1, verify 44, done 8, blocked 1
-- next: **ga/gaDrawObject.c** (continuing a partial TU)
+- 65 TUs: todo 21, verify 45, done 8, blocked 1
+- next: **game/Convert.c** (frontier score 23)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp
-- partial: `ga/gaDrawObject.c` 7/11 -- Left: the two billboard views (VU0 0x0e9/0x112, 0x13b/0x148), gaDrawObject_SetBig and SetNear. gaBGT_DrawObject LocalViewPass now also hands over an object whos
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaDmaSync_VIF1.c` 5/5 -- Host: kicks leave CHCR.STR clear (the transfer is over), so the syncs return at once; the BGT send keeps the copy and the flip, the packet goes nowhere (draw mo
+- verify: `ga/gaDrawObject.c` 11/11 -- All 11 functions written. Not reached by the smoke run (gaObjectClippingCheck stub; title scene draws through nc2): title scene unchanged at 4:3. Open: the bill
 - verify: `ga/gaInit3dlib.c` 25/25 -- 15 s smoke run: no fault, shot black (no host draw module). gaMulMatrix is dst = b * a (hazards.md). gaSetZRollMatrix now reaches gaSinCos: ga/gaSinCos.c is que
 - verify: `ga/gaInitDrawObject.c` 24/24 -- No ROM caller for the texture three (the game uses its sun* copies in QuatSlerp.c): complete, nothing on screen can show them. Shot black as before: packets go 
 - verify: `ga/gaInitInterrupt.c` 3/3 -- GCC object; wait_vsync_state (data 0x0192e790), ga_main_timer, ga_down_timer defined here. gaWaitVSync takes no argument and returns the CSR FIELD bit; main.c c
@@ -153,6 +153,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-12 09:00 `ga/gaDrawObject.c` verify: slices 2-3: the billboard local views, SetBig and SetNear (near-plane cut, facing cull); the clipped view packet corrected to view space
 - 2026-11-12 08:36 `ga/gaDrawObject.c` partial: ga/gaDrawObject.c slice 1: the clipped and plain local views, the three index passes (clip flags, facing, big and near lists) and both vertex reference tables, 
 - 2026-11-12 08:14 `game/asMothPause.c` verify: asMothPause written (the TU's one function, static gAlysPos$61); MothInfo.w24 renamed paused
 - 2026-11-12 07:54 `game/tiAvoidObject.c` verify: slice 6: the last 12 functions -- LetMonsterInFromShadow, SetMonsterPos, BarrierCheck, SerchCheck, IsTrgWithinAngle, IsGetToGLinkPole, SetNextGLinkPolePoint, Ge
@@ -160,7 +161,6 @@ Recent sessions:
 - 2026-11-12 07:18 `game/tiAvoidObject.c` partial: slice 4: 6 functions -- tiAvoidObject (the obstacle steering: LOS probes, the 15/30 degree fan, wall following off the hit polygon), ssAI_IsMortionFramePassed, 
 - 2026-11-12 06:58 `game/tiAvoidObject.c` partial: slice 3: 17 functions -- ssAI_main, ssAI_charaMain with the 13 mode tables (64 brain functions declared and stubbed in the three brain TUs), CompCharaDir, SetPa
 - 2026-11-12 06:31 `game/tiAvoidObject.c` partial: slice 2: the hide poles and the scene init (10 functions): ssAI_SceneInit, TransAllPoleData, GetPolePos, GetPoleGroupID, GetPoleScnName, GetPoleScnBnkID, GetSha
-- 2026-11-12 06:11 `game/tiAvoidObject.c` partial: slice 1: 16 functions -- the appearance and no-reaction timers, GlobalInit, the save image part (MemSaveData, MemLoadInit), BrainFree, ForceBrainEnd, CharaLoadI
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
@@ -169,13 +169,13 @@ Recent sessions:
 | `game/AA_SoundMonoSoart.c` | todo | 0/8/20 | 4.0 | 18 | 2 |
 | `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
-| `ga/gaDrawObject.c` | partial | 7/4/11 | 6.9 | 12 | 0 |
 | `ga/gaObjectClippingCheck.c` | todo | 0/1/1 | 0.2 | 12 | 1 |
 | `game/ssCalcInversMatrix2.c` | todo | 0/5/5 | 5.7 | 7 | 0 |
 | `ga/wait.c` | todo | 0/2/20 | 0.1 | 5 | 0 |
 | `ga/gaSearchNearLight4.c` | todo | 0/1/1 | 0.4 | 4 | 0 |
 | `ga/gaDrawObject_Redraw_Polygon.c` | todo | 0/1/6 | 4.3 | 2 | 0 |
 | `game/AA_cpuCycles.c` | todo | 0/1/4 | 0.3 | 2 | 0 |
+| `game/asMothOperate.c` | todo | 0/1/1 | 3.8 | 1 | 0 |
 
 ## Frontier (called by reconstructed code, not written yet)
 
@@ -184,12 +184,10 @@ Recent sessions:
 | `01851b10` | ConvertQuat2Matrix | 17 | sym | stub | game/Convert.c |
 | `018a3078` | gaObjectClippingCheck | 7 | sym | stub | ga/gaObjectClippingCheck.c |
 | `018518d0` | ConvertMatrix2Quat | 6 | sym | stub | game/Convert.c |
-| `018a51e8` | gaDrawObject_VertexLocalViewWithClippingFlagSet_Billboard | 6 | sym | stub | ga/gaDrawObject.c |
 | `018a7538` | gaSearchNearLight4 | 4 | sym | stub | ga/gaSearchNearLight4.c |
 | `018bd830` | AA_clearGsMem | 4 | sym | stub | game/AA_GetDataWord.c |
 | `018a8690` | gaDMAStopMessage_VIF1 | 4 | sym | stub | ga/wait.c |
 | `018c1ce0` | AA_videoDecAbort | 3 | sym | stub | game/AA_mpegTS.c |
-| `018a52f0` | gaDrawObject_VertexLocalView_Billboard | 3 | sym | stub | ga/gaDrawObject.c |
 | `018a9570` | ssHitMakeAttackOBB | 2 | sym | stub | game/ssCalcInversMatrix2.c |
 | `018a9390` | ssHitMakeDamageOBB | 2 | sym | stub | game/ssCalcInversMatrix2.c |
 | `018c1d80` | AA_videoDecSetStream | 2 | sym | stub | game/AA_mpegTS.c |
@@ -197,7 +195,6 @@ Recent sessions:
 | `018c0310` | AA_cpuCycles | 2 | sym | stub | game/AA_cpuCycles.c |
 | `018c1cd0` | AA_videoDecGetState | 2 | sym | stub | game/AA_mpegTS.c |
 | `018c1ba0` | AA_videoDecFlush | 2 | sym | stub | game/AA_mpegTS.c |
-| `018a6080` | gaDrawObject_SetBig | 2 | sym | stub | ga/gaDrawObject.c |
 | `0189f720` | gaDrawObject_Redraw_Polygon | 2 | sym | stub | ga/gaDrawObject_Redraw_Polygon.c |
 | `018817b0` | ssAI_SetTraceMode | 1 | sym | stub | game/ssBrain_ChgHideAtk1.c |
 | `018a91d0` | ssHit_information | 1 | sym | stub | game/ssCalcInversMatrix2.c |
@@ -221,4 +218,7 @@ Recent sessions:
 | `018c2030` | AA_voBufIsFull | 1 | sym | stub | game/AA_mpegTS.c |
 | `018bca00` | AA_startDisplay | 1 | sym | stub | game/AA_GetDataWord.c |
 | `018bc3b0` | AA_audioDecStart | 1 | sym | stub | game/AA_SoundMonoSoart.c |
+| `018c1b60` | AA_videoDecIsFlushed | 1 | sym | stub | game/AA_mpegTS.c |
+| `018bc360` | AA_audioDecReset | 1 | sym | stub | game/AA_SoundMonoSoart.c |
+| `018bc8f0` | AA_test_RamInit | 1 | sym | stub | game/AA_GetDataWord.c |
 
