@@ -1802,6 +1802,33 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    (e.g. the host draw stops covering them), the packet in ga_div_redraw_gspacket_work is what to draw:
    GS vertices with Q, so a host GS-triangle path in the draw module would be the way.
 
+   **Queue refill (2026-11-12 15:25, Claude, scheduled run, for the user to overrule) and
+   sdk/libgraph.cpp (verify):** the pinned queue held only the blocked ui_canvas.cpp. A probe on the NEW
+   path (build.py --run 50 --pad "600:START*10,800:START*10") reached **no game stub**: the one stub
+   left was the SDK's sceGsSetDefDBuff (CT3 0x01810de0, from movie.c's reset), now written in
+   sdk/libgraph.cpp (RosePan's layout, the typed helpers); the same run then reports 0 stubs. The
+   todo TUs left (ssBrain_ChgHideAtk1.c, RotateCamera.c, hhXcmd_BGM_SE_VOLUME.c,
+   tiBrain_ChgTrace_BOSS_BALOWS.c, tiBrain_ChgTrace_Ghost.c, tnXcmd.c) are not reached on this path.
+   **What the screen shows now** (the next runs' work, by the picture rule): after NEW the rooms draw
+   (dining room with doors, candelabra, chairs; a hall with stairs) at 4:3, and **Alyssa draws, but
+   wrong**: (mn3) in close shots in front of the double doors she has torso, jacket, legs, socks and
+   shoes but **no head, no arms, no skirt**; in a wider shot behind the table she has head and hair but
+   stands in a **T-pose** (arms straight out): the arm parts keep their bind pose, so the animation does
+   not reach them (BuildMatrixTree / asUpDateGAobjectsAnimation, ahRelocateSunPs2ObjectArry.c, or the
+   behaviour tracks), and the missing parts in the close shots are probably the same parts placed by a
+   wrong matrix; (mo3) **ruled out this run**: the clipped index pass (gaDrawObject.c RemakeClipped): its
+   screen bounds match the host projection exactly (viewScale 0.001625 / 0.00209821 with work6 452.855
+   gives |x q| < 307.7, |y q| < 238.3, the same as the header's 13.312 / -15.04 scale over 256 x 224
+   pixels), and the objects it rejects are truly off screen (y 470 at z 88 ..); asMakeStraw's output is
+   sane (vertices stay near their source in A's frame; bank 47 has 17 straws). LocalViewPass skips about
+   45 % of its calls, nearly all 2-polygon quads (flags 0x23, flags2 0x07: billboards or particles).
+   (mp3) the screen flickers: in a 50 s run about every other progress shot after the room loads is
+   black (2708-byte pngs between the room shots): either the presents alternate with an empty frame or
+   the shot copy races the present -- check the renderer's frame count against the game's before
+   blaming a TU. **Next (queued for the next run): alyssapan/core/alyssa_pose.cpp**, a host task: find
+   why the arm and head parts keep their bind pose (log the MODEL_PARTS matrices of Alyssa's bank per
+   frame against the behaviour's tracks), then (mp3).
+
 ## Decisions
 
 - 2026-11-11 (Claude, scheduled run 19:15, for the user to overrule): **the ga 2D frame stays 4:3.** The

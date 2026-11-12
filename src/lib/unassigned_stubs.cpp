@@ -4,10 +4,3 @@
 #include "sdk/libgraph.h"
 
 // ---- stubs (tools/reverse/stubgen.py) ----
-
-// stub of CT3 0x01810de0
-void sceGsSetDefDBuff(sceGsDBuff *dp, short psm, short w, short h,
-                      short ztest, short zpsm, short clear)
-{
-    ALYSSAPAN_STUB("sceGsSetDefDBuff", 0x01810de0);
-}

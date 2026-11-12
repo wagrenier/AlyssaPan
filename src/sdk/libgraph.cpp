@@ -97,6 +97,46 @@ int sceGsSwapDBuff(sceGsDBuff *, int)
     return 0;
 }
 
+// CT3 0x01810de0 (the SDK's, linked into the ELF; RosePan's shim's layout, AlyssaPan's typed helpers).
+// The double buffer as the SDK lays it out: two w x h frames, page-aligned (64 x 32 pixel pages), the
+// Z buffer after both; draw0 draws the second frame while disp[0] shows the first, draw1 the reverse;
+// XYOFFSET centres the frame on the GS's 2048 and SCISSOR clips to it (sceGsSetDefDrawEnv); with
+// clear, each frame gets its black clear sprite. The host never sends any of it to a GS: the movie
+// (movie.c AA_movie_reset) only overwrites both display envs' DISPLAY after this call, and the
+// renderer presents its own frames.
+// callcheck: sceGsGetGParam, sceGszbufaddr (the ROM asks the field / frame mode and the Z buffer's page;
+// the host places the Z buffer after both frames, which is sceGszbufaddr's answer for page-aligned frames,
+// and has no field mode to ask)
+void sceGsSetDefDBuff(sceGsDBuff *dp, short psm, short w, short h, short ztest, short zpsm, short clear)
+{
+    constexpr int kPageHeight = 32;
+    constexpr int kGifAdTag = 0xe;      // the A+D register descriptor
+    const u_long fbw = static_cast<u_long>((w + kPageWidth - 1) / kPageWidth);
+    const u_long pages = fbw * static_cast<u_long>((h + kPageHeight - 1) / kPageHeight);
+    const u_long regs = static_cast<u_long>(clear ? 8 + 6 : 8);
+
+    *dp = {};
+    for (int i = 0; i < 2; ++i) {
+        sceGsSetDefDispEnv(&dp->disp[i], psm, w, h, 0, 0);
+        dp->disp[i].dispfb.FBP = static_cast<u_long>(i == 0 ? 0 : pages);
+    }
+    sceGifTag *tags[2] = {&dp->giftag0, &dp->giftag1};
+    sceGsDrawEnv1 *draws[2] = {&dp->draw0, &dp->draw1};
+    sceGsClear *clears[2] = {&dp->clear0, &dp->clear1};
+    for (int i = 0; i < 2; ++i) {
+        *tags[i] = {};
+        tags[i]->NLOOP = regs;
+        tags[i]->EOP = 1;
+        tags[i]->NREG = 1;
+        tags[i]->REGS0 = kGifAdTag;
+        sceGsSetDefDrawEnv(draws[i], psm, w, h, ztest, zpsm);
+        draws[i]->frame1.FBP = static_cast<u_long>(i == 0 ? pages : 0);
+        draws[i]->zbuf1.ZBP = static_cast<u_long>(pages * 2);
+        if (clear)
+            sceGsSetDefClear(clears[i], ztest, kWindowCentre - w / 2, kWindowCentre - h / 2, w, h, 0, 0, 0, 0, 0);
+    }
+}
+
 void sceGsSetDefDispEnv(sceGsDispEnv *disp, short psm, short w, short, short dx, short dy)
 {
     *disp = {};

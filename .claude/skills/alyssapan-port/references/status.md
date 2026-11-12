@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-12 15:08 at commit `665e496` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-12 15:48 at commit `02fa347` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1719**; stubs: **92**
+- reconstructed CT3 functions: **1719**; stubs: **91**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -99,13 +99,12 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/wideXcmd_DebugPrint.c` | 109 | 0 |
 | `src/game/wideXcmd_TriggerInit.c` | 51 | 0 |
 | `src/game/xcmd_tn.c` | 59 | 0 |
-| `src/lib/unassigned_stubs.cpp` | 0 | 1 |
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 6, verify 60, done 10, blocked 1
-- next: **game/ssBrain_ChgHideAtk1.c** (frontier score 1)
-- pinned queue: alyssapan/rendering/ui_canvas.cpp
+- 65 TUs: todo 7, verify 61, done 10, blocked 1
+- next: **alyssapan/core/alyssa_pose.cpp** (pinned in the queue)
+- pinned queue: alyssapan/core/alyssa_pose.cpp, alyssapan/rendering/ui_canvas.cpp
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
@@ -166,10 +165,12 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/wideXcmd_DebugPrint.c` 109/109 -- All 109 functions written. Nothing on screen reaches it yet (the shot is the warning screen): verify in gameplay. New stubs ssHitAddAttackRequest, ssHit_GetMaxI
 - verify: `game/wideXcmd_TriggerInit.c` 46/46 -- TU code complete, verify: no smoke run reaches the test x command. open-items 1 am decided (Claude): CHARACTER.brain is a handle (slot+1) into CharaBrainHost vi
 - verify: `game/xcmd_tn.c` 57/57 -- All 57 functions written. VistaVision: ON or on brings the bars in, argv[1] 1 slides, a fourth argument makes ON skippable; statics VistaVisionEndCheck, VistaVi
+- verify: `sdk/libgraph.cpp` 0/0 -- Movies are skipped in smoke runs, so nothing shows it: verify when a movie plays (movie.c reset reads only disp DISPLAY). Probe findings in open-items.md item 8
 - blocked: `alyssapan/rendering/ui_canvas.cpp` 0/0 -- Blocked on ga/gaBGT_DrawObject.c (host draw module for ga draw objects) and the camera (asEyeForcusUP2CamMat.c camera_init0 / camera_view stubs); triggers are n
 
 Recent sessions:
 
+- 2026-11-12 15:48 `sdk/libgraph.cpp` verify: sceGsSetDefDBuff, the NEW path's last reached stub, written in the host SDK; queue refilled after a probe found no game stub on the NEW path
 - 2026-11-12 15:08 `game/copy2area.c` verify: copy2area and AA_pcmCallback reconstructed (SCE ezmpegstr copy2area + pcmCallback)
 - 2026-11-12 14:52 `game/AA_cpuCycles.c` verify: the movie player's audio / video clock (ezmpegstr): Count, the skew in 90 kHz ticks, the two stream stamps (4 of 4)
 - 2026-11-12 14:27 `ga/wait.c` verify: the ga debug object: wait (busy delay), 17 empty dumps, the two DMA stop messages (empty in the release ROM; 20 of 20)
@@ -177,7 +178,6 @@ Recent sessions:
 - 2026-11-12 13:54 `game/ssCalcInversMatrix2.c` verify: all 5 functions: ssCalcInversMatrix2 (4x4 inverse), ssHitMakeAttackOBB and ssHitMakeDamageOBB (the attack and body boxes), ssHit_information and ssHit_informati
 - 2026-11-12 13:31 `ga/gaSearchNearLight4.c` verify: gaSearchNearLight4 reconstructed from the MMI code and VU0 micros 0x048/0x054/0x064: four nearest lights per position by squared distance times w squared, below
 - 2026-11-12 13:18 `game/asMothOperate.c` verify: asMothOperate written: the moths state machine (rest, wait, fly the route, circle Alyssa, land and rattle, hit, dead), the three-part moves through asMothRouteS
-- 2026-11-12 12:47 `game/Character_Init.c` verify: Character_Init written, the TU's last stub: room join (hash, light bank, room-in flag, ambient), the place modes (keep, the scene's start part, the light bank's
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|

@@ -1,5 +1,6 @@
 {
  "queue": [
+  "alyssapan/core/alyssa_pose.cpp",
   "alyssapan/rendering/ui_canvas.cpp"
  ],
  "settings": {
@@ -9,6 +10,9 @@
   "smoke_pad": ""
  },
  "tus": {
+  "alyssapan/core/alyssa_pose.cpp": {
+   "task": "Alyssa draws after NEW but wrong (open-items.md item 8, mn3 / mp3): in close shots no head, arms or skirt; in wide shots a T-pose. Find why those parts keep their bind pose (log MODEL_PARTS matrices of her bank per frame against the behaviour tracks: BuildMatrixTree, asUpDateGAobjectsAnimation), fix it in the TU that owns it, then the black frames between room shots. Done when the shot shows her posed with head and arms at 4:3 and wide."
+  },
   "alyssapan/core/junc_heap.cpp": {
    "notes": "Next blocker: Character_Init (game/Character_Init.c, CT3 0x018b3a60, still a stub; TU marked partial and queued first); then ssCalcInversMatrix2.c and gaSearchNearLight4.c, both reached in the same run. Shots after NEW are black (the room draws nothing yet). Heap probe method in hazards.md.",
    "sessions": [
@@ -1917,6 +1921,18 @@
    "status": "verify",
    "task": "Slice 1 first: tnXcmd_Scene_Ambient_Change (0x018f1940; sets scene_alpha_anim[bank] = on, steps, r g b from its text args), the event command that gives ATLD its ambient colour: AmbientAlphaUpdate moves ALL_TABLE.partsPos toward it, and the VU1 light0 program adds partsPos to every vertex colour (vf20), so until it runs the memory-card text is drawn black on black. Find who dispatches the tn xcmds and whether the smoke run reaches it (open-items.md Next up item 7).",
    "why": "tumap.py (bootstrap 5): symtab local chunks 139..139, 17 functions keyed by their statics, 40 unkeyed; source string xcmd_tn.c"
+  },
+  "sdk/libgraph.cpp": {
+   "notes": "Movies are skipped in smoke runs, so nothing shows it: verify when a movie plays (movie.c reset reads only disp DISPLAY). Probe findings in open-items.md item 8 (mn3-mp3): Alyssa lacks head and arms in close shots and is T-posed in wide ones; the clip pass is ruled out. Next: alyssapan/core/alyssa_pose.cpp (queued).",
+   "sessions": [
+    {
+     "date": "2026-11-12 15:48",
+     "status": "verify",
+     "summary": "sceGsSetDefDBuff, the NEW path's last reached stub, written in the host SDK; queue refilled after a probe found no game stub on the NEW path"
+    }
+   ],
+   "status": "verify",
+   "task": "The NEW path's one reached stub: the SDK's sceGsSetDefDBuff (CT3 0x01810de0, movie.c's reset): write it in sdk/libgraph.cpp as the SDK lays out the double buffer; verify when a movie plays."
   },
   "sdk/libmc.cpp": {
    "notes": "A scratch test (not committed) wrote, listed and read back a save through sceMcInit/GetInfo/Mkdir/Open/Write/Close/GetDir/Seek/Read/Delete/Format: all checks pass. CT3 sceMcInit checks mcserv 0x20a / mcman 0x20e; the host answers 0. ALYSSAPAN_MEMCARD_DIR overrides the card root; build.py smoke runs use work/memcard. No smoke run reaches McInit yet, so the game mc_* step machines have not exercised it; the shot stays black (nothing draws until main2).",
