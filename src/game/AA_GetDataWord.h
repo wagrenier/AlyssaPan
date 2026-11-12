@@ -1,7 +1,7 @@
 // game/AA_GetDataWord.h -- CT3 game/AA_GetDataWord.c (0x018bc690..0x018bda90): the movie's display (SCE's
 // ezmpegstr disp.c, AA_-prefixed and grown with the captions' reader). Slice 1 (2026-11-12) wrote the
 // caption readers, the caption buffer, the pacing and the display switches; the GS side (AA_GS_SetClut,
-// AA_clearGsMem, AA_setImageTag / 2, AA_vblankHandler) is slice 2's.
+// AA_clearGsMem, AA_setImageTag / 2, AA_vblankHandler) slice 2's (2026-11-12).
 #pragma once
 
 #include "sdk/scetypes.h"
@@ -31,6 +31,23 @@ extern u_int AA_MojiBuffWk;             /* sbss 0x0193f0d0: the caption picture 
 extern u_char AA_MojiFBImage[AA_MOJI_FB_BYTES];
 u_char *AA_MojiFB(void);
 
+// PORT: a tag block on the host. AA_setImageTag / AA_setImageTag2 build, in the ROM, a GIF chain in the
+// block (upload the picture's macroblocks and the caption picture, then three sprites: the picture, the
+// captions, the fade) that the vblank sends. The host has no GS: the block holds this record of the same
+// decisions instead, and the vblank's send draws it (AA_GetDataWord.c, AA_sendImage). Callers pass host
+// pointers (the bank's tag block through BankEePtr, the decoded picture likewise). layout: host.
+typedef struct AA_IMAGE_TAG {
+    const void *picture;    /* the decoded 16 x 16 RGBA32 macroblocks, column-major; NULL: the GS's last */
+    int width;              /* the picture in pixels (the sprites' UV end) */
+    int height;
+    u_int fadeAlpha;        /* the fade sprite's ALPHA_1 (AA_FADE_ALPHA_*) */
+    u_int fadeRgbaq;        /* its RGBAQ: the word the caller patches through *fade */
+} AA_IMAGE_TAG;
+
+// The fade sprite's blends (ALPHA_1's A, B, C, D selectors; FIX 0x80 above them in the ROM's word).
+#define AA_FADE_ALPHA_SCALE 0x89        /* Cd * As: towards black */
+#define AA_FADE_ALPHA_SCALE_ADD 0x09    /* Cd * As + Cs: towards the sprite's colour */
+
 u_short AA_GetDataWord(const u_char **cursor);                                           // CT3 0x018bc690
 u_int AA_GetDataLong(const u_char **cursor);                                             // CT3 0x018bc6c0
 u_int AA_GetDataLongRead(const u_char *data);                                            // CT3 0x018bc720
@@ -43,4 +60,9 @@ void AA_endDisplay(void);                                                       
 void AA_startDisplay(int waitEven);                                                      // CT3 0x018bca00
 int AA_handler_endimage(int channel);                                                    // CT3 0x018bca50
 int AA_vblankHandler(int cause);                                                         // CT3 0x018bca90
+// The display's tag blocks: AA_ReTagSet's (the last picture, for the fade-out) and AA_decBs0's (`keep` != 0
+// leaves the uploads out: the GS keeps the last picture). *fade gets the fade sprite's RGBAQ word.
+void AA_setImageTag2(void *tag, int width, int height, u_int **fade);                    // CT3 0x018bcdd0
+void AA_setImageTag(void *tag, const void *picture, int keep, int width, int height,
+                    u_int **fade);                                                       // CT3 0x018bd1c0
 void AA_clearGsMem(int r, int g, int b, int w, int h);                                   // CT3 0x018bd830

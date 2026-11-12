@@ -370,7 +370,7 @@
    "why": "tumap.py (bootstrap 5): a .text section symbol starts it (asm or GCC object), 0 functions keyed by their statics, 20 unkeyed; file name from the names"
   },
   "game/AA_GetDataWord.c": {
-   "notes": "Slice 2 is the GS side: AA_GS_SetClut, AA_clearGsMem, AA_setImageTag, AA_setImageTag2, AA_vblankHandler; decide the host draw there (AlyssaPan_DrawUiMovie for the picture, the 4-bit caption picture with its CLUT, the fade sprite). Caption picture lives in host block AA_MojiFBImage; AA_TestRead takes a host byte cursor (AA_mpegTS.c must start it at AA_MojiImage). VoBuf +0x14..+0x34 named (delayHold, skew, skewIndex). Shot: same clock-tower scene, movies skipped in smoke runs. open-items (gw)-(gz).",
+   "notes": "GIF chains are host AA_IMAGE_TAG records drawn at the vblank send (DrawUiMovie picture, captions as a 4-bit TIM2 with the CLUT dt, fade as FrameScale plus additive Cs), kicked from the vblank, AA_handler_endimage after each send. Callers AA_decBs0 and AA_ReTagSet must pass host pointers (BankEePtr). No smoke run plays a movie: verify when AA_mpegTS.c lands. AA_clearGsMem shows a black frame after each skipped movie, then the title screen (30 s run). open-items (ha)-(hd).",
    "ranges": [
     [
      "018bc690",
@@ -382,9 +382,14 @@
      "date": "2026-11-12 09:32",
      "status": "partial",
      "summary": "slice 1: caption readers, caption picture, shouldDelay, display start/end, image-end handler (10 of 15)"
+    },
+    {
+     "date": "2026-11-12 10:01",
+     "status": "verify",
+     "summary": "slice 2: the GS side - AA_GS_SetClut, AA_clearGsMem, AA_setImageTag, AA_setImageTag2, AA_vblankHandler (15 of 15)"
     }
    ],
-   "status": "partial",
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 107..107, 4 functions keyed by their statics, 9 unkeyed; file name from the names"
   },
   "game/AA_SoundMonoSoart.c": {

@@ -4,6 +4,7 @@
 #include <utility>
 
 #include "alyssapan/ee/kernel.h"
+#include "sdk/eeregs.h"
 
 namespace alyssapan::ee
 {
@@ -277,7 +278,11 @@ void InterruptController::run()
         {
             const double rate = m_standard.load() == VideoStandard::Pal ? kPalFieldRate : kNtscFieldRate;
             m_lastFieldTime.store(nextField.time_since_epoch().count());
-            m_fields.fetch_add(1);
+            // GS CSR's FIELD (bit 13): the field this vblank starts, as sceGsSyncV answers it (CT3's movie
+            // vblank reads the register).
+            constexpr int kCsrFieldShift = 13;
+            const std::uint64_t field = (m_fields.fetch_add(1) + 1) & 1;
+            REG_GS_CSR = (REG_GS_CSR & ~(std::uint64_t{1} << kCsrFieldShift)) | field << kCsrFieldShift;
             raise(kCauseVBlankStart);
             if (vblankCallback != nullptr)
                 vblankCallback(0);

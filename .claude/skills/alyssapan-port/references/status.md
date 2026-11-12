@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-12 09:32 at commit `cf016d5` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-12 10:01 at commit `956e632` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1602**; stubs: **142**
+- reconstructed CT3 functions: **1608**; stubs: **141**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -49,10 +49,10 @@ Least-named game-code regions (64 KB blocks):
 | `src/ga/gaVifInit.c` | 6 | 0 |
 | `src/ga/pad_button_read.c` | 4 | 0 |
 | `src/ga/wait.c` | 0 | 2 |
-| `src/game/AA_GetDataWord.c` | 10 | 3 |
+| `src/game/AA_GetDataWord.c` | 16 | 0 |
 | `src/game/AA_SoundMonoSoart.c` | 0 | 8 |
-| `src/game/AA_cpuCycles.c` | 0 | 2 |
-| `src/game/AA_mpegTS.c` | 0 | 13 |
+| `src/game/AA_cpuCycles.c` | 0 | 3 |
+| `src/game/AA_mpegTS.c` | 0 | 14 |
 | `src/game/AA_videoCallback.c` | 0 | 11 |
 | `src/game/AlignedNum.c` | 4 | 0 |
 | `src/game/ArtoolDebugOpen.c` | 15 | 0 |
@@ -101,10 +101,9 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 19, partial 1, verify 46, done 8, blocked 1
-- next: **game/AA_GetDataWord.c** (continuing a partial TU)
+- 65 TUs: todo 19, verify 47, done 8, blocked 1
+- next: **game/AA_mpegTS.c** (frontier score 19)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp
-- partial: `game/AA_GetDataWord.c` 10/15 -- Slice 2 is the GS side: AA_GS_SetClut, AA_clearGsMem, AA_setImageTag, AA_setImageTag2, AA_vblankHandler; decide the host draw there (AlyssaPan_DrawUiMovie for t
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
@@ -117,6 +116,7 @@ Least-named game-code regions (64 KB blocks):
 - verify: `ga/gaSinCos.c` 13/13 -- 15 s smoke run: no fault, about 26700 frames, shot black (no host draw module yet). ga_sincos_table.inc generated from the ELF (the ROM floats differ from sinf)
 - verify: `ga/gaVifInit.c` 6/6 -- GCC object. VIF0/VIF1 STAT are host variables that read idle (sdk/eeregs.h), so the polls return at once and main frame loop passes the FLUSH wait. gaDmaSendN_V
 - verify: `ga/pad_button_read.c` 4/4 -- Complete; callcheck clean. 15 s smoke: flat grey as before (attract cycle). 40 s run with scripted START at reads 500..1100: no TITL in the log, but the shot is
+- verify: `game/AA_GetDataWord.c` 15/15 -- GIF chains are host AA_IMAGE_TAG records drawn at the vblank send (DrawUiMovie picture, captions as a 4-bit TIM2 with the CLUT dt, fade as FrameScale plus addit
 - verify: `game/AlignedNum.c` 4/4 -- WaitLoop is split in Ghidra: WaitLoop 0x0189f650 plus WaitLoop_body 0x0189f680 (game-inferred), one C function. The j at 0x0189f718 belongs to the next object (
 - verify: `game/ArtoolDebugOpen.c` 15/15 -- Smoke run: FlInit prints no error, so the pack directory loads and sceCdSearchFile finds the pack; no run reads a file yet (main2 and fileio.c are stubs), the s
 - verify: `game/BRANCH_CLEAR.c` 173/173 -- MotionTableOf now resolves CHARACTER +0x350 via BankEePtr of the bank, as MotionRecord in wideXcmd_DebugPrint.c does (open-items ga done). 15 s smoke run: no fa
@@ -155,6 +155,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-12 10:01 `game/AA_GetDataWord.c` verify: slice 2: the GS side - AA_GS_SetClut, AA_clearGsMem, AA_setImageTag, AA_setImageTag2, AA_vblankHandler (15 of 15)
 - 2026-11-12 09:32 `game/AA_GetDataWord.c` partial: slice 1: caption readers, caption picture, shouldDelay, display start/end, image-end handler (10 of 15)
 - 2026-11-12 09:06 `game/Convert.c` verify: ConvertMatrix2Quat and ConvertQuat2Matrix rewritten from the VU0 macro code in scalar C (const_vector_A = 1, 2, 0, 0.5; matUnit for w == 1; divide by 0 answers 
 - 2026-11-12 09:00 `ga/gaDrawObject.c` verify: slices 2-3: the billboard local views, SetBig and SetNear (near-plane cut, facing cull); the clipped view packet corrected to view space
@@ -162,22 +163,21 @@ Recent sessions:
 - 2026-11-12 08:14 `game/asMothPause.c` verify: asMothPause written (the TU's one function, static gAlysPos$61); MothInfo.w24 renamed paused
 - 2026-11-12 07:54 `game/tiAvoidObject.c` verify: slice 6: the last 12 functions -- LetMonsterInFromShadow, SetMonsterPos, BarrierCheck, SerchCheck, IsTrgWithinAngle, IsGetToGLinkPole, SetNextGLinkPolePoint, Ge
 - 2026-11-12 07:32 `game/tiAvoidObject.c` partial: slice 5: 24 functions -- the kinds motion predicates (Forward, Wait, FarAttack, PostAttack, Attack, PreAttack, Find, Action), IsWarpChara, the five IsGetTo arri
-- 2026-11-12 07:18 `game/tiAvoidObject.c` partial: slice 4: 6 functions -- tiAvoidObject (the obstacle steering: LOS probes, the 15/30 degree fan, wall following off the hit polygon), ssAI_IsMortionFramePassed, 
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
+| `game/AA_mpegTS.c` | todo | 0/14/31 | 2.6 | 19 | 0 |
 | `game/AA_SoundMonoSoart.c` | todo | 0/8/20 | 4.0 | 18 | 2 |
-| `game/AA_mpegTS.c` | todo | 0/13/31 | 2.6 | 18 | 0 |
 | `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
-| `game/AA_GetDataWord.c` | partial | 10/3/15 | 4.9 | 16 | 2 |
 | `ga/gaObjectClippingCheck.c` | todo | 0/1/1 | 0.2 | 12 | 1 |
 | `game/ssCalcInversMatrix2.c` | todo | 0/5/5 | 5.7 | 7 | 0 |
 | `ga/wait.c` | todo | 0/2/20 | 0.1 | 5 | 0 |
 | `ga/gaSearchNearLight4.c` | todo | 0/1/1 | 0.4 | 4 | 0 |
-| `game/AA_cpuCycles.c` | todo | 0/2/4 | 0.3 | 3 | 0 |
+| `game/AA_cpuCycles.c` | todo | 0/3/4 | 0.3 | 4 | 0 |
 | `ga/gaDrawObject_Redraw_Polygon.c` | todo | 0/1/6 | 4.3 | 2 | 0 |
-| `game/ssBrain_ChgHideAtk1.c` | todo | 0/15/34 | 29.6 | 1 | 0 |
 | `game/asMothOperate.c` | todo | 0/1/1 | 3.8 | 1 | 0 |
+| `game/copy2area.c` | todo | 0/1/2 | 0.5 | 1 | 0 |
+| `game/ssBrain_ChgHideAtk1.c` | todo | 0/15/34 | 29.6 | 1 | 0 |
 
 ## Frontier (called by reconstructed code, not written yet)
 
@@ -185,7 +185,6 @@ Recent sessions:
 |---|---|---|---|---|---|
 | `018a3078` | gaObjectClippingCheck | 7 | sym | stub | ga/gaObjectClippingCheck.c |
 | `018a7538` | gaSearchNearLight4 | 4 | sym | stub | ga/gaSearchNearLight4.c |
-| `018bd830` | AA_clearGsMem | 4 | sym | stub | game/AA_GetDataWord.c |
 | `018a8690` | gaDMAStopMessage_VIF1 | 4 | sym | stub | ga/wait.c |
 | `018c1ce0` | AA_videoDecAbort | 3 | sym | stub | game/AA_mpegTS.c |
 | `018a9570` | ssHitMakeAttackOBB | 2 | sym | stub | game/ssCalcInversMatrix2.c |
@@ -221,6 +220,7 @@ Recent sessions:
 | `018bc360` | AA_audioDecReset | 1 | sym | stub | game/AA_SoundMonoSoart.c |
 | `018c0320` | AA_syncGetSkew | 1 | sym | stub | game/AA_cpuCycles.c |
 | `018c1ea0` | AA_voBufDecCount | 1 | sym | stub | game/AA_mpegTS.c |
+| `018c1ec0` | AA_voBufGetTag | 1 | sym | stub | game/AA_mpegTS.c |
+| `018c03c0` | AA_syncClockInVideo | 1 | sym | stub | game/AA_cpuCycles.c |
 | `018c1760` | AA_ReTagSet | 1 | sym | stub | game/AA_mpegTS.c |
-| `01882d60` | asMothOperate | 1 | sym | stub | game/asMothOperate.c |
 

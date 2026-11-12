@@ -9,3 +9,5 @@ u_int AA_cpuCycles(void);                                                       
 // The picture's lead over the audio clock (shouldDelay's use, 2026-11-12: six answers at or under -6000 in a
 // row make the display hold a picture). AA_cpuCycles.c confirms the sign and unit.
 int AA_syncGetSkew(void);                                                                // CT3 0x018c0320
+// The display tells the clock which picture went out (AA_vblankHandler: the even field of `pts`).
+void AA_syncClockInVideo(u_long pts);                                                    // CT3 0x018c03c0

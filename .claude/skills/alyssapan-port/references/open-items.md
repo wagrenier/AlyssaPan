@@ -911,6 +911,24 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    (delayHold, skew[6], skewIndex: shouldDelay and the vblank read them), named from this TU; the ring head
    (+0x00..+0x14) is AA_mpegTS.c's to name; (gz) AA_syncGetSkew's sign (negative = video ahead) is read
    from shouldDelay's use only: AA_cpuCycles.c confirms it.
+   **Slice 2 (2026-11-12, verify: no smoke run plays a movie): the GS side, all 15 written.** The GIF
+   chains became host records (AA_IMAGE_TAG in the tag block) drawn where the vblank sends them: the
+   picture by AlyssaPan_DrawUiMovie, the captions as a 4-bit TIM2 picture built around the GS's caption
+   copy and the CLUT `dt`, the fade as FrameScale(As) plus an additive flat sprite of Cs; then the frame is
+   kicked from the vblank and AA_handler_endimage called ((gr) done). AA_clearGsMem is a flat sprite +
+   kick: the smoke run now shows a black frame after each skipped movie, then the title screen (a 30 s run
+   reaches it); a 15 s run ends on that black frame. Host additions: sceGsSwapDBuff, sceGsSetHalfOffset,
+   sceGsSetDefLoadImage (sdk/libgraph.cpp, no-ops), GS CSR FIELD set each vblank (ee/interrupts.cpp).
+   Claude's calls (the user may overrule): (ha) AA_setImageTag / 2 take host pointers (tag block,
+   picture): AA_decBs0 and AA_ReTagSet (AA_mpegTS.c) resolve the banks' EE addresses with BankEePtr;
+   (hb) the picture keeps its 448 lines centred in the canvas's 512 x 512 frame (DrawUiMovie draws at
+   native size) where the ROM stretches the field to the TV's whole picture: when a movie plays, compare
+   with the ga path's 448 -> 512 stretch and give DrawUiMovie a destination size if they differ; (hc) the
+   kick runs on the interrupt thread (the game thread waits in readMpeg meanwhile): if the renderer's
+   free-frame wait stalls the fields, move the kick to a host field listener; (hd) VoTag +0 status
+   (VOBUF_STATUS_*), +8 pts named from the vblank, after ezmpegstr: AA_mpegTS.c confirms. **Next for the
+   movie: AA_mpegTS.c** (AA_voBufGetTag, AA_decBs0, AA_ReTagSet, the ring) and AA_cpuCycles.c, then a run
+   with movies on.
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
    class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~

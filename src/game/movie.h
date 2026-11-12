@@ -38,6 +38,7 @@
 #define AA_THREAD_STACK_SIZE 0x10800
 #define AA_HEAP_ALIGN 0x40
 #define AA_GS_TAG_STRIDE 0x20000        /* a VoTag's second tag block follows its first */
+#define AA_MOVIE_ROW_GS_TAG0 4          /* AA_MovieUseBank's row of AA_voBufTag[0]'s tag blocks (then [1]) */
 #define AA_IOP_AUDIO_BUFF 0x6000        /* audioDecInit's IOP buffer */
 #define AA_CAPTION_ADDR 0x200000        /* AA_MojiData: the EE address the caption file is read to */
 #define AA_RESET_WIDTH 0x200            /* the movie's 512 x 448 frame (sceGsSetDefDBuff, AA_clearGsMem) */

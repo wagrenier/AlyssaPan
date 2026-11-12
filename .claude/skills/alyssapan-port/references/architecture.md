@@ -442,6 +442,21 @@ the TU map's evidence.
   AA_GS_SetClut uploads to CBP 0x3e00. Pacing: shouldDelay keeps the last six AA_syncGetSkew answers in
   voBuf +0x18 and holds a picture when all six are at or under -6000; the vblank then waits 5 fields
   (voBuf +0x14) before asking again.
+  **Display** (AA_GetDataWord.c slice 2, 2026-11-12): AA_setImageTag (AA_decBs0's, per picture tag block)
+  builds a GIF chain: unless its third argument, the picture's 16 x 16 macroblocks uploaded column-major
+  (PSMCT32, TBP 0x2a00, TBW 8) and the caption picture (PSMT4, TBP 0x3800, 0x1c00 qwords from
+  AA_MojiBuffWk); then three sprites over the field (window 1792..2304 x 1824..2048, UV 8..w*16+8): the
+  picture (PRIM 0x156, ALPHA 0x44 FIX 0x80: opaque), the captions (PRIM 0x116, TEX0 0x2007c00e65423800,
+  TEST 0x3000f: A != 0 passes; their UV end is the picture's size too), and the fade (PRIM 0x46, its
+  RGBAQ's address handed back for the caller to patch): with AA_MvInWhite 2 ALPHA 0x89 (Cd * As) and
+  RGBAQ 0x80000000, else ALPHA 0x09 (Cd * As + Cs) and 0x80404040. AA_setImageTag2 (AA_ReTagSet's, the
+  fade-out's block) is the same without the uploads, its blend after AA_MvOutWhite (0: 0x89) with RGBAQ
+  0x80000000. The caption CLUT is the static `dt` (0x0192e7c0, 17 words: sixteen greys 0x0f apart from a
+  clear black, alpha 0x80, then white; the upload sends 16). The vblank reads GS CSR FIELD (bit 13): the
+  even field sends a VoTag status 2 (full) block tag[0] and tells AA_syncClockInVideo its pts (VoTag +8),
+  status -> 1; the odd field sends tag[1], status -> 0 and AA_isFrameEnd = 1, which the GIF end handler
+  turns into AA_voBufDecCount. AA_clearGsMem fills both fields' frame buffers by one sprite. Host: the
+  chains are AA_IMAGE_TAG records drawn at the send (alyssapan_drawui.h), the DMA end called right after.
 - `game_end.dat` (0x01935308): a file the game opens by name.
 
 ## The boot screen and the ga draw object's data (2026-11-10, host task `alyssapan/rendering/ui_canvas.cpp`)

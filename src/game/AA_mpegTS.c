@@ -90,3 +90,10 @@ void AA_voBufDecCount(VoBuf *f)
 {
     ALYSSAPAN_STUB("AA_voBufDecCount", 0x018c1ea0);
 }
+
+// stub of CT3 0x018c1ec0
+VoTag * AA_voBufGetTag(VoBuf *f)
+{
+    ALYSSAPAN_STUB("AA_voBufGetTag", 0x018c1ec0);
+    return {};
+}

@@ -48,12 +48,20 @@ static_assert(offsetof(VoBuf, w34) == 0x34, "VoBuf.w34");
 
 // One picture's GS upload tags (AA_voBufTag[2], sbss 0x0193f6d0: 0x30 bytes). The two words at +0x10 are
 // the tag blocks AA_MovieUseBank gives a movie bank each ("MPEG GS tag 0" / "MPEG Gs tag 1"; the ROM puts
-// the second one 0x20000 bytes after the first in AA_MemoryMapSet). layout: ee.
+// the second one 0x20000 bytes after the first in AA_MemoryMapSet): tag[0] goes out on the even field,
+// tag[1] on the odd one (AA_vblankHandler, 2026-11-12, which also reads status and pts). layout: ee.
+#define VOBUF_STATUS_FREE 0             /* the odd field went out: the buffer is the decoder's again */
+#define VOBUF_STATUS_TOPDONE 1          /* the even field went out, the odd one is due */
+#define VOBUF_STATUS_FULL 2             /* decoded, waiting for an even field */
 typedef struct VoTag {
-    int w00[4];             /* 0x00: vobuf.c's (status, ...) */
+    int status;             /* 0x00: VOBUF_STATUS_* */
+    int w04;
+    u_long pts;             /* 0x08: the picture's time stamp (AA_syncClockInVideo's argument) */
     u_int tag[2];           /* 0x10: EE addresses of the picture's tag blocks */
 } VoTag;
 static_assert(sizeof(VoTag) == 0x18, "VoTag");
+static_assert(offsetof(VoTag, pts) == 0x08, "VoTag.pts");
+static_assert(offsetof(VoTag, tag) == 0x10, "VoTag.tag");
 
 #define AA_VOBUF_COUNT 2                /* picture buffers (initAll's AA_voBufCreate count) */
 
@@ -72,3 +80,4 @@ int AA_voBufIsFull(VoBuf *f);                                                   
 void AA_voBufDelete(VoBuf *f);                                                           // CT3 0x018c2080
 void AA_voBufCreate(VoBuf *f, u_int *data, VoTag *tag, int n);                           // CT3 0x018c2090
 void AA_voBufDecCount(VoBuf *f);                                                         // CT3 0x018c1ea0
+VoTag *AA_voBufGetTag(VoBuf *f);                                                         // CT3 0x018c1ec0 (AA_vblankHandler's call; NULL: nothing to show)

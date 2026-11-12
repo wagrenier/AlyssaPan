@@ -80,6 +80,23 @@ int sceGsExecLoadImage(sceGsLoadImage *, u_long128 *)
     return 0;
 }
 
+// The host has no GS memory: an image transfer's packet is never sent (sceGsExecLoadImage), so its
+// definition is only cleared. CT3's movie display (AA_GS_SetClut) keeps the pixels itself.
+int sceGsSetDefLoadImage(sceGsLoadImage *lp, short, short, short, short, short, short, short)
+{
+    *lp = {};
+    return 0;
+}
+
+// The field's half-pixel offset of an interlaced frame: the host draws whole frames.
+void sceGsSetHalfOffset(sceGsDrawEnv1 *, short, short, short) {}
+
+// The double buffer's swap: the host's frames are presented by the renderer (AlyssaPan_DrawUiKick).
+int sceGsSwapDBuff(sceGsDBuff *, int)
+{
+    return 0;
+}
+
 void sceGsSetDefDispEnv(sceGsDispEnv *disp, short psm, short w, short, short dx, short dy)
 {
     *disp = {};

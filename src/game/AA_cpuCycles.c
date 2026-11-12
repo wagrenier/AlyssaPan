@@ -19,3 +19,9 @@ int AA_syncGetSkew(void)
     ALYSSAPAN_STUB("AA_syncGetSkew", 0x018c0320);
     return {};
 }
+
+// stub of CT3 0x018c03c0
+void AA_syncClockInVideo(u_long pts)
+{
+    ALYSSAPAN_STUB("AA_syncClockInVideo", 0x018c03c0);
+}

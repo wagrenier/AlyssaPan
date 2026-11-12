@@ -7,6 +7,10 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-12, AA_GetDataWord.c slice 2) **A 15 s smoke run now ends on a black last.png.** AA_clearGsMem
+  kicks a black frame after each skipped movie (the ROM's clear), and a 15 s run stops right after the
+  title movie's skip; the title screen follows a few frames later (a 30 s run shows it). Read the numbered
+  shots before calling a black last.png a regression.
 - (2026-11-12, gaDrawObject.c slice 2) **A VU0 micro's temporaries are not its output.** Slice 1 wrote
   the clipped view's screen position (vf16..vf23, computed for CLIP) into the packet; the EE's sqc2 stores
   vf24..vf31, the view-space matrix result. Trace which registers the EE's sqc2 reads after the vcallms,
