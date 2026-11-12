@@ -1,5 +1,6 @@
 {
  "queue": [
+  "alyssapan/core/junc_heap.cpp",
   "alyssapan/rendering/ui_canvas.cpp"
  ],
  "settings": {
@@ -9,6 +10,9 @@
   "smoke_pad": ""
  },
  "tus": {
+  "alyssapan/core/junc_heap.cpp": {
+   "task": "After NEW the first room scene 0A02.BIN loads, then sunAlloc error / JUNC size=16416 and size=464 and the run crashes (access violation). Find what exhausts gHeapJunc (0x96000 bytes, main.c) -- a host size larger than the EE one, a block never freed, or a free the ROM does that the port skips -- fix it, then the crash. Repro: build.py --run 50 --pad 600:START*10,800:START*10 (pad reads are 30 a second). open-items.md item 8, newgame_trace.cpp note."
+  },
   "alyssapan/core/movie_skip.cpp": {
    "notes": "AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT branch AA_movieSkipped: nothing decoded, the skip event where the pad could skip, GS cleared, tiFade handed on, memory map freed, banks reloaded. build.py --run sets ALYSSAPAN_SKIP_INTRO=1 by default. The real wait before the movies is the stub aaXcmd_MovieFedeOutCancel (game/PicPaz.c, queued first); a reverted probe making it answer XCMD_DONE showed m_capcom.mov and m_title.mov skipped and frames past 900, still flat grey (TITL not drawn yet).",
    "sessions": [
@@ -20,6 +24,18 @@
    ],
    "status": "verify",
    "task": "Host task (the user, 2026-11-11: reach the title; the user's rule: skip cinematics in smoke runs). Add a switch smoke runs set (a config flag beside the window / display options, the way RosePan's rosepan_config holds START through the opening film) that makes the movie player end each movie at once as a skipped one: AA_movie (src/game/movie.c) answers as the ROM does when the player skips, with nothing decoded, so m_capcom.mov and m_title.mov pass without the decoder (AA_videoDecMain and the AA_mpegTS.c / AA_videoCallback.c / AA_GetDataWord.c stubs). The PORT branch is marked and off by default for players; build.py --run and tus.py check --run turn it on. Picture: after the memory-card text the run reaches the title music (hhXcmd_PlayADS) instead of hanging in the decode loop."
+  },
+  "alyssapan/core/newgame_trace.cpp": {
+   "notes": "Next blocker queued as alyssapan/core/junc_heap.cpp: after 0A02 loads, sunAlloc error JUNC size=16416 and 464, then an access violation. Shot numbers count unpaced host presents; the scripted pad counts pad reads at 30 a second (hazards.md). The 45 s shot shows the title as before (logo, NEW / LOAD / OPTIONS, copyright).",
+   "sessions": [
+    {
+     "date": "2026-11-12 12:30",
+     "status": "done",
+     "summary": "The silent wait after NEW: the title music ADS stream held gADSOpenSync at 1 waiting for SNDDRV.IRX to acknowledge SND_CMD_ADS_OPEN, so FlProc read nothing and tnXcmd_LoadWait E_00 waited for good. A silent host stand-in for the sound driver (alyssapan/iop/snd_driver_standin) answers the stream handshake; 0A02.BIN now loads after NEW."
+    }
+   ],
+   "status": "done",
+   "task": "The way past the title: after START on NEW the run reaches no stub and the screen stays black with no E_00 / tnXcmd_LoadWait line (open-items item 8, 2026-11-12 08:06). Find where it waits (a probe log in the script dispatcher or gdbrun.py on the START path), fix it if it is host-side or queue the game TU that owns the wait. Probes are stripped before committing."
   },
   "alyssapan/core/title_trace.cpp": {
    "notes": "No code. 90 s run: 2820 frames; 240 s run: 7200 frames, movies m_capcom, m_title, then d02 d04 d03 d01 d01 d04, shots flat grey. The 16:25 stop came from the probe hack. ga/pad_button_read.c is next in the queue; its check should script START after frame 900 and look for TITL. open-items 8 (kk2, kl2).",

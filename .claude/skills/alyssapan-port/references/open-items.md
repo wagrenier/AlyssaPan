@@ -1708,6 +1708,25 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    the title scene pillarboxed at 4:3 (ALYSSAPAN_WINDOW_WIDTH / HEIGHT only; not this TU's: the aspect
    mode decides).
 
+   **alyssapan/core/newgame_trace.cpp (done, 2026-11-12 12:30, Claude, scheduled run; queued by this run:
+   the queue held only the blocked ui_canvas.cpp, and the 08:06 note asked for this before the frontier):**
+   the silent wait after NEW was **the file layer**, not a stub: TITL's script requests 0A02 / 0A01 / E_00
+   (TRIG_CMD_SCENE_LOAD) and waits in tnXcmd_LoadWait("E_00"), but FlProc issued no read because the title
+   music's ADS stream held gADSOpenSync at 1 waiting for SNDDRV.IRX to acknowledge SND_CMD_ADS_OPEN, and no
+   driver serves the host (architecture.md "The ADS stream holds the disc"). Fixed with a silent host
+   stand-in, alyssapan/iop/snd_driver_standin.{h,cpp} (Claude's call, the user may overrule: it answers the
+   handshake only, plays nothing; the real driver replaces it). Also (kr2) explained (hazards.md: shot
+   numbers count unpaced presents; the pad script counts pad reads, 30 a second), so the 08:06 probe's
+   presses were at about 20 / 43 / 57 s. **Next blocker (queued: alyssapan/core/junc_heap.cpp):** with the
+   stand-in, 0A02.BIN loads (FSMLT_CHECK), then "sunAlloc error / JUNC size=16416" and "size=464" and the
+   run dies with an access violation (build.py --run 50 --pad "600:START*10,800:START*10"; START at read
+   800 is NEW). gHeapJunc is 0x96000 bytes (main.c); the 16416-byte block is probably SkinWork or a
+   ShadowBlock (ahRelocateSunPs2ObjectArry.c): find what fills the heap first (a host size bigger than the
+   EE's, a block never freed, or the ROM's own order of SceneEndBank frees), then the crash. Open: (kz2)
+   a one-shot ADS never reports its end with the stand-in (adsActive stays 1 until a stop): a script that
+   waits for a stream to end would wait for good -- the real driver decides; (la3) the stand-in's
+   replies are all zeros, as before (CpExchangeTransBuffer's gAdrIOPStat stays 0).
+
 ## Decisions
 
 - 2026-11-11 (Claude, scheduled run 19:15, for the user to overrule): **the ga 2D frame stays 4:3.** The

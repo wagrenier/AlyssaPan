@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-12 11:50 at commit `c348de1` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-12 12:30 at commit `0dced4e` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -103,9 +103,9 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 13, verify 53, done 8, blocked 1
-- next: **ga/gaDrawObject_Redraw_Polygon.c** (frontier score 7)
-- pinned queue: alyssapan/rendering/ui_canvas.cpp
+- 65 TUs: todo 14, verify 53, done 9, blocked 1
+- next: **alyssapan/core/junc_heap.cpp** (pinned in the queue)
+- pinned queue: alyssapan/core/junc_heap.cpp, alyssapan/rendering/ui_canvas.cpp
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
@@ -163,6 +163,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-12 12:30 `alyssapan/core/newgame_trace.cpp` done: The silent wait after NEW: the title music ADS stream held gADSOpenSync at 1 waiting for SNDDRV.IRX to acknowledge SND_CMD_ADS_OPEN, so FlProc read nothing and 
 - 2026-11-12 11:50 `game/AA_scTag2.c` verify: all 7 functions written: the movie ring's DMA tag, D3 and D4 CHCR writes, FIFO index, pts region test, B-picture skip history, two-span copy
 - 2026-11-12 11:34 `game/AA_viBuf.c` verify: reconstruct 13 functions (verify)
 - 2026-11-12 11:13 `ga/gaObjectClippingCheck.c` verify: gaObjectClippingCheck written: bounding sphere vs near/far and VU0 micro 0x068 side planes, done natively
@@ -170,18 +171,17 @@ Recent sessions:
 - 2026-11-12 10:36 `game/AA_SoundMonoSoart.c` verify: all 20 functions: ezmpegstr audiodec.c with CT3's EE / IOP time-stamp rings (the audio clock via AA_syncClockInAudio) and the monaural mode; new sceSdRemote shi
 - 2026-11-12 10:19 `game/AA_mpegTS.c` verify: all 31 functions: ezmpegstr videodec.c + vobuf.c (libmpeg callbacks, AA_decBs0 decode loop with captions and fade-in, AA_videoDecMain, VideoDec accessors, the v
 - 2026-11-12 10:01 `game/AA_GetDataWord.c` verify: slice 2: the GS side - AA_GS_SetClut, AA_clearGsMem, AA_setImageTag, AA_setImageTag2, AA_vblankHandler (15 of 15)
-- 2026-11-12 09:32 `game/AA_GetDataWord.c` partial: slice 1: caption readers, caption picture, shouldDelay, display start/end, image-end handler (10 of 15)
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
 | `game/ssCalcInversMatrix2.c` | todo | 0/5/5 | 5.7 | 7 | 0 |
 | `ga/gaDrawObject_Redraw_Polygon.c` | todo | 0/1/6 | 4.3 | 7 | 1 |
-| `ga/wait.c` | todo | 0/2/20 | 0.1 | 6 | 0 |
 | `game/AA_cpuCycles.c` | todo | 0/4/4 | 0.3 | 6 | 0 |
+| `ga/wait.c` | todo | 0/2/20 | 0.1 | 6 | 0 |
 | `ga/gaSearchNearLight4.c` | todo | 0/1/1 | 0.4 | 4 | 0 |
 | `game/copy2area.c` | todo | 0/2/2 | 0.5 | 2 | 0 |
-| `game/asMothOperate.c` | todo | 0/1/1 | 3.8 | 1 | 0 |
 | `game/ssBrain_ChgHideAtk1.c` | todo | 0/15/34 | 29.6 | 1 | 0 |
+| `game/asMothOperate.c` | todo | 0/1/1 | 3.8 | 1 | 0 |
 
 ## Frontier (called by reconstructed code, not written yet)
 

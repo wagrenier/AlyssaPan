@@ -7,7 +7,8 @@
 // sceSifCallRpc returns (so its end function runs at once). The other modules only "load", and a call
 // to a server nobody registered answers at once with an empty reply. CT3 loads SNDDRV.IRX (its own
 // driver), SCE's MODHSYN / MODMIDI / MODMSIN and SDRDRV: none is reconstructed yet (architecture.md
-// "The IOP side"). FSYS_IOP.IRX, the file server, is host code (alyssapan/iop/fsys_server.h).
+// "The IOP side"). FSYS_IOP.IRX, the file server, is host code (alyssapan/iop/fsys_server.h); SNDDRV.IRX has
+// a silent host stand-in for its stream handshake (alyssapan/iop/snd_driver_standin.h).
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -32,6 +33,7 @@
 #include "alyssapan/core/logger.h"
 #include "alyssapan/iop/fsys_server.h"
 #include "alyssapan/iop/kernel.h"
+#include "alyssapan/iop/snd_driver_standin.h"
 
 namespace
 {
@@ -53,9 +55,12 @@ struct IopModule
     std::string_view file;
     int (*start)();                     // the module's start, as Kernel::runModuleStart takes it
 };
-constexpr std::array<IopModule, 1> kIopModules{{
+constexpr std::array<IopModule, 2> kIopModules{{
     // FSYS_IOP.IRX, the file server: host code (alyssapan/iop/fsys_server.h), not a reconstruction.
     {alyssapan::iop::FsysServer::kModuleFile, &alyssapan::iop::FsysServer::start},
+    // SNDDRV.IRX, the sound driver: a silent host stand-in for its stream handshake until its IOP code is
+    // reconstructed (alyssapan/iop/snd_driver_standin.h).
+    {alyssapan::iop::SndDriverStandIn::kModuleFile, &alyssapan::iop::SndDriverStandIn::start},
 }};
 
 } // namespace

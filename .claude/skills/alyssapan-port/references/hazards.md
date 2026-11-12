@@ -7,6 +7,19 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-12, newgame_trace.cpp) **Shot numbers count host presents, the scripted pad counts the game's
+  pad reads -- two clocks.** Presents run unpaced (about 3,300 a second in smoke runs: shot_150000 is 45 s
+  in), while gaPadRead runs 30 times a second (one read per game frame: CT3 runs at 30 fps). So
+  `--pad "600:START"` presses at about 20 s, mid title intro (the title's menu is complete at about read
+  1000-1200). Pick pad reads from seconds x 30, never from shot numbers. (kr2's "700 per second".)
+- (2026-11-12, newgame_trace.cpp) **A silent wait can be the file layer, not the script**: a stuck
+  tnXcmd_LoadWait had its loads requested and FSMltLoadProc waiting in HEAD_WAIT because FlProc held every
+  read for gADSOpenSync (the ADS stream's open handshake, with no sound driver). A probe in the x-command
+  dispatch (ssTrigExecuteActCmd), FSMltLoadProc's Phase and FlProc's state finds this in three runs.
+- (2026-11-12) **gdbrun.py with --pad is unpaced** (pad reads ran at about 55,000 a second under gdb), so
+  frame-numbered pad scripts fire at once there; and `py gdbrun.py --help` starts the game (no help):
+  give it a `timeout`.
+
 - (2026-11-12, gaObjectClippingCheck.c) **Ghidra's `_vcallms(n)` is the byte address, vudis.py's micro
   address is n / 8.** gaObjectClippingCheck's `_vcallms(0x340)` is micro 0x068 (the word 0x4a001a38:
   (word - 0x4a000038) >> 6). Reading vudis.py at 0x340 lands in the middle of another routine.

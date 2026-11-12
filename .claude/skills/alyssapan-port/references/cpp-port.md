@@ -13,7 +13,7 @@ feature must do and why, then write it as a class here; never paste C-style host
 |---|---|---|
 | `src/alyssapan/` | the Pan layer | modern OO C++ throughout: everything below applies in full |
 | `src/sdk/` | SCE's API on the host | SCE's names and structs stay, they are the game's API. `.cpp` files are thin: state lives in `alyssapan::` classes |
-| `src/iop/` | IOP code that runs on the host's IOP (none yet: SNDDRV.IRX, if it is the game's own) | authentic; functions carry `IOP 0x<addr>`, never `CT3 0x` |
+| `src/iop/` | IOP code that runs on the host's IOP (none yet: SNDDRV.IRX, if it is the game's own; until then `alyssapan/iop/snd_driver_standin.*` answers its stream handshake, silently, 2026-11-12) | authentic; functions carry `IOP 0x<addr>`, never `CT3 0x` |
 | `src/game/`, `src/ga/` | the game layer (C, as the symtab names it) | **stays authentic**: reconstruction.md, the ROM's shapes, the game's file names (`movie.c`). This file does not apply |
 
 Where game code reaches the host it does so through a few C seams it includes

@@ -1473,6 +1473,21 @@ CT3 sets 0 -- answers the +8 pointer instead). At boot CpExchangeTransBuffer sen
 address and DMAs the 0x80-byte gEEStat to the IOP address the reply names (gAdrIOPStat). The module's
 arguments are ten NUL-separated strings: three `0x%X` words, then seven `%d` (CpMakeSnddrvInitStr).
 
+**The ADS stream holds the disc (2026-11-12, alyssapan/core/newgame_trace.cpp).** SdPlayADSProc sets
+gADSOpenSync = 1 once the file layer is idle (SD_ADS_WAIT_READS), sends SND_CMD_ADS_OPEN and waits for the
+driver to set EE_IOP_ADS_OPENED (sndFlags bit 1) before SND_CMD_ADS_START; only SD_ADS_OPENED clears
+gADSOpenSync. While it is 1, FlProc's FL_STATE_READ issues no sceCdRead: **every disc read in the game
+waits on the stream's open handshake.** With no driver the title music's PlayADS ("01.ADS") left it at 1
+for good, so after NEW the scene loads (0A02 -> bank 69, 0A01 -> 54, E_00 -> 46, each 8 banks, kind
+SCENE) sat in FSMLT_HEAD_WAIT and tnXcmd_LoadWait("E_00") waited on a black screen. The host now has a
+silent stand-in for SNDDRV.IRX (alyssapan/iop/snd_driver_standin.h): it serves `0x77777777` with zero
+replies and answers the handshake through `0x77777779` -- ADS_ENABLE -> EE_IOP_SND_READY, ADS_OPEN ->
+EE_IOP_ADS_OPENED, ADS_START -> adsActive 1, ADS_STOP / ADS_DISABLE -> adsActive 0.
+
+**After NEW (2026-11-12 probe):** the TITL script (bank 0; ATLD is replaced by TITL via SELF_DISCARD_LOAD)
+runs x commands TitleStart (68), StopADS, PlaySE, SetDrawMode_Global, FadeStart OUT2, SetAllControlDisable,
+EffectSE, the scene loads above (TRIG_CMD_SCENE_LOAD), DressUp(89), then LoadWait E_00 (127).
+
 **The memory card (2026-11-09, sdk/libmc.cpp's host task).** CT3 links libmc's EE side at
 0x01826d38..0x01828530. Its `sceMcInit` binds `MCSERV` and refuses an IOP side older than mcserv 0x20a /
 mcman 0x20e (returns -120 / -121, strings 0x01932010 / 0x01932038): the host answers 0. The game calls
