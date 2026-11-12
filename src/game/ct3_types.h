@@ -35,8 +35,8 @@ typedef struct CHARACTER {
     u_char targetState;                 /* 0x0f4: bit 0 = the target's CHARA_TARGET_FLAG_F4; 0 with no target */
     u_char pad0f5[7];
     u_int brain;                        /* 0x0fc: its AI brain (EE address; +0x24e: the brain's id that
-                                           ssAI_BrainEnd takes). Character_All_Init: 0. The AI TU decides
-                                           the host form (open-items.md 1 am) */
+                                           ssAI_BrainEnd takes). Character_All_Init: 0. PORT: a handle
+                                           into CharaBrainHost (CharaBrainPtr, below; open-items.md 1 am) */
     short h100;                         /* 0x100: Character_All_Init: -1; a warp copies its marker part's
                                            short at +0x54 here (MODEL_PARTS.warpH54) */
     s_char b102;                        /* 0x102: Character_All_Init: -1 */
@@ -169,6 +169,20 @@ static_assert(offsetof(CHAR_AMB_CHANGE, shadow) == 0x18, "CHAR_AMB_CHANGE.shadow
 #define CHARACTER_FLAG_REFRACTION 0x80000000u /* DrawObjectRefraction: with _SHADOW, the character's bank
                                              is drawn in the refraction pass (name from that use) */
 #define CHARACTER_FLAG_SHADOW 0x40000000u /* main: the character's bank casts a shadow polygon */
+
+// PORT: CHARACTER.brain's host form (open-items.md 1 am, decided 2026-11-12 by test_ssXcmd_BrainSet4, the
+// first writer): the word is a handle -- 0 = no brain, else the slot + 1 -- and CharaBrainHost[slot] holds
+// the _SunAlloc'd record (a host pointer does not fit the EE word). Every `brain != 0` test reads as the ROM's.
+extern u_char *CharaBrainHost[CHARACTER_MAX];
+static inline u_char *CharaBrainPtr(const CHARACTER *chr)
+{
+    return chr->brain != 0 ? CharaBrainHost[chr->brain - 1] : NULL;
+}
+static inline void CharaBrainSet(CHARACTER *chr, int slot, u_char *brain)
+{
+    CharaBrainHost[slot] = brain;
+    chr->brain = brain != NULL ? (u_int)slot + 1 : 0;
+}
 
 // One camera of Cam[7] (0x01ae7c40, 0x1c0 bytes each; indexed by asCheckBankID: scene banks 0..5 and
 // the shared one). camera_init0 (asEyeForcusUP2CamMat.c) resets every field named here.

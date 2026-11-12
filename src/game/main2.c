@@ -307,8 +307,7 @@ void TrgCharacterShapeFree(int chara)
     if (FSMltLoadStatus(chr->bank, chr->shapeName) != 0)
         FSMltLoadEndWaitFile(chr->bank, chr->shapeName);
     if (chr->brain != 0) {
-        // PORT: brain is an EE word nothing on the host sets yet (open-items.md 1 am).
-        ssAI_BrainEnd(chr, *(short *)((u_char *)(uintptr_t)chr->brain + BRAIN_ID));
+        ssAI_BrainEnd(chr, *(short *)(CharaBrainPtr(chr) + BRAIN_ID));
     }
     FSMltSetDrawBank(chr->bank, chr->shapeName, DRAW_BANK_OFF);
 

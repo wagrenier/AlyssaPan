@@ -2,7 +2,7 @@
 // ssXcmd_SetAllControlDisable is reconstructed (2026-11-11); slice 2 (2026-11-12): the wide triggers,
 // the axe's state, the stalkers' AI commands and the test commands; slice 3 (2026-11-12): the hit-record
 // queries and the arrow commands; slice 4 (2026-11-12): the axe's start, the arrows' homing, Alyssa's hits and
-// the scene attacks. The rest are stubs until reconstructed.
+// the scene attacks; slices 5-6 (2026-11-12): the bow lock-on, the axe path and hits, the brain set-up (all written).
 
 #include "common/alyssapan_stub.h"
 #include "game/wideXcmd_TriggerInit.h"
@@ -25,6 +25,7 @@
 #include "game/tiBrain_ChgTrace_BOSS_BALOWS.h"
 #include "game/tiBrain_ChgTrace_Ghost.h"
 #include "game/QuatSlerp.h"
+#include "game/ahalloc.h"
 #include "ga/gaInit3dlib.h"
 #include "ga/gaSinCos.h"
 
@@ -52,7 +53,7 @@ enum {
     AI_MODE_5 = 5,
 };
 
-#define TRIG_EVENT_CHASE 0xcb           /* global: a stalker with a brain chases (SetChaseFlagAndTimer) */
+#define TRIG_EVENT_CHASE_FLAG 0xcb           /* global: a stalker with a brain chases (SetChaseFlagAndTimer) */
 
 // ---- x commands (2026-11-11) ----
 
@@ -196,8 +197,7 @@ int ssXcmd_AXE_ThrowEnd(int argc, char **argv, int bank)
     AxeInfo.speed = 0.0f;
     AxeInfo.throwing = 0;
     if (axe->brain != 0) {
-        // PORT: brain is an EE word nothing on the host sets yet (open-items.md 1 am).
-        u_char *brain = (u_char *)(uintptr_t)axe->brain;
+        u_char *brain = CharaBrainPtr(axe);
         brain[BRAIN_AXE_181] = 0xff;
         brain[BRAIN_AXE_182] = 0;
     }
@@ -300,8 +300,7 @@ int ssXcmd_SetAdvantageousTime(int argc, char **argv, int bank)
 // A character's AI brain, NULL when it has none.
 static u_char *CharaBrain(int chara)
 {
-    // PORT: brain is an EE word nothing on the host sets yet (open-items.md 1 am); main2.c reads it so.
-    return (u_char *)(uintptr_t)Character[chara].brain;
+    return CharaBrainPtr(&Character[chara]);
 }
 
 // CT3 0x018de4e0: "GetMonAImode <chara> <var>": the bank variable var = the character's AI mode
@@ -411,10 +410,10 @@ int ssXcmd_SetChaseFlagAndTimer(int argc, char **argv, int bank)
 {
     u_char *brain = CharaBrain(atoi(argv[0]));
     if (brain == NULL) {
-        ssTrigRemoveEvent(TRIG_EVENT_CHASE, XCMD_SCOPE_GLOBAL, -1);
+        ssTrigRemoveEvent(TRIG_EVENT_CHASE_FLAG, XCMD_SCOPE_GLOBAL, -1);
         return XCMD_DONE;
     }
-    ssTrigRegisterEvent(TRIG_EVENT_CHASE, XCMD_SCOPE_GLOBAL, -1);
+    ssTrigRegisterEvent(TRIG_EVENT_CHASE_FLAG, XCMD_SCOPE_GLOBAL, -1);
     switch (brain[BRAIN_AI_MODE]) {
     case AI_MODE_SEARCH:
         ssAI_SetAppearanceTimer(CHASE_TIMER_MODE_0);
@@ -429,7 +428,7 @@ int ssXcmd_SetChaseFlagAndTimer(int argc, char **argv, int bank)
         ssAI_SetAppearanceTimer(CHASE_TIMER_MODE_3);
         break;
     case AI_MODE_NO_CHASE:
-        ssTrigRemoveEvent(TRIG_EVENT_CHASE, XCMD_SCOPE_GLOBAL, -1);
+        ssTrigRemoveEvent(TRIG_EVENT_CHASE_FLAG, XCMD_SCOPE_GLOBAL, -1);
         break;
     case AI_MODE_5:
         ssAI_SetAppearanceTimer(CHASE_TIMER_MODE_5);
@@ -1320,12 +1319,207 @@ int ssXcmd_AXE_CheckHitAndCompDir(int argc, char **argv, int bank)
     return XCMD_DONE;
 }
 
-// ---- stubs (tools/reverse/stubgen.py) ----
+// ---- slice 6 (2026-11-12): the brain's set-up ----
 
-// stub of CT3 0x018def30
+// PORT: CHARACTER.brain's records (ct3_types.h: the handle's table). The AI TU (tiAvoidObject.c) takes it
+// over with ssAI_BrainFree; test_ssXcmd_BrainSet4 is its first writer.
+u_char *CharaBrainHost[CHARACTER_MAX];
+
+// A stalker's brain sets, in its shape bank: ALL_TABLE.ctrl's second word points at them (a camera bank
+// keeps its CAM_TRG records there). layout: EE (words relocated to the bank).
+typedef struct BRAIN_SET {
+    u_int w00;                          /* 0x00: not read here */
+    u_int param;                        /* 0x04: the brain's parameter block (0x124 bytes of words) */
+    int stateCount;                     /* 0x08: entries in states (the brain keeps 8 at most) */
+    u_int states;                       /* 0x0c: BRAIN_STATE_REF[stateCount] */
+} BRAIN_SET;
+typedef struct BRAIN_STATE_REF {
+    u_int w00;                          /* 0x00: not read here */
+    u_int state;                        /* 0x04: a state's 16 words */
+} BRAIN_STATE_REF;
+static_assert(sizeof(BRAIN_SET) == 0x10 && offsetof(BRAIN_SET, states) == 0x0c, "BRAIN_SET");
+static_assert(sizeof(BRAIN_STATE_REF) == 8 && offsetof(BRAIN_STATE_REF, state) == 4, "BRAIN_STATE_REF");
+
+#define BRAIN_SIZE 0x280                /* _SunAlloc(gHeapJunc, 0x280, 0x10) */
+#define BRAIN_ALIGN 0x10
+#define BRAIN_DRAWN 0x002               /* u_char: the stalker is shown (CHARACTER_FLAG_SHADOW at set-up) */
+#define BRAIN_ROOM 0x02c                /* u_int: the low word of its room hash (0 with a room argument) */
+#define BRAIN_ROOM_ARG 0x030            /* u_char: BrainSet4's sixth argument */
+#define BRAIN_STATES 0x080              /* 0x20 bytes each, BRAIN_STATE_COUNT of them */
+#define BRAIN_STATE_SIZE 0x20
+#define BRAIN_STATE_COUNT 0x180         /* u_char */
+#define BRAIN_ID 0x24e                  /* short: ssAI_BrainEnd's second argument (main2.c's name) */
+#define BRAIN_SET_FROM_VAR 200          /* the set number: then global variable 200 holds it */
+#define BRAIN_ROOM_NONE_HASH 0x83060c1  /* ahGetHash("AAAA"): no room -- the stalker hidden, no light */
+#define BRAIN_LIGHT_NONE (-2)           /* CHARACTER.lightBank with no room */
+#define BRAIN_INIT_FAILED (-1)          /* an ssAI_BrainInit answer: the brain ended at once */
+#define BRAIN_ARGC_ROOM 6               /* "<chara> <set> <mode> <motion> <room> <roomArg>" */
+#define BRAIN_U8(b, o) (*(u_char *)((b) + (o)))
+#define BRAIN_S16(b, o) (*(short *)((b) + (o)))
+#define BRAIN_U32(b, o) (*(u_int *)((b) + (o)))
+
+// The per-slot events BrainSet4 registers (global): the three boss slots get their own; slots 1..6 and
+// 0x20 the chase BGM's (sound.h TRIG_EVENT_CHASE); the D4 chase event is removed in any case.
+#define BRAIN_CHARA_1D 0x1d
+#define BRAIN_CHARA_1E 0x1e
+#define BRAIN_CHARA_1F 0x1f
+#define BRAIN_CHARA_20 0x20
+#define TRIG_EVENT_BRAIN_1D 0xcd
+#define TRIG_EVENT_BRAIN_1E 0xce
+#define TRIG_EVENT_BRAIN_1F 0xcf
+
+// CT3 0x018def30: "test_BrainSet4 <chara> <set> <mode> <motion> [<room> <roomArg>]": a fresh brain for
+// the character (the old one freed): its AI mode, the start motion, its state and parameters copied from
+// brain set <set> of its shape bank (BRAIN_SET_FROM_VAR: global variable 200's), frame counts made ticks
+// (x TICKS_PER_VSYNC). With a room, the character belongs to it: "AAAA" hides it (no light), else its
+// light is the room's bank and an undrawn bank leaves it hidden. A shown stalker is drawn, the set's
+// appearance time started, the slot's event registered, the shadow copied from Alyssa's and the brain
+// kind's initialiser run (BRAIN_INIT_FAILED: the brain ends). Done in one run.
 int test_ssXcmd_BrainSet4(int argc, char **argv, int bank)
 {
-    ALYSSAPAN_STUB("test_ssXcmd_BrainSet4", 0x018def30);
-    return {};
+    int chara = atoi(argv[0]);
+    CHARACTER *chr = &Character[chara];
+    u_char *brain;
+    const BRAIN_SET *set;
+    const int *p;
+    int setNo, appear, i;
+
+    if (chr->brain != 0)
+        ssAI_BrainFree(chr);
+    brain = (u_char *)_SunAlloc(&gHeapJunc, BRAIN_SIZE, BRAIN_ALIGN);
+    CharaBrainSet(chr, chara, brain);
+    // PORT: the ROM writes into whatever _SunAlloc answered; the host stops on a full heap.
+    if (brain == NULL)
+        return XCMD_DONE;
+
+    const u_int *ctrl = BANK_PTR(const u_int *, chr->bank, All_table_TBL[chr->bank]->ctrl);
+    setNo = atoi(argv[1]);
+    if (setNo == BRAIN_SET_FROM_VAR)
+        setNo = ssTrigGetVariable(BRAIN_SET_FROM_VAR, XCMD_SCOPE_GLOBAL, bank);
+    set = &BANK_PTR(const BRAIN_SET *, chr->bank, ctrl[1])[setNo];
+    p = BANK_PTR(const int *, chr->bank, set->param);
+
+    brain[BRAIN_AI_MODE] = (u_char)atoi(argv[2]);
+    brain[0x001] = 0;
+    brain[BRAIN_DRAWN] = (chr->flags & CHARACTER_FLAG_SHADOW) != 0;
+    brain[0x003] = 0;
+    BRAIN_S16(brain, 0x004) = -1;
+    BRAIN_S16(brain, 0x020) = -1;
+    BRAIN_S16(brain, 0x028) = chr->h100;
+    brain[0x02a] = (u_char)chr->lightBank;
+    BRAIN_U32(brain, BRAIN_ROOM) = (u_int)chr->roomHash;
+    BRAIN_S16(brain, 0x032) = -1;
+    brain[0x03c] = 0xff;
+    BRAIN_S16(brain, 0x03e) = -1;
+    BRAIN_S16(brain, 0x040) = -1;
+    BRAIN_S16(brain, 0x070) = -1;
+    BRAIN_S16(brain, 0x07c) = -1;
+
+    // The parameter block's words (indices into p) into the brain, as the ROM orders them.
+    brain[0x183] = (u_char)p[0];
+    brain[0x184] = 0;
+    for (i = 0; i < 6; i++)
+        BRAIN_U32(brain, 0x188 + i * 4) = (u_int)p[1 + i];          /* 0x04..0x18 */
+    BRAIN_U32(brain, 0x1a0) = (u_int)p[0x114 / 4];
+    for (i = 0; i < 8; i++)
+        BRAIN_U32(brain, 0x1a4 + i * 4) = (u_int)p[7 + i];          /* 0x1c..0x38 */
+    BRAIN_U32(brain, 0x1c4) = (u_int)p[0x98 / 4];
+    BRAIN_U32(brain, 0x1c8) = (u_int)p[0x3c / 4];
+    brain[0x1cc] = (u_char)p[0x40 / 4];
+    brain[0x1cd] = (u_char)p[0x120 / 4];
+    BRAIN_U32(brain, 0x1d0) = 0;
+    BRAIN_U32(brain, 0x1dc) = (u_int)p[0x44 / 4];
+    BRAIN_U32(brain, 0x1e0) = (u_int)p[0x100 / 4];
+    BRAIN_U32(brain, 0x1ec) = (u_int)p[0x48 / 4];
+    BRAIN_U32(brain, 0x1f8) = (u_int)p[0x4c / 4];
+    BRAIN_U32(brain, 0x208) = (u_int)(p[0x50 / 4] * TICKS_PER_VSYNC);
+    BRAIN_U32(brain, 0x20c) = 0;
+    BRAIN_U32(brain, 0x214) = (u_int)(p[0x54 / 4] * TICKS_PER_VSYNC);
+    BRAIN_U32(brain, BRAIN_RETURN_TIMER) = (u_int)p[0x58 / 4];
+    BRAIN_U32(brain, 0x21c) = (u_int)p[0xfc / 4];
+    BRAIN_U32(brain, 0x220) = 0;
+    BRAIN_U32(brain, 0x224) = (u_int)(p[0x118 / 4] * TICKS_PER_VSYNC);
+    BRAIN_U32(brain, 0x228) = (u_int)(p[0x11c / 4] * TICKS_PER_VSYNC);
+    brain[0x22c] = (u_char)p[0x104 / 4];
+    brain[0x22d] = (u_char)p[0x108 / 4];
+    brain[0x22e] = (u_char)p[0x10c / 4];
+    brain[0x22f] = (u_char)p[0xf8 / 4];
+    for (i = 0; i < 14; i++)
+        brain[BRAIN_KIND + i] = (u_char)p[0x5c / 4 + i];            /* 0x5c..0x90; the first is the kind */
+    BRAIN_S16(brain, BRAIN_MOTION) = (short)atoi(argv[3]);
+    for (i = 0; i < 23; i++)
+        BRAIN_S16(brain, BRAIN_SEARCH_MOTION + i * 2) = (short)p[0x9c / 4 + i];  /* 0x9c..0xf4 */
+    BRAIN_U32(brain, 0x270) = (u_int)p[0x94 / 4];
+    BRAIN_U32(brain, 0x274) = 0xffffffffu;
+    appear = p[0x110 / 4];
+    BRAIN_U32(brain, 0x278) = 0;
+
+    // The set's states.
+    const BRAIN_STATE_REF *refs = BANK_PTR(const BRAIN_STATE_REF *, chr->bank, set->states);
+    brain[BRAIN_STATE_COUNT] = (u_char)set->stateCount;
+    for (i = 0; i < set->stateCount; i++) {
+        const int *s = BANK_PTR(const int *, chr->bank, refs[i].state);
+        u_char *st = brain + BRAIN_STATES + i * BRAIN_STATE_SIZE;
+        BRAIN_U32(st, 0x00) = 0;
+        BRAIN_U32(st, 0x04) = (u_int)(s[13] * TICKS_PER_VSYNC);
+        BRAIN_U32(st, 0x08) = (u_int)s[0];
+        BRAIN_U32(st, 0x0c) = (u_int)s[1];
+        BRAIN_S16(st, 0x10) = (short)s[2];
+        BRAIN_S16(st, 0x12) = (short)s[3];
+        BRAIN_S16(st, 0x14) = (short)s[4];
+        st[0x16] = (u_char)s[5];
+        st[0x17] = (u_char)s[6];
+        st[0x18] = (u_char)s[7];
+        st[0x19] = (u_char)s[14];
+        st[0x1a] = (u_char)s[15];
+        for (int k = 0; k < 5; k++)
+            st[0x1b + k] = (u_char)s[8 + k];
+    }
+
+    if (argc == BRAIN_ARGC_ROOM) {
+        BRAIN_U32(brain, BRAIN_ROOM) = 0;
+        chr->roomHash = ahGetHash(argv[4]);
+        brain[BRAIN_ROOM_ARG] = (u_char)atoi(argv[5]);
+        if (chr->roomHash == BRAIN_ROOM_NONE_HASH) {
+            chr->lightBank = BRAIN_LIGHT_NONE;
+            ssAI_MonsterDraw(chr, 0);
+            brain[BRAIN_DRAWN] = 0;
+        } else {
+            chr->lightBank = (short)ssAI_GetScnBankID((u_int)chr->roomHash);
+            // PORT: the ROM reads BankInfo[-1] when no bank has the room; the host treats it as undrawn.
+            if (chr->lightBank < 0 || BankInfo[chr->lightBank].drawOn == 0) {
+                chr->flags &= ~CHARACTER_FLAG_SHADOW;
+                brain[BRAIN_DRAWN] = 0;
+            }
+        }
+    }
+    if (brain[BRAIN_DRAWN] != 0)
+        ssAI_MonsterDraw(chr, 1);
+    if (appear != 0)
+        ssAI_SetAppearanceTimer(appear);
+
+    switch (chara) {
+    case BRAIN_CHARA_1F:
+        ssTrigRegisterEvent(TRIG_EVENT_BRAIN_1F, XCMD_SCOPE_GLOBAL, -1);
+        break;
+    case BRAIN_CHARA_1E:
+        ssTrigRegisterEvent(TRIG_EVENT_BRAIN_1E, XCMD_SCOPE_GLOBAL, -1);
+        break;
+    case BRAIN_CHARA_1D:
+        ssTrigRegisterEvent(TRIG_EVENT_BRAIN_1D, XCMD_SCOPE_GLOBAL, -1);
+        break;
+    case 1: case 2: case 3: case 4: case 5: case 6: case BRAIN_CHARA_20:
+        ssTrigRegisterEvent(TRIG_EVENT_CHASE, XCMD_SCOPE_GLOBAL, -1);
+        break;
+    default:
+        break;
+    }
+    ssTrigRemoveEvent(TRIG_EVENT_CHASE_D4, XCMD_SCOPE_GLOBAL, -1);
+    asCopyShadowInformation(chr->id, 0);
+    // PORT: the ROM indexes the table with no bound (slots past the six are 0 there).
+    u_char kind = brain[BRAIN_KIND];
+    if (kind < BRAIN_KIND_MAX && ssAI_BrainInit[kind](chr) == BRAIN_INIT_FAILED)
+        ssAI_BrainEnd(chr, BRAIN_S16(brain, BRAIN_ID));
+    return XCMD_DONE;
 }
 

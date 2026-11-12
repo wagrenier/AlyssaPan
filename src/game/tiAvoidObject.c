@@ -79,3 +79,16 @@ void ssAI_SetNoReactionTimer(int time)
 {
     ALYSSAPAN_STUB("ssAI_SetNoReactionTimer", 0x018664f0);
 }
+
+// stub of CT3 0x01863c20
+void ssAI_BrainFree(struct CHARACTER *chr)
+{
+    ALYSSAPAN_STUB("ssAI_BrainFree", 0x01863c20);
+}
+
+// stub of CT3 0x01862770
+int ssAI_GetScnBankID(u_int roomHash)
+{
+    ALYSSAPAN_STUB("ssAI_GetScnBankID", 0x01862770);
+    return {};
+}

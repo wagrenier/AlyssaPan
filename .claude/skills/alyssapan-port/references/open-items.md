@@ -1688,6 +1688,23 @@ apply here):
 
 ## Open questions
 
+- (2026-11-12, game/wideXcmd_TriggerInit.c slice 6) **code complete, verify**: test_ssXcmd_BrainSet4, the
+  last stub. **(1 am) decided, Claude's call (the user may overrule):** CHARACTER.brain stays the EE word
+  but holds a handle (0 = none, else slot + 1) into the host table CharaBrainHost[35] (ct3_types.h
+  CharaBrainPtr / CharaBrainSet; defined in wideXcmd_TriggerInit.c until the AI TU takes it), so every
+  `brain != 0` test reads as the ROM's. main2.c and CharaBrain now read through it. **For the AI TU
+  (tiAvoidObject.c):** ssAI_BrainFree (0x01863c20) is _SunFree(&gHeapJunc, &chr->brain): on the host
+  _SunFree(&gHeapJunc, &CharaBrainHost[slot]) then CharaBrainSet(chr, slot, NULL); its stub frees nothing
+  (a leak while it is a stub); the brain initialisers (tiBrain_Init*, ssBrain_Init1) read the brain via
+  CharaBrainPtr. The skipped brain writes of tiXcmd_TransItem.c's Balows2th can now be filled in.
+  Named from this one writer: BRAIN_SET / BRAIN_STATE_REF (ALL_TABLE.ctrl's second word in a stalker's
+  shape bank: the camera banks keep CAM_TRG records in the same word), the brain's 0x20-byte states at
+  +0x80 (count +0x180), BRAIN_DRAWN (+2), BRAIN_ROOM (+0x2c); "AAAA" (ahGetHash 0x83060c1) is the no-room
+  name; frame counts become ticks (x TICKS_PER_VSYNC). The other brain bytes are copied by offset only.
+  Events: slots 0x1d / 0x1e / 0x1f register 0xcd / 0xce / 0xcf (named by slot, meaning unknown).
+  Fixed in passing: wideXcmd_TriggerInit.c redefined sound.h's TRIG_EVENT_CHASE (0xc9) as 0xcb; its 0xcb
+  is now TRIG_EVENT_CHASE_FLAG. PORT guards: a NULL _SunAlloc, ssAI_GetScnBankID's -1 (the ROM reads
+  BankInfo[-1]), a kind past the six table slots. No smoke run reaches it (a test x command).
 - (2026-11-12, game/wideXcmd_TriggerInit.c slice 5) **partial, 3 more x commands**: LockToTargChara (the
   bow's lock-on: now int (argc, argv, int bank), the ssXcmd_functions cast dropped), AXE_SetPath,
   AXE_CheckHitAndCompDir; 1 stub left: test_ssXcmd_BrainSet4 (0x698 bytes). Doubts: (a) LockToTargChara

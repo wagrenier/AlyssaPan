@@ -25,3 +25,9 @@ int ssAI_IsHaiHaiPlaying(struct CHARACTER *chr);                                
 // 2026-11-12): the script's number passed on (the chase flag's timers are 4..10).
 void ssAI_SetNoReactionTimer(int time);                                                  // CT3 0x018664f0
 void ssAI_SetAppearanceTimer(int time);                                                  // CT3 0x01866510
+// From test_ssXcmd_BrainSet4 (wideXcmd_TriggerInit.c, 2026-11-12). BrainFree is _SunFree(&gHeapJunc,
+// &chr->brain) in the ROM: on the host it frees CharaBrainHost[slot] and sets the handle to 0 (CharaBrainSet).
+void ssAI_BrainFree(struct CHARACTER *chr);                                              // CT3 0x01863c20
+// The first bank of BankInfo in state != 0, type 1, whose GetRoomName_file is roomHash (the low word of a
+// room hash, zero-extended); -1 for none.
+int ssAI_GetScnBankID(u_int roomHash);                                                   // CT3 0x01862770
