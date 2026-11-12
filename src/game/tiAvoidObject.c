@@ -1935,3 +1935,463 @@ float ssAI_GRS_GetTargDistance(short from, short to, const float *pos, int bank)
         return 0.0f;
     return ssAI_Dist(pos, link);
 }
+
+// ---- slice 6 (2026-11-12): the shadow entry, the placement, the sight checks, the group route search ----
+
+static u_int ssAI_BrainWord(const u_char *brain, int off)
+{
+    u_int v;
+
+    memcpy(&v, brain + off, sizeof(v));
+    return v;
+}
+
+static void ssAI_BrainSetWord(u_char *brain, int off, u_int v)
+{
+    memcpy(brain + off, &v, sizeof(v));
+}
+
+// CT3 0x01862170
+int ssAI_SetMonsterPos(CHARACTER *chr, const float *pos, short group, u_char bank, u_int room, int endProc)
+{
+    u_char *brain = CharaBrainPtr(chr);
+
+    memcpy(&chr->pos, pos, sizeof(chr->pos));
+    memcpy(&chr->posBefore, pos, sizeof(chr->posBefore));
+    chr->flags |= CHARACTER_FLAG_AI_PARKED;
+    if (brain == NULL)
+        return 0;                       /* PORT: the ROM reads the brain unguarded */
+    if (endProc) {
+        ssAI_BrainEndSpecialProc(chr);
+        asCharacterMortionChangeRequest(chr->id, 0, ssAI_BrainShort(brain, BRAIN_END_MOTION));
+    }
+    chr->h100 = group;
+    ssAI_BrainSetShort(brain, BRAIN_POLE_GROUP, group);
+    if (room != 0) {
+        brain[BRAIN_BANK] = bank;
+        chr->lightBank = bank;
+        chr->roomHashPrev = chr->roomHash;
+        ssAI_BrainSetWord(brain, BRAIN_ROOM, room);
+        chr->roomHash = room;
+        if (brain[BRAIN_MODE] != SS_AI_TRACE)
+            return 0;
+        if (ssAI_BrainWord(brain, BRAIN_ROOM) != ssAI_BrainWord(brain, BRAIN_GOAL_ROOM) &&
+            ssAI_BrainShort(brain, BRAIN_SCN_END_POLE) == -1 && ssAI_SetTraceMode(chr, 0) == -1)
+            return -1;
+    }
+    return 0;
+}
+
+// CT3 0x0185f970
+int ssAI_LetMonsterInFromShadow(CHARACTER *chr, u_char otherBank, u_char bank, s_char shadowPol, short motion)
+{
+    u_char *brain = CharaBrainPtr(chr);
+    float pos[4], dir[4];
+    short pole, pair, group, targ;
+    u_int room;
+    s_char linkBank;
+
+    pole = ssAI_GetShadowPolID(shadowPol, bank);
+    if (pole == -1)
+        return -1;
+    pair = ssAI_GetPairScnLinkPoleID(pole, bank);
+    if (pair == -1)
+        return -1;
+    if (brain == NULL)
+        return -1;                      /* PORT: the ROM reads the brain unguarded */
+    ssAI_GetPolePos(pos, pole, bank);
+    if (!ssAI_CheckPoleFlg(pole, bank, HIDE_POLE_FLAG_CROSS_BANK)) {
+        group = ssAI_GetPoleGroupID(pole, bank);
+        room = ssAI_GetPoleScnName(pair, bank);
+        if (chr->roomHash == (u_long)room)
+            room = 0;
+        if (ssAI_SetMonsterPos(chr, pos, group, bank, room, 0) == -1)
+            return -1;
+    } else {
+        int closed;
+
+        if (!ssAI_CheckPoleFlg(pole, bank, HIDE_POLE_FLAG_OWN_GROUP)) {
+            short other;
+
+            if (BankInfo[otherBank].state < 1)
+                return -1;
+            other = ssAI_GetShadowPolID(shadowPol, otherBank);
+            if (other == -1)
+                return -1;
+            group = ssAI_GetPoleGroupID(other, otherBank);
+        } else {
+            group = ssAI_GetPoleGroupID(pole, bank);
+        }
+        room = ssAI_GetPoleScnName(pole, bank);
+        if (chr->roomHash == (u_long)room)
+            room = 0;
+        if (ssAI_SetMonsterPos(chr, pos, group, otherBank, room, 0) == -1)
+            return -1;
+        closed = ssAI_IsDoorClose(shadowPol);
+        if (closed == -1)
+            return -1;
+        if (closed != 0) {
+            short door = ssAI_CheckPoleFlg(pole, bank, HIDE_POLE_FLAG_DOOR_ALT)
+                             ? ssAI_BrainShort(brain, BRAIN_DOOR_MOTION_ALT)
+                             : ssAI_BrainShort(brain, BRAIN_DOOR_MOTION);
+            short end = ssAI_BrainShort(brain, BRAIN_DOOR_MOTION_END);
+
+            asCharacterMortionChangeRequest(chr->id, 0, door);
+            asChangeMortionInfo_NextMortion(chr->id, door, end, -1);
+            asChangeMortionInfo_NextMortion(chr->id, end, motion, -1);
+        }
+    }
+    ssAI_BrainSetShort(brain, BRAIN_TARG_POLE, pair);
+    ssAI_BrainSetShort(brain, BRAIN_LINK_POLE, pair);
+    targ = ssAI_BrainShort(brain, BRAIN_TARG_POLE);
+    ssAI_GetPolePos(pos, targ, bank);
+    memcpy(brain + BRAIN_NEXT_POINT, pos, sizeof(pos));
+    memcpy(brain + BRAIN_SCN_NEXT_POINT, pos, sizeof(pos));
+    linkBank = ssAI_GetPoleScnBnkID(targ, bank);
+    brain[BRAIN_LINK_BANK] = (u_char)linkBank;
+    if (linkBank == -1)
+        return -1;
+    ssAI_BrainSetWord(brain, BRAIN_LINK_ROOM, ssAI_GetPoleScnName(targ, bank));
+    ssAI_DirTo(dir, pos, (const float *)&chr->pos);
+    ssAI_CompCharaDir(chr, dir, AI_TURN_FULL, 1);
+    brain[BRAIN_SUBMODE] = BRAIN_SUBMODE_SCN_LINK;
+    return 0;
+}
+
+// CT3 0x018600e0
+int ssAI_BarrierCheck(CHARACTER *chr, const float *pos, int bank)
+{
+    int low[4];
+    int n = 0;
+    int i, j;
+    LOS_HIT los;
+
+    for (i = 0; i < 8; i++) {
+        int above = 0;
+
+        for (j = 0; j < 8; j++) {
+            if (chr->obb[i][1] < chr->obb[j][1] && ++above == 4) {
+                low[n++] = i;
+                break;
+            }
+        }
+        if (n == 4)
+            break;
+    }
+    memcpy(los.seg.to, pos, sizeof(los.seg.to));
+    los.seg.to[1] += AI_BARRIER_LIFT;
+    for (i = 0; i < n; i++) {
+        memcpy(los.seg.from, chr->obb[low[i]], sizeof(los.seg.from));
+        los.seg.from[1] += AI_BARRIER_LIFT;
+        if (CheckLOS(bank, &los) != 0)
+            return 1;
+    }
+    return 0;
+}
+
+// CT3 0x018605d0
+int ssAI_IsTrgWithinAngle(const float *dir, CHARACTER *chr, int fov)
+{
+    int heading = (int)(long long)((ssRadianByO(dir, 1) * 65536.0) / 6.283185307179586) & 0xffff;
+    int rot = chr->rot;
+    int d;
+
+    if (rot < 0)
+        rot += AI_TURN_FULL;
+    else if (rot >= AI_TURN_FULL)
+        rot -= AI_TURN_FULL;
+    d = (AI_TURN_FULL - heading) - rot;
+    if (d < 0)
+        d = -d;
+    if (d > AI_TURN_FULL / 2)
+        d = AI_TURN_FULL - d;
+    return d < fov / 2;
+}
+
+// CT3 0x01860250
+int ssAI_SerchCheck(float dist, CHARACTER *chr, CHARACTER *target, int fov, int bank)
+{
+    const float *from = (const float *)&chr->pos;
+    const float *to = (const float *)&target->pos;
+    float d[4];
+    LOS_HIT los;
+    int i;
+
+    for (i = 0; i < 4; i++)
+        d[i] = to[i] - from[i];
+    if (dist < ssAI_Dist(to, from))
+        return 0;
+    ssAI_Unit(d, d);
+    if (!ssAI_IsTrgWithinAngle(d, chr, fov))
+        return 0;
+    memcpy(los.seg.from, from, sizeof(los.seg.from));
+    los.seg.from[1] += AI_SEARCH_EYE;
+    memcpy(los.seg.to, to, sizeof(los.seg.to));
+    if (CheckLOS(bank, &los) == 0)
+        return 1;
+    if (ssAI_IsBendPlaying(target) || ssAI_IsDownPlaying(target))
+        los.seg.to[1] = to[1] + AI_SEARCH_HEAD_LOW;
+    else
+        los.seg.to[1] = to[1] + AI_SEARCH_HEAD;
+    return CheckLOS(bank, &los) == 0;
+}
+
+// CT3 0x01861b90
+int ssAI_IsGetToGLinkPole(CHARACTER *chr, short pole, int bank)
+{
+    HIDE_POLE *p = ssAI_Pole(pole, bank);
+    const float *at = (const float *)&chr->pos;
+    float ab[4], ac[4], foot[4];
+    float len, t;
+    int i;
+
+    if ((p->flags & HIDE_POLE_FLAG_GRP_LINK) == 0)
+        return -1;
+    for (i = 0; i < 4; i++) {
+        ab[i] = p->posB[i] - p->posA[i];
+        ac[i] = at[i] - p->posA[i];
+    }
+    len = ssAI_Dist(p->posB, p->posA);
+    if (len == 0.0f)
+        return 0;
+    if (ssAI_Dist(at, p->posA) < AI_ARRIVE_DIST)
+        return 1;
+    if (ssAI_Dist(at, p->posB) < AI_ARRIVE_DIST)
+        return 1;
+    t = gaInnerProductXYZ(ac, ab) / (len * len);
+    if (t < 0.0f || t > 1.0f)
+        return 0;
+    for (i = 0; i < 4; i++)
+        foot[i] = p->posA[i] + ab[i] * t;
+    return ssAI_Dist(at, foot) < AI_ARRIVE_DIST;
+}
+
+// CT3 0x01862290 (XZ plane: x the first lane, z the third; y interpolated along x, or along z for a link
+// parallel to the z axis).
+int ssAI_SetNextGLinkPolePoint(short pole, int bank, CHARACTER *chr, const float *pos)
+{
+    HIDE_POLE *p = ssAI_Pole(pole, bank);
+    u_char *brain = CharaBrainPtr(chr);
+    const float *c = (const float *)&chr->pos;
+    float ax = p->posA[0], ay = p->posA[1], az = p->posA[2];
+    float bx = p->posB[0], by = p->posB[1], bz = p->posB[2];
+    float dx = bx - ax, dz = bz - az;
+    float px = pos[0], pz = pos[2];
+    float cx = c[0], cz = c[2];
+    float x, y, z, lo, hi;
+    const float *end;
+    float out[4];
+
+    if (brain == NULL)
+        return -1;                      /* PORT: the ROM reads the brain unguarded */
+    // Both on one side of the link: mirror pos across it, so the line crosses it.
+    if ((dz * (px - ax) - dx * (pz - az)) * (dz * (cx - ax) - dx * (cz - az)) > 0.0f) {
+        float t = (dz * (pz - az) + dx * (px - ax)) / (dz * dz + dx * dx);
+        float t2 = t * 2.0f, s2 = (1.0f - t) * 2.0f;
+
+        px = (t2 * bx + s2 * ax) - px;
+        pz = (t2 * bz + s2 * az) - pz;
+    }
+    if (cx - px == 0.0f) {
+        // The line runs along z at x = px.
+        if (dx == 0.0f) {
+            end = fabsf(pz - bz) <= fabsf(pz - az) ? p->posB : p->posA;
+            goto at_end;
+        }
+        if (ax < bx) {
+            if (px < ax) { end = p->posA; goto at_end; }
+            if (bx < px) { end = p->posB; goto at_end; }
+        } else {
+            if (ax < px) { end = p->posA; goto at_end; }
+            if (px < bx) { end = p->posB; goto at_end; }
+        }
+        {
+            float m = dz / dx;
+            x = px;
+            z = m * px + (bz - m * bx);
+            y = ay + ((ax - px) * (by - ay)) / (ax - bx);
+        }
+    } else {
+        float k = (cz - pz) / (cx - px);
+        float b = cz - k * cx;
+
+        if (dx == 0.0f) {
+            // The link runs along z at x = ax.
+            z = b + k * ax;
+            if (az < bz) {
+                if (z < az) { end = p->posA; goto at_end; }
+                if (bz < z) { end = p->posB; goto at_end; }
+            } else {
+                if (az < z) { end = p->posA; goto at_end; }
+                if (z < bz) { end = p->posB; goto at_end; }
+            }
+            y = ay + ((az - z) * (by - ay)) / (az - bz);
+            x = ax;
+        } else {
+            float m = dz / dx;
+            float c0 = bz - m * bx;
+
+            if (k == m) {
+                end = fabsf(pz - bz) <= fabsf(pz - az) ? p->posB : p->posA;
+                goto at_end;
+            }
+            x = (b - c0) / (m - k);
+            z = c0 + m * x;
+            if (ax < bx) {
+                if (x < ax) { end = p->posA; goto at_end; }
+                if (bx < x) { end = p->posB; goto at_end; }
+            } else {
+                if (ax < x) { end = p->posA; goto at_end; }
+                if (x < bx) { end = p->posB; goto at_end; }
+            }
+            y = ay + ((ax - x) * (by - ay)) / (ax - bx);
+        }
+    }
+    out[0] = x;
+    out[1] = y;
+    out[2] = z;
+    out[3] = 1.0f;
+    memcpy(brain + BRAIN_NEXT_POINT, out, sizeof(out));
+    lo = ax < bx ? ax : bx;
+    hi = ax < bx ? bx : ax;
+    return (lo <= x && x <= hi) ? 0 : -1;
+
+at_end:
+    memcpy(brain + BRAIN_NEXT_POINT, end, 4 * sizeof(float));
+    return 0;
+}
+
+// CT3 0x018629f0
+short ssAI_GetScnLinkPoleID(const float *pos, u_int room, int bank)
+{
+    HIDE_POLE_LIST *list = ssAI_PoleList(bank);
+    HIDE_POLE *poles = BANK_PTR(HIDE_POLE *, bank, list->poles);
+    float best = 1e10f;
+    short found = -1;
+    short i;
+
+    for (i = 0; i < list->count; i++) {
+        HIDE_POLE *p = &poles[i];
+        MODEL_PARTS *part = (MODEL_PARTS *)(pModelPartsHeader[bank] + p->parts * PARTS_REC_SIZE);
+        short pair;
+
+        if ((part->flags & PARTS_FLAG_HIDDEN) == 0 && (p->flags & HIDE_POLE_FLAG_SHADOW) != 0 &&
+            room == p->room && (pair = ssAI_GetPairScnLinkPoleID(i, bank)) != -1) {
+            float at[4];
+            float d;
+
+            ssAI_GetPolePos(at, pair, bank);
+            d = ssAI_Dist(pos, at);
+            if (d < best) {
+                best = d;
+                found = pair;
+            }
+        }
+    }
+    return found;
+}
+
+// CT3 0x01863870: the route ring emptied and every group's search fields cleared.
+void ssAI_GRS_InitParam(int bank)
+{
+    HIDE_POLE_LIST *list = ssAI_PoleList(bank);
+    HIDE_POLE_GROUP *groups = BANK_PTR(HIDE_POLE_GROUP *, bank, list->groups);
+    int i;
+
+    list->routeHead = 0;
+    list->routeTail = 0;
+    for (i = 0; i < list->groupCount; i++) {
+        groups[i].visited = 0;
+        groups[i].prev = -1;
+        groups[i].cost = 0.0f;
+    }
+}
+
+// CT3 0x018631d0: the length of the step out of group record `group` through its link `link`: from pos to
+// that link pole for the start group (prev -1), else the table's distance from the link it came in by; 0
+// when neither is known.
+float ssAI_GRS_GetNextDistance(short group, int link, const float *pos, int bank)
+{
+    HIDE_POLE_LIST *list = ssAI_PoleList(bank);
+    HIDE_POLE_GROUP *groups = BANK_PTR(HIDE_POLE_GROUP *, bank, list->groups);
+    HIDE_POLE_GROUP *g = &groups[group];
+    short *links = BANK_PTR(short *, bank, g->links);
+    int i;
+
+    if (g->prev == -1) {
+        float at[4];
+
+        if (ssAI_GetGLinkPolPos(at, g->id, groups[links[link]].id, bank) == -1)
+            return 0.0f;
+        return ssAI_Dist(pos, at);
+    }
+    for (i = 0; i < g->linkCount; i++) {
+        if (g->prev == links[i])
+            return BANK_PTR(float *, bank, g->linkDist)[link + i * g->linkCount];
+    }
+    return 0.0f;
+}
+
+// CT3 0x01863420: relaxes every link out of record `from`, recursing into groups whose cost dropped; the
+// target takes the last leg to targPos. (The ROM marks `from`, not the next group, while it recurses.)
+void ssAI_GRS_RouteGrpRecur(HIDE_POLE_GROUP *groups, const float *pos, const float *targPos, short from,
+                            short to, int bank)
+{
+    HIDE_POLE_GROUP *g = &groups[from];
+    HIDE_POLE_GROUP *target = &groups[to];
+    short *links = BANK_PTR(short *, bank, g->links);
+    int n = g->linkCount;
+    int i;
+
+    for (i = 0; i < n; i++) {
+        short next = links[i];
+        HIDE_POLE_GROUP *ng = &groups[next];
+        float d;
+
+        if (ng->visited == 1)
+            continue;
+        d = g->cost + ssAI_GRS_GetNextDistance(from, i, pos, bank);
+        if (ng == target) {
+            float last = ssAI_GRS_GetTargDistance(next, from, targPos, bank);
+
+            if (target->cost == 0.0f || d + last <= target->cost) {
+                ng->prev = from;
+                ng->cost = d + last;
+            }
+        } else if ((ng->cost == 0.0f || d <= ng->cost) && (target->cost == 0.0f || d <= target->cost)) {
+            ng->prev = from;
+            ng->cost = d;
+            g->visited = 1;
+            ssAI_GRS_RouteGrpRecur(groups, pos, targPos, next, to, bank);
+            g->visited = 0;
+        }
+    }
+}
+
+// CT3 0x01863640
+float ssAI_GrpRouteSearch(const float *pos, const float *targPos, short group, short targGroup, int bank)
+{
+    HIDE_POLE_LIST *list = ssAI_PoleList(bank);
+    HIDE_POLE_GROUP *groups;
+    short from = -1, to = -1;
+    short i;
+
+    if (group == targGroup) {
+        ssAI_GRS_InitParam(bank);
+        return ssAI_Dist(targPos, pos);
+    }
+    groups = BANK_PTR(HIDE_POLE_GROUP *, bank, list->groups);
+    for (i = 0; i < list->groupCount && (from == -1 || to == -1); i++) {
+        if (groups[i].id == group)
+            from = i;
+        else if (groups[i].id == targGroup)
+            to = i;
+    }
+    if (to == -1 || from == -1)
+        return AI_ROUTE_NONE;
+    ssAI_GRS_InitParam(bank);
+    ssAI_GRS_RouteGrpRecur(groups, pos, targPos, from, to, bank);
+    for (i = to; groups[i].prev != -1; i = groups[i].prev)
+        ssAI_GRS_PushFront(groups[i].id, bank);
+    return groups[to].cost;
+}

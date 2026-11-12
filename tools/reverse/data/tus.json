@@ -1401,7 +1401,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 89..89, 13 functions keyed by their statics, 83 unkeyed; file name from the names"
   },
   "game/tiAvoidObject.c": {
-   "notes": "Next: LetMonsterInFromShadow, SetMonsterPos, BarrierCheck, SerchCheck, IsTrgWithinAngle, IsGetToGLinkPole, SetNextGLinkPolePoint, GetScnLinkPoleID, then the last 4. Open: open-items.md tiAvoidObject.c slice 5 (r) GRP_LINK is the segment flag, (s) the door number byte is shadowPol, (t) the brain words named from one reader, (u) IsWarpChara argument order, (v) PORT brainless answers 0. callcheck: tnRand sits in the static helper ssAI_RandomPole; the other missing calls are the earlier explained helpers. Smoke shot: the same clock-tower title scene; nothing of slice 5 runs at the title.",
+   "notes": "All 82 functions written; the AI does not run at the title, so verify. Open: open-items.md tiAvoidObject.c slice 6 (x) pole flags 0x04 0x08 0x80 and brain words named from one reader, (y) CHARACTER_FLAG_AI_PARKED is set by SetMonsterPos too, (z) RouteGrpRecur marks the group it recurses from as the ROM does, (aa) second GetShadowPolID takes the other bank, (ab) BarrierCheck lowest-y corners. callcheck: IsTrgWithinAngle misses only the soft-float dpdiv dpmul dptoli. ssAI_SetTraceMode declared and stubbed in ssBrain_ChgHideAtk1.c. Smoke shot: the same clock-tower title scene.",
    "ranges": [
     [
      "0185e9d0",
@@ -1433,9 +1433,14 @@
      "date": "2026-11-12 07:32",
      "status": "partial",
      "summary": "slice 5: 24 functions -- the kinds motion predicates (Forward, Wait, FarAttack, PostAttack, Attack, PreAttack, Find, Action), IsWarpChara, the five IsGetTo arrivals, the group links (GetGLinkPolID, GetGLinkPolPos, GetPairGrpLinkPoleID), GetNextTargPoleRandom and Random2, GetPoleDoorNo and the route ring (GRS PopFront, PushRear, PushFront, GetTargDistance); HIDE_POLE_LIST grows to 0x18 with the ring"
+    },
+    {
+     "date": "2026-11-12 07:54",
+     "status": "verify",
+     "summary": "slice 6: the last 12 functions -- LetMonsterInFromShadow, SetMonsterPos, BarrierCheck, SerchCheck, IsTrgWithinAngle, IsGetToGLinkPole, SetNextGLinkPolePoint, GetScnLinkPoleID and the group route search (GRS_InitParam, GetNextDistance, RouteGrpRecur, GrpRouteSearch); HIDE_POLE_GROUP complete"
     }
    ],
-   "status": "partial",
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 74..74, 14 functions keyed by their statics, 68 unkeyed; file name from the names"
   },
   "game/tiBrain_ChgTrace_BOSS_BALOWS.c": {

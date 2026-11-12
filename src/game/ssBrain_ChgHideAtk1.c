@@ -91,3 +91,10 @@ void ssBrain_Trace1(struct CHARACTER *chr)
 {
     ALYSSAPAN_STUB("ssBrain_Trace1", 0x0187e3d0);
 }
+
+// stub of CT3 0x018817b0
+int ssAI_SetTraceMode(struct CHARACTER *chr, int a1)
+{
+    ALYSSAPAN_STUB("ssAI_SetTraceMode", 0x018817b0);
+    return {};
+}

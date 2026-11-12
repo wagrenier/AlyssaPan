@@ -1774,6 +1774,24 @@ apply here):
   BarrierCheck, SerchCheck, IsTrgWithinAngle, IsGetToGLinkPole, SetNextGLinkPolePoint, GetScnLinkPoleID,
   then the 4 past the slice.
 
+- (2026-11-12, game/tiAvoidObject.c slice 6) **code complete, verify**: the last 12 functions --
+  LetMonsterInFromShadow, SetMonsterPos, BarrierCheck, SerchCheck, IsTrgWithinAngle, IsGetToGLinkPole,
+  SetNextGLinkPolePoint, GetScnLinkPoleID and the group route search (GRS_InitParam, GRS_GetNextDistance,
+  GRS_RouteGrpRecur, GrpRouteSearch). All 82 functions of the TU are written; nothing of the AI runs at the
+  title, so the smoke shot (the clock-tower title scene) cannot show it. **HIDE_POLE_GROUP is complete**
+  (+5 visited, +0xa prev, +0xc linkDist: a relocated float[linkCount][linkCount], +0x10 cost: settles (n)).
+  Doubts: (x) the hide-pole flags 0x04 / 0x08 / 0x80 (HIDE_POLE_FLAG_OWN_GROUP / _CROSS_BANK / _DOOR_ALT) and
+  the brain words +0x24 (BRAIN_GOAL_ROOM), +0x28, +0x2a, +0x3e, +0x70, +0x74, +0x248..+0x24c are named from
+  LetMonsterInFromShadow / SetMonsterPos only: the brain TUs confirm; (y) SetMonsterPos sets
+  CHARACTER_FLAG_AI_PARKED (0x02000000) when it places a stalker, so the flag is more likely "placed by the
+  AI" than "parked": rename when its reader is read; (z) GRS_RouteGrpRecur marks the group it recurses from,
+  not the next one, as the ROM does (kept); it takes a host HIDE_POLE_GROUP * where the ROM passes the EE
+  word; (aa) the second GetShadowPolID in LetMonsterInFromShadow takes (shadowPol, otherBank): the
+  decompiler dropped the arguments, a1 is the other bank by the register flow (to confirm by disassembly if
+  a run disagrees); (ab) BarrierCheck probes from the four box corners with the smallest y (y up or down in
+  CT3 is not settled here). callcheck: IsTrgWithinAngle misses dpdiv / dpmul / dptoli, the soft-float
+  library the host does in doubles; ssAI_SetTraceMode (ssBrain_ChgHideAtk1.c) is declared and stubbed.
+
 - (2026-11-12, game/wideXcmd_TriggerInit.c slice 6) **code complete, verify**: test_ssXcmd_BrainSet4, the
   last stub. **(1 am) decided, Claude's call (the user may overrule):** CHARACTER.brain stays the EE word
   but holds a handle (0 = none, else slot + 1) into the host table CharaBrainHost[35] (ct3_types.h

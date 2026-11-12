@@ -25,3 +25,5 @@ void ssBrain_Attack1(struct CHARACTER *chr);                                    
 void ssBrain_Trace1(struct CHARACTER *chr);                                              // CT3 0x0187e3d0
 void ssBrain_Approach1(struct CHARACTER *chr);                                           // CT3 0x0187f000
 void ssBrain_Search1(struct CHARACTER *chr);                                             // CT3 0x0187fbe0
+// From ssAI_SetMonsterPos (tiAvoidObject.c slice 6, 2026-11-12): -1 when no trace could be planned.
+int ssAI_SetTraceMode(struct CHARACTER *chr, int a1);                                    // CT3 0x018817b0

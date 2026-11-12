@@ -121,17 +121,22 @@ typedef struct HIDE_POLE_LIST {
 } HIDE_POLE_LIST;
 static_assert(sizeof(HIDE_POLE_LIST) == 0x18, "HIDE_POLE_LIST");
 static_assert(offsetof(HIDE_POLE_LIST, routeTail) == 0x16, "HIDE_POLE_LIST.routeTail");
-// A group of hide poles and the groups it links to (ssAI_IsNextGroup; layout: ee, bank data). The record
-// is 0x14 bytes; the bytes past id are unread so far.
+// A group of hide poles and the groups it links to (ssAI_IsNextGroup; layout: ee, bank data). visited,
+// prev and cost are the route search's work fields (ssAI_GRS_InitParam clears them; slice 6).
 typedef struct HIDE_POLE_GROUP {
     u_int links;                        /* 0x0: short[linkCount]: indices of linked records (EE address) */
     u_char linkCount;                   /* 0x4 */
-    u_char pad05[3];
+    u_char visited;                     /* 0x5: 1 while the search recurses through this group */
+    u_char pad06[2];
     short id;                           /* 0x8: the group id (HIDE_POLE.group) */
-    u_char pad0a[0xa];
+    short prev;                         /* 0xa: the record the cheapest route came from; -1 the start */
+    u_int linkDist;                     /* 0xc: float[linkCount][linkCount] (EE address): [in][out] the
+                                           distance between the link poles to links[in] and links[out] */
+    float cost;                         /* 0x10: the cheapest route's length so far; 0 = none yet */
 } HIDE_POLE_GROUP;
 static_assert(sizeof(HIDE_POLE_GROUP) == 0x14, "HIDE_POLE_GROUP");
 static_assert(offsetof(HIDE_POLE_GROUP, id) == 0x8, "HIDE_POLE_GROUP.id");
+static_assert(offsetof(HIDE_POLE_GROUP, cost) == 0x10, "HIDE_POLE_GROUP.cost");
 #define HIDE_POLE_FLAG_ATTACK 0x01      /* SetHideAttackPole: a stalker may strike from this pole */
 #define HIDE_POLE_FLAG_SEGMENT 0x02     /* the position is the middle of A and B (ssAI_GetPolePos) */
 #define HIDE_POLE_FLAG_SHADOW 0x10      /* a shadow polygon's pole: shadowPol is valid */
@@ -294,3 +299,58 @@ short ssAI_GRS_PopFront(int bank);                                              
 int ssAI_GRS_PushRear(short v, int bank);                                                // CT3 0x018630f0
 int ssAI_GRS_PushFront(short v, int bank);                                               // CT3 0x01863160
 float ssAI_GRS_GetTargDistance(short from, short to, const float *pos, int bank);        // CT3 0x01863330
+
+// ---- slice 6 (2026-11-12): the shadow entry, the placement, the sight checks, the group route search ----
+// Brain words read by slice 6 (named from these readers only: open-items.md tiAvoidObject.c slice 6).
+#define BRAIN_GOAL_ROOM 0x024           /* u_int: SetMonsterPos re-plans a trace when BRAIN_ROOM leaves it */
+#define BRAIN_POLE_GROUP 0x028          /* short: the hide-pole group chr stands in (CHARACTER.h100 too) */
+#define BRAIN_BANK 0x02a                /* u_char: the scene bank of BRAIN_ROOM */
+#define BRAIN_LINK_POLE 0x03e           /* short: the scene-link pole chr goes through */
+#define BRAIN_TARG_POLE 0x070           /* short: the pole BRAIN_NEXT_POINT stands at */
+#define BRAIN_LINK_BANK 0x074           /* s_char: the bank on the scene link's other side */
+#define BRAIN_DOOR_MOTION_ALT 0x248     /* short: entering through a closed door with HIDE_POLE_FLAG_DOOR_ALT */
+#define BRAIN_DOOR_MOTION 0x24a         /* short: entering through a closed door otherwise */
+#define BRAIN_DOOR_MOTION_END 0x24c     /* short: played after either door motion */
+// Hide-pole flags read by LetMonsterInFromShadow (named from that one use: guesses).
+#define HIDE_POLE_FLAG_OWN_GROUP 0x04   /* the entry takes this pole's group, not the other bank's shadow's */
+#define HIDE_POLE_FLAG_CROSS_BANK 0x08  /* the stalker enters the other bank's room (with a door check) */
+#define HIDE_POLE_FLAG_DOOR_ALT 0x80    /* the closed door plays BRAIN_DOOR_MOTION_ALT */
+#define AI_BARRIER_LIFT 10.0f           /* ssAI_BarrierCheck: both ends of its probes are lifted this much */
+#define AI_SEARCH_EYE 180.0f            /* ssAI_SerchCheck: the searcher's eye above its feet */
+#define AI_SEARCH_HEAD 160.0f           /* the target's head above its feet (standing) */
+#define AI_SEARCH_HEAD_LOW 30.0f        /* the same while it bends or is down */
+#define AI_ROUTE_NONE (-1.0f)           /* ssAI_GrpRouteSearch: a group is not in the bank */
+// Puts a stalker into its room through the shadow polygon shadowPol of `bank` (its scene-link pair is the
+// way on): 0, or -1 when the shadow has no pole or pair, the other bank is not loaded, or the placement
+// failed. motion follows the door motions.
+int ssAI_LetMonsterInFromShadow(struct CHARACTER *chr, u_char otherBank, u_char bank, s_char shadowPol,
+                                short motion);                                           // CT3 0x0185f970
+// Moves chr to pos (both positions) in pole group `group`; room != 0 also moves it into that room of bank.
+// endProc first ends the brain's effects and plays its end motion. -1 when a trace could not be re-planned.
+int ssAI_SetMonsterPos(struct CHARACTER *chr, const float *pos, short group, u_char bank, u_int room,
+                       int endProc);                                                     // CT3 0x01862170
+// 1 when a probe from one of the four lowest-y corners of chr's box to pos hits bank's collision.
+int ssAI_BarrierCheck(struct CHARACTER *chr, const float *pos, int bank);                // CT3 0x018600e0
+// 1 when chr sees target: within dist, within fov (rot units) of its facing, and a line from its eye to
+// target's feet or head is clear in bank.
+int ssAI_SerchCheck(float dist, struct CHARACTER *chr, struct CHARACTER *target, int fov,
+                    int bank);                                                           // CT3 0x01860250
+// 1 when the direction dir lies within fov / 2 of chr's facing (rot units).
+int ssAI_IsTrgWithinAngle(const float *dir, struct CHARACTER *chr, int fov);             // CT3 0x018605d0
+// 1 when chr stands within AI_ARRIVE_DIST of the group-link segment `pole`; -1 when it is no link.
+int ssAI_IsGetToGLinkPole(struct CHARACTER *chr, short pole, int bank);                  // CT3 0x01861b90
+// The brain's next point: where the line from chr to pos (pos mirrored across the link when both stand on
+// one side) crosses the group-link segment `pole` in the XZ plane, else the nearer end; -1 when the
+// crossing falls outside the segment.
+int ssAI_SetNextGLinkPolePoint(short pole, int bank, struct CHARACTER *chr, const float *pos); // CT3 0x01862290
+// The scene-link pole into room nearest pos (the pair of a shown shadow pole leading there); -1 for none.
+short ssAI_GetScnLinkPoleID(const float *pos, u_int room, int bank);                     // CT3 0x018629f0
+// The route search over the bank's pole groups (HIDE_POLE_GROUP's work fields; route ring of group ids).
+float ssAI_GRS_GetNextDistance(short group, int link, const float *pos, int bank);       // CT3 0x018631d0
+void ssAI_GRS_RouteGrpRecur(HIDE_POLE_GROUP *groups, const float *pos, const float *targPos, short from,
+                            short to, int bank);                                         // CT3 0x01863420
+// The length of the shortest route from pos in group `group` to targPos in group `targGroup`, its groups
+// pushed on the route ring (the start's excluded); AI_ROUTE_NONE when a group is not in the bank.
+float ssAI_GrpRouteSearch(const float *pos, const float *targPos, short group, short targGroup,
+                          int bank);                                                     // CT3 0x01863640
+void ssAI_GRS_InitParam(int bank);                                                       // CT3 0x01863870
