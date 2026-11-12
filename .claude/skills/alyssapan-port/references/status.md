@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-12 02:52 at commit `fbac462` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-12 03:15 at commit `7ce10c3` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1402**; stubs: **152**
+- reconstructed CT3 functions: **1423**; stubs: **133**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -87,12 +87,12 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/ssGrpPortalCheck.c` | 74 | 0 |
 | `src/game/ssHitCheckAttackToScn.c` | 37 | 0 |
 | `src/game/ssSetTexUVforCubeMap.c` | 96 | 0 |
-| `src/game/tiAvoidObject.c` | 0 | 10 |
+| `src/game/tiAvoidObject.c` | 0 | 12 |
 | `src/game/tiXcmd_TransItem.c` | 85 | 8 |
 | `src/game/tkXDTrg_GetSceneHash.c` | 50 | 0 |
 | `src/game/tnXcmd.c` | 0 | 8 |
 | `src/game/wideXcmd_DebugPrint.c` | 109 | 0 |
-| `src/game/wideXcmd_TriggerInit.c` | 1 | 43 |
+| `src/game/wideXcmd_TriggerInit.c` | 22 | 22 |
 | `src/game/xcmd_tn.c` | 59 | 0 |
 | `src/lib/unassigned_stubs.cpp` | 0 | 1 |
 
@@ -103,7 +103,7 @@ Least-named game-code regions (64 KB blocks):
 - pinned queue: alyssapan/rendering/ui_canvas.cpp
 - partial: `game/BRANCH_CLEAR.c` 173/173 -- 15 s smoke run: no fault, shot black (no host draw module yet). callcheck: GetAreaFloor's memcmp and ssTrigRemoveEvent come through ROOM_IS and AreaFloorClear (
 - partial: `game/tiXcmd_TransItem.c` 85/93 -- Slice 10. Written: tiXcmd_UseItem (ITEM_USE_* modes from argv[4], ITEM_KIND_* from the row byte +0: give-take, signal, heal Character[0].hp up to hpMax, calm vi
-- partial: `game/wideXcmd_TriggerInit.c` 1/46 -- Title draws at 4:3 and 16:9 after 40 s (logo, 3, menu, copyright). Fix in SunTexEePtr, BankOfEeAddr, HitObjectId: free slot banks shared EE addresses with the G
+- partial: `game/wideXcmd_TriggerInit.c` 21/46 -- 22 stubs left: AXE_CheckHitAndCompDir, AXE_SetPath, AXE_SetStartPos, ForceIntoSearchMode (ssAI_BrainInit table args unread), test_BrainSet4, CheckAtkHit*, LockT
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
@@ -146,6 +146,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-12 03:15 `game/wideXcmd_TriggerInit.c` partial: slice 2: wideXcmd_TriggerInit, GlobalSetEnable, the axe state (AXE_INFO, ssAI_AXE_IsThrowing, ssAI_AXE_Init, AXE_ThrowEnd, AXE_InitParam), the stalkers AI x com
 - 2026-11-12 02:52 `game/ssSetTexUVforCubeMap.c` verify: reconstruct 11 functions: the full-screen sprite passes (HQDOF write-back and pre-render, hazy, ultima, blur, DOF pre, post and draw); TU code complete
 - 2026-11-12 02:33 `game/ssSetTexUVforCubeMap.c` partial: reconstruct 7 functions (vaseline trigger, screen-position picker and draw data; vaseline and wave diamond passes and their draw environment)
 - 2026-11-12 02:17 `game/ssSetTexUVforCubeMap.c` partial: reconstruct 13 functions (2D particle simulation, wave start, screen sprite setters)
@@ -153,18 +154,17 @@ Recent sessions:
 - 2026-11-12 01:40 `game/ssSetTexUVforCubeMap.c` partial: reconstruct 15 functions, stub 1 (particle main loop, emission, push-backs, orbit and motions, blur draw-table insert, DOF slice clip, particle all-off, hazy en
 - 2026-11-12 01:07 `game/ssSetTexUVforCubeMap.c` partial: reconstruct 13 functions (particle curve readers, per-slot setters, ring life helpers)
 - 2026-11-12 01:00 `game/ssSetTexUVforCubeMap.c` partial: reconstruct 13 functions (reflection maps, ambient change, particle init, small triggers)
-- 2026-11-12 00:34 `game/ssSetTexUVforCubeMap.c` partial: reconstruct 11 functions, stub 2
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
 | `game/CpDivideEECom.c` | todo | 0/10/18 | 3.3 | 80 | 10 |
+| `game/tiAvoidObject.c` | todo | 0/12/82 | 30.5 | 40 | 4 |
 | `ga/gaDrawObject.c` | todo | 0/11/11 | 6.9 | 39 | 0 |
-| `game/tiAvoidObject.c` | todo | 0/10/82 | 30.5 | 31 | 4 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/AA_GetDataWord.c` | todo | 0/8/15 | 4.9 | 21 | 2 |
 | `game/AA_SoundMonoSoart.c` | todo | 0/8/20 | 4.0 | 18 | 2 |
-| `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
 | `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
+| `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
 | `ga/gaObjectClippingCheck.c` | todo | 0/1/1 | 0.2 | 12 | 1 |
 | `game/asMothPause.c` | todo | 0/1/1 | 0.3 | 10 | 0 |
 | `game/ssCalcInversMatrix2.c` | todo | 0/5/5 | 5.7 | 7 | 0 |
@@ -180,6 +180,7 @@ Recent sessions:
 | `018a3078` | gaObjectClippingCheck | 7 | sym | stub | ga/gaObjectClippingCheck.c |
 | `018518d0` | ConvertMatrix2Quat | 6 | sym | stub | game/Convert.c |
 | `018d1fa0` | CpSifDmaTransEEToIOP | 6 | sym | stub | game/CpDivideEECom.c |
+| `01866510` | ssAI_SetAppearanceTimer | 6 | sym | stub | game/tiAvoidObject.c |
 | `018a4fe0` | gaDrawObject_VertexLocalViewWithClippingFlagSet | 6 | sym | stub | ga/gaDrawObject.c |
 | `018a51e8` | gaDrawObject_VertexLocalViewWithClippingFlagSet_Billboard | 6 | sym | stub | ga/gaDrawObject.c |
 | `018a5fe0` | gaDrawObject_MakeVertexReferenceTable | 6 | sym | stub | ga/gaDrawObject.c |
@@ -195,6 +196,7 @@ Recent sessions:
 | `018a6038` | gaDrawObject_MakeVertexReferenceTableNoClip | 3 | sym | stub | ga/gaDrawObject.c |
 | `018a9570` | ssHitMakeAttackOBB | 2 | sym | stub | game/ssCalcInversMatrix2.c |
 | `018a9390` | ssHitMakeDamageOBB | 2 | sym | stub | game/ssCalcInversMatrix2.c |
+| `0185f710` | ssAI_MonsterDraw | 2 | sym | stub | game/tiAvoidObject.c |
 | `018c1d80` | AA_videoDecSetStream | 2 | sym | stub | game/AA_mpegTS.c |
 | `018bff20` | AA_strFileOpen | 2 | sym | stub | game/AA_videoCallback.c |
 | `018d2120` | CpCall_IOPSndDriver_2 | 2 | sym | stub | game/CpDivideEECom.c |
@@ -202,6 +204,7 @@ Recent sessions:
 | `018c0310` | AA_cpuCycles | 2 | sym | stub | game/AA_cpuCycles.c |
 | `018c1cd0` | AA_videoDecGetState | 2 | sym | stub | game/AA_mpegTS.c |
 | `018c1ba0` | AA_videoDecFlush | 2 | sym | stub | game/AA_mpegTS.c |
+| `01865e20` | ssAI_BrainEnd | 2 | sym | stub | game/tiAvoidObject.c |
 | `018a6080` | gaDrawObject_SetBig | 2 | sym | stub | ga/gaDrawObject.c |
 | `0189f720` | gaDrawObject_Redraw_Polygon | 2 | sym | stub | ga/gaDrawObject_Redraw_Polygon.c |
 | `01860860` | ssAI_IsHaiHaiPlaying | 2 | sym | stub | game/tiAvoidObject.c |
@@ -211,7 +214,4 @@ Recent sessions:
 | `018bfde0` | AA_readBufDelete | 1 | sym | stub | game/AA_videoCallback.c |
 | `018c2080` | AA_voBufDelete | 1 | sym | stub | game/AA_mpegTS.c |
 | `018c1cf0` | AA_videoDecDelete | 1 | sym | stub | game/AA_mpegTS.c |
-| `018bc4d0` | AA_audioDecDelete | 1 | sym | stub | game/AA_SoundMonoSoart.c |
-| `018bfe80` | AA_strFileClose | 1 | sym | stub | game/AA_videoCallback.c |
-| `018bfdf0` | AA_readBufCreate | 1 | sym | stub | game/AA_videoCallback.c |
 

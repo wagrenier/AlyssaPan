@@ -7,6 +7,12 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-12, wideXcmd_TriggerInit.c slice 2) **Ghidra drops an argument a loop load puts in a3.**
+  ssXcmd_AXE_ThrowEnd / _InitParam call ssTrigSetEnable(part, 1, 0) in the decompilation, but the
+  disassembly loads the hit slot's first word with lw a3 just before the call: it is the bank (4th
+  argument), and the slot's "active" flag is that bank (0 = free). When a call shows fewer arguments than
+  its prototype, read the a-registers in mipsdis.py before the jal.
+
 - (2026-11-12, ssSetTexUVforCubeMap.c slice 8) **A caller's arguments do not make a prototype.** main.c
   (ssDOF_DrawAllObject) was written calling ssBGT_DOFDrawSprite(pass, level) and
   _DOFSetDrawEnvPostRend(pass, level) because a0 / a1 held them at the call; the callees never read them.

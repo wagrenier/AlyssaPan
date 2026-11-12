@@ -67,3 +67,15 @@ int ssAI_IsHaiHaiPlaying(struct CHARACTER *chr)
     ALYSSAPAN_STUB("ssAI_IsHaiHaiPlaying", 0x01860860);
     return {};
 }
+
+// stub of CT3 0x01866510
+void ssAI_SetAppearanceTimer(int time)
+{
+    ALYSSAPAN_STUB("ssAI_SetAppearanceTimer", 0x01866510);
+}
+
+// stub of CT3 0x018664f0
+void ssAI_SetNoReactionTimer(int time)
+{
+    ALYSSAPAN_STUB("ssAI_SetNoReactionTimer", 0x018664f0);
+}

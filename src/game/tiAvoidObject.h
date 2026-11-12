@@ -21,3 +21,7 @@ void ssAI_AxeThrowReset(void);                                                  
 // From ssCollisionCheck / ssColCheckChar_Chara (ssHitCheckAttackToScn.c, 2026-11-12): 1 while Alyssa
 // (id 0) crawls (her motion short at +0x398 is one of the crawl motions; read from the ROM, not written).
 int ssAI_IsHaiHaiPlaying(struct CHARACTER *chr);                                         // CT3 0x01860860
+// From ssXcmd_SetNoReactionTimer / _SetAppearanceTimer / _SetChaseFlagAndTimer (wideXcmd_TriggerInit.c,
+// 2026-11-12): the script's number passed on (the chase flag's timers are 4..10).
+void ssAI_SetNoReactionTimer(int time);                                                  // CT3 0x018664f0
+void ssAI_SetAppearanceTimer(int time);                                                  // CT3 0x01866510

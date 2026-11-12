@@ -5,6 +5,34 @@
 
 #include "sdk/scetypes.h"
 
+#include <stddef.h>
+
+// The thrown axe (Character[HIT_CHARA_ONO], the axe stalker): AxeInfo, a 64-byte local the AXE x
+// commands and ssAI_AXE_* share (2026-11-12, slice 2).
+#define AXE_HIT_MAX 4                   /* parts the axe can have switched off at once */
+typedef struct AXE_HIT {
+    int bank;                           /* 0x0: the bank of the part the axe hid, 0 = slot free (the ROM
+                                           passes this word as ssTrigSetEnable's bank: Ghidra drops a3) */
+    int part;                           /* 0x4: that model part */
+} AXE_HIT;
+static_assert(sizeof(AXE_HIT) == 8, "AXE_HIT");
+typedef struct AXE_INFO {
+    float dir[4];                       /* 0x00: the throw's direction (ssAI_AXE_Init: vf0, (0, 0, 0, 1)) */
+    AXE_HIT hits[AXE_HIT_MAX];          /* 0x10 */
+    int ticks;                          /* 0x30: ticks since the throw (SetPath adds gNextTicksInterval) */
+    float speed;                        /* 0x34: AXE_InitParam argv[0] */
+    float drop;                         /* 0x38: AXE_InitParam argv[1]: the fall per 5 ticks */
+    int throwing;                       /* 0x3c: 1 from AXE_SetStartPos to the throw's end */
+} AXE_INFO;
+static_assert(sizeof(AXE_INFO) == 0x40, "AXE_INFO");
+static_assert(offsetof(AXE_INFO, ticks) == 0x30, "AXE_INFO.ticks");
+static_assert(offsetof(AXE_INFO, throwing) == 0x3c, "AXE_INFO.throwing");
+
+struct CHARACTER;
+// The axe's state for the AI (ssBrain_ChgHideAtk1.c, tiBrain_ChgTrace_BOSS_BALOWS.c, tiAvoidObject.c).
+int ssAI_AXE_IsThrowing(struct CHARACTER *chr);                                          // CT3 0x018dd680
+void ssAI_AXE_Init(void);                                                                // CT3 0x018de3e0
+
 // An xcmd: argv[0] (atoi) is read first; asYumi_Run_Check passes "0", "4" and Alyssa's bank.
 void ssXcmd_LockToTargChara(int argc, char **argv, short bank);                         // CT3 0x018dfd70
 

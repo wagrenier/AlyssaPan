@@ -449,7 +449,8 @@ typedef struct ALL_TABLE {
                                            (asSeekBarInitializeForX takes the CTRL_KIND_SEEKBAR ones);
                                            also its cameras: +0 the CAM_CUT records, +4 the CAM_TRG
                                            records, +0xc (u_char) the cut count (CamChangeSub) */
-    u_int padc4[2];
+    u_int hidePoles;                    /* 0xc4: HIDE_POLE_LIST (wideXcmd_TriggerInit.c: SetHideAttackPole) */
+    u_int padc8;
     u_int mirror;                       /* 0xcc: MIRROR_LIST (asEnumMirror), 0 = no mirror */
     u_int padd0[2];
     u_int search;                      /* 0xd8: SEARCH_TABLE (asSearchObject), 0 = none */
@@ -461,6 +462,7 @@ typedef struct ALL_TABLE {
                                            so the host keeps it in SeekBarX[bank] (this word stays 0) */
 } ALL_TABLE;
 static_assert(offsetof(ALL_TABLE, ctrl) == 0xc0, "ALL_TABLE.ctrl");
+static_assert(offsetof(ALL_TABLE, hidePoles) == 0xc4, "ALL_TABLE.hidePoles");
 static_assert(offsetof(ALL_TABLE, mirror) == 0xcc, "ALL_TABLE.mirror");
 static_assert(offsetof(ALL_TABLE, search) == 0xd8, "ALL_TABLE.search");
 static_assert(offsetof(ALL_TABLE, seat) == 0xdc, "ALL_TABLE.seat");

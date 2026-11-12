@@ -1587,7 +1587,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 141..141, 28 functions keyed by their statics, 80 unkeyed; file name from the names"
   },
   "game/wideXcmd_TriggerInit.c": {
-   "notes": "Title draws at 4:3 and 16:9 after 40 s (logo, 3, menu, copyright). Fix in SunTexEePtr, BankOfEeAddr, HitObjectId: free slot banks shared EE addresses with the GLBL heap. Next on the title path: E_00 load after NEW (tnXcmd_LoadWait), the wide-aspect backdrop seams, ExportDrawToTex unbinding (open-items 8 ko2..kq2). The rest of this TU are stubs.",
+   "notes": "22 stubs left: AXE_CheckHitAndCompDir, AXE_SetPath, AXE_SetStartPos, ForceIntoSearchMode (ssAI_BrainInit table args unread), test_BrainSet4, CheckAtkHit*, LockToTargChara, the arrow commands. Brain offsets and AI_MODE values named from these uses only (open-items Open questions 2026-11-12). Shot unchanged: title clock-tower backdrop; nothing here draws.",
    "ranges": [
     [
      "018dd550",
@@ -1599,6 +1599,11 @@
      "date": "2026-11-11 18:57",
      "status": "partial",
      "summary": "ssXcmd_SetAllControlDisable (the title script waited on its stub after START); EE resolvers skip free banks so ATLD's textures bind: the title screen draws"
+    },
+    {
+     "date": "2026-11-12 03:15",
+     "status": "partial",
+     "summary": "slice 2: wideXcmd_TriggerInit, GlobalSetEnable, the axe state (AXE_INFO, ssAI_AXE_IsThrowing, ssAI_AXE_Init, AXE_ThrowEnd, AXE_InitParam), the stalkers AI x commands, the test commands: 23 functions"
     }
    ],
    "status": "partial",

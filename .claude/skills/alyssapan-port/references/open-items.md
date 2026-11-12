@@ -1679,6 +1679,22 @@ apply here):
 
 ## Open questions
 
+- (2026-11-12, game/wideXcmd_TriggerInit.c slice 2) **partial, 21 x commands + ssAI_AXE_IsThrowing /
+  ssAI_AXE_Init written** (the wide triggers, the axe's state, the stalkers' AI commands, the test
+  commands); 22 stubs left (AXE_CheckHitAndCompDir / SetPath / SetStartPos, ForceIntoSearchMode -- it
+  calls ssAI_BrainInit[brain +0x230], a 6-entry function table at 0x01938580 whose arguments are unread --,
+  test_BrainSet4, the CheckAtkHit*, LockToTargChara, the arrow commands). Named from these uses only, the
+  AI TU (tiAvoidObject.c) confirms: (a) the brain's bytes BRAIN_AI_MODE (+0), BRAIN_RETURN_TIMER (+0x218,
+  frames), +0x181 / +0x182 (AXE_ThrowEnd: 0xff / 0) and AI_MODE_* (0 search, 1 and 3 chase, 4 drops the
+  chase flag; 2 / 5 unnamed); (b) CHARACTER.h100 is the room id the portals set, and StayGroup /
+  test_SetGroupID treat it as the stalker's group: rename it roomId when its owner TU is written; (c)
+  global event 0xcb TRIG_EVENT_CHASE; SetAdvantageousTime registers 0x99, the event Character_Init.h
+  names TRIG_EVENT_MC_LOADED -- one of the two names is too narrow; (d) ALL_TABLE +0xc4 is now hidePoles
+  (HIDE_POLE_LIST { records, count }, 0x50-byte HIDE_POLE: +0x48 flags, +0x4a id); (e) AXE_INFO
+  (AxeInfo, 0x019447f0) in wideXcmd_TriggerInit.h: hits[i].bank is passed as ssTrigSetEnable's bank
+  (hazards.md). The brain reads go through CharaBrain, the (am) EE-word form main2.c uses: nothing sets
+  a brain on the host yet, so all these see no brain.
+
 - (2026-11-12, game/ssSetTexUVforCubeMap.c slice 8) **code complete, verify**: the last 11 functions --
   the full-screen sprite passes (HQDOF write-back and pre-render, hazy, ultima, blur, DOF pre / post /
   draw) -- written from the disassembly (every gaSetupDBufferData / gaSetupDrawCtrlData slot read off the
