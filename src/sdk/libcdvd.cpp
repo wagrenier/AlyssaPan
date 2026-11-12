@@ -82,6 +82,42 @@ int sceCdSearchFile(sceCdlFILE *fp, const char *name)
     return 1;
 }
 
+// ---- streaming (sceCdSt*): the movie's stream file (CT3 game/AA_videoCallback.c) ----------------------
+// The IOP's stream ring is not needed: sceCdStRead reads straight from the disc at the stream's cursor,
+// inside the call. Every call succeeds (the ROM retries StStart / StStop until they answer non-zero).
+namespace
+{
+std::uint32_t streamLsn = 0; // the next sector sceCdStRead hands out
+} // namespace
+
+int sceCdStInit(u_int, u_int, u_int)
+{
+    streamLsn = 0;
+    return 1;
+}
+
+int sceCdStStart(u_int lbn, sceCdRMode *)
+{
+    streamLsn = lbn;
+    return 1;
+}
+
+// The sectors read (`size` is in sectors); 0 past the disc's end.
+int sceCdStRead(u_int size, u_int *buf, u_int, u_int *err)
+{
+    if (err != nullptr)
+        *err = SCECdErNO;
+    if (size == 0 || !Disc::instance().read(streamLsn, size, reinterpret_cast<std::byte *>(buf)))
+        return 0;
+    streamLsn += size;
+    return static_cast<int>(size);
+}
+
+int sceCdStStop()
+{
+    return 1;
+}
+
 int sceCdTrayReq(int, u_int *traychk)
 {
     if (traychk != nullptr)

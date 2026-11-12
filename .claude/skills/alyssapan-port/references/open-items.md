@@ -962,6 +962,17 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    side: EndPut's third argument is the packet's 64-bit pts. **Next for the movie: AA_viBuf.c,
    AA_scTag2.c, AA_videoCallback.c / copy2area.c, AA_cpuCycles.c (now also AA_syncClockInAudio), then a run
    with movies on.**
+   **game/AA_videoCallback.c (2026-11-12, verify: smoke runs skip the movies): all 11 written** (ezmpegstr's
+   videoCallback, readbuf.c, strfile.c with CT3's packed rows and retry counter; architecture.md "The movie's
+   stream file and read ring"). New host piece: the drive stream sceCdStInit / StStart / StRead / StStop
+   (sdk/libcdvd.cpp, reading io::Disc at a cursor). AA_videoDecPutTs now answers int; copy2area declared in
+   copy2area.h. Claude's calls and doubts: (ho) StrFile is layout: host (iopBuf a host pointer); the ROM's
+   EE offsets are in the comments; (hp) AA_strFileOpen works on a copy of the name (the ROM rewrites the
+   caller's string after the colon in place) and zeroes the path it prints for a bare name (the ROM prints
+   it unset); (hq) callcheck's "missing index" is strchr (MinGW has no index()); (hr) the movies are cdrom0 names under DATA/MOVIE2 (the log: cdrom0:\data/movie2/m_capcom.mov); the first
+   run with movies on should check that Disc::find answers the converted "\DATA\MOVIE2\M_CAPCOM.MOV;1"
+   (else 255 retries, then openError and "File Open Error!!").
+   **Next for the movie: AA_viBuf.c, AA_scTag2.c, copy2area.c, AA_cpuCycles.c, then a run with movies on.**
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
    class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~

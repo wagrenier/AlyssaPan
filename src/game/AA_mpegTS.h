@@ -86,7 +86,7 @@ void AA_videoDecMain(void *videoDec);                                           
 int AA_videoDecIsFlushed(VideoDec *vd);                                                  // CT3 0x018c1b60
 int AA_videoDecFlush(VideoDec *vd);                                                      // CT3 0x018c1ba0
 int AA_videoDecInputCount(VideoDec *vd);                                                 // CT3 0x018c1c70
-void AA_videoDecPutTs(VideoDec *vd, int64_t pts, int64_t dts, u_char *start, int len);  // CT3 0x018c1c80
+int AA_videoDecPutTs(VideoDec *vd, int64_t pts, int64_t dts, u_char *start, int len);   // CT3 0x018c1c80
 int AA_videoDecSetState(VideoDec *vd, int state);                                        // CT3 0x018c1cc0
 int AA_videoDecGetState(VideoDec *vd);                                                   // CT3 0x018c1cd0
 void AA_videoDecAbort(VideoDec *vd);                                                     // CT3 0x018c1ce0

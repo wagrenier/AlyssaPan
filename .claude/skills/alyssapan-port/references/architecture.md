@@ -1741,3 +1741,19 @@ The auto-load at boot (MemorycardAutoLoad, xcmd_tn.c) has its own states (mcMain
   the count outgrows it: the port reads it only inside the ring); the middle-stamp loop steps modulo the
   IOP ring's size and audioDecCreate clears the IOP ring for the EE ring's count (both rings are 0x40, so
   neither matters).
+
+## The movie's stream file and read ring, game/AA_videoCallback.c (2026-11-12)
+
+- The object (0x018bfbf0..0x018c0310, symtab local chunk 112) is ezmpegstr's **videoCallback + readbuf.c +
+  strfile.c**, AA_-prefixed. ReadBuf (0x10): data, put, count, size (0x60000). CT3's BeginPut answers the
+  whole free room (ezmpegstr's stops at the ring's end); readMpeg's 0x10000 reads divide the ring.
+- StrFile (0x38): isOnCD 0x00 (0 a file system path, 1 cdrom0, **2 a bare name = a CT3PACK.DAT row**:
+  FlFindPacked, lsn = gFlPackInfo[].sect, size = .size, flag 0), size 0x04, the SDK's 0x24-byte sceCdlFILE
+  0x08 (lsn, size, name[16], date[8], flag), iopBuf 0x2c (sceSifAllocSysMemory(0, 0x28010)), fd 0x30,
+  **openError 0x34** (CT3's). A cdrom0 name gets '/' -> '\', upper case and ';1' when it has no ';'.
+  sceCdStInit(80 sectors, 5 banks, iopBuf aligned 16); sceCdStStart / StStop are retried each frame
+  until they answer non-zero. A failed sceCdSearchFile with GetError 0 decrements AA_CdDvd_trial_Ct
+  (initAll sets 0xff) and asks for a retry; below 0 it sets openError and answers 1.
+- The host's drive stream (sdk/libcdvd.cpp, 2026-11-12): StInit / StStart / StStop answer 1, StRead reads
+  the disc image at the stream's cursor inside the call.
+- AA_videoDecPutTs answers AA_viBufPutTs's result (0 = stamp ring full -> "pts buffer overflow").

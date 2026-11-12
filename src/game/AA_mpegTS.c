@@ -234,8 +234,9 @@ int AA_videoDecInputCount(VideoDec *vd)
     return AA_viBufCount(&vd->vibuf);
 }
 
-// CT3 0x018c1c80: a payload's time stamp, by its place in the ring.
-void AA_videoDecPutTs(VideoDec *vd, int64_t pts, int64_t dts, u_char *start, int len)
+// CT3 0x018c1c80: a payload's time stamp, by its place in the ring; answers the ring's (0: the stamp
+// ring is full, AA_videoCallback's "pts buffer overflow").
+int AA_videoDecPutTs(VideoDec *vd, int64_t pts, int64_t dts, u_char *start, int len)
 {
     TimeStamp ts;
 
@@ -243,7 +244,7 @@ void AA_videoDecPutTs(VideoDec *vd, int64_t pts, int64_t dts, u_char *start, int
     ts.dts = dts;
     ts.pos = (int)(start - vd->vibuf.data);
     ts.len = len;
-    AA_viBufPutTs(&AA_videoDec.vibuf, &ts);
+    return AA_viBufPutTs(&AA_videoDec.vibuf, &ts);
 }
 
 // CT3 0x018c1cc0: sets the state, answers the old one.

@@ -456,12 +456,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 114..114, 1 functions keyed by their statics, 12 unkeyed; file name from the names"
   },
   "game/AA_videoCallback.c": {
+   "notes": "verify: smoke runs skip the movies, so no shot shows the stream; the 25 s run still reaches the title scene. AA_videoDecPutTs now answers int (the ROM tests it); copy2area declared and stubbed. StrFile layout host (iopBuf pointer). Open items ho..hr in open-items.md. Next for the movie: AA_viBuf.c, AA_scTag2.c, copy2area.c, AA_cpuCycles.c, then a run with movies on.",
    "ranges": [
     [
      "018bfbf0",
      "018c0310"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-12 10:53",
+     "status": "verify",
+     "summary": "all 11 functions: ezmpegstr videoCallback, readbuf.c and strfile.c with CT3's packed rows and retry counter; new host drive stream sceCdStInit/StStart/StRead/StStop on io::Disc"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 112..112, 3 functions keyed by their statics, 7 unkeyed; file name from the names"
   },
   "game/AlignedNum.c": {

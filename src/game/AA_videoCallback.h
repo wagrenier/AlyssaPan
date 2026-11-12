@@ -1,6 +1,6 @@
 // game/AA_videoCallback.h -- CT3 game/AA_videoCallback.c: the movie's stream file and read ring (SCE's
-// ezmpegstr strfile.c / readbuf.c, AA_-prefixed), the declarations other TUs call (game/movie.c first,
-// 2026-11-10). Prototypes from the call sites; the TU that writes these functions confirms them.
+// ezmpegstr strfile.c / readbuf.c, AA_-prefixed, with CT3's packed-file and retry additions) and the
+// video stream callback. Written 2026-11-12 (the TU's session); movie.c is the only caller.
 #pragma once
 
 #include "sdk/scetypes.h"
@@ -8,26 +8,49 @@
 
 #include <stddef.h>
 
-// The movie file being streamed (AA_infile, sbss 0x0193f4f0: 0x38 bytes in the symtab). readMpeg reads
-// +4 (the bytes to stream, ezmpegstr's `size`); AA_movie tests +0x34 (non-zero: the open failed for good,
-// so it skips readMpeg and reports "File Open Error!!"). layout: ee (the rest is this TU's to name).
-typedef struct StrFile {
-    int w00;                /* 0x00: ezmpegstr's isOnCD (unread so far) */
-    int size;               /* 0x04: the file's bytes */
-    u_char raw08[0x2c];
-    int openError;          /* 0x34: AA_strFileOpen gave up (CT3's; AA_CdDvd_trial_Ct counts the tries) */
-} StrFile;
-static_assert(sizeof(StrFile) == 0x38, "StrFile");
-static_assert(offsetof(StrFile, openError) == 0x34, "StrFile.openError");
+// Where a stream file lives (StrFile.isOnCD), from the name AA_strFileOpen is given.
+enum {
+    STRFILE_HOST   = 0,     // "<device>:<path>" other than cdrom0: sceOpen / sceRead / sceClose
+    STRFILE_CD     = 1,     // "cdrom0:<path>": sceCdSearchFile, then the drive's stream (sceCdSt*)
+    STRFILE_PACKED = 2,     // a bare name: a CT3PACK.DAT row (FlFindPacked), then the drive's stream
+};
 
-// The read ring between the stream file and the demuxer (AA_readBuf, sbss 0x0193f6b0: 0x10 bytes).
-// AA_MemoryMapSet allocates its 0x60000-byte data into the first word; readMpeg passes words 0 and 3
-// to sceMpegDemuxPssRing (the ring and its size). layout: host (the first word is a gHeapSound block).
+#define STRFILE_IOP_BUF_SIZE 0x28010    // AA_strFileInit's IOP block (the stream ring, 16-byte aligned)
+#define STRFILE_ST_BUF_SECTS 0x50       // sceCdStInit's ring: 80 sectors ...
+#define STRFILE_ST_BANKS     5          // ... in 5 banks
+#define STRFILE_SECTOR_SHIFT 11         // 2048-byte sectors
+
+// The SDK's file record as CT3's SDK had it (sceCdlFILE, 0x24 bytes: the host's sdk/libcdvd.h carries a
+// longer name). AA_strFileOpen fills lsn and size; the name, date and flag only through sceCdSearchFile.
+typedef struct AA_CDLFILE {
+    u_int lsn;              /* 0x00: the file's first sector */
+    u_int size;             /* 0x04: bytes */
+    char name[16];          /* 0x08 */
+    u_char date[8];         /* 0x18 */
+    u_int flag;             /* 0x20: cleared for a packed file */
+} AA_CDLFILE;
+static_assert(sizeof(AA_CDLFILE) == 0x24, "AA_CDLFILE");
+
+// The movie file being streamed (AA_infile, sbss 0x0193f4f0: 0x38 bytes in the symtab; ezmpegstr's StrFile
+// plus CT3's openError). layout: host -- iopBuf is a host pointer here (the ROM's EE offsets beside each).
+typedef struct StrFile {
+    int isOnCD;             /* EE 0x00: STRFILE_HOST / _CD / _PACKED */
+    int size;               /* EE 0x04: the file's bytes (readMpeg streams this many) */
+    AA_CDLFILE fp;          /* EE 0x08: the disc record (lsn, size) */
+    void *iopBuf;           /* EE 0x2c: sceSifAllocSysMemory(0, STRFILE_IOP_BUF_SIZE) (AA_strFileInit) */
+    int fd;                 /* EE 0x30: sceOpen's descriptor (STRFILE_HOST) */
+    int openError;          /* EE 0x34: AA_strFileOpen gave up for good: AA_movie skips readMpeg */
+} StrFile;
+
+// The read ring between the stream file and the demuxer (AA_readBuf, sbss 0x0193f6b0: 0x10 bytes;
+// ezmpegstr's ReadBuf). AA_MemoryMapSet allocates its data (gHeapSound). layout: host (data's pointer).
 typedef struct ReadBuf {
     u_char *data;           /* EE 0x00: _SunAlloc(gHeapSound, AA_READBUF_SIZE) */
-    int w04[2];             /* EE 0x04..0x08: this TU's (put / get) */
+    int put;                /* EE 0x04: where the next bytes go */
+    int count;              /* EE 0x08: bytes in the ring not yet handed to the demuxer */
     int size;               /* EE 0x0c: the ring's bytes */
 } ReadBuf;
+
 
 int AA_videoCallback(sceMpeg *mp, sceMpegCbData *data, void *readBuf);                  // CT3 0x018bfbf0
 int AA_readBufEndGet(ReadBuf *b, int size);                                              // CT3 0x018bfd00
@@ -39,4 +62,4 @@ void AA_readBufCreate(ReadBuf *b);                                              
 int AA_strFileRead(StrFile *file, void *buff, int size);                                 // CT3 0x018bfe10
 int AA_strFileClose(StrFile *file);                                                      // CT3 0x018bfe80
 int AA_strFileOpen(StrFile *file, const char *filename);                                 // CT3 0x018bff20
-int AA_strFileInit(StrFile *file);                                                       // CT3 0x018c02d0
+void AA_strFileInit(StrFile *file);                                                      // CT3 0x018c02d0

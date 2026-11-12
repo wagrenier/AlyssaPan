@@ -7,6 +7,11 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-12, AA_videoCallback.c) **A callee written void may be read for a result by another TU**:
+  AA_videoDecPutTs (AA_mpegTS.c) was written void, but AA_videoCallback tests its answer; mipsdis showed
+  it ends in `jal AA_viBufPutTs` with v0 untouched. When a caller's decompilation tests a value from a
+  callee already written void, mipsdis the callee's tail before trusting either side.
+
 - (2026-11-12, AA_SoundMonoSoart.c) **A value Ghidra shows as a void function's "return" can be the
   caller's own**: AA_audioDecSendToIOP sets v0 = the play position, calls iopGetArea (which never writes
   v0), and uses v0 after; Ghidra reads it as iopGetArea's answer. Before trusting a return from a callee
