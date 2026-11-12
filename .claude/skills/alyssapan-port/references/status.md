@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-12 04:55 at commit `d132419` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-12 05:11 at commit `3df36df` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1456**; stubs: **113**
+- reconstructed CT3 functions: **1459**; stubs: **110**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -91,7 +91,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/tiAvoidObject.c` | 0 | 12 |
 | `src/game/tiBrain_ChgTrace_BOSS_BALOWS.c` | 0 | 2 |
 | `src/game/tiBrain_ChgTrace_Ghost.c` | 0 | 3 |
-| `src/game/tiXcmd_TransItem.c` | 90 | 3 |
+| `src/game/tiXcmd_TransItem.c` | 93 | 0 |
 | `src/game/tkXDTrg_GetSceneHash.c` | 50 | 0 |
 | `src/game/tnXcmd.c` | 0 | 8 |
 | `src/game/wideXcmd_DebugPrint.c` | 109 | 0 |
@@ -101,10 +101,9 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 25, partial 2, verify 39, done 8, blocked 1
-- next: **game/tiXcmd_TransItem.c** (continuing a partial TU)
+- 65 TUs: todo 25, partial 1, verify 40, done 8, blocked 1
+- next: **game/wideXcmd_TriggerInit.c** (continuing a partial TU)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp
-- partial: `game/tiXcmd_TransItem.c` 90/93 -- Slice 11. pBossInfo host form decided (open-items.md Decisions 2026-11-12): EE-layout block, pointer words 0xe8..0x140 in a host side table (BossInfoGetPtr / Bo
 - partial: `game/wideXcmd_TriggerInit.c` 45/46 -- 1 stub left: test_ssXcmd_BrainSet4 (0x698). HIT_ATK_REC gains attackObj and attackBank; AXE_RESULT values and the axe materials named from one writer (open-item
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
@@ -142,6 +141,7 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/ssGrpPortalCheck.c` 59/59 -- Code complete. The black screen was the ga objects' +0x38 word (EE address of the part's partsPos, the ambient light0 adds) left 0 by the ssSetAmbColorToAllObj 
 - verify: `game/ssHitCheckAttackToScn.c` 37/37 -- All 37 functions written; no smoke run reaches ssCollisionCheck yet (no character before E_00), the title shot is unchanged. CHARACTER.w300[0..3] are EE words o
 - verify: `game/ssSetTexUVforCubeMap.c` 96/96 -- Slice 8, the last: every draw buffer and draw control argument read from the disassembly; statics drawctrl_ssSprite2, passTicks 274, dy 243 as the symtab has th
+- verify: `game/tiXcmd_TransItem.c` 93/93 -- All 93 functions written. The attack record is a host struct SPATTACK_SCISSORS (tiXcmd_TransItem.h); tiFreeBossData frees its lists first as the ROM. Phase bits
 - verify: `game/tkXDTrg_GetSceneHash.c` 50/50 -- Callcheck MISSING asFindModelPartsID in Ini is the DoorFindPart helper. The part names settle h48 h4c and the kind entries' +4 as SE / TDS parts (open-items.md 
 - verify: `game/wideXcmd_DebugPrint.c` 109/109 -- All 109 functions written. Nothing on screen reaches it yet (the shot is the warning screen): verify in gameplay. New stubs ssHitAddAttackRequest, ssHit_GetMaxI
 - verify: `game/xcmd_tn.c` 57/57 -- All 57 functions written. VistaVision: ON or on brings the bars in, argv[1] 1 slides, a fourth argument makes ON skippable; statics VistaVisionEndCheck, VistaVi
@@ -149,6 +149,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-12 05:11 `game/tiXcmd_TransItem.c` verify: slice 12: the SCISSORS_MAN attack (init, per-frame streams homing on the player, end); the TU has no stubs left
 - 2026-11-12 04:55 `game/tiXcmd_TransItem.c` partial: the boss info host form and five boss commands: battle start, both chain sets, warp points, blood attack part
 - 2026-11-12 04:28 `game/BRANCH_CLEAR.c` verify: asFindMotionID reads the motion table through BankEePtr; code complete since the split (173 of 173)
 - 2026-11-12 04:15 `game/wideXcmd_TriggerInit.c` partial: slice 5: LockToTargChara (the bow lock-on), AXE_SetPath, AXE_CheckHitAndCompDir; the test commands annotated one by one: 6 functions
@@ -156,7 +157,6 @@ Recent sessions:
 - 2026-11-12 03:34 `game/wideXcmd_TriggerInit.c` partial: slice 3: the hit-record queries (GetAtkHitInfoID, CheckAtkHitChara, CheckAtkHitMaterial, GetAttackMotionID), ObjectSetHitPos, the arrow commands (ArrowSetHitPos
 - 2026-11-12 03:15 `game/wideXcmd_TriggerInit.c` partial: slice 2: wideXcmd_TriggerInit, GlobalSetEnable, the axe state (AXE_INFO, ssAI_AXE_IsThrowing, ssAI_AXE_Init, AXE_ThrowEnd, AXE_InitParam), the stalkers AI x com
 - 2026-11-12 02:52 `game/ssSetTexUVforCubeMap.c` verify: reconstruct 11 functions: the full-screen sprite passes (HQDOF write-back and pre-render, hazy, ultima, blur, DOF pre, post and draw); TU code complete
-- 2026-11-12 02:33 `game/ssSetTexUVforCubeMap.c` partial: reconstruct 7 functions (vaseline trigger, screen-position picker and draw data; vaseline and wave diamond passes and their draw environment)
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
@@ -166,8 +166,8 @@ Recent sessions:
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/AA_GetDataWord.c` | todo | 0/8/15 | 4.9 | 21 | 2 |
 | `game/AA_SoundMonoSoart.c` | todo | 0/8/20 | 4.0 | 18 | 2 |
-| `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
+| `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `ga/gaObjectClippingCheck.c` | todo | 0/1/1 | 0.2 | 12 | 1 |
 | `game/asMothPause.c` | todo | 0/1/1 | 0.3 | 10 | 0 |
 | `game/ssCalcInversMatrix2.c` | todo | 0/5/5 | 5.7 | 7 | 0 |

@@ -50,12 +50,45 @@
 #define BOSS_INFO_BLOOD_PART 0x134      /* ptr -> a part's record (MODEL_PARTS + 0x40; mode 0) */
 #define BOSS_INFO_WARP_COUNT 0xc4       /* int: tiXcmd_BOSS_SetWarp's points (!= 0: the list is allocated) */
 #define BOSS_INFO_WARP_POS 0x13c        /* ptr -> float *[count]: the warp points' part positions */
-#define BOSS_INFO_SPATTACK 0x140        /* ptr -> the SCISSORS_MAN attack record (0x70 bytes, not written) */
+#define BOSS_INFO_SPATTACK 0x140        /* ptr -> SPATTACK_SCISSORS: the SCISSORS_MAN attack record */
 #define BOSS_INFO_PTR_FIRST 0xe8
 #define BOSS_INFO_PTR_LAST 0x140
 #define BOSS_INFO_PTR_SET 1u            /* PORT: the EE word of a set pointer (the host pointer is aside) */
 #define BOSS_STATE_BIT_04 0x0004        /* BOSS_INFO_PHASE bits BattleStart sets per boss (meaning unread) */
 #define BOSS_STATE_BIT_2000 0x2000
+#define BOSS_STATE_TWIN_ATTACK 0x0010   /* the SCISSORS_MAN attack runs two streams (B at +spread, A at
+                                           -spread) and turns twice as fast; cleared as it ends */
+#define BOSS_STATE_SPATTACK 0x4000      /* the SCISSORS_MAN attack has started (its first call set it) */
+
+// Slice 12 (2026-11-12): the SCISSORS_MAN attack record (pBossInfo word BOSS_INFO_SPATTACK;
+// tiXcmd_Init_SPAttack_SCISSORS_MAN allocates it, 0x70 bytes on the EE). Streams of parts walk from the
+// boss toward the player: each step moves a stream `speed` along its heading, turning it toward the
+// player (at most turnDeg a step) while the player is within SPATTACK_NEAR and ahead; parts[cur] and
+// tips[cur] are placed at the stream's new position and one step past it. layout: host (the lists hold
+// host pointers; only this TU and Clipping_Portal.c's tiFreeBossData touch it).
+typedef struct SPATTACK_SCISSORS {
+    int count;                          /* 0x00: parts in each list */
+    int cur;                            /* 0x04: the list slot the last step placed */
+    int elapsedTicks;                   /* 0x08 */
+    int durationTicks;                  /* 0x0c: argv[3] * SPATTACK_TICKS_PER_DURATION */
+    int sinceStepTicks;                 /* 0x10 */
+    int stepTicks;                      /* 0x14: argv[2] * SPATTACK_TICKS_PER_STEP */
+    float speed;                        /* 0x18: distance per step */
+    float turnDeg;                      /* 0x1c: the most a step turns (doubled in a twin attack) */
+    int spreadDeg;                      /* 0x20: a twin attack's streams start this far apart (+/-) */
+    struct MODEL_PARTS **parts;         /* 0x24: [count] each step's part at the stream's position */
+    struct MODEL_PARTS **tips;          /* 0x28: [count] each step's part one step further */
+    float posA[4];                      /* 0x30: stream A's position */
+    float posB[4];                      /* 0x40 */
+    float dirA[4];                      /* 0x50: stream A's heading (unit, w 0) */
+    float dirB[4];                      /* 0x60 */
+} SPATTACK_SCISSORS;
+#define SPATTACK_TICKS_PER_STEP 30      /* argv[2]'s unit */
+#define SPATTACK_TICKS_PER_DURATION 300 /* argv[3]'s unit */
+#define SPATTACK_NEAR 300.0f            /* the player within this: the streams home in */
+#define SPATTACK_HIDDEN_Y 1.0e9f        /* Init parks every parts[] part this high */
+#define SPATTACK_BOSS_CHARA 5           /* the streams start at Character[5].pos (the ROM's fixed address) */
+#define TRIG_EVENT_SPATTACK_FIRST 0x71  /* + cur: registered (global) as a step places slot cur */
 #define BOSS_PLAYER_HP 800              /* BattleStart: the player's hp and hpMax (BOSS_PLAYER_HP_LAST for */
 #define BOSS_PLAYER_HP_LAST 1200        /*   the last boss, Character[0x20]) */
 #define CHAIN_SOURCE_PART "Bip01 Spine1" /* the chains' source part (the boss's, the player's) */

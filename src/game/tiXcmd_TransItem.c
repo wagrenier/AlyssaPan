@@ -2178,11 +2178,106 @@ int tiXcmd_Balows2th(int argc, char **argv, int bank)
     return XCMD_DONE;
 }
 
-// stub of CT3 0x018e2ae0
+// ---- the SCISSORS_MAN attack (slice 12, 2026-11-12) ----
+
+#define SPATTACK_DEG_TO_ANGLE 0xb6      /* degrees * 0xb6 -> gaSetRotMatrixY's 0x10000-per-turn angle */
+
+// v = Ry(deg) v, as the ROM's inline VU0 multiply (the matrix's rows weighted by x, y, z, w).
+static void SPAttackRotate(float *v, int deg)
+{
+    float m[4][4];
+    float out[4];
+    int i;
+
+    gaSetRotMatrixY(m, deg * SPATTACK_DEG_TO_ANGLE);
+    for (i = 0; i < 4; i++)
+        out[i] = m[0][i] * v[0] + m[1][i] * v[1] + m[2][i] * v[2] + m[3][i] * v[3];
+    memcpy(v, out, sizeof out);
+}
+
+// v *= 1 / |v.xyz| (all four lanes, as VRSQRT's Q scales them); answers |v.xyz|.
+static float SPAttackNormalize(float *v)
+{
+    float len = sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    float q = 1.0f / len;
+
+    v[0] *= q;
+    v[1] *= q;
+    v[2] *= q;
+    v[3] *= q;
+    return len;
+}
+
+// One step of a stream (position pos, heading dir): within SPATTACK_NEAR of the player and facing him,
+// the heading turns toward him by at most turnDeg (twice that in a twin attack); the stream moves one
+// step, the next list slot's parts go to the new position and one step past it, and the slot's event is
+// registered.
+static void SPAttackStep(SPATTACK_SCISSORS *a, float *pos, float *dir, u_int state)
+{
+    const float *player = (const float *)&Character[Player_BankID].pos;
+    float to[4], step[4];
+    float dist;
+    int i;
+    MODEL_PARTS *p;
+
+    for (i = 0; i < 4; i++)
+        to[i] = player[i] - pos[i];
+    dist = SPAttackNormalize(to);
+    if (dist <= SPATTACK_NEAR && gaInnerProductXYZ(to, dir) >= 0.0f) {
+        float diff = tiGetDegFromVec(to, 2) - tiGetDegFromVec(dir, 2);
+        float turn = a->turnDeg;
+
+        if ((state & BOSS_STATE_TWIN_ATTACK) != 0)
+            turn *= 2.0f;
+        if (diff < -180.0f)
+            diff += 360.0f;
+        else if (180.0f < diff)
+            diff -= 360.0f;
+        if (diff < 0.0f) {
+            if (turn < absf(diff))
+                turn = 360.0f - turn;
+            else
+                turn = diff + 360.0f;
+        } else if (diff <= turn) {
+            turn = diff;
+        }
+        SPAttackRotate(dir, (int)turn);
+        dir[3] = 0.0f;
+        SPAttackNormalize(dir);
+    }
+    for (i = 0; i < 4; i++) {
+        step[i] = dir[i] * a->speed;
+        pos[i] += step[i];
+    }
+    pos[3] = 1.0f;
+    a->cur = (a->cur + 1) % a->count;
+    p = a->parts[a->cur];
+    memcpy(p->drawOnPos, pos, sizeof p->drawOnPos);
+    p->flags43 = PARTS_FLAG43_BELT;
+    p = a->tips[a->cur];
+    for (i = 0; i < 4; i++)
+        p->drawOnPos[i] = pos[i] + step[i];
+    p->flags43 = PARTS_FLAG43_BELT;
+    ssTrigRegisterEvent(a->cur + TRIG_EVENT_SPATTACK_FIRST, XCMD_SCOPE_GLOBAL, 0);
+}
+
+// CT3 0x018e2ae0: the attack record and its two lists are freed.
+// PORT: the ROM frees without looking; the host skips a record never allocated.
 int tiXcmd_End_SPAttack_SCISSORS_MAN(int argc, char **argv, int bank)
 {
-    ALYSSAPAN_STUB("tiXcmd_End_SPAttack_SCISSORS_MAN", 0x018e2ae0);
-    return {};
+    SPATTACK_SCISSORS *a = (SPATTACK_SCISSORS *)BossInfoGetPtr(BOSS_INFO_SPATTACK);
+    void *rec = a;
+
+    (void)argc;
+    (void)argv;
+    (void)bank;
+    if (a == NULL)
+        return XCMD_DONE;
+    _SunFree(&gHeapJunc, (void **)&a->parts);
+    _SunFree(&gHeapJunc, (void **)&a->tips);
+    _SunFree(&gHeapJunc, &rec);
+    BossInfoSetPtr(BOSS_INFO_SPATTACK, NULL);
+    return XCMD_DONE;
 }
 
 // CT3 0x018e20c0: the part argv[0] of this bank the blood attack uses: argv[1] == 0 takes its record
@@ -2197,18 +2292,96 @@ int tiXcmd_GetBloodAttackObject(int argc, char **argv, int bank)
     return XCMD_DONE;
 }
 
-// stub of CT3 0x018e2b30
+// CT3 0x018e2b30
+// The attack is set up: argv[0] parts per list, argv[1] the speed, argv[2] the step time (x 30 ticks),
+// argv[3] the duration (x 300 ticks), argv[4] the turn per step, argv[5] a twin attack's spread; then
+// argv[0] pairs of part numbers of this bank, the "from" part and the "to" part of each slot. Each
+// "from" part is parked out of sight (SPATTACK_HIDDEN_Y).
+// PORT: the record is host layout and cleared first (the ROM sets each field before its first read).
 int tiXcmd_Init_SPAttack_SCISSORS_MAN(int argc, char **argv, int bank)
 {
-    ALYSSAPAN_STUB("tiXcmd_Init_SPAttack_SCISSORS_MAN", 0x018e2b30);
-    return {};
+    int n = atoi(argv[0]);
+    SPATTACK_SCISSORS *a;
+    int i;
+
+    (void)argc;
+    a = (SPATTACK_SCISSORS *)_SunAlloc(&gHeapJunc, (int)sizeof *a, 0x10);
+    memset(a, 0, sizeof *a);
+    BossInfoSetPtr(BOSS_INFO_SPATTACK, a);
+    a->parts = (MODEL_PARTS **)_SunAlloc(&gHeapJunc, n * (int)sizeof(void *), sizeof(void *));
+    a->tips = (MODEL_PARTS **)_SunAlloc(&gHeapJunc, n * (int)sizeof(void *), sizeof(void *));
+    a->cur = 0;
+    a->speed = atoff(argv[1]);
+    a->stepTicks = atoi(argv[2]) * SPATTACK_TICKS_PER_STEP;
+    a->durationTicks = atoi(argv[3]) * SPATTACK_TICKS_PER_DURATION;
+    a->count = n;
+    a->turnDeg = atoff(argv[4]);
+    a->spreadDeg = atoi(argv[5]);
+    for (i = 0; i < n; i++) {
+        a->parts[i] = BossPart(bank, atoi(argv[6 + i * 2]));
+        a->tips[i] = BossPart(bank, atoi(argv[7 + i * 2]));
+        a->parts[i]->drawOnPos[1] = SPATTACK_HIDDEN_Y;
+        a->parts[i]->flags43 = PARTS_FLAG43_BELT;
+    }
+    return XCMD_DONE;
 }
 
-// stub of CT3 0x018e22f0
+// CT3 0x018e22f0
+// The attack, once a frame. The first call starts it: stream A at the boss (Character[5]) heading for
+// the player; a twin attack (BOSS_STATE_TWIN_ATTACK) adds stream B at the same place, the two headings
+// spreadDeg either side of the player. Then every stepTicks each stream steps (SPAttackStep, A then B),
+// until durationTicks have passed: the state bits are cleared and the command is done.
+// PORT: the ROM reads Character[5].pos at its fixed address; with no record (Init not run) the command
+// is done at once.
 int tiXcmd_SPAttack_SCISSORS_MAN(int argc, char **argv, int bank)
 {
-    ALYSSAPAN_STUB("tiXcmd_SPAttack_SCISSORS_MAN", 0x018e22f0);
-    return {};
+    SPATTACK_SCISSORS *a = (SPATTACK_SCISSORS *)BossInfoGetPtr(BOSS_INFO_SPATTACK);
+    const float *boss = (const float *)&Character[SPATTACK_BOSS_CHARA].pos;
+    const float *player = (const float *)&Character[Player_BankID].pos;
+    u_int state;
+    int i;
+
+    (void)argc;
+    (void)argv;
+    (void)bank;
+    if (a == NULL)
+        return XCMD_DONE;
+    memcpy(&state, pBossInfo + BOSS_INFO_PHASE, sizeof state);
+    if ((state & BOSS_STATE_SPATTACK) == 0) {
+        memcpy(a->posA, boss, sizeof a->posA);
+        for (i = 0; i < 4; i++)
+            a->dirA[i] = player[i] - a->posA[i];
+        SPAttackNormalize(a->dirA);
+        if ((state & BOSS_STATE_TWIN_ATTACK) != 0) {
+            memcpy(a->posB, boss, sizeof a->posB);
+            memcpy(a->dirB, a->dirA, sizeof a->dirB);
+            SPAttackRotate(a->dirB, a->spreadDeg);
+            SPAttackRotate(a->dirA, 360 - a->spreadDeg);
+        }
+        a->cur = 0;
+        a->dirA[3] = 0.0f;
+        a->elapsedTicks = 0;
+        a->sinceStepTicks = 0;
+        state |= BOSS_STATE_SPATTACK;
+        memcpy(pBossInfo + BOSS_INFO_PHASE, &state, sizeof state);
+        return XCMD_WAIT;
+    }
+    a->sinceStepTicks += gNextTicksInterval;
+    a->elapsedTicks += gNextTicksInterval;
+    if (a->durationTicks < a->elapsedTicks) {
+        state &= ~(u_int)(BOSS_STATE_TWIN_ATTACK | BOSS_STATE_SPATTACK);
+        memcpy(pBossInfo + BOSS_INFO_PHASE, &state, sizeof state);
+        return XCMD_DONE;
+    }
+    if (a->sinceStepTicks <= a->stepTicks)
+        return XCMD_WAIT;
+    a->sinceStepTicks = 0;
+    SPAttackStep(a, a->posA, a->dirA, state);
+    if ((state & BOSS_STATE_TWIN_ATTACK) != 0)
+        SPAttackStep(a, a->posB, a->dirB, state);
+    // callcheck: gaSetRotMatrixY, gaInnerProductXYZ, tiGetDegFromVec, absf, ssTrigRegisterEvent (SPAttackStep
+    // and SPAttackRotate make them)
+    return XCMD_WAIT;
 }
 
 // CT3 0x018e86d0: the bank's scene animation argv[0] jumps to the frame the variable argv[1] (global

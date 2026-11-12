@@ -1910,6 +1910,15 @@ apply here):
   its 8 slots and its name buffers widened to 16 (the ROM's strcat into a 4-byte local overruns it).
   tkBri_DoorDraw reads Character[0].roomHash (the ROM's literal slot 0, not Player_BankID).
 
+- (2026-11-12, game/tiXcmd_TransItem.c slice 12) **The TU's code is complete (verify)**: the SCISSORS_MAN
+  attack (Init / SPAttack / End). Its 0x70-byte record is a host struct, SPATTACK_SCISSORS
+  (tiXcmd_TransItem.h, pointer lists of MODEL_PARTS *); tiFreeBossData frees its two lists before it, as
+  the ROM. Named from this one use, to confirm in the boss AI's TU: BOSS_STATE_TWIN_ATTACK (phase bit
+  0x10: two streams, turn doubled) and BOSS_STATE_SPATTACK (0x4000: started); the streams start at
+  Character[5].pos (the ROM's fixed address 0x01a4dc00, SPATTACK_BOSS_CHARA) -- the scissors man is
+  Character[5] (BattleStart's kind 6); argv[2] / argv[3] units (x30 / x300 ticks) from the multiplies;
+  events 0x71 + slot. PORT: End and SPAttack answer done when no record exists (the ROM reads through
+  it). Nothing on screen shows it until a smoke run reaches a boss battle.
 - (2026-11-11, game/tiXcmd_TransItem.c slice 7) **Named from one use, to confirm where they are read:**
   CHARA_JUNC +0x00 `poleCount` and +0x0c `poles` (was `buf`: u_int[poleCount] EE addresses of the
   ghost poles' part positions, tiXcmd_SetGhostPole; the ghost AI that reads them is unread);

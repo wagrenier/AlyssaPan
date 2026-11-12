@@ -1419,7 +1419,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 81..81, 18 functions keyed by their statics, 13 unkeyed; file name from the names"
   },
   "game/tiXcmd_TransItem.c": {
-   "notes": "Slice 11. pBossInfo host form decided (open-items.md Decisions 2026-11-12): EE-layout block, pointer words 0xe8..0x140 in a host side table (BossInfoGetPtr / BossInfoSetPtr in tiXcmd_TransItem.h), lists host layout. Written: BOSS_BattleStart (BOSS_SETUP table per boss), BOSS_SetChain / _Alyssa (shared ChainSetup), BOSS_SetWarp, GetBloodAttackObject; Balows2th now clears the holding flags; tiFreeBossData (Clipping_Portal.c) frees through the side table; ChainBelts and ChainAnchor (wideXcmd_DebugPrint.c) read it. Left: the three SCISSORS_MAN stubs (Init 0x018e2b30, SPAttack 0x018e22f0, End 0x018e2ae0): the 0x70-byte attack record at +0x140 (two part lists at +0x24 / +0x28) needs its host form, next slice. The per-boss words (0x14, 0x1c, 0x24, 0x2c, 0x68, 0x144..0x15c, thresholds 0x48, 0xb4) are named by offset only. Screen unchanged: the clock-tower title scene; no boss battle in the smoke run, so nothing on screen shows this code.",
+   "notes": "All 93 functions written. The attack record is a host struct SPATTACK_SCISSORS (tiXcmd_TransItem.h); tiFreeBossData frees its lists first as the ROM. Phase bits 0x10 (twin streams) and 0x4000 (started) and the boss Character[5] are named from this one use (open-items.md Open questions, slice 12). Nothing on screen shows it: the smoke run stays on the clock-tower title scene, no boss battle. Next: a smoke run that reaches a boss, or the boss AI TU.",
    "ranges": [
     [
      "018e0e80",
@@ -1481,9 +1481,14 @@
      "date": "2026-11-12 04:55",
      "status": "partial",
      "summary": "the boss info host form and five boss commands: battle start, both chain sets, warp points, blood attack part"
+    },
+    {
+     "date": "2026-11-12 05:11",
+     "status": "verify",
+     "summary": "slice 12: the SCISSORS_MAN attack (init, per-frame streams homing on the player, end); the TU has no stubs left"
     }
    ],
-   "status": "partial",
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 137..137, 20 functions keyed by their statics, 73 unkeyed; file name from the names"
   },
   "game/tkXDTrg_GetSceneHash.c": {

@@ -1524,9 +1524,7 @@ void tiGetCharaDirection(float *dir, const CHARACTER *chr)
 // The boss info's allocations (pBossInfo, from gHeapJunc; tiFreeBossData frees them). Two chain sets of
 // four blocks each (set A while BOSS_INFO_CHAIN_A_COUNT != 0, set B while BOSS_INFO_CHAIN_B_COUNT != 0),
 // the warp list while BOSS_INFO_WARP_COUNT is set, and the attack record at 0x140 holding two more.
-// Offsets and the host form: tiXcmd_TransItem.h (the boss info's pointer words, 2026-11-12).
-#define BOSS_SUB_24 0x24
-#define BOSS_SUB_28 0x28
+// Offsets and the host form: tiXcmd_TransItem.h (the boss info's pointer words, SPATTACK_SCISSORS).
 
 // The trigger variables a boss battle leaves set; tiFreeBossData puts each back to -1 (global), in the
 // ROM's order.
@@ -1650,8 +1648,13 @@ void tiFreeBossData(void)
 
         memcpy(&sub, pBossInfo + BOSS_INFO_SPATTACK, sizeof sub);
         if (sub != 0) {
-            // PORT: the ROM frees the attack record's words 0x24 and 0x28 first (BOSS_SUB_24 / _28): the
-            // record has no host form until tiXcmd_Init_SPAttack_SCISSORS_MAN is written (nothing sets it)
+            // the attack record's two lists first (SPATTACK_SCISSORS, tiXcmd_TransItem.h), then the record
+            SPATTACK_SCISSORS *a = (SPATTACK_SCISSORS *)BossInfoGetPtr(BOSS_INFO_SPATTACK);
+
+            if (a != NULL) {
+                _SunFree(&gHeapJunc, (void **)&a->parts);
+                _SunFree(&gHeapJunc, (void **)&a->tips);
+            }
             BossInfoFree(pBossInfo, BOSS_INFO_SPATTACK);
         }
     }
