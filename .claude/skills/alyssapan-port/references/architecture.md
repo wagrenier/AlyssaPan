@@ -882,6 +882,18 @@ view * matrix (+0x180) and +0x300 = that * diag(record +0x2c0 xyz).
   clock (gNextTicksInterval / gNextTicks / gTotalTicks) only when not paused, the global clock
   (gGlobal*) always; statics last_frame (0x0193cb14) and Globallast_frame (0x0193cb04).
 
+## Quaternion <-> matrix, game/Convert.c (2026-11-12)
+
+- Quaternions are { x, y, z, w } (16 bytes, w last); matrices four rows, rows 0..2 the rotation. Both
+  functions are VU0 macro code with one constant, const_vector_A (0x01937df0) = { 1, 2, 0, 0.5 }.
+- **ConvertQuat2Matrix(m, q)**: w == 1.0 exactly copies matUnit; else row 0 = (1 - 2yy - 2zz, 2xy - 2wz,
+  2xz + 2wy, 0), row 1 = (2xy + 2wz, 1 - 2xx - 2zz, 2yz - 2wx, 0), row 2 = (2xz - 2wy, 2yz + 2wx,
+  1 - 2xx - 2yy, 0), row 3 = (0, 0, 0, 1). Assumes a unit quaternion (no normalisation).
+- **ConvertMatrix2Quat(q, m)**: Shepperd's method; 1 + trace > 1 gives w = s/2 and x = (m21 - m12) / 2s
+  (y = m02 - m20, z = m10 - m01); otherwise the largest diagonal leads (x if m00 > m11 and m00 >= m22,
+  else y if m11 >= m22, else z). In those branches 2s == 0 prints "divide by 0" (no newline) and answers
+  (0, 0, 0, 1). vsqrt roots |x|.
+
 ## Part lookup, name hashes, the camera read-back, game/QuatSlerp.c, now game/BRANCH_CLEAR.c (2026-11-10, slice 1)
 
 - **Names are hashed, not stored** (ahGetHash, 0x0185e580): hash ^= rotl64(c & 0x7f, 7 i mod 64) over

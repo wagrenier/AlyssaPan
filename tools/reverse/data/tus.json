@@ -653,12 +653,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 88..88, 21 functions keyed by their statics, 52 unkeyed; file name from the names"
   },
   "game/Convert.c": {
+   "notes": "No smoke run reaches either yet (the shot is the same clock-tower scene); the animation TUs (ExecuteAnimation, EA_100, asMakeStraw) will exercise them. Order of ACC terms kept; the host may fuse multiply-adds.",
    "ranges": [
     [
      "018518d0",
      "01851bf0"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-12 09:06",
+     "status": "verify",
+     "summary": "ConvertMatrix2Quat and ConvertQuat2Matrix rewritten from the VU0 macro code in scalar C (const_vector_A = 1, 2, 0, 0.5; matUnit for w == 1; divide by 0 answers the unit quaternion)"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 71..71, 1 functions keyed by their statics, 1 unkeyed; file name from the names"
   },
   "game/CpDivideEECom.c": {

@@ -1,5 +1,5 @@
-// game/Convert.h -- CT3 game/Convert.c: the declarations other TUs call (asMakeStraw first, 2026-11-10).
-// Prototypes from the call sites; the TU that writes these functions confirms them.
+// game/Convert.h -- CT3 game/Convert.c (0x018518d0..0x01851bf0): quaternion <-> rotation matrix.
+// Prototypes confirmed by the TU (2026-11-12): q is { x, y, z, w }, m four rows of four floats.
 #pragma once
 
 #include "sdk/scetypes.h"
