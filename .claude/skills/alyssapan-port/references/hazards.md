@@ -470,6 +470,11 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
   (2026-11-11, ssHitCheck*Attack): the names say now / before, the fields say initial placement / drawn
   position; kept as the ROM reads them. ssHitMakeAttackOBB's TU says which is right.
 
+### A file header line with a CT3 address is read as a function's (2026-11-12)
+callcheck takes any `CT3 0x...` comment as a function annotation: a TU header written
+`-- CT3 0x018a88e0..0x018a9fe0` made it check the first static helper below it as that function. Write
+the range without the `CT3 0x` prefix (`0x018a88e0..0x018a9fe0 of CT3`).
+
 ## From the siblings (2026-11-09 digest of MioPan, ReiPan, RosePan, MikuPan)
 
 - **Ghidra misses functions even with symbols**: code reached only through data (dispatch tables,

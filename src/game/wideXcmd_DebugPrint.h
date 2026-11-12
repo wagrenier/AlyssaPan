@@ -274,8 +274,9 @@ typedef struct HIT_OBJ_REC {
     u_int object;                       /* 0x10: EE word of the bank: the object; its short at
                                            HIT_OBJ_ID is the id an ARROW carries (hitId) */
     u_int materials;                    /* 0x14: bit n = material n was hit (CheckAtkHitMaterial, 2026-11-12) */
-    int id;                             /* 0x18: asAttackedArrowInformation's key; CheckAtkHitChara reads it as
-                                           the EE word of the attacker, 0 = none (its short at HIT_ATTACKER_ID) */
+    int id;                             /* 0x18: EE word of the struck shape (ssHit_information: a HIT_DMG,
+                                           whose part is the short at HIT_ATTACKER_ID; ssHit_informationScn: a
+                                           HIT_DATA); asAttackedArrowInformation's key, 0 = none */
     short chara;                        /* 0x1c: the Character[] it hit (asArrowOperate) */
     u_char kind;                        /* 0x1e: asArrowOperate: 0 leaves the arrow stuck (ARROW_HIT_STUCK), 1 ends it (ARROW_HIT_END) */
     u_char pad1f;
@@ -284,7 +285,9 @@ static_assert(sizeof(HIT_OBJ_REC) == 0x20, "HIT_OBJ_REC");
 #define HIT_OBJ_ID 0xda                 /* object: short, an arrow's hitId */
 #define HIT_ATTACKER_ID 0x1a0           /* attacker: short, the id CheckAtkHitChara answers (2026-11-12) */
 typedef struct HIT_REC {
-    u_int attacker;                     /* 0x00: EE word: the attacking object (HIT_ATTACKER_KIND at +0x1a2) */
+    u_int attacker;                     /* 0x00: EE word: per its writer ssHit_information (2026-11-12) the
+                                           struck HIT_DMG of this table's own bank, not the attacker
+                                           (HIT_ATTACKER_KIND at +0x1a2 is the shape's byte) */
     short attack;                       /* 0x04: the attack (a character's: its motion; an object's:
                                            TRIG_VAR_HIT_ATTACK) */
     short who;                          /* 0x08: the attacker's Character index, or its part in bank */

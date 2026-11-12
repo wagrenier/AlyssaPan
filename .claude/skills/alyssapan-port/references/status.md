@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-12 13:31 at commit `da31258` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-12 13:54 at commit `70f0d25` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1694**; stubs: **106**
+- reconstructed CT3 functions: **1699**; stubs: **101**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -86,7 +86,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/movie.c` | 20 | 0 |
 | `src/game/sound.c` | 73 | 0 |
 | `src/game/ssBrain_ChgHideAtk1.c` | 0 | 15 |
-| `src/game/ssCalcInversMatrix2.c` | 0 | 5 |
+| `src/game/ssCalcInversMatrix2.c` | 5 | 0 |
 | `src/game/ssGrpPortalCheck.c` | 74 | 0 |
 | `src/game/ssHitCheckAttackToScn.c` | 37 | 0 |
 | `src/game/ssSetTexUVforCubeMap.c` | 96 | 0 |
@@ -103,9 +103,9 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 11, verify 55, done 10, blocked 1
-- next: **game/ssCalcInversMatrix2.c** (pinned in the queue)
-- pinned queue: alyssapan/rendering/ui_canvas.cpp, game/ssCalcInversMatrix2.c, ga/gaDrawObject_Redraw_Polygon.c
+- 65 TUs: todo 10, verify 56, done 10, blocked 1
+- next: **ga/gaDrawObject_Redraw_Polygon.c** (pinned in the queue)
+- pinned queue: alyssapan/rendering/ui_canvas.cpp, ga/gaDrawObject_Redraw_Polygon.c
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
@@ -152,6 +152,7 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/main2.c` 18/18 -- Smoke run leaves main2 and runs the frame loop with no crash; the shot stays black because FSMltLoad (fileio.c) is a stub so no bank loads. PORT BankReady skips
 - verify: `game/movie.c` 20/21 -- Playback kept in the ROM shape: host EE kernel runs the decoder thread and vblank handler, sdk/libmpeg decodes, the picture goes through AA_GetDataWord.c displa
 - verify: `game/sound.c` 69/69 -- All 69 written. SSLoadSEfromLoadPoint takes the bank image (BankInfo +0x1c); All_table_TBL[bank] is image + 0x80, so the old +0xd4 record is ALL_TABLE.sound, wo
+- verify: `game/ssCalcInversMatrix2.c` 5/5 -- No smoke run reaches the attack collision yet (the title scene draws as before). HIT_DATA gains material (+0x19b) and hp (+0x19e), HIT_OBJ damage (+0xde), SS_OB
 - verify: `game/ssGrpPortalCheck.c` 59/59 -- Code complete. The black screen was the ga objects' +0x38 word (EE address of the part's partsPos, the ambient light0 adds) left 0 by the ssSetAmbColorToAllObj 
 - verify: `game/ssHitCheckAttackToScn.c` 37/37 -- All 37 functions written; no smoke run reaches ssCollisionCheck yet (no character before E_00), the title shot is unchanged. CHARACTER.w300[0..3] are EE words o
 - verify: `game/ssSetTexUVforCubeMap.c` 96/96 -- Slice 8, the last: every draw buffer and draw control argument read from the disassembly; statics drawctrl_ssSprite2, passTicks 274, dy 243 as the symtab has th
@@ -165,6 +166,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-12 13:54 `game/ssCalcInversMatrix2.c` verify: all 5 functions: ssCalcInversMatrix2 (4x4 inverse), ssHitMakeAttackOBB and ssHitMakeDamageOBB (the attack and body boxes), ssHit_information and ssHit_informati
 - 2026-11-12 13:31 `ga/gaSearchNearLight4.c` verify: gaSearchNearLight4 reconstructed from the MMI code and VU0 micros 0x048/0x054/0x064: four nearest lights per position by squared distance times w squared, below
 - 2026-11-12 13:18 `game/asMothOperate.c` verify: asMothOperate written: the moths state machine (rest, wait, fly the route, circle Alyssa, land and rattle, hit, dead), the three-part moves through asMothRouteS
 - 2026-11-12 12:47 `game/Character_Init.c` verify: Character_Init written, the TU's last stub: room join (hash, light bank, room-in flag, ambient), the place modes (keep, the scene's start part, the light bank's
@@ -172,12 +174,10 @@ Recent sessions:
 - 2026-11-12 12:39 `game/Character_Init.c` partial: marked verify -> partial: Character_Init (CT3 0x018b3a60) is still a stub and the NEW path now reaches it (junc_heap.cpp run, 2026-11-12): the room scene 0A02 s
 - 2026-11-12 12:30 `alyssapan/core/newgame_trace.cpp` done: The silent wait after NEW: the title music ADS stream held gADSOpenSync at 1 waiting for SNDDRV.IRX to acknowledge SND_CMD_ADS_OPEN, so FlProc read nothing and 
 - 2026-11-12 11:50 `game/AA_scTag2.c` verify: all 7 functions written: the movie ring's DMA tag, D3 and D4 CHCR writes, FIFO index, pts region test, B-picture skip history, two-span copy
-- 2026-11-12 11:34 `game/AA_viBuf.c` verify: reconstruct 13 functions (verify)
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
 | `ga/gaDrawObject_Redraw_Polygon.c` | todo | 0/1/6 | 4.3 | 7 | 1 |
-| `game/ssCalcInversMatrix2.c` | todo | 0/5/5 | 5.7 | 7 | 0 |
 | `game/AA_cpuCycles.c` | todo | 0/4/4 | 0.3 | 6 | 0 |
 | `ga/wait.c` | todo | 0/2/20 | 0.1 | 6 | 0 |
 | `game/copy2area.c` | todo | 0/2/2 | 0.5 | 2 | 0 |
@@ -188,17 +188,12 @@ Recent sessions:
 | CT3 addr | name | call sites | provenance | state | inferred file |
 |---|---|---|---|---|---|
 | `018a8690` | gaDMAStopMessage_VIF1 | 5 | sym | stub | ga/wait.c |
-| `018a9570` | ssHitMakeAttackOBB | 2 | sym | stub | game/ssCalcInversMatrix2.c |
-| `018a9390` | ssHitMakeDamageOBB | 2 | sym | stub | game/ssCalcInversMatrix2.c |
 | `018c0310` | AA_cpuCycles | 2 | sym | stub | game/AA_cpuCycles.c |
 | `018c0320` | AA_syncGetSkew | 2 | sym | stub | game/AA_cpuCycles.c |
 | `0189f720` | gaDrawObject_Redraw_Polygon | 2 | sym | stub | ga/gaDrawObject_Redraw_Polygon.c |
 | `018817b0` | ssAI_SetTraceMode | 1 | sym | stub | game/ssBrain_ChgHideAtk1.c |
-| `018a91d0` | ssHit_information | 1 | sym | stub | game/ssCalcInversMatrix2.c |
 | `018c03c0` | AA_syncClockInVideo | 1 | sym | stub | game/AA_cpuCycles.c |
-| `018a88e0` | ssCalcInversMatrix2 | 1 | sym | stub | game/ssCalcInversMatrix2.c |
 | `018a8698` | gaDMAStopMessage_GIF | 1 | sym | stub | ga/wait.c |
 | `018bf9d0` | copy2area | 1 | sym | stub | game/copy2area.c |
 | `018c0400` | AA_syncClockInAudio | 1 | sym | stub | game/AA_cpuCycles.c |
-| `018a8e00` | ssHit_informationScn | 1 | sym | stub | game/ssCalcInversMatrix2.c |
 

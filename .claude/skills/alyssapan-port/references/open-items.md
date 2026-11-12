@@ -138,7 +138,11 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    collision TU that fills it (ssProcessHit's, probably) confirms it; (am2) **the attacker word's bank is a
    guess**: HitAttackerKind resolves rec->attacker in Character[who].bank (its byte +0x1a2 is
    HIT_KIND_PANIC 3 / HIT_KIND_NORMAL 4) -- if the writer stores an address in another bank, change the
-   helper; (an2) the attacker characters 2..6 / 32 are named HIT_CHARA_* after the SE bank each plays
+   helper. **Answered 2026-11-12 by the writer (ssHit_information, game/ssCalcInversMatrix2.c): the word is
+   the struck HIT_DMG of the table's own bank (the damaged character's), not the attacker -- so
+   HitAttackerKind (wideXcmd_DebugPrint.c) must resolve it in BankOfHostPtr(the table), not
+   Character[who].bank; fix it when that TU is next open (open: whether +0x1a2 then names a damage
+   shape's kind rather than the attacker's); (an2) the attacker characters 2..6 / 32 are named HIT_CHARA_* after the SE bank each plays
    (E_HAMMER, none, E_ONO, E_SMA, E_SWO, none); the object banks by their name word (E_93, E_14, E_95,
    SCSR, E_97); CHARA_HIT_LANDED (+0x51c) and CHARA_BOSS_STRIKE (+0x4e0) from this use; the triggers
    (0x95 MUTEKI, 0x46 / 0x50 BOSS_STRIKE / STRUCK, 0x52 BOSS_ACTION, 0x6f / 0x88 / 0xb0 NO_HIT) too;

@@ -1,5 +1,5 @@
 // game/ssCalcInversMatrix2.h -- CT3 game/ssCalcInversMatrix2.c: the declarations other TUs call
-// (asMakeStraw first, 2026-11-10). Prototypes from the call sites; the TU that writes these confirms them.
+// (asMakeStraw first, 2026-11-10). Confirmed by the TU's own reconstruction (2026-11-12).
 #pragma once
 
 #include "sdk/scetypes.h"

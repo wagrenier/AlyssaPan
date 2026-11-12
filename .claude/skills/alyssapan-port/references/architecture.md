@@ -684,6 +684,25 @@ Read with `vudis.py 18ff430 335 --all` (mind hazards.md's vudis misprints). Micr
   none written: both cursors back to the start. **SetBig** appends the big list's polygons whole at the
   cursors (after SetNear's).
 
+## The attack boxes and hit records, game/ssCalcInversMatrix2.c (2026-11-12)
+
+One object (symtab local chunk 102, 0x018a88e0..0x018a9fe0, 5 functions): ssCalcInversMatrix2 (a 4x4
+inverse by cofactors, then a scale matrix of 1 / det; a det whose word is 0 leaves the output), and the
+writer side of the hit tables the x commands read.
+- **Boxes** (SS_OBB): ssHitMakeAttackOBB bounds the attack object's world rows; a character's attack that
+  moved more than 0.1 is bounded in a frame turned so z is the move (asMakeRotMatrixByQuartanion about
+  z x dir by ahAcos(z . dir)), its far z face pushed on by the move's length, then turned back.
+  ssHitMakeDamageOBB bounds every damage shape's 8 corners (HIT_DMG world[0..1]) on the world axes into
+  HIT_TABLE.bodyObb. Corners are written min-z face 0-1-2-3, max-z face 4-7; half is one qword store
+  (SS_OBB.halfW at 0xcc gets 0).
+- **Records**: ssHit_information (a character's damage shape struck) writes HIT_OBJ_REC in the attacker's
+  table (kind 0, id = the HIT_DMG, chara = the target; an existing record with chara -1 learns them) and
+  HIT_REC in the target's (attacker = the struck HIT_DMG, attack = a->motion, who = a->chara, isObject =
+  a->kind, bank = a->atk). ssHit_informationScn (a scene shape struck) records the shape once in
+  scn->scnHits (HIT_ATK_REC), takes HIT_OBJ.damage (+0xde) * power / 1000 off HIT_DATA.hp (+0x19e; 100 =
+  unbreakable; below 0 -> 0 and nothing more recorded), then sets bit HIT_DATA.material (+0x19b) in the
+  attacker's HIT_OBJ_REC (kind 1, chara = a->bank for a scene attacker, -1 for a character).
+
 ## The file layer, game/ArtoolDebugOpen.c (2026-11-10)
 
 `IopLoadModules` reboots the IOP with `cdrom0:\IOP\IOPRP255.IMG;1` and loads the ten modules from

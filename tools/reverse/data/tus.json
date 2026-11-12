@@ -1,7 +1,6 @@
 {
  "queue": [
   "alyssapan/rendering/ui_canvas.cpp",
-  "game/ssCalcInversMatrix2.c",
   "ga/gaDrawObject_Redraw_Polygon.c"
  ],
  "settings": {
@@ -1407,12 +1406,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 82..82, 2 functions keyed by their statics, 32 unkeyed; file name from the names"
   },
   "game/ssCalcInversMatrix2.c": {
+   "notes": "No smoke run reaches the attack collision yet (the title scene draws as before). HIT_DATA gains material (+0x19b) and hp (+0x19e), HIT_OBJ damage (+0xde), SS_OBB halfW (+0xcc). The writer shows HIT_REC.attacker is the struck HIT_DMG of the table's own bank: HitAttackerKind in wideXcmd_DebugPrint.c resolves it in the wrong bank (open-items am2). The rotated box's axis w is a guess (vopmsub.xyz leaves it), unused by the rotation.",
    "ranges": [
     [
      "018a88e0",
      "018a9fe0"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-12 13:54",
+     "status": "verify",
+     "summary": "all 5 functions: ssCalcInversMatrix2 (4x4 inverse), ssHitMakeAttackOBB and ssHitMakeDamageOBB (the attack and body boxes), ssHit_information and ssHit_informationScn (the hit-record writers)"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 102..102, 3 functions keyed by their statics, 2 unkeyed; file name from the names"
   },
   "game/ssGrpPortalCheck.c": {

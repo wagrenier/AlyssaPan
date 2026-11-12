@@ -66,8 +66,14 @@ typedef struct HIT_DATA {
     u_int flags;                        /* 0x194: HIT_DATA_FLAG_* (LOS_HIT_FLAGS) */
     short part;                         /* 0x198: its part (parts header index; LOS_HIT_ID) */
     s_char kind;                        /* 0x19a: SS_L2W_*: which pass moves it */
-    u_char pad19b;
+    s_char material;                    /* 0x19b: its bit in HIT_OBJ_REC.materials (ssHit_informationScn) */
+    u_char pad19c[2];
+    s_char hp;                          /* 0x19e: an attack takes HIT_OBJ.damage * power / 1000 off it;
+                                           HIT_DATA_HP_UNBREAKABLE never changes (ssHit_informationScn) */
+    u_char pad19f;
 } HIT_DATA;
+static_assert(offsetof(HIT_DATA, hp) == 0x19e, "HIT_DATA.hp");
+#define HIT_DATA_HP_UNBREAKABLE 100
 static_assert(offsetof(HIT_DATA, worldV) == 0x120, "HIT_DATA.worldV");
 static_assert(offsetof(HIT_DATA, planeD) == 0x190, "HIT_DATA.planeD");
 static_assert(offsetof(HIT_DATA, kind) == 0x19a, "HIT_DATA.kind");
@@ -140,7 +146,11 @@ typedef struct HIT_OBJ {
     short rows;                         /* 0xd8: qwords in local / world (moved 4 at a time) */
     short part;                         /* 0xda: HIT_OBJ_ID: its part (parts header index) */
     s_char atk;                         /* 0xdc: HIT_OBJ_ATK: the attack id it serves */
+    u_char pad0dd;
+    s_char damage;                      /* 0xde: what it takes off a scene shape's hp, per 1000 of the
+                                           attack's power (ssHit_informationScn) */
 } HIT_OBJ;
+static_assert(offsetof(HIT_OBJ, damage) == 0xde, "HIT_OBJ.damage");
 static_assert(offsetof(HIT_OBJ, part) == 0xda, "HIT_OBJ.part");
 static_assert(offsetof(HIT_OBJ, atk) == 0xdc, "HIT_OBJ.atk");
 // A character's damage shape (a character bank's HIT_TABLE.hitData[0..dmgObjCount); slice 2, from
@@ -163,6 +173,7 @@ typedef struct SS_OBB {
     float center[4];                    /* 0x80 */
     float axis[3][4];                   /* 0x90: unit axes */
     float half[3];                      /* 0xc0: half sizes along them */
+    float halfW;                        /* 0xcc: written with half (one qword store): 0 */
 } SS_OBB;
 static_assert(offsetof(SS_OBB, half) == 0xc0, "SS_OBB.half");
 #define HIT_DMG_OBB(d) ((const SS_OBB *)(d)->world) /* a damage shape seen as its box */
