@@ -39,6 +39,44 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    - ~~7. First build~~ green (2026-11-09): `build.py --run 15` opens the window on D3D12, logs
      `[stub] main (CT3 0x01839d10) reached`, writes shots (black: nothing draws yet). `io::Disc` mounts
      only the root's 2 files (the path table is root-only: item 3). Then the queue.
+
+**TOP PRIORITY (the user, 2026-11-11): split `game/QuatSlerp.c`.** "This TU is clearly wrong: it has too
+many functions that are not related to QuatSlerp." The TU is 0x01851bf0..0x0185e9d0, 177 functions,
+about 4,560 lines reconstructed across 11 slices (state partial). `tumap.py` cut it only where a local
+symbol showed a seam (architecture.md "The TU map", doubt (a) under item 0 step 5), so it almost certainly holds
+several CodeWarrior objects. It is queued first (`tus.py queue game/QuatSlerp.c --top --task ...`) and
+takes the next run, ahead of every other TU or host task. The session, which may run over several runs:
+- **Find the real objects first, with evidence, not by prefix alone.** Signals, strongest first: a
+  source-path or `__FILE__` string; the restart of the `@<n>` literal counter (CodeWarrior numbers a
+  file's literals from its start, so a drop between two functions' literals is a file boundary); local
+  statics (`name$<n>`) and static functions used by only one run of functions; the order of
+  `.sdata` / `.sbss` / `.rodata` locals; who calls whom (a run called only from one module). Record
+  the evidence in architecture.md "The TU map".
+- **Candidate runs (guesses from the names and the authors' prefixes `as` / `tn` / `ah` / `ss` / `sun`;
+  each to be confirmed or moved):** the slerp and angles (QuatSlerp..ahAcos); game state, rooms and
+  areas (BRANCH_CLEAR..CheckSameRoomAsMonster); the controller rattles; event sounds and panic
+  (EventSoundEnd..Kekkai_Check); 3dlib work, joints, the screen check (tnInit3dlibWork..
+  ssPointCheckWithinScreen); the per-frame updates (PlayerControlUpdate2..PauseUpdate); the texture
+  file pages (tnTrigTexFileSetNext..TexFileSetInit); fog, ambient alpha and the part fades
+  (FogAnimeUpdate..LosHitFadeUpdateTarget); the screen filters (DemoScreenFilter..XcmdScreenFilter);
+  the texture buffers (OneMaxObjectDrawZOnly..sunSetupTBufferData); movies and reset (GetBankID..
+  SystemReReset); object, stick and camera helpers (asGetObjectPositionAtWorld..asPosRUF2ViewMatrix);
+  VistaVision; the warps (ExecuteWarpObject2..asWarpSceneObject); bank and string helpers
+  (ssGetBankID..tnRand); the packet writers and copies (asDR_*, asMemCopy*); the packed-value
+  interpolation (asInterpolateZipFloat0_7_9X..asInterpolateVector); vector and lookup helpers
+  (asDelSqueezeInformation..absf); the hashes (asConvertHash2String, ahGetHash); the slide LZSS
+  (tnSlideThawing..tn_getc); rndf, rnd.
+- **Then move the code as it is**, without rewriting it: `tus.py define <new file> <lo>-<hi> --why "<the
+  evidence>"` for each object (and narrow QuatSlerp.c's range to what stays: the slerp, perhaps only
+  its first run); move each function, its statics and its header declarations into
+  `src/game/<file>.c/.h` (keys named after the object's first function, like tumap's, unless a string
+  gives the real name); update the includes; carry each object's sessions and notes in tus.json into
+  the new keys; keep architecture.md's QuatSlerp.c sections but retitle them by their new files. The
+  build stays green and a smoke run must look the same as before the split (the picture is the test).
+- When the split is through, remove the `task` field from QuatSlerp.c's entry in data/tus.json, mark
+  each new TU with its real state (done / verify / partial), and record the method in reconstruction.md so
+  the other large objects (doubt (a): wideXcmd_DebugPrint.c, tiXcmd_TransItem.c, ssSetTexUVforCubeMap.c,
+  ahRelocateSunPs2ObjectArry.c) can be split the same way after it.
 1. **`main`'s TU first** -- **partial (2026-11-09):** slice 1 written (main, the boot and init functions,
    ControllerMain, tiItemInit, scene_end, the small draw passes; 15 functions); slice 2 (2026-11-09):
    `GlobalDrawObject`, `scene_draw_init`, `system_end`, `get_draw_obj`; slice 3 (2026-11-09): `main_rtn`, `main_rtn_Particle`; slice 4 (2026-11-09):
