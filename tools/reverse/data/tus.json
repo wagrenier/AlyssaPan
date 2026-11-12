@@ -1,5 +1,6 @@
 {
  "queue": [
+  "alyssapan/rendering/title_wide.cpp",
   "game/Clipping_Portal.c",
   "alyssapan/rendering/ui_canvas.cpp",
   "game/wideXcmd_DebugPrint.c",
@@ -93,6 +94,9 @@
    ],
    "status": "done",
    "task": "The ga full-screen fill: tiFade_Draw (game/Clipping_Portal.c, 2026-11-11) sends init_black / init_white, a GIF A+D SPRITE over the GS window 512x448, blended by its draw control (ALPHA_1 (Cs - Cd) * FIX + Cd, FIX = 128 x the fade's f), and the host drops raw GIF packets, so the screen stays flat grey where the ROM is black (fade type 4 at f 1 from frame ~60). Add a native call in alyssapan_drawga.h (colour, FIX) that the recorder keeps in draw order and the renderer draws over the whole window at any aspect (DisplayGeometry, never 4:3); call it from tiFade_Draw instead of the packet; also find where the flat 128 grey comes from. Done when the smoke shot after ATLD is black at 4:3 and wide."
+  },
+  "alyssapan/rendering/title_wide.cpp": {
+   "task": "The title screen at wide aspects (the user, 2026-11-11: queued first). At 16:9 the title (ATLD's ga quads, about 30 textured objects drawn by DrawGaFrame in src/alyssapan/seams.cpp through UiCanvas, squeezed about the centre) shows its backdrop panels ending short of the window edges with visible seams, and a lighter band at the right even at 4:3 (shots after 40 s; let runs go 40 s or more, the 3 and the menu come late). Find which quads end short (a frame probe listing each mesh's window bounds, texture and colour is quick: strip it before committing), decide how a backdrop meets a wide window (extend or anchor per DisplayGeometry, never stretch 3D or text; the user's rule: any aspect ratio is the port's first feature) and record that decision in open-items Decisions, and fix the lighter band. Done when 4:3, 16:9 and 21:9 shots show the title like the game's own assets (work/ref/ATLD, ct3pack.py tex ATLD.BIN) with no seams. open-items 8 ko2."
   },
   "alyssapan/rendering/ui_canvas.cpp": {
    "notes": "Blocked on ga/gaBGT_DrawObject.c (host draw module for ga draw objects) and the camera (asEyeForcusUP2CamMat.c camera_init0 / camera_view stubs); triggers are not needed for ATLD. Reference: ct3pack.py tex ATLD.BIN writes work/ref/ATLD. Suggested reorder in open-items.md, not applied (the user's order).",
