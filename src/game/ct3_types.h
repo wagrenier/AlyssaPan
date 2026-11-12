@@ -489,7 +489,9 @@ static_assert(offsetof(SOUND_OBJ, positional) == 0x24, "SOUND_OBJ.positional");
 // One model part of a bank's parts header (pModelPartsHeader[bank], 0x380 bytes each). main_rtn reads
 // two fields; the rest belongs to the TU that loads the header.
 typedef struct MODEL_PARTS {
-    u_char pad000[0x42];
+    u_char pad000[0x10];
+    u_int flags10;                      /* 0x10: PARTS_FLAG10_* (ssTrans*HitDataL2W) */
+    u_char pad014[0x2e];
     u_char kind;                        /* 0x42: PARTS_KIND_NO_DOF: main_rtn_DOF skips the part */
     u_char flags43;                     /* 0x43: PARTS_FLAG43_* */
     int attr;                           /* 0x44: copied into the part's draw object (+0x3c) every draw:
@@ -517,7 +519,10 @@ typedef struct MODEL_PARTS {
     float distAlpha;                    /* 0x128: DistanceAttenuationAlphaSet's: minus the fade, -max..0 */
     float angleAlpha;                   /* 0x12c: AngleAttenuationAlphaSet's: minus the fade, -max..0 */
     float pos[4];                      /* 0x130: the part's position (SSGetPositional: a sound source) */
-    u_char pad140[0x80];
+    u_char pad140[0x40];
+    float matrix180[4][4];              /* 0x180: the matrix the part's hit data follows (ssTrans*HitDataL2W:
+                                           the local -> world of HIT_DATA; matrix is "before" for the
+                                           damage shapes' velocity) */
     float matrix[4][4];                 /* 0x1c0: the part's world matrix (SelfDiscardSceneLoad; ActressMP's) */
     float matrix200[4][4];              /* 0x200: a second matrix: a wind's frame (tiWindInit; its role is
                                            unread, the writer names it) */
@@ -537,6 +542,10 @@ typedef struct MODEL_PARTS {
                                            to put view-space belt vertices back into the part's space */
 } MODEL_PARTS;
 static_assert(offsetof(MODEL_PARTS, alpha) == 0x120, "MODEL_PARTS.alpha");
+static_assert(offsetof(MODEL_PARTS, flags10) == 0x10, "MODEL_PARTS.flags10");
+static_assert(offsetof(MODEL_PARTS, matrix180) == 0x180, "MODEL_PARTS.matrix180");
+#define PARTS_FLAG10_NO_HIT 0x1         /* set: the part's hit data is not moved into the world (a moving
+                                           hit, kind 2, and every damage shape) */
 static_assert(offsetof(MODEL_PARTS, matrix200) == 0x200, "MODEL_PARTS.matrix200");
 static_assert(offsetof(MODEL_PARTS, transInit) == 0x0f0, "MODEL_PARTS.transInit");
 static_assert(offsetof(MODEL_PARTS, warpH54) == 0x54, "MODEL_PARTS.warpH54");

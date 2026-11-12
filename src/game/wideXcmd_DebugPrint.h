@@ -211,17 +211,39 @@ static_assert(offsetof(PIA_KEY, h0c) == 0xc, "PIA_KEY.h0c");
 // What touched a character this frame: ALL_TABLE.hits of its bank (EE words of that bank: BANK_PTR).
 // The writer (the collision TU) is not read yet: the record's fields are named from this reader.
 typedef struct HIT_TABLE {
-    u_char pad00[0x24];
+    // 0x08..0x1c: a character bank's (FS_LOAD_SHAPE) collision data (ssHitCheckAttackToScn.c, 2026-11-11)
+    u_int hitData;                      /* 0x00: u_int[] ended by 0: EE words of HIT_DATA (ssHitCheckAttackToScn.h),
+                                           ssTransHitDataL2W's */
+    u_char pad04[4];
+    u_int objs;                        /* 0x08: u_int[objCount]: EE words of the attack objects (their
+                                           HIT_OBJ_ATK at +0xdc, HIT_OBJ_ID at +0xda) */
+    u_int colLocal;                     /* 0x0c: float[colCount][4]: the collision points in their part's space */
+    u_int colWorld;                     /* 0x10: float[colCount][4]: the same in the world (ssTransColHitDataL2W) */
+    u_int colParts;                     /* 0x14: short[colCount]: each point's part (parts header index) */
+    u_char pad18;
+    u_char objCount;                    /* 0x19 */
+    u_char colCount;                    /* 0x1a */
+    u_char pad1b;
+    int w1c;                            /* 0x1c: cleared by ssProcessHit each frame (character banks) */
+    u_char pad20[4];
     int count;                          /* 0x24: records in recs */
     u_int recs;                         /* 0x28: HIT_REC[count] (EE word of the bank) */
     u_char pad2c[0x2a0 - 0x2c];
     u_int attackObjs;                   /* 0x2a0: EE word of the bank: u_int[attackObjCount], EE words of
                                            objects (HIT_OBJ_ID at +0xda); asArrowOperate's attackers */
     int attackObjCount;                 /* 0x2a4 */
-    u_char pad2a8[8];
+    u_int dmgData;                      /* 0x2a8: u_int[dmgCount]: EE words of HIT_DATA, the scene's damage
+                                           shapes (ssTransScnDmgHitDataL2W) */
+    int dmgCount;                       /* 0x2ac */
     int objHitCount;                    /* 0x2b0: records in objHits (asUseArrow.c, 2026-11-11) */
     u_int objHits;                      /* 0x2b4: HIT_OBJ_REC[objHitCount] (EE word of the bank) */
+    int w2b8;                           /* 0x2b8: cleared by ssProcessHit each frame (scene banks) */
 } HIT_TABLE;
+static_assert(offsetof(HIT_TABLE, objs) == 0x08, "HIT_TABLE.objs");
+static_assert(offsetof(HIT_TABLE, colCount) == 0x1a, "HIT_TABLE.colCount");
+static_assert(offsetof(HIT_TABLE, w1c) == 0x1c, "HIT_TABLE.w1c");
+static_assert(offsetof(HIT_TABLE, w2b8) == 0x2b8, "HIT_TABLE.w2b8");
+#define HIT_OBJ_ATK 0xdc                /* object: s_char, the attack id ssHit_GetMaxIDFromAtkID looks for */
 static_assert(offsetof(HIT_TABLE, objHits) == 0x2b4, "HIT_TABLE.objHits");
 static_assert(offsetof(HIT_TABLE, attackObjCount) == 0x2a4, "HIT_TABLE.attackObjCount");
 // What a bank's objects hit this frame (asUseArrow.c's readers name it; the collision TU writes it).

@@ -183,9 +183,9 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    CHARACTER_FLAG_FACING_HELD (0x08000000) likewise; KIND2 10 is the attack kind (it was named
    MOTION_REC_KIND2_RESET from asRequestExecute: one value, two names); (bk) asAlyssaLockedByAnything's
    high byte 0x100 / 0x200 are read as "held by Character 2 / 32" (their catch motions 0x23 / 0xe5 and
-   the part PART_HASH_CATCH she is pinned to): confirm in the catcher TUs; (bl) the ssHitAddAttackRequest
+   the part PART_HASH_CATCH she is pinned to): confirm in the catcher TUs; ~~(bl) the ssHitAddAttackRequest
    (8 arguments: a2 0, a4 -1, a5 1 at the one site) and ssHit_GetMaxIDFromAtkID prototypes come from the
-   call site; (bm) MothInfo (bss 0x0193ced0, 40 bytes) is declared as u_char[0x28] in unassigned_data
+   call site~~ confirmed 2026-11-11 (ssHitCheckAttackToScn.c slice 1; the request is void); (bm) MothInfo (bss 0x0193ced0, 40 bytes) is declared as u_char[0x28] in unassigned_data
    until asMothOperate.c types it; (bn) PORT: a motion index with no table record (MotionRecord NULL) is
    read as no motion (the ROM would read garbage). callcheck's asFindModelParts / asRadianByVectors are
    in the helpers PartOfBank / CatchPin. **Next:**
@@ -1057,11 +1057,13 @@ questions. Resolve items here when they are settled (move them to "Done" with th
    (cVar31 = skipping, like the conditions' groups), then the commands by callee TU. Open from slice 4:
    (k) ssTrigAttackHitCheck's hit lists (ALL_TABLE.hits by BANK_INFO.type: a scene bank's two lists at
    +0x2b0 / +0x2b8, a shape bank's at +0x1c and HIT_TABLE's +0x24; HitListsScene / HitListsShape in the .c)
-   are named from this reader only: the collision TU (ssHitCheckAttackToScn.c) confirms; (l) the records'
+   are named from this reader only: the collision TU (ssHitCheckAttackToScn.c) confirms (slice 1,
+   2026-11-11: ssProcessHit clears exactly those four words each frame -- HIT_TABLE.objHitCount / w2b8,
+   w1c / count; the writers, ssHitCheckAndProcess and the attack checks, still to read); (l) the records'
    attacker objects are EE words of an unknown bank: HitObjectId resolves them by the bank whose EE image
-   starts nearest below (BankOfHostPtr's rule, EE side; PORT); (m) ssRadianByO is declared double (the EE
+   starts nearest below (BankOfHostPtr's rule, EE side; PORT); ~~(m) ssRadianByO is declared double (the EE
    returns a software double in v0) in ssHitCheckAttackToScn.h, stubbed: ssTrigLookAtCheck answers by
-   the stub's 0 until that TU writes it; (n) TRIG_INPUT_KEY / _TRG / _CNT are named from the pad words
+   the stub's 0 until that TU writes it~~ written 2026-11-11 (ssHitCheckAttackToScn.c slice 1); (n) TRIG_INPUT_KEY / _TRG / _CNT are named from the pad words
    (pad_key_button / _trg_ / _cnt_), not from their meaning; (o) ssTrigLookAtCheck's angle is the whole
    view cone in degrees (half = angle * 0x10000 / 720), read from the arithmetic only.
    **Slice 5 (2026-11-11): ssTrigExecuteActCmd, ssXcmd_functions and suXcmd_AnmDirection written: the TU's

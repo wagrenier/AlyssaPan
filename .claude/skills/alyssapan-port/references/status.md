@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-11 22:09 at commit `d60dd66` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-11 22:22 at commit `f4fca8f` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1270**; stubs: **205**
+- reconstructed CT3 functions: **1283**; stubs: **202**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -84,7 +84,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/sound.c` | 73 | 0 |
 | `src/game/ssCalcInversMatrix2.c` | 0 | 1 |
 | `src/game/ssGrpPortalCheck.c` | 74 | 0 |
-| `src/game/ssHitCheckAttackToScn.c` | 0 | 8 |
+| `src/game/ssHitCheckAttackToScn.c` | 13 | 5 |
 | `src/game/ssSetTexUVforCubeMap.c` | 1 | 50 |
 | `src/game/tiAvoidObject.c` | 0 | 9 |
 | `src/game/tiXcmd_TransItem.c` | 85 | 8 |
@@ -97,9 +97,10 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 64 TUs: todo 26, partial 3, verify 36, done 8, blocked 1
+- 64 TUs: todo 25, partial 4, verify 36, done 8, blocked 1
 - next: **game/ssHitCheckAttackToScn.c** (pinned in the queue)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
+- partial: `game/ssHitCheckAttackToScn.c` 13/37 -- Left in the slice: ssCollisionCheck, ssColCheckChar_Chara, ssMakeCharOBB, ssDivideHitDataToSpaceCell, ssHitCheckAndProcess, ssGetCharSpaceCell, ssAddHitDataToCh
 - partial: `game/tiXcmd_TransItem.c` 85/93 -- Slice 10. Written: tiXcmd_UseItem (ITEM_USE_* modes from argv[4], ITEM_KIND_* from the row byte +0: give-take, signal, heal Character[0].hp up to hpMax, calm vi
 - partial: `game/wideXcmd_TriggerInit.c` 1/46 -- Title draws at 4:3 and 16:9 after 40 s (logo, 3, menu, copyright). Fix in SunTexEePtr, BankOfEeAddr, HitObjectId: free slot banks shared EE addresses with the G
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
@@ -142,6 +143,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-11 22:22 `game/ssHitCheckAttackToScn.c` partial: slice 1: ssProcessHit, the attack request queue, ssHitInit, ssTransHitDataL2W and ssTransScnDmgHitDataL2W, the collision-point helpers, ssHit_GetMaxIDFromAtkID 
 - 2026-11-11 22:09 `game/asXcmd.c` verify: all 20 x commands written: panic sources, moths, arrows, hit points, slow motion, camera quake / reset / look-around, attach, auto-aim, seek bars, motion by mot
 - 2026-11-11 21:55 `game/asMothRouteSearch.c` verify: MothInfo init and destroy, and the moth route search around scene collision; MothInfo moved out of unassigned data into MOTH_INFO
 - 2026-11-11 21:47 `game/asUseArrow.c` verify: slice 2: asArrowOperate (the arrow state machine: on the bow, charge, flight, hits, return; the trigger variables); the file is complete
@@ -149,21 +151,20 @@ Recent sessions:
 - 2026-11-11 21:26 `game/tkXDTrg_GetSceneHash.c` verify: slice 4: tkXDTrg_ActorProc_Ini, the old-form door record that finds its camera cut and parts by name (Cam_Dor, TDS_Dor, CP_Dor, HT_Dor, SE_Dor plus the room and
 - 2026-11-11 21:20 `game/tkXDTrg_GetSceneHash.c` partial: slice 3: the DoorTrigger x command and its actor dispatcher (code parser, scene heads, door records), the Ini_New and IniMon parsers, Alyssa's door open and clo
 - 2026-11-11 21:08 `game/tkXDTrg_GetSceneHash.c` partial: slice 2: the door actor procs (AnimToFrameDoor, AnimRangeDoor, ChangeCamera, CmnClo, the ScW / ScM / Axe / Vit / Ham Opn, OpnOut and Clo, Sht, HitPtl, AlsCam, I
-- 2026-11-11 20:56 `game/tkXDTrg_GetSceneHash.c` partial: slice 1: the branch scene tables (ScnTbl and the Br tables), scene ids, door flags, the door-trigger state init, CloseCancel, the door bridge draw (tkBri_DoorDr
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
 | `game/ssSetTexUVforCubeMap.c` | partial | 1/50/96 | 35.3 | 117 | 10 |
 | `game/CpDivideEECom.c` | todo | 0/10/18 | 3.3 | 80 | 10 |
 | `ga/gaDrawObject.c` | todo | 0/11/11 | 6.9 | 39 | 0 |
-| `game/ssHitCheckAttackToScn.c` | todo | 0/8/37 | 32.0 | 36 | 3 |
 | `game/tiAvoidObject.c` | todo | 0/9/82 | 30.5 | 29 | 4 |
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/AA_GetDataWord.c` | todo | 0/8/15 | 4.9 | 21 | 2 |
 | `game/AA_SoundMonoSoart.c` | todo | 0/8/20 | 4.0 | 18 | 2 |
-| `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
+| `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `ga/gaObjectClippingCheck.c` | todo | 0/1/1 | 0.2 | 12 | 1 |
+| `game/ssHitCheckAttackToScn.c` | partial | 13/5/37 | 32.0 | 11 | 0 |
 | `game/asMothPause.c` | todo | 0/1/1 | 0.3 | 10 | 0 |
 
 ## Frontier (called by reconstructed code, not written yet)
@@ -173,7 +174,6 @@ Recent sessions:
 | `01851b10` | ConvertQuat2Matrix | 17 | sym | stub | game/Convert.c |
 | `018d1e70` | CpGetEEIOPStatus | 14 | sym | stub | game/CpDivideEECom.c |
 | `01883ca0` | asMothPause | 10 | sym | stub | game/asMothPause.c |
-| `018aa8e0` | ssHitAddAttackRequest | 8 | sym | stub | game/ssHitCheckAttackToScn.c |
 | `018a3078` | gaObjectClippingCheck | 7 | sym | stub | ga/gaObjectClippingCheck.c |
 | `018ab180` | CheckLOS | 6 | sym | stub | game/ssHitCheckAttackToScn.c |
 | `018518d0` | ConvertMatrix2Quat | 6 | sym | stub | game/Convert.c |
@@ -210,4 +210,5 @@ Recent sessions:
 | `0189d900` | ssTrigScreenBlurEnd | 2 | sym | stub | game/ssSetTexUVforCubeMap.c |
 | `01860d00` | ssAI_IsDoorOpenPlaying | 1 | sym | stub | game/tiAvoidObject.c |
 | `018bbeb0` | AA_audioDecSendToIOP | 1 | sym | stub | game/AA_SoundMonoSoart.c |
+| `018bfde0` | AA_readBufDelete | 1 | sym | stub | game/AA_videoCallback.c |
 

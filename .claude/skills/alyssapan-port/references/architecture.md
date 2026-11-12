@@ -1113,6 +1113,38 @@ the branch scene tables and a few tk x commands.
   units, 0x10000 a turn) until a clear end is found. asMothOperate passes 0x5ed0 / 0x1555 and shortens
   the target by 0.8 while the answer is 1.
 
+## Hits and collision, game/ssHitCheckAttackToScn.c (2026-11-11, slice 1)
+
+- **ssProcessHit** (once a frame, main): for each loaded bank group clears gSceneL2WStatus[bank] and the
+  per-frame hit counts of its ALL_TABLE.hits (a scene bank, FS_LOAD_SCENE: +0x2b0 objHitCount and
+  +0x2b8; a shape bank, FS_LOAD_SHAPE: +0x1c and +0x24 count); then for Character[] slots other than 11
+  and 12 shifts w300[0..1] to w300[2..3] and clears them, and collides every character with flag
+  0x40000000 set, 0x08000000 clear, id not 0x1d / 0x1e / 0x1f, whose CHARACTER.lightBank (+0xa0, the
+  scene bank it stands in) is a loaded bank: ssCollisionCheck(chara, bank, list, count) with the whole
+  list (for Alyssa, Character[0], it also checks her against every other listed character); then
+  ssHitCheckAttackList, and the queue is emptied.
+- **The attack queue** (ssHitAtList, a static of 0xe04 bytes: 256 SS_HIT_ATTACK records of 14 bytes,
+  the count byte at 0xe00; 0xff refuses more): ssHitAddAttackRequest(chara, atk, kind, power, target,
+  b0d, motion, bank) appends; kind 0 runs ssHitCheckCharacterAttack(rec), any other kind
+  ssHitCheckSceneAttack(rec) when target != -1.
+- **A shape bank's HIT_TABLE** (wideXcmd_DebugPrint.h): +0x08 the attack objects (u_int[+0x19], each
+  with its attack id s_char at +0xdc and HIT_OBJ_ID short at +0xda: ssHit_GetMaxIDFromAtkID), +0x0c /
+  +0x10 / +0x14 the collision points local / world / their part (short), count +0x1a.
+  ssTransColHitDataL2W puts them in the world by each part's matrix (MODEL_PARTS +0x1c0);
+  ssMoveAllHitObjCoordinate adds a whole qword (w too) to the world points.
+- **HIT_DATA** (0x19c bytes, bank data; ssHitCheckAttackToScn.h): a hit shape. HIT_TABLE +0x00 lists a
+  bank's (0-ended), +0x2a8 / +0x2ac the scene's damage shapes (counted). ssTransHitDataL2W(parts, hits,
+  mode) / ssTransScnDmgHitDataL2W move the shapes whose kind (+0x19a) is `mode` (3 once from ssHitInit,
+  2 each frame from ssCollisionCheck) by their part's matrix180 (MODEL_PARTS +0x180): world frame (local
+  * matrix180 via gaMulMatrix), point, 3 vectors (6 with flag 0x40000000), plane d = point . row 0. Kind 2
+  also gets a velocity (+0xa0): the change of the rows' sum, / 4 (/ 3 over three rows for the flagged
+  ones), measured from the shape's last world frame (hit shapes) or from the part's +0x1c0 matrix (damage
+  shapes). Parts with MODEL_PARTS +0x10 bit 0 are skipped (damage shapes always, hit shapes of kind 2).
+- **ssRadianByO(v, axis)**: atan of the second component over the first of the plane that drops `axis`
+  (0: y over z, 1: x over z, 2: x over y), in [0, 2pi) for axes 1 and 2 and (-pi/2, pi/2] for 0; when the
+  first component is within 0.01 of the vector's length, a quarter turn by the second's sign (beyond
+  0.1), else 0. The thresholds are float literals promoted to double.
+
 ## The IOP side (2026-11-09)
 
 The EE loads `cdrom0:\IOP\IOPRP255.IMG;1` (an IOP reboot), then `SIO2MAN`, `PADMAN`, `MCMAN`, `MCSERV`,
