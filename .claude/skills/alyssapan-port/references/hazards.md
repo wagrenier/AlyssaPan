@@ -7,6 +7,13 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-12, ssSetTexUVforCubeMap.c slice 3) **The particle curve readers share one cache tick**:
+  every reader (size, refractive index, VRGB, alpha, UV, 2D size) answers from the `cash*` statics when
+  the age equals `cashTicks`, whichever reader filled them. Correct only because callers run
+  `ssParticleCashClear` before each curve's pass over a ring (tiCalc_Orbit does); a new caller that reads
+  two curves for one record without the clear gets the other curve's value. Ghidra's decompilation of
+  ssCalcParticleLifeSpan shows its first ssParticleLifeCheck with two arguments: the other two ride in
+  untouched a2 / a3 (the port passes them).
 - (2026-11-12, ssSetTexUVforCubeMap.c slice 2) **ssTrigHQDOFEnd ends the wrong mode**: it clears DrawMode
   only when it is 7 (DRAW_MODE_VASELINE), while ssTrigHQDOFStart sets 8 (HQDOF). Kept as the ROM has it;
   an HQDOF that never ends is the game's, not the port's. Also: an edit whose old text starts inside a

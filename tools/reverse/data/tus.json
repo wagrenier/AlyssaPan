@@ -1340,7 +1340,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 103..103, 3 functions keyed by their statics, 33 unkeyed; file name from the names"
   },
   "game/ssSetTexUVforCubeMap.c": {
-   "notes": "Slice 2: ReflectMapUpdate with ssCalcReflectPlaneMap, ssCalcReflectCubeMap, ssGetReflectVector, ssGetReflectFace, ssCalcCubeMapUVfromFace, ssSetTexUVforCubeMap (REFLECT_ENTRY, REFLECT_MAP, REFLECT_TRI in the header; ALL_TABLE +0x5c reflects, +0x00 ambient); ssChangeCharAmbientColor and tnChangeCharAmbientColorSet (CHAR_AMB_CHANGE fields named); ssParticleInit (PARTICLE_STATE and PARTICLE_ENTRY words named; the draw object view words hold CAM_EE addresses, open-items); ssTrigParticleStop, ssTrigHQDOFEnd (ROM checks the Vaseline mode, hazards), ssSetDOFClipRange, ssParticleCashClear. Next: ssParticle_main with ssGenerateParticle and the ring helpers, then ssDOF_ClipObjectFromZRange. Smoke run: the title room draws as before; no reflective part there, so the ST writes are unproven on screen.",
+   "notes": "Slice 3: the six curve readers (tiParticleGetSizeValue vec4 keys 0x20, tiParticleGetRefractive_IndexValue, ssParticleGetVRGBValue, ssParticleGetAlphaValue, ssParticleGetUVValue, ssParticleGetSizeValue 2D; CURVE_KEY_* structs, one shared cash tick: hazards.md), the setters ssParticleSetVRGB / SetUV / SetAlpha / SetSize (slot record 0xc0: PARTICLE_REC_* in the header; the slot object word +0x6c is the EE address of its four vertex colours; PORT: VRGB and Alpha take a bank), ssParticlePop_Front, ssParticleLifeCheck, ssCalcParticleLifeSpan (PORT: takes a bank). Next: ssParticle_main with ssGenerateParticle, ssParticlePush_Back, ssMeshParticlePush_Back, ssMeshParticleGetNextVertID2, then ssCalcParticleOrbit with ssParticleSetPosition and the tiParticleSetPosition* motions (they call the setters above; ssParticleSetAlpha src is the fourth argument, four signed RGBA words, origin unread). Smoke run: the title clock-tower room draws as before; no first-kind particle is emitted yet, so nothing on screen proves the readers.",
    "ranges": [
     [
      "018951d0",
@@ -1357,6 +1357,11 @@
      "date": "2026-11-12 01:00",
      "status": "partial",
      "summary": "reconstruct 13 functions (reflection maps, ambient change, particle init, small triggers)"
+    },
+    {
+     "date": "2026-11-12 01:07",
+     "status": "partial",
+     "summary": "reconstruct 13 functions (particle curve readers, per-slot setters, ring life helpers)"
     }
    ],
    "status": "partial",

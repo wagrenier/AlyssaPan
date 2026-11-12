@@ -2,6 +2,7 @@
 // Reconstructed: the ambient colour, the part motion blur's counters, init, update and end, the particle
 // tables' end, the screen blur off and the Z clear (2026-11-12); the reflection maps, a character's ambient
 // change, the particle init and stop, HQDOF end, DOF clip range and the curve cache clear (2026-11-12, slice 2); the
+// particle curve readers, the per-slot setters and the ring life helpers (2026-11-12, slice 3); the
 // rest are stubs (tools/reverse/stage.py).
 
 #include <math.h>
@@ -1060,55 +1061,322 @@ void ssSetDOFClipRange(float nearClip, float farClip)
     DOF_FarClip = farClip;
 }
 
-// stub of CT3 0x01898a60
+// The curves' keys: a tick (the record's age, ascending; the last key's tick lies past the record's life)
+// and the value at that tick. A reader interpolates linearly between the key *cache and the next one,
+// first stepping *cache forward past every key the age has reached (ages only grow, so the cache word
+// saves the walk). Age 0 answers key 0 and resets the cache word.
+typedef struct CURVE_KEY_F {            /* the refractive index */
+    int tick;
+    float value;
+} CURVE_KEY_F;
+typedef struct CURVE_KEY_S16 {          /* the alpha, percent */
+    int tick;
+    short value;
+    u_char pad6[2];
+} CURVE_KEY_S16;
+typedef struct CURVE_KEY_RGB {          /* the vertex colour offsets, signed */
+    int tick;
+    s_char rgb[3];
+    u_char pad7;
+} CURVE_KEY_RGB;
+typedef struct CURVE_KEY_F2 {           /* UV, the 2D size */
+    int tick;
+    float value[2];
+} CURVE_KEY_F2;
+typedef struct CURVE_KEY_V4 {           /* the 3D scale */
+    int tick;
+    u_char pad04[0xc];
+    float value[4];
+} CURVE_KEY_V4;
+static_assert(sizeof(CURVE_KEY_F) == 0x08, "CURVE_KEY_F");
+static_assert(sizeof(CURVE_KEY_S16) == 0x08, "CURVE_KEY_S16");
+static_assert(sizeof(CURVE_KEY_RGB) == 0x08, "CURVE_KEY_RGB");
+static_assert(sizeof(CURVE_KEY_F2) == 0x0c, "CURVE_KEY_F2");
+static_assert(sizeof(CURVE_KEY_V4) == 0x20, "CURVE_KEY_V4");
+
+// The key-walk every reader inlines: *cache past the keys age has reached; t0 / t1 the ticks around age.
+#define CURVE_WALK(keys, age, cache, t0, t1)                \
+    do {                                                    \
+        (t0) = (keys)[*(cache)].tick;                       \
+        (t1) = (keys)[*(cache) + 1].tick;                   \
+        while ((t1) <= (age)) {                             \
+            (*(cache))++;                                   \
+            (t0) = (t1);                                    \
+            (t1) = (keys)[*(cache) + 1].tick;               \
+        }                                                   \
+    } while (0)
+
+// CT3 0x01898a60
+// The 3D scale at `age` (tiCalc_Orbit: PARTICLE2.scale). The ROM interpolates on VU0 (vmulbc, vadd)
+// and multiplies by the reciprocal of the span.
 void tiParticleGetSizeValue(int age, float *scale, void *curve, short *cache)
 {
-    (void)age;
-    (void)scale;
-    (void)curve;
-    (void)cache;
-    ALYSSAPAN_STUB("tiParticleGetSizeValue", 0x01898a60);
+    const CURVE_KEY_V4 *keys = (const CURVE_KEY_V4 *)curve;
+    int t0, t1, i;
+    float w0, w1, inv;
+
+    if (age == 0) {
+        memcpy(scale, keys[0].value, sizeof(keys[0].value));
+        *cache = 0;
+        return;
+    }
+    if (age == cashTicks) {
+        memcpy(scale, cashVECval0, sizeof(cashVECval0));
+        return;
+    }
+    CURVE_WALK(keys, age, cache, t0, t1);
+    w0 = (float)(t1 - age);
+    w1 = (float)(age - t0);
+    inv = 1.0f / (float)(t1 - t0);
+    for (i = 0; i < 4; i++)
+        scale[i] = (keys[*cache].value[i] * w0 + keys[*cache + 1].value[i] * w1) * inv;
+    memcpy(cashVECval0, scale, sizeof(cashVECval0));
+    cashTicks = age;
 }
 
-// stub of CT3 0x01898980
+// CT3 0x01898980
 void tiParticleGetRefractive_IndexValue(int age, float *index, void *curve, short *cache)
 {
-    (void)age;
-    (void)index;
-    (void)curve;
-    (void)cache;
-    ALYSSAPAN_STUB("tiParticleGetRefractive_IndexValue", 0x01898980);
+    const CURVE_KEY_F *keys = (const CURVE_KEY_F *)curve;
+    int t0, t1;
+
+    if (age == 0) {
+        *index = keys[0].value;
+        *cache = 0;
+        return;
+    }
+    if (age == cashTicks) {
+        *index = cashFval0;
+        return;
+    }
+    CURVE_WALK(keys, age, cache, t0, t1);
+    cashFval0 = (keys[*cache + 1].value * (float)(age - t0) + keys[*cache].value * (float)(t1 - age))
+                / (float)(t1 - t0);
+    *index = cashFval0;
+    cashTicks = age;
 }
 
-// stub of CT3 0x01898bc0
+// CT3 0x01898bc0
+// Integer interpolation of signed bytes (the ROM's div truncates toward 0, like C's).
 void ssParticleGetVRGBValue(int age, s_char *r, s_char *g, s_char *b, void *curve, short *cache)
 {
-    (void)age;
-    (void)r;
-    (void)g;
-    (void)b;
-    (void)curve;
-    (void)cache;
-    ALYSSAPAN_STUB("ssParticleGetVRGBValue", 0x01898bc0);
+    const CURVE_KEY_RGB *keys = (const CURVE_KEY_RGB *)curve;
+    const CURVE_KEY_RGB *k;
+    int t0, t1;
+
+    if (age == 0) {
+        *r = keys[0].rgb[0];
+        *g = keys[0].rgb[1];
+        *b = keys[0].rgb[2];
+        *cache = 0;
+        return;
+    }
+    if (age == cashTicks) {
+        *r = cashIval1;
+        *g = cashIval2;
+        *b = cashIval3;
+        return;
+    }
+    CURVE_WALK(keys, age, cache, t0, t1);
+    k = &keys[*cache];
+    cashIval1 = (s_char)((k[0].rgb[0] * (t1 - age) + k[1].rgb[0] * (age - t0)) / (t1 - t0));
+    *r = cashIval1;
+    cashIval2 = (s_char)((k[0].rgb[1] * (t1 - age) + k[1].rgb[1] * (age - t0)) / (t1 - t0));
+    *g = cashIval2;
+    cashIval3 = (s_char)((k[0].rgb[2] * (t1 - age) + k[1].rgb[2] * (age - t0)) / (t1 - t0));
+    *b = cashIval3;
+    cashTicks = age;
 }
 
-// stub of CT3 0x01898e60
+// CT3 0x01898e60
 void ssParticleGetAlphaValue(int age, short *alpha, void *curve, short *cache)
 {
-    (void)age;
-    (void)alpha;
-    (void)curve;
-    (void)cache;
-    ALYSSAPAN_STUB("ssParticleGetAlphaValue", 0x01898e60);
+    const CURVE_KEY_S16 *keys = (const CURVE_KEY_S16 *)curve;
+    const CURVE_KEY_S16 *k;
+    int t0, t1;
+
+    if (age == 0) {
+        *alpha = keys[0].value;
+        *cache = 0;
+        return;
+    }
+    if (age == cashTicks) {
+        *alpha = cashIval0;
+        return;
+    }
+    CURVE_WALK(keys, age, cache, t0, t1);
+    k = &keys[*cache];
+    cashIval0 = (short)((k[0].value * (t1 - age) + k[1].value * (age - t0)) / (t1 - t0));
+    *alpha = cashIval0;
+    cashTicks = age;
 }
 
-// stub of CT3 0x01898d20
+// The two-float readers (UV and the 2D size) are the same code twice in the ROM.
+static void CurveGetF2(int age, float *a, float *b, const void *curve, short *cache)
+{
+    const CURVE_KEY_F2 *keys = (const CURVE_KEY_F2 *)curve;
+    const CURVE_KEY_F2 *k;
+    int t0, t1;
+
+    if (age == 0) {
+        *a = keys[0].value[0];
+        *b = keys[0].value[1];
+        *cache = 0;
+        return;
+    }
+    if (age == cashTicks) {
+        *a = cashFval0;
+        *b = cashFval1;
+        return;
+    }
+    CURVE_WALK(keys, age, cache, t0, t1);
+    k = &keys[*cache];
+    cashFval0 = (k[0].value[0] * (float)(t1 - age) + k[1].value[0] * (float)(age - t0)) / (float)(t1 - t0);
+    *a = cashFval0;
+    cashFval1 = (k[1].value[1] * (float)(age - t0) + k[0].value[1] * (float)(t1 - age)) / (float)(t1 - t0);
+    *b = cashFval1;
+    cashTicks = age;
+}
+
+// CT3 0x01898d20
+// u, v: floats (the ROM stores with swc1; tiCalc_Orbit passes the draw object's DRAW_OBJ_UV_U / _V).
 void ssParticleGetUVValue(int age, void *u, void *v, void *curve, short *cache)
 {
-    (void)age;
-    (void)u;
-    (void)v;
-    (void)curve;
-    (void)cache;
-    ALYSSAPAN_STUB("ssParticleGetUVValue", 0x01898d20);
+    CurveGetF2(age, (float *)u, (float *)v, curve, cache);
+}
+
+// CT3 0x01898f30
+void ssParticleGetSizeValue(int age, float *w, float *h, void *curve, short *cache)
+{
+    CurveGetF2(age, w, h, curve, cache);
+}
+
+// ---- the first particle kind's rings (PARTICLE_ENTRY) ------------------------------------------------------
+
+// CT3 0x01897fd0
+// The oldest live slot's draw object, the head moved past it; NULL when the ring is empty.
+u_char *ssParticlePop_Front(u_char *objs, PARTICLE_STATE *st)
+{
+    u_short head = st->head;
+
+    if (st->tail == head)
+        return NULL;
+    st->head = (u_short)((head + 1) % st->ringSize);
+    return objs + head * PARTICLE_OBJ_SIZE;
+}
+
+// CT3 0x0189a510
+// Whether slot `slot` is live (between head and tail, wrapping) and its life is over at tick `now`.
+int ssParticleLifeCheck(const PARTICLE_STATE *st, u_short slot, const u_char *data, int now)
+{
+    u_short head = st->head;
+    u_short tail = st->tail;
+    int born;
+
+    if (head == tail)
+        return 0;
+    if (head < tail) {
+        if (slot < head || slot >= tail)
+            return 0;
+    } else if (tail < head && slot >= tail && slot < head) {
+        return 0;
+    }
+    memcpy(&born, data + slot * PARTICLE_REC_SIZE + PARTICLE_REC_BORN, sizeof(born));
+    return st->lifeTicks + born <= now;
+}
+
+// CT3 0x0189a5b0
+// Drops the expired slots from the front of the entry's ring (ssParticle_main, once per entry and frame).
+// PORT: the ROM's first ssParticleLifeCheck passes data / now through untouched registers.
+void ssCalcParticleLifeSpan(const PARTICLE_ENTRY *ent, u_char *objs, const u_char *data, int now, int bank)
+{
+    PARTICLE_STATE *st = BANK_PTR(PARTICLE_STATE *, bank, ent->state);
+
+    while (ssParticleLifeCheck(st, st->head, data, now) && ssParticlePop_Front(objs, st) != NULL) {
+    }
+}
+
+// ---- the first particle kind's per-slot curves (ssCalcParticleOrbit calls them) ----------------------------
+
+// A slot draw object's word ssParticleSetVRGB / _SetAlpha write through: the EE address of its four vertex
+// colours (RGBA bytes from +0x10, one word per vertex; signed, 0 = the 0x80 midpoint).
+#define PARTICLE_OBJ_COLORS 0x6c
+#define PARTICLE_COLOR_BASE 0x10        /* the first vertex colour's offset in that block */
+#define PARTICLE_VERTS 4                /* a slot is one quad */
+#define PARTICLE_ALPHA_PERCENT 100      /* the alpha curve's full scale */
+#define PARTICLE_COLOR_BIAS 0x80        /* signed colour bytes centre on 0x80 */
+#define PARTICLE_REC_SIZE_W 0x50        /* float: the slot's size this frame, w and h */
+#define PARTICLE_REC_BASE_W 0xa0        /* float: its base size, w and h */
+
+static int ParticleRecInt(const u_char *rec, size_t off)
+{
+    int v;
+
+    memcpy(&v, rec + off, sizeof(v));
+    return v;
+}
+
+// CT3 0x018990a0
+// PORT: bank resolves the object's EE colour word.
+void ssParticleSetVRGB(void *curve, u_char *obj, u_char *rec, int now, int bank)
+{
+    s_char r, g, b;
+    u_int colorsEE;
+    u_char *colors;
+    int v;
+
+    ssParticleGetVRGBValue(now - ParticleRecInt(rec, PARTICLE_REC_BORN), &r, &g, &b, curve,
+                           (short *)(rec + PARTICLE_REC_VRGB_CACHE));
+    memcpy(&colorsEE, obj + PARTICLE_OBJ_COLORS, sizeof(colorsEE));
+    colors = BANK_PTR(u_char *, bank, colorsEE) + PARTICLE_COLOR_BASE;
+    for (v = 0; v < PARTICLE_VERTS; v++) {
+        colors[v * 4 + 0] = (u_char)r;
+        colors[v * 4 + 1] = (u_char)g;
+        colors[v * 4 + 2] = (u_char)b;
+    }
+}
+
+// CT3 0x01899150
+void ssParticleSetUV(void *curve, u_char *obj, u_char *rec, int now)
+{
+    float u, v;
+
+    ssParticleGetUVValue(now - ParticleRecInt(rec, PARTICLE_REC_BORN), &u, &v, curve,
+                         (short *)(rec + PARTICLE_REC_UV_CACHE));
+    memcpy(obj + DRAW_OBJ_UV_U, &u, sizeof(u));
+    memcpy(obj + DRAW_OBJ_UV_V, &v, sizeof(v));
+}
+
+// CT3 0x018991a0
+// Each vertex's alpha: the source colour's alpha (src: four RGBA words, signed) scaled by the curve's
+// percent. PORT: bank resolves the object's EE colour word.
+void ssParticleSetAlpha(void *curve, u_char *obj, u_char *rec, const s_char *src, int now, int bank)
+{
+    short alpha;
+    u_int colorsEE;
+    u_char *colors;
+    int v;
+
+    ssParticleGetAlphaValue(now - ParticleRecInt(rec, PARTICLE_REC_BORN), &alpha, curve,
+                            (short *)(rec + PARTICLE_REC_ALPHA_CACHE));
+    memcpy(&colorsEE, obj + PARTICLE_OBJ_COLORS, sizeof(colorsEE));
+    colors = BANK_PTR(u_char *, bank, colorsEE) + PARTICLE_COLOR_BASE;
+    for (v = 0; v < PARTICLE_VERTS; v++)
+        colors[v * 4 + 3] = (u_char)((s_char)((alpha * (src[v * 4 + 3] + PARTICLE_COLOR_BIAS))
+                                               / PARTICLE_ALPHA_PERCENT) - PARTICLE_COLOR_BIAS);
+}
+
+// CT3 0x018992c0
+void ssParticleSetSize(void *curve, u_char *rec, int now)
+{
+    float w, h, base;
+
+    ssParticleGetSizeValue(now - ParticleRecInt(rec, PARTICLE_REC_BORN), &w, &h, curve,
+                           (short *)(rec + PARTICLE_REC_SIZE_CACHE));
+    memcpy(&base, rec + PARTICLE_REC_BASE_W, sizeof(base));
+    w *= base;
+    memcpy(rec + PARTICLE_REC_SIZE_W, &w, sizeof(w));
+    memcpy(&base, rec + PARTICLE_REC_BASE_W + 4, sizeof(base));
+    h *= base;
+    memcpy(rec + PARTICLE_REC_SIZE_W + 4, &h, sizeof(h));
 }

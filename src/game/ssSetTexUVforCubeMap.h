@@ -170,5 +170,29 @@ void tiParticleGetRefractive_IndexValue(int age, float *index, void *curve, shor
 void ssParticleGetVRGBValue(int age, s_char *r, s_char *g, s_char *b, void *curve, short *cache); // CT3 0x01898bc0
 // alpha: percent (lh; tiCalc_Orbit divides by 100).
 void ssParticleGetAlphaValue(int age, short *alpha, void *curve, short *cache);          // CT3 0x01898e60
-// u, v: the draw object's +0x78 / +0x7c (DRAW_OBJ_UV_U / _V).
+// u, v: floats, the draw object's +0x78 / +0x7c (DRAW_OBJ_UV_U / _V).
 void ssParticleGetUVValue(int age, void *u, void *v, void *curve, short *cache);         // CT3 0x01898d20
+// w, h: the 2D size curve's answer (ssParticleSetSize scales the record's base size by it).
+void ssParticleGetSizeValue(int age, float *w, float *h, void *curve, short *cache);     // CT3 0x01898f30
+
+// The first particle kind's ring records (PARTICLE_ENTRY.data -> ParticleData[bank][i]): 0xc0 bytes per
+// slot beside the slot's draw object (PARTICLE_OBJ_SIZE). Only the words read so far are named.
+#define PARTICLE_REC_SIZE 0xc0
+#define PARTICLE_REC_BORN 0xa8          /* int: the tick the slot was emitted (ages are now - born) */
+#define PARTICLE_REC_SIZE_CACHE 0xb8    /* short: the curve readers' cache words (ssParticleSet*) */
+#define PARTICLE_REC_ALPHA_CACHE 0xba
+#define PARTICLE_REC_UV_CACHE 0xbc
+#define PARTICLE_REC_VRGB_CACHE 0xbe
+
+u_char *ssParticlePop_Front(u_char *objs, PARTICLE_STATE *st);                           // CT3 0x01897fd0
+int ssParticleLifeCheck(const PARTICLE_STATE *st, u_short slot, const u_char *data, int now); // CT3 0x0189a510
+// PORT: bank resolves the entry's EE state word.
+void ssCalcParticleLifeSpan(const PARTICLE_ENTRY *ent, u_char *objs, const u_char *data, int now,
+                            int bank);                                                   // CT3 0x0189a5b0
+// The per-slot curves (curve: the entry's curve; obj: the slot's draw object; rec: its record; now: the
+// pass's tick). PORT: bank resolves the object's EE colour word.
+void ssParticleSetVRGB(void *curve, u_char *obj, u_char *rec, int now, int bank);       // CT3 0x018990a0
+void ssParticleSetUV(void *curve, u_char *obj, u_char *rec, int now);                   // CT3 0x01899150
+void ssParticleSetAlpha(void *curve, u_char *obj, u_char *rec, const s_char *src, int now,
+                        int bank);                                                      // CT3 0x018991a0
+void ssParticleSetSize(void *curve, u_char *rec, int now);                              // CT3 0x018992c0
