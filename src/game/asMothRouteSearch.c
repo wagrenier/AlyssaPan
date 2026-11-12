@@ -35,7 +35,7 @@ void asInitMothInfo(void)
     MothInfo.count = 0;
     MothInfo.endTicks[0] = -1;
     MothInfo.endTicks[1] = -1;
-    MothInfo.w24 = 0;
+    MothInfo.paused = 0;
 }
 
 // CT3 0x01882c40: frees every moth's block and the list, drops the pad rumble and the global event
@@ -58,7 +58,7 @@ void asDestroyMothInfo(int reloadSE)
     MothInfo.active = 0;
     MothInfo.bank = 0;
     MothInfo.count = 0;
-    MothInfo.w24 = 0;
+    MothInfo.paused = 0;
     if (MothInfo.endTicks[MothInfo.stage] == 0)
         MothInfo.endTicks[MothInfo.stage] = gTotalTicks;
     if (reloadSE) {

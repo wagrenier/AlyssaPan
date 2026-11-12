@@ -978,12 +978,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 84..84, 1 functions keyed by their statics, 0 unkeyed; file name from the names"
   },
   "game/asMothPause.c": {
+   "notes": "Complete; callcheck clean. No moths are armed at the title so nothing can show it: verify. Queue refilled from a probe run pressing START: asMothPause was the one new stub past the title; with it the START run reaches no stub and stays black (a silent wait, open-items item 8 Queue refill). 20 s smoke shot: the clock-tower title scene as before.",
    "ranges": [
     [
      "01883ca0",
      "01883db0"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-12 08:14",
+     "status": "verify",
+     "summary": "asMothPause written (the TU's one function, static gAlysPos$61); MothInfo.w24 renamed paused"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 85..85, 1 functions keyed by their statics, 0 unkeyed; file name from the names"
   },
   "game/asMothRouteSearch.c": {

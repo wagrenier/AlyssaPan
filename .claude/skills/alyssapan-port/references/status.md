@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-12 07:54 at commit `058e950` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-12 08:14 at commit `9383d65` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1573**; stubs: **159**
+- reconstructed CT3 functions: **1574**; stubs: **158**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -71,7 +71,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/ahalloc.c` | 7 | 0 |
 | `src/game/asEyeForcusUP2CamMat.c` | 30 | 0 |
 | `src/game/asMothOperate.c` | 0 | 1 |
-| `src/game/asMothPause.c` | 0 | 1 |
+| `src/game/asMothPause.c` | 1 | 0 |
 | `src/game/asMothRouteSearch.c` | 3 | 0 |
 | `src/game/asUseArrow.c` | 11 | 0 |
 | `src/game/asXcmd.c` | 21 | 0 |
@@ -101,7 +101,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 23, verify 43, done 8, blocked 1
+- 65 TUs: todo 22, verify 44, done 8, blocked 1
 - next: **ga/gaDrawObject.c** (frontier score 39)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
@@ -129,6 +129,7 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/ahRelocateSunPs2ObjectArry.c` 93/93 -- All 93 functions written; nothing reaches the general body yet (the two written callers pass one flag each; asCharacterAnimationExecute and asResetCharacterPosi
 - verify: `game/ahalloc.c` 7/7 -- Host block header is 0x20 bytes (EE 0x10). SunAllocInit runs at boot; nothing calls _SunAlloc yet. AlignedNum is a stub answering 0, so game/AlignedNum.c is que
 - verify: `game/asEyeForcusUP2CamMat.c` 30/30 -- The smoke run calls camera_main with CAMERA_MODE_SCENE each frame; the debug modes and the cut step are not reached. Shot still black: the first object lands at
+- verify: `game/asMothPause.c` 1/1 -- Complete; callcheck clean. No moths are armed at the title so nothing can show it: verify. Queue refilled from a probe run pressing START: asMothPause was the o
 - verify: `game/asMothRouteSearch.c` 3/3 -- The route search runs only from asMothOperate (a stub); MOTH is layout host with most fields still wNN; open-items has the doubts (stage and endTicks, the twice
 - verify: `game/asUseArrow.c` 11/11 -- No arrow on screen until a stage with the bow runs. States renamed by use (4 CHARGE, 5 FLYING, 7 RETURN; ARROW_HIT_STUCK and _END). HIT_TABLE +0x2a0/+0x2a4 atta
 - verify: `game/asXcmd.c` 20/20 -- Smoke run unchanged (the content-warning screen; no scene script runs yet). PanicSet source 8 now adds to PANIC_INFO.gauge (the ROM indexes rise[8]); AttackTarg
@@ -151,6 +152,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-12 08:14 `game/asMothPause.c` verify: asMothPause written (the TU's one function, static gAlysPos$61); MothInfo.w24 renamed paused
 - 2026-11-12 07:54 `game/tiAvoidObject.c` verify: slice 6: the last 12 functions -- LetMonsterInFromShadow, SetMonsterPos, BarrierCheck, SerchCheck, IsTrgWithinAngle, IsGetToGLinkPole, SetNextGLinkPolePoint, Ge
 - 2026-11-12 07:32 `game/tiAvoidObject.c` partial: slice 5: 24 functions -- the kinds motion predicates (Forward, Wait, FarAttack, PostAttack, Attack, PreAttack, Find, Action), IsWarpChara, the five IsGetTo arri
 - 2026-11-12 07:18 `game/tiAvoidObject.c` partial: slice 4: 6 functions -- tiAvoidObject (the obstacle steering: LOS probes, the 15/30 degree fan, wall following off the hit polygon), ssAI_IsMortionFramePassed, 
@@ -158,7 +160,6 @@ Recent sessions:
 - 2026-11-12 06:31 `game/tiAvoidObject.c` partial: slice 2: the hide poles and the scene init (10 functions): ssAI_SceneInit, TransAllPoleData, GetPolePos, GetPoleGroupID, GetPoleScnName, GetPoleScnBnkID, GetSha
 - 2026-11-12 06:11 `game/tiAvoidObject.c` partial: slice 1: 16 functions -- the appearance and no-reaction timers, GlobalInit, the save image part (MemSaveData, MemLoadInit), BrainFree, ForceBrainEnd, CharaLoadI
 - 2026-11-12 05:54 `game/CpDivideEECom.c` verify: all 17 functions: the two driver RPC clients (CpCall_IOPSndDriver, _2 with its end callbacks and CpCheckEE_IOPComEnd), the EE server and receive thread, SIF DMA
-- 2026-11-12 05:34 `game/wideXcmd_TriggerInit.c` verify: slice 6: test_ssXcmd_BrainSet4, the last stub: the brain set-up (BRAIN_SET, BRAIN_STATE_REF, the 0x280-byte brain); CHARACTER.brain host form decided (handle in
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
@@ -169,18 +170,17 @@ Recent sessions:
 | `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
 | `ga/gaObjectClippingCheck.c` | todo | 0/1/1 | 0.2 | 12 | 1 |
-| `game/asMothPause.c` | todo | 0/1/1 | 0.3 | 10 | 0 |
 | `game/ssCalcInversMatrix2.c` | todo | 0/5/5 | 5.7 | 7 | 0 |
 | `ga/wait.c` | todo | 0/2/20 | 0.1 | 5 | 0 |
 | `ga/gaSearchNearLight4.c` | todo | 0/1/1 | 0.4 | 4 | 0 |
 | `game/AA_cpuCycles.c` | todo | 0/1/4 | 0.3 | 2 | 0 |
+| `ga/gaDrawObject_Redraw_Polygon.c` | todo | 0/1/6 | 4.3 | 2 | 0 |
 
 ## Frontier (called by reconstructed code, not written yet)
 
 | CT3 addr | name | call sites | provenance | state | inferred file |
 |---|---|---|---|---|---|
 | `01851b10` | ConvertQuat2Matrix | 17 | sym | stub | game/Convert.c |
-| `01883ca0` | asMothPause | 10 | sym | stub | game/asMothPause.c |
 | `018a3078` | gaObjectClippingCheck | 7 | sym | stub | ga/gaObjectClippingCheck.c |
 | `018518d0` | ConvertMatrix2Quat | 6 | sym | stub | game/Convert.c |
 | `018a4fe0` | gaDrawObject_VertexLocalViewWithClippingFlagSet | 6 | sym | stub | ga/gaDrawObject.c |
@@ -219,4 +219,5 @@ Recent sessions:
 | `018c2090` | AA_voBufCreate | 1 | sym | stub | game/AA_mpegTS.c |
 | `018b3a60` | Character_Init | 1 | sym | stub | game/Character_Init.c |
 | `018bc130` | AA_audioDecIsPreset | 1 | sym | stub | game/AA_SoundMonoSoart.c |
+| `018bfdb0` | AA_readBufBeginPut | 1 | sym | stub | game/AA_videoCallback.c |
 

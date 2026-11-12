@@ -1558,6 +1558,28 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    DisplayGeometry (UiCanvas has neither and squeezes), gaObjectClippingCheck and ga/gaDrawObject.c (the
    clipped path most scene objects take), light1 / light2 lighting and billboards (item 4 (e) (f) (g)),
    then characters (skinned parts) once a room loads.
+   **Queue refill (2026-11-12 08:06, Claude, scheduled run, for the user to overrule):** the pinned queue
+   held only the blocked ui_canvas.cpp, so tus.py fell to the frontier (ga/gaDrawObject.c). Re-assessed
+   with a probe run pressing START (build.py --pad "600:START*30,1300:START*10,1700:START*10", 80 s): the
+   one new stub past the title was **asMothPause**, so game/asMothPause.c was queued and written (verify).
+   With it the same run reaches **no stub at all** after START and the screen stays **black** to the end
+   (no E_00 / LoadWait line in the log): the next blocker is silent, a wait on something that is not a
+   stub (a load status, an event, or a script command that answers XCMD_WAIT by design). **Next run:**
+   find where it waits (gdbrun.py on the START path, or a probe log in the script dispatcher) before taking
+   the frontier; ga/gaDrawObject.c is the frontier's pick if the wait cannot be found. Also seen: (kr2)
+   the shot numbers run at about 700 per second of wall time in smoke runs (13,860 in 20 s; the 11-11
+   notes had about 31), so either frames now run unpaced or the shot counter counts something else, and
+   pad-script read numbers are reached in about a second: check frame pacing (vsync / the frame timer)
+   with the next host task; (ks2) several committed progress/*.png are 0 bytes (03:34, 03:55, 05:11,
+   06:58, 07:54 on 11-12): tus.py finish copied last.png while it was empty or being written -- the
+   07:54 run's "same title scene" was not seen in its own png.
+   **game/asMothPause.c (verify, 2026-11-12):** asMothPause, the TU's one function, and its static
+   gAlysPos$61. MothInfo +0x24 (w24) is now **paused** (the mode); BankInfo[bank].drawOn > 0 gates it;
+   resume releases moths in state 5 (w02 = 3, w04 = 0, w01 = 2) when Alyssa moved more than 1.0 and frees
+   the moths' rumble slot (Ghidra's decompile dropped the ControllerClatteringFree argument: it is
+   MothInfo.clatter, lh a0 -0x271c(gp)). Open: (kt2) MOTH_STATE_5 / MOTH_RELEASE_W01 / W02 are named from
+   this one use: asMothOperate.c's TU names the states; MOTH_PAUSE_OFF / ON are not yet used by the
+   callers (they pass 0 / 1).
 
 ## Decisions
 

@@ -44,7 +44,7 @@ typedef struct MOTH_INFO {
                                            -1 until then (asInitMothInfo) */
     char bankName[16];                  /* EE 0x10: the armed bank's file name */
     MOTH *list;                         /* EE 0x20: gHeapJunc, count records */
-    int w24;                            /* EE 0x24 */
+    int paused;                         /* EE 0x24: asMothPause's mode (MOTH_PAUSE_*), 0 when armed / freed */
 } MOTH_INFO;
 extern MOTH_INFO MothInfo;              /* sbss 0x0193ced0 */
 
