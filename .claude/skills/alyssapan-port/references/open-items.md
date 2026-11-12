@@ -1660,6 +1660,14 @@ apply here):
 
 ## Open questions
 
+- (2026-11-11, game/tkXDTrg_GetSceneHash.c slice 2) Door actor procs read. **Answered:** events 600 / 700
+  are OPENED / MOVING (architecture.md "Door actor records and procs"); CloseCancel's fields are slots 3..5.
+  **Guessed, to confirm with tkXcmd_DoorTrigger / tkXDTrg_ActorProc_Ini:** flag 0x2 (DTRG_FLAG_SIDE: picks
+  the kind's other speed and, at Axe / Ham doors, the weapon sound -- the side the stalker breaks through?),
+  flag 0x8 (DTRG_FLAG_SE_ALT), kind 0, slots 0 and 2, record +0x40 / +0x48 / +0x4c and the key entries'
+  +4 / +6, who writes DTrgPraMon. camRoom is declared 10 bytes (0x2e..0x38): in a camera record the name
+  may overlap otherBank / part; only its first 4 chars are read. tkXDTrg_MonDraw is stubbed (next slice).
+
 - (2026-11-11, game/tkXDTrg_GetSceneHash.c slice 1) **To confirm when the door actors are read:** the
   meaning of door events 600.. / 700.. (DOOR_FLAG_600 / _700, cleared with OPEN by tkXcmd_DoorFlagClear);
   DTrgHed +0 / +7 / +8 and the DTrgPraDor fields CloseCancel clears (named by offset); SCN_ENTRY +6 / +7

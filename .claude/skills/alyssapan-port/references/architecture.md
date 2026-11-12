@@ -1067,7 +1067,23 @@ the branch scene tables and a few tk x commands.
   the loaded BANK_TYPE_SHADOW (scene) bank whose file names the room.
 - **Door-trigger state**: DTrgHed (0x019448a0, 8 heads of 0xc: +4 the scene bank, -1 free; +6 the first
   DTrgPraDor record of its chain) and the DTrgPraDor pool (0x01c8c530, 32 x 0x84, a free list through +3
-  from DTrgPraDorTop). tkXDTrg_CloseCancel(bank) clears +0x10..0x18, +0x22..0x26, +0x2b..0x2d of the chain.
+  from DTrgPraDorTop). tkXDTrg_CloseCancel(bank) clears slots 3..5 (wait, frames, step) of the chain.
+- **Door actor records and procs** (slice 2, 2026-11-11): a DTrgPraDor record is one door actor with six
+  proc slots, each {int wait @ +0x04 + 4i (a countdown, or ssTrigWaitByAnimFrame's state, -1 none), short
+  frames @ +0x1c + 2i, u8 step @ +0x28 + i}: 1 AlsCam, 3 the kinds' Opn / OpnOut, 4 their Clo, 5 CmnClo (0 / 2
+  read by no slice yet). Each proc does one step per frame and answers 1 when done. Door **kinds** 1 Ham,
+  2 Vit, 3 Axe, 4 ScM, 5 ScW (0 unknown) each own a key entry at +0x52 + 8k {event, seObj, ...} and two
+  opening speeds in **DTrgPraMon** (bss 0x01944910, u16 [6][2], low byte = percent; OpnOut takes [k][0]
+  with flag 0x2, Opn [k][1]). The three door-flag runs: 500 OPEN (registered first, the neighbours drawn
+  by tkBri_DoorDraw '1'), 700 MOVING (with the opening sound), 600 OPENED (when the 0 -> 10 swing ends);
+  a Clo needs OPEN and MOVING and no key event (+0x50, or another kind's), then CmnClo removes OPENED /
+  MOVING, eases the door back 10 -> 5 -> 2 -> 0 (speeds 200 / 80 / 30), plays the close sound, removes
+  OPEN and draws '0'. Sounds from bank "C_0000": open 0xb / 0xe, close 0xc / 0xf (flag 0x8 picks the
+  second); Axe / Ham doors play the weapon's bank instead from one side ("E_ONO" 0x1b / 0x1c, "E_HAMMER"
+  4 / 3). HitPtl swaps the closed / open hit parts on MOVING and the portal part on OPEN; Sht snaps a door
+  shut; AlsCam cuts to the record's camera (room name at +0x2e, cut +0x3e), registers event 599 and after
+  10 anim frames calls tkXDTrg_MonDraw(0). The ROM repeats Opn / OpnOut / Clo per kind with only the
+  constants changed: the port shares two static helpers (callcheck lists their callees as missing).
 - **WaitUntil** (tkXcmd_WaitUntil = j tkXcmdS_WaitUntil): operands (number, letters: n literal, v variable,
   f flag, g / t scope) and an operator of '>' '<' '!' '='; it answers 1 when the named comparison fails
   (disassembly-checked), and the character count for an operator it does not know.

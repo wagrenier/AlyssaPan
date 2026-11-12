@@ -1300,7 +1300,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 137..137, 20 functions keyed by their statics, 73 unkeyed; file name from the names"
   },
   "game/tkXDTrg_GetSceneHash.c": {
-   "notes": "Left: the tkXDTrg actor procs (AnimToFrameDoor .. Sht, Ini_Error), tkXcmd_DoorTrigger (0x018ed9e0: argv[0] through 0x0182a4d8, 0x63 -> 0x018ed190 else 0x018ecd40) and the rest of the 50. Doubts in open-items.md Open questions (door events 600 and 700, WaitUntil answering 1 when its comparison fails). Smoke run reaches the title backdrop; no door code on screen yet.",
+   "notes": "Left: tkXDTrg_ActorProc (0x018ecd40, the dispatcher), _Ini (0x018ebf90), _AlsOpn (0x018ebad0), tkXDTrg_MonDraw (0x018ed090, stubbed here), tkXcmd_DoorTrigger (0x018ed9e0) and the rest of the 50. Callcheck MISSING on the kind procs is the shared static helpers DoorKindOpen / DoorKindClose / DoorPlaySE / DoorAnimPlaying (the ROM repeats the bodies per kind). Guesses in open-items.md Open questions (flag 0x2, kind 0, slots 0 and 2, DTrgPraMon writer). Smoke run still ends on the title backdrop; no door on screen yet.",
    "ranges": [
     [
      "018e90a0",
@@ -1312,6 +1312,11 @@
      "date": "2026-11-11 20:56",
      "status": "partial",
      "summary": "slice 1: the branch scene tables (ScnTbl and the Br tables), scene ids, door flags, the door-trigger state init, CloseCancel, the door bridge draw (tkBri_DoorDraw, x command SceneDraw), WaitUntil; 14 functions"
+    },
+    {
+     "date": "2026-11-11 21:08",
+     "status": "partial",
+     "summary": "slice 2: the door actor procs (AnimToFrameDoor, AnimRangeDoor, ChangeCamera, CmnClo, the ScW / ScM / Axe / Vit / Ham Opn, OpnOut and Clo, Sht, HitPtl, AlsCam, Ini_Error); the DTrgPraDor record's six proc slots, the door kinds, DTrgPraMon and the door flags OPEN / MOVING / OPENED; 23 functions"
     }
    ],
    "status": "partial",

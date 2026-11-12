@@ -6,16 +6,22 @@
 // tkXDTrg_GetSceneHash, the door-trigger state's init (tkXcmd_DoorTrigger_Init), the door flags
 // (tkXcmd_DoorFlagClear, SceneDoorFlagClear), tkXDTrg_CloseCancel, the door bridge draw (tkBri_DoorDraw:
 // the scenes behind a room's open doors drawn, the rest dropped; tkBri_DoorDraw_GetBnkId) with its x
-// command SceneDraw, and tkXcmd_AiSoundPosition. Left: the actor procs, tkXcmd_WaitUntil
-// (tkXcmdS_WaitUntil_Value), tkXcmd_DoorTrigger and the rest of the 50.
+// command SceneDraw, tkXcmd_AiSoundPosition and tkXcmd_WaitUntil (tkXcmdS_WaitUntil_Value).
+// Slice 2 (2026-11-11): the door actor procs (AnimToFrameDoor .. AlsCam, Ini_Error): the record's slots,
+// the kinds' open / close and the door flags' three runs. Left: tkXDTrg_ActorProc (the dispatcher), _Ini,
+// _AlsOpn, tkXDTrg_MonDraw, tkXcmd_DoorTrigger and the rest of the 50.
 
 #include "game/tkXDTrg_GetSceneHash.h"
 
 #include "common/alyssapan_stub.h"
 #include "game/QuatSlerp.h"
+#include "game/SdMasterVolumeSetSE.h"
+#include "game/ahRelocateSunPs2ObjectArry.h"
+#include "game/asEyeForcusUP2CamMat.h"
 #include "game/ct3_types.h"
 #include "game/fileio.h"
 #include "game/main2.h"
+#include "game/sound.h"
 #include "game/ssGrpPortalCheck.h"
 #include "game/tiXcmd_TransItem.h"
 #include "game/unassigned_data.h"
@@ -25,6 +31,7 @@
 
 DTRG_HED DTrgHed[DTRG_HED_MAX];                 /* bss  0x019448a0 */
 u_char DTrgPraDorTop;                           /* bss  0x01944900 */
+u_short DTrgPraMon[DTRG_KIND_COUNT][2];         /* bss  0x01944910 */
 DTRG_PRA_DOR DTrgPraDor[DTRG_PRA_DOR_MAX];      /* bss  0x01c8c530 */
 
 #define SCENE_HASH_LEN 4                /* a scene is named by its first four characters */
@@ -55,15 +62,15 @@ void tkXDTrg_CloseCancel(short bank)
     }
     for (r = DTrgHed[i].first; r != DTRG_END; r = DTrgPraDor[r].next) {
         DTRG_PRA_DOR *p = &DTrgPraDor[r];
-        p->w10 = 0;
-        p->w14 = 0;
-        p->w18 = 0;
-        p->h22 = 0;
-        p->h24 = 0;
-        p->h26 = 0;
-        p->b2b = 0;
-        p->b2c = 0;
-        p->b2d = 0;
+        p->wait[DTRG_SLOT_OPEN] = 0;
+        p->wait[DTRG_SLOT_CLOSE] = 0;
+        p->wait[DTRG_SLOT_CLOSE_COMMON] = 0;
+        p->frames[DTRG_SLOT_OPEN] = 0;
+        p->frames[DTRG_SLOT_CLOSE] = 0;
+        p->frames[DTRG_SLOT_CLOSE_COMMON] = 0;
+        p->step[DTRG_SLOT_OPEN] = 0;
+        p->step[DTRG_SLOT_CLOSE] = 0;
+        p->step[DTRG_SLOT_CLOSE_COMMON] = 0;
     }
 }
 
@@ -81,8 +88,8 @@ void tkXcmd_DoorFlagClear(u_char *eventFlags)
 
     for (i = 0; i < DOOR_FLAG_COUNT; i++) {
         DoorFlagBitClear(eventFlags, DOOR_FLAG_OPEN + i);
-        DoorFlagBitClear(eventFlags, DOOR_FLAG_600 + i);
-        DoorFlagBitClear(eventFlags, DOOR_FLAG_700 + i);
+        DoorFlagBitClear(eventFlags, DOOR_FLAG_OPENED + i);
+        DoorFlagBitClear(eventFlags, DOOR_FLAG_MOVING + i);
     }
 }
 
@@ -100,7 +107,7 @@ void tkXcmd_DoorTrigger_Init(void)
         DTrgHed[i].w8 = 0;
     }
     for (i = 0; i < DTRG_PRA_DOR_MAX; i++) {
-        DTrgPraDor[i].state = 0;
+        DTrgPraDor[i].flags = 0;
         DTrgPraDor[i].next = (u_char)(i + 1);
     }
     DTrgPraDor[DTRG_PRA_DOR_MAX - 1].next = DTRG_END;
@@ -397,7 +404,430 @@ int tkXcmd_WaitUntil(int argc, char **argv, int bank)
     return tkXcmdS_WaitUntil(argc, argv, bank);
 }
 
+// ---- the door actor procs (slice 2, 2026-11-11) ----
+// Each proc runs one step per frame for one door record (DTRG_PRA_DOR) in its slot and answers 1 when its
+// work is done; the actor (tkXDTrg_ActorProc, a later slice) calls them. The ROM repeats the Opn / OpnOut /
+// Clo bodies per door kind; here the kinds' copies share DoorKindOpen / DoorKindClose, with the kind, the
+// direction and the weapon sound as arguments (the bodies are the same instruction for instruction but for
+// those constants).
+
+#define DOOR_SPEED_MASK 0xff            /* DTrgPraMon: only the low byte is the speed */
+#define DOOR_CAMERA_MS_TICKS 300        /* ChangeCamera: CamChange_S's ticks per 1000 ms */
+
+// The model part's hash in a bank's parts header (MODEL_PARTS.hash), for the second bank's same-named part.
+static u_long DoorPartHash(int bank, u_short part)
+{
+    ALL_TABLE *tbl = All_table_TBL[bank];
+
+    return ((MODEL_PARTS *)BANK_PTR(u_char *, bank, tbl->partsHeader))[part].hash;
+}
+
+// CT3 0x018e90e0
+// Animates the door's part from where it is to `frame` (and the second bank's part of the same name).
+void tkXDTrg_ActorProc_AnimToFrameDoor(int bank, u_short part, int frame, u_int speed, int toEnd,
+                                       int stepFromRuns, short otherBank)
+{
+    float rate = (float)speed / DOOR_SPEED_PERCENT;
+
+    asSceneAnimationStart(rate, 0, All_table_TBL[bank], -1, frame * DOOR_ANIM_FRAME, part, 1, 0, 0, 0, toEnd,
+                          stepFromRuns, SCENE_ANIM_SCENE, 0);
+    if (otherBank != -1) {
+        asSceneAnimationStart(rate, DoorPartHash(bank, part), All_table_TBL[otherBank], -1,
+                              frame * DOOR_ANIM_FRAME, 0, 1, 0, 0, 0, toEnd, stepFromRuns, SCENE_ANIM_SCENE, 0);
+    }
+}
+
+// CT3 0x018e9240
+// Animates the door's part from `from` to `to` (and the second bank's part of the same name).
+void tkXDTrg_ActorProc_AnimRangeDoor(int bank, u_short part, int from, int to, u_int speed, int started,
+                                     int stepFromRuns, short otherBank)
+{
+    float rate = (float)speed / DOOR_SPEED_PERCENT;
+
+    asSceneAnimationStart(rate, 0, All_table_TBL[bank], from * DOOR_ANIM_FRAME, to * DOOR_ANIM_FRAME, part, 1, 0,
+                          0, started, 0, stepFromRuns, SCENE_ANIM_SCENE, 0);
+    if (otherBank != -1) {
+        asSceneAnimationStart(rate, DoorPartHash(bank, part), All_table_TBL[otherBank], from * DOOR_ANIM_FRAME,
+                              to * DOOR_ANIM_FRAME, 0, 1, 0, 0, started, 0, stepFromRuns, SCENE_ANIM_SCENE, 0);
+    }
+}
+
+// CT3 0x018e93b0
+// Cuts to a camera of the door's bank: shadows off, the bank becomes the camera's scene (its room's doors
+// redrawn) when it was not, then CamChange_S with the move time in ticks.
+void tkXDTrg_ActorProc_ChangeCamera(int bank, const char *room, short cut, u_char mode, int ms)
+{
+    asShadowAllDisable(SHADOW_DISABLE_BANKS | SHADOW_DISABLE_CHARACTERS);
+    if (idCameraScene != bank) {
+        idCameraScene = bank;
+        haCameraRoom = (u_int)tkXDTrg_GetSceneHash(room);
+        SwapDrawingDoor();
+    }
+    CamChange_S(bank, cut, mode, (ms * DOOR_CAMERA_MS_TICKS) / 1000);
+}
+
+static int DoorAnimPlaying(int bank, const DTRG_PRA_DOR *door)
+{
+    return asCheckAnimationState_S(0, All_table_TBL[bank], door->part, 1, 0, 0, SCENE_ANIM_SCENE, 0)
+        == ANIM_STATE_PLAYING;
+}
+
+// Plays a door sound heard from the door's sound object.
+static void DoorPlaySE(int bank, const char *seBank, int se, short seObj)
+{
+    int handle = SSPlaySE(seBank, se, 1);
+
+    SdSetParamSE(handle, SD_SE_PARAM_OBJ_ID | SD_SE_PARAM_BANK | SD_SE_PARAM_CALLBACK, seObj, bank,
+                 SetPositionalParam_Alys);
+    SetPositionalParam_Alys(handle);
+}
+
+// CT3 0x018e9480
+// The close every kind ends with: the door swings back in three eases (10 -> 5 -> 2 -> 0), then the close
+// sound, the door's OPEN flag removed and the scenes behind it dropped.
+int tkXDTrg_ActorProc_CmnClo(int bank, DTRG_PRA_DOR *door)
+{
+    int *wait = &door->wait[DTRG_SLOT_CLOSE_COMMON];
+    u_char *step = &door->step[DTRG_SLOT_CLOSE_COMMON];
+    int done = 0;
+
+    if (*wait != 0) {
+        (*wait)--;
+        return 0;
+    }
+    switch (*step) {
+    case 0:
+        ssTrigRemoveEvent(door->doorFlag + DOOR_FLAG_OPENED, 1, bank);
+        ssTrigRemoveEvent(door->doorFlag + DOOR_FLAG_MOVING, 1, bank);
+        tkXDTrg_ActorProc_AnimRangeDoor(bank, door->part, 10, 5, 200, 0, 1, door->otherBank);
+        (*step)++;
+        // fall through
+    case 1:
+        if (DoorAnimPlaying(bank, door)) {
+            break;
+        }
+        tkXDTrg_ActorProc_AnimRangeDoor(bank, door->part, 5, 2, 80, 0, 1, door->otherBank);
+        (*step)++;
+        // fall through
+    case 2:
+        if (DoorAnimPlaying(bank, door)) {
+            break;
+        }
+        tkXDTrg_ActorProc_AnimRangeDoor(bank, door->part, 2, 0, 30, 0, 1, door->otherBank);
+        (*step)++;
+        // fall through
+    case 3:
+        if (DoorAnimPlaying(bank, door)) {
+            break;
+        }
+        DoorPlaySE(bank, SE_BANK_COMMON, (door->flags & DTRG_FLAG_SE_ALT) ? DOOR_SE_CLOSE_ALT : DOOR_SE_CLOSE,
+                   door->seObjClose);
+        ssTrigRemoveEvent(door->doorFlag + DOOR_FLAG_OPEN, 1, bank);
+        tkBri_DoorDraw(DOOR_DRAW_CLOSE);
+        done = 1;
+        break;
+    default:
+        break;
+    }
+    if (done) {
+        *wait = 0;
+        *step = 0;
+    }
+    return done;
+}
+
+// A kind's Clo: a door that is not open and moving, or that a key event holds (the record's own, or any
+// other kind's), is done at once; otherwise CmnClo closes it.
+static int DoorKindClose(int bank, DTRG_PRA_DOR *door, int kind)
+{
+    int *wait = &door->wait[DTRG_SLOT_CLOSE];
+    u_char *step = &door->step[DTRG_SLOT_CLOSE];
+    int held = 1;
+    int done = 0;
+    int i;
+
+    if (*wait != 0) {
+        (*wait)--;
+        return 0;
+    }
+    if (*step != 1) {
+        if (*step != 0) {
+            goto end;
+        }
+        if (ssTrigCheckEvent(door->doorFlag + DOOR_FLAG_OPEN, 1, bank) == 1
+            && ssTrigCheckEvent(door->doorFlag + DOOR_FLAG_MOVING, 1, bank) == 1) {
+            held = ssTrigCheckEvent(door->event, 0, bank) != 0;
+            for (i = 0; i < DTRG_KIND_COUNT && !held; i++) {
+                if (door->kind[i].event != -1 && i != kind && ssTrigCheckEvent(door->kind[i].event, 0, bank) == 1) {
+                    held = 1;
+                }
+            }
+            if (!held) {
+                (*step)++;
+            }
+        }
+        done = 1;
+        if (held) {
+            goto end;
+        }
+    }
+    done = tkXDTrg_ActorProc_CmnClo(bank, door);
+end:
+    if (done) {
+        *wait = 0;
+        *step = 0;
+    }
+    return done;
+}
+
+// A kind's Opn / OpnOut: the OPEN flag and the scenes behind the door at once (one frame's wait), then the
+// opening sound, MOVING and the swing (0 -> 10, the kind's speed), OPENED when it ends. A door already
+// OPENED is done. weaponBank: the Axe / Ham doors' weapon sound, played from the side `weaponSide` says
+// (OpnOut: with DTRG_FLAG_SIDE, Opn: without); the other side plays the common opening sound.
+static int DoorKindOpen(int bank, DTRG_PRA_DOR *door, int kind, int out, const char *weaponBank, int weaponSe,
+                        int weaponSeAlt)
+{
+    int *wait = &door->wait[DTRG_SLOT_OPEN];
+    u_char *step = &door->step[DTRG_SLOT_OPEN];
+    int side = (door->flags & DTRG_FLAG_SIDE) != 0;
+    int alt = (door->flags & DTRG_FLAG_SE_ALT) != 0;
+    int done = 0;
+    u_short speed;
+
+    if (*wait != 0) {
+        (*wait)--;
+        return 0;
+    }
+    switch (*step) {
+    case 0:
+        if (weaponBank != NULL && !out) {
+            // AxeOpn / HamOpn: the record's other slots start over.
+            door->step[DTRG_SLOT_0] = 0;
+            door->wait[DTRG_SLOT_0] = DTRG_WAIT_NONE;
+            door->step[DTRG_SLOT_CAMERA] = 0;
+            door->wait[DTRG_SLOT_CAMERA] = DTRG_WAIT_NONE;
+            door->step[DTRG_SLOT_2] = 0;
+            door->wait[DTRG_SLOT_2] = 0;
+            door->step[DTRG_SLOT_CLOSE_COMMON] = 0;
+            door->wait[DTRG_SLOT_CLOSE_COMMON] = 0;
+        }
+        ssTrigRegisterEvent(door->doorFlag + DOOR_FLAG_OPEN, 1, bank);
+        tkBri_DoorDraw(DOOR_DRAW_OPEN);
+        ssTrigSetEnable(door->trigUse, 1, 0, bank);
+        *wait = 1;
+        (*step)++;
+        goto end;
+    case 1:
+        if (ssTrigCheckEvent(door->doorFlag + DOOR_FLAG_OPENED, 1, bank) != 0) {
+            done = 1;
+            goto end;
+        }
+        if (weaponBank != NULL && side == out) {
+            DoorPlaySE(bank, weaponBank, alt ? weaponSeAlt : weaponSe, door->kind[kind].seObj);
+        } else {
+            DoorPlaySE(bank, SE_BANK_COMMON, alt ? DOOR_SE_OPEN_ALT : DOOR_SE_OPEN,
+                       weaponBank != NULL ? door->seObjOpen : door->kind[kind].seObj);
+        }
+        ssTrigRegisterEvent(door->doorFlag + DOOR_FLAG_MOVING, 1, bank);
+        speed = DTrgPraMon[kind][side == out ? 0 : 1];
+        tkXDTrg_ActorProc_AnimRangeDoor(bank, door->part, 0, 10, speed & DOOR_SPEED_MASK, 0, 0, door->otherBank);
+        (*step)++;
+        // fall through
+    case 2:
+        if (!DoorAnimPlaying(bank, door)) {
+            ssTrigRegisterEvent(door->doorFlag + DOOR_FLAG_OPENED, 1, bank);
+            done = 1;
+        }
+        break;
+    default:
+        break;
+    }
+end:
+    if (done) {
+        *wait = 0;
+        *step = 0;
+    }
+    return done;
+}
+
+// CT3 0x018e9710
+int tkXDTrg_ActorProc_ScWClo(int bank, DTRG_PRA_DOR *door)
+{
+    return DoorKindClose(bank, door, DTRG_KIND_SCW);
+}
+
+// CT3 0x018e98c0
+int tkXDTrg_ActorProc_ScWOpnOut(int bank, DTRG_PRA_DOR *door)
+{
+    return DoorKindOpen(bank, door, DTRG_KIND_SCW, 1, NULL, 0, 0);
+}
+
+// CT3 0x018e9ae0
+int tkXDTrg_ActorProc_ScWOpn(int bank, DTRG_PRA_DOR *door)
+{
+    return DoorKindOpen(bank, door, DTRG_KIND_SCW, 0, NULL, 0, 0);
+}
+
+// CT3 0x018e9d00
+int tkXDTrg_ActorProc_ScMClo(int bank, DTRG_PRA_DOR *door)
+{
+    return DoorKindClose(bank, door, DTRG_KIND_SCM);
+}
+
+// CT3 0x018e9eb0
+int tkXDTrg_ActorProc_ScMOpnOut(int bank, DTRG_PRA_DOR *door)
+{
+    return DoorKindOpen(bank, door, DTRG_KIND_SCM, 1, NULL, 0, 0);
+}
+
+// CT3 0x018ea0d0
+int tkXDTrg_ActorProc_ScMOpn(int bank, DTRG_PRA_DOR *door)
+{
+    return DoorKindOpen(bank, door, DTRG_KIND_SCM, 0, NULL, 0, 0);
+}
+
+// CT3 0x018ea2f0
+int tkXDTrg_ActorProc_AxeClo(int bank, DTRG_PRA_DOR *door)
+{
+    return DoorKindClose(bank, door, DTRG_KIND_AXE);
+}
+
+// CT3 0x018ea4a0
+int tkXDTrg_ActorProc_AxeOpnOut(int bank, DTRG_PRA_DOR *door)
+{
+    return DoorKindOpen(bank, door, DTRG_KIND_AXE, 1, DOOR_SE_BANK_AXE, DOOR_SE_AXE, DOOR_SE_AXE_ALT);
+}
+
+// CT3 0x018ea720
+int tkXDTrg_ActorProc_AxeOpn(int bank, DTRG_PRA_DOR *door)
+{
+    return DoorKindOpen(bank, door, DTRG_KIND_AXE, 0, DOOR_SE_BANK_AXE, DOOR_SE_AXE, DOOR_SE_AXE_ALT);
+}
+
+// CT3 0x018ea9c0
+int tkXDTrg_ActorProc_VitClo(int bank, DTRG_PRA_DOR *door)
+{
+    return DoorKindClose(bank, door, DTRG_KIND_VIT);
+}
+
+// CT3 0x018eab70
+int tkXDTrg_ActorProc_VitOpnOut(int bank, DTRG_PRA_DOR *door)
+{
+    return DoorKindOpen(bank, door, DTRG_KIND_VIT, 1, NULL, 0, 0);
+}
+
+// CT3 0x018ead90
+int tkXDTrg_ActorProc_VitOpn(int bank, DTRG_PRA_DOR *door)
+{
+    return DoorKindOpen(bank, door, DTRG_KIND_VIT, 0, NULL, 0, 0);
+}
+
+// CT3 0x018eafb0
+int tkXDTrg_ActorProc_HamClo(int bank, DTRG_PRA_DOR *door)
+{
+    return DoorKindClose(bank, door, DTRG_KIND_HAM);
+}
+
+// CT3 0x018eb160
+int tkXDTrg_ActorProc_HamOpnOut(int bank, DTRG_PRA_DOR *door)
+{
+    return DoorKindOpen(bank, door, DTRG_KIND_HAM, 1, DOOR_SE_BANK_HAMMER, DOOR_SE_HAMMER, DOOR_SE_HAMMER_ALT);
+}
+
+// CT3 0x018eb3e0
+int tkXDTrg_ActorProc_HamOpn(int bank, DTRG_PRA_DOR *door)
+{
+    return DoorKindOpen(bank, door, DTRG_KIND_HAM, 0, DOOR_SE_BANK_HAMMER, DOOR_SE_HAMMER, DOOR_SE_HAMMER_ALT);
+}
+
+// CT3 0x018eb680
+// Shuts the door at once: the open / close procs stop, its flags go and the part jumps to frame 0.
+int tkXDTrg_ActorProc_Sht(int bank, DTRG_PRA_DOR *door)
+{
+    door->step[DTRG_SLOT_OPEN] = 0;
+    door->wait[DTRG_SLOT_OPEN] = 0;
+    door->step[DTRG_SLOT_CLOSE] = 0;
+    door->wait[DTRG_SLOT_CLOSE] = 0;
+    door->step[DTRG_SLOT_CLOSE_COMMON] = 0;
+    door->wait[DTRG_SLOT_CLOSE_COMMON] = 0;
+    ssTrigRemoveEvent(door->doorFlag + DOOR_FLAG_OPEN, 1, bank);
+    ssTrigRemoveEvent(door->doorFlag + DOOR_FLAG_OPENED, 1, bank);
+    ssTrigRemoveEvent(door->doorFlag + DOOR_FLAG_MOVING, 1, bank);
+    tkXDTrg_ActorProc_AnimToFrameDoor(bank, door->part, 0, 100, 1, 0, door->otherBank);
+    return 1;
+}
+
+// CT3 0x018eb730
+// The door's collision and portal parts follow its flags: the closed hit until it moves, the open hit
+// after; the portal while it is OPEN. Never done (runs every frame).
+int tkXDTrg_ActorProc_HitPtl(int bank, DTRG_PRA_DOR *door)
+{
+    if (ssTrigCheckEvent(door->doorFlag + DOOR_FLAG_MOVING, 1, bank) == 0) {
+        ssTrigSetEnable(door->trigHitClosed, 1, 0, bank);
+        ssTrigSetEnable(door->trigHitOpen, 0, 0, bank);
+    } else {
+        ssTrigSetEnable(door->trigHitClosed, 0, 0, bank);
+        ssTrigSetEnable(door->trigHitOpen, 1, 0, bank);
+    }
+    if (ssTrigCheckEvent(door->doorFlag + DOOR_FLAG_OPEN, 1, bank) == 0) {
+        ssTrigSetEnable(door->trigPortal, 0, 0, bank);
+    } else {
+        ssTrigSetEnable(door->trigPortal, 1, 0, bank);
+    }
+    return 0;
+}
+
+// CT3 0x018eb840
+// Cuts to the door's camera (camRoom / camCut, at once), turns its use trigger off and registers
+// DOOR_EVENT_CAMERA; after ten anim frames the monsters are hidden (tkXDTrg_MonDraw(0)) and it is done.
+int tkXDTrg_ActorProc_AlsCam(int bank, DTRG_PRA_DOR *door)
+{
+    int *wait = &door->wait[DTRG_SLOT_CAMERA];
+    u_char *step = &door->step[DTRG_SLOT_CAMERA];
+    int done = 0;
+
+    if (*wait != DTRG_WAIT_NONE && !ssTrigWaitByAnimFrame(wait, door->frames[DTRG_SLOT_CAMERA])) {
+        return 0;
+    }
+    switch (*step) {
+    case 0:
+        tkXDTrg_ActorProc_ChangeCamera(bank, door->camRoom, door->camCut, 1, 0);
+        ssTrigSetEnable(door->trigUse, 0, 0, bank);
+        ssTrigRegisterEvent(DOOR_EVENT_CAMERA, 1, bank);
+        (*step)++;
+        door->frames[DTRG_SLOT_CAMERA] = 1;
+        if (!ssTrigWaitByAnimFrame(wait, (u_short)door->frames[DTRG_SLOT_CAMERA] * DOOR_ANIM_FRAME)) {
+            break;
+        }
+        // fall through
+    case 1:
+        tkXDTrg_MonDraw(0);
+        done = 1;
+        break;
+    default:
+        break;
+    }
+    if (done) {
+        *wait = DTRG_WAIT_NONE;
+        *step = 0;
+    }
+    return done;
+}
+
+// CT3 0x018ebf80
+// tkXDTrg_ActorProc_Ini's answer to an actor kind it does not know: nothing.
+void tkXDTrg_ActorProc_Ini_Error(void)
+{
+}
+
 // ---- stubs (tools/reverse/stubgen.py) ----
+
+// stub of CT3 0x018ed090
+void tkXDTrg_MonDraw(int draw)
+{
+    ALYSSAPAN_STUB("tkXDTrg_MonDraw", 0x018ed090);
+}
+
 
 // stub of CT3 0x018ed9e0
 int tkXcmd_DoorTrigger(int argc, char **argv, int bank)

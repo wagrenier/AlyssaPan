@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-11 20:56 at commit `6854127` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-11 21:08 at commit `80b78d9` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1199**; stubs: **233**
+- reconstructed CT3 functions: **1222**; stubs: **234**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -88,7 +88,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/ssSetTexUVforCubeMap.c` | 1 | 50 |
 | `src/game/tiAvoidObject.c` | 0 | 7 |
 | `src/game/tiXcmd_TransItem.c` | 85 | 8 |
-| `src/game/tkXDTrg_GetSceneHash.c` | 14 | 1 |
+| `src/game/tkXDTrg_GetSceneHash.c` | 37 | 2 |
 | `src/game/tnXcmd.c` | 0 | 8 |
 | `src/game/wideXcmd_DebugPrint.c` | 109 | 0 |
 | `src/game/wideXcmd_TriggerInit.c` | 1 | 43 |
@@ -101,7 +101,7 @@ Least-named game-code regions (64 KB blocks):
 - next: **game/tkXDTrg_GetSceneHash.c** (pinned in the queue)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp, game/tkXDTrg_GetSceneHash.c, game/asUseArrow.c, game/asMothRouteSearch.c, game/asXcmd.c, game/ssHitCheckAttackToScn.c, game/ssSetTexUVforCubeMap.c
 - partial: `game/tiXcmd_TransItem.c` 85/93 -- Slice 10. Written: tiXcmd_UseItem (ITEM_USE_* modes from argv[4], ITEM_KIND_* from the row byte +0: give-take, signal, heal Character[0].hp up to hpMax, calm vi
-- partial: `game/tkXDTrg_GetSceneHash.c` 14/50 -- Left: the tkXDTrg actor procs (AnimToFrameDoor .. Sht, Ini_Error), tkXcmd_DoorTrigger (0x018ed9e0: argv[0] through 0x0182a4d8, 0x63 -> 0x018ed190 else 0x018ecd4
+- partial: `game/tkXDTrg_GetSceneHash.c` 37/50 -- Left: tkXDTrg_ActorProc (0x018ecd40, the dispatcher), _Ini (0x018ebf90), _AlsOpn (0x018ebad0), tkXDTrg_MonDraw (0x018ed090, stubbed here), tkXcmd_DoorTrigger (0
 - partial: `game/wideXcmd_TriggerInit.c` 1/46 -- Title draws at 4:3 and 16:9 after 40 s (logo, 3, menu, copyright). Fix in SunTexEePtr, BankOfEeAddr, HitObjectId: free slot banks shared EE addresses with the G
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
@@ -139,6 +139,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-11 21:08 `game/tkXDTrg_GetSceneHash.c` partial: slice 2: the door actor procs (AnimToFrameDoor, AnimRangeDoor, ChangeCamera, CmnClo, the ScW / ScM / Axe / Vit / Ham Opn, OpnOut and Clo, Sht, HitPtl, AlsCam, I
 - 2026-11-11 20:56 `game/tkXDTrg_GetSceneHash.c` partial: slice 1: the branch scene tables (ScnTbl and the Br tables), scene ids, door flags, the door-trigger state init, CloseCancel, the door bridge draw (tkBri_DoorDr
 - 2026-11-11 20:33 `game/wideXcmd_DebugPrint.c` verify: slice 10: asCharacterMortionFunctionOperation (attack and no-hit windows, per-character run events, Alyssa's stairs and panic triggers, turn speed, lever mash e
 - 2026-11-11 20:11 `game/Clipping_Portal.c` verify: slice 15: tiCalc_HurikoOPEN and tiCalc_HurikoCLOSED, one pendulum solver (pull to rest pose, normal drag, springs, accel clamp, damping, length constraint, caps
@@ -146,7 +147,6 @@ Recent sessions:
 - 2026-11-11 19:45 `game/Clipping_Portal.c` partial: slice 13: the translucent-character and ghost passes (tiChara_Translucence_Start / End / Start2 / End2, host composite from a capture at the inverse FIX), tiXFa
 - 2026-11-11 19:35 `alyssapan/rendering/title_wide.cpp` done: the title at any aspect: ga frame scissored to the 4:3 box, CLAMP_1 REGION_REPEAT drawn as a repeat of its cell
 - 2026-11-11 19:13 `game/Clipping_Portal.c` partial: slice 12: tiDrawLensFlares (flare elements on the line to the screen centre, sprite packets rewritten), tiBumpSTValueUpdate (bump ST shift from the first omni l
-- 2026-11-11 18:57 `game/wideXcmd_TriggerInit.c` partial: ssXcmd_SetAllControlDisable (the title script waited on its stub after START); EE resolvers skip free banks so ATLD's textures bind: the title screen draws
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
@@ -158,9 +158,9 @@ Recent sessions:
 | `game/Convert.c` | todo | 0/2/2 | 0.8 | 23 | 0 |
 | `game/AA_GetDataWord.c` | todo | 0/8/15 | 4.9 | 21 | 2 |
 | `game/AA_SoundMonoSoart.c` | todo | 0/8/20 | 4.0 | 18 | 2 |
-| `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
 | `game/AA_videoCallback.c` | todo | 0/11/11 | 1.7 | 17 | 1 |
 | `game/asUseArrow.c` | todo | 0/7/11 | 6.4 | 17 | 1 |
+| `game/AA_mpegTS.c` | todo | 0/12/31 | 2.6 | 17 | 0 |
 | `ga/gaObjectClippingCheck.c` | todo | 0/1/1 | 0.2 | 12 | 1 |
 
 ## Frontier (called by reconstructed code, not written yet)
