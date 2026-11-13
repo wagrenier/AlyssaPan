@@ -328,6 +328,24 @@ std::uint64_t gaScissor(float squeeze)
     return x0 | x1 << kScissorX1Shift | y1 << kScissorY1Shift; // y0 = 0
 }
 
+// The whole canvas: what the widened 3D pass draws into (DisplayGeometry's picture, at any aspect).
+std::uint64_t gaScissorWide()
+{
+    const auto x1 = static_cast<std::uint64_t>(kCanvasFrameWidth) - 1;
+    const auto y1 = static_cast<std::uint64_t>(kCanvasFrameHeight) - 1;
+    return x1 << kScissorX1Shift | y1 << kScissorY1Shift; // x0 = y0 = 0
+}
+
+// Which ga meshes belong to the widened 3D view: the depth-tested ones (the room, its characters, the
+// depth pre-pass). The title's backdrops and the HUD draw with ZTST ALWAYS or no Z test and keep the 4:3
+// box (open-items.md "Decisions" 2026-11-11). PORT: a heuristic of the host's, not a ROM flag; a 2D overlay
+// drawn depth-tested would show past the box where its quads reach.
+bool gaWidened(const GaDraw &draw)
+{
+    using alyssapan::rendering::DepthTest;
+    return draw.depthOnly || draw.depth == DepthTest::GreaterOrEqual || draw.depth == DepthTest::Greater;
+}
+
 // CLAMP_1's wrap modes, and REGION_REPEAT's fields: u = (u & MINU) | MAXU, v = (v & MINV) | MAXV.
 enum GaWrap
 {
@@ -413,20 +431,34 @@ GaSampling gaSampling(const alyssapan::rendering::GaMeshRecorder::Mesh &mesh)
 // One game frame (gaWaitVSync's swap to the next: GaMeshRecorder::swap) goes to the canvas as one layer, as
 // the VU1 program would have sent it (window coordinates and Z, RGBAQ, ST), each mesh with the texture bound
 // and the GS state set when it came (gaDrawOf): depth-tested against the frame's Z buffer, cleared where the
-// game clears it. Squeezed about the centre at wide aspects: the projection widened, not stretched. No fog
-// yet (open-items.md item 7).
+// game clears it. Squeezed about the centre at wide aspects: the projection widened, not stretched. The 3D
+// view reaches past the 4:3 box (the game culls and clips to the widened view: AlyssaPan_GaWiden), so its
+// meshes draw over the whole canvas, and so do a scene frame's fills (a fade must cover what it fades);
+// the rest keeps gaScissor's box. No fog yet (open-items.md item 7).
 void DrawGaFrame(const std::vector<alyssapan::rendering::GaMeshRecorder::Mesh> &meshes)
 {
     using alyssapan::rendering::GaMeshRecorder;
     const void *list = &GaMeshRecorder::instance();
     auto &ui = canvas();
 
+    const std::uint64_t boxed = gaScissor(ui.squeezeFactor());
+    const std::uint64_t wide = gaScissorWide();
+    bool scene = false;
+    for (const GaMeshRecorder::Mesh &mesh : meshes) {
+        if (!mesh.fill && !mesh.depthClear && mesh.copy == GaMeshRecorder::Mesh::Copy::None &&
+            gaWidened(gaDrawOf(mesh.gs, mesh.image != nullptr))) {
+            scene = true;
+            break;
+        }
+    }
+
     ui.setSqueezed(list, true);
-    ui.setRegister(list, kRegScissor1, gaScissor(ui.squeezeFactor()));
+    ui.setRegister(list, kRegScissor1, boxed);
     ui.setRegister(list, kRegTex11, kGaTex1Linear);
     for (const GaMeshRecorder::Mesh &mesh : meshes) {
         if (mesh.fill) {
-            // Over the whole frame, inside gaScissor's 4:3 box as the GS's window holds it.
+            // Over the whole frame: the window in a scene, else gaScissor's 4:3 box as the GS's window holds it.
+            ui.setRegister(list, kRegScissor1, scene ? wide : boxed);
             ui.fillColor(list, mesh.fillRgba, mesh.fillFix);
             continue;
         }
@@ -446,6 +478,7 @@ void DrawGaFrame(const std::vector<alyssapan::rendering::GaMeshRecorder::Mesh> &
         const GaSampling sampling = textured ? gaSampling(mesh) : GaSampling{};
         const int tfx = static_cast<int>(mesh.tex0 >> kTex0TfxShift) & kTex0TfxMask;
         const bool texelAlpha = (mesh.tex0 >> kTex0TccShift & 1) != 0;
+        ui.setRegister(list, kRegScissor1, gaWidened(draw) ? wide : boxed);
         ui.setRegister(list, kRegAlpha1, draw.alpha);
         ui.setRegister(list, kRegTest1, draw.test);
         ui.setRegister(list, kRegFrame1, draw.frame);
@@ -519,6 +552,11 @@ void DrawGaFrame(const std::vector<alyssapan::rendering::GaMeshRecorder::Mesh> &
 }
 
 } // namespace
+
+float AlyssaPan_GaWiden(void)
+{
+    return 1.0f / canvas().squeezeFactor();
+}
 
 void AlyssaPan_DrawGaObject(const AlyssaPanGaObject *object)
 {

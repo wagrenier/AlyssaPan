@@ -632,6 +632,17 @@ Read with `vudis.py 18ff430 335 --all` (mind hazards.md's vudis misprints). Micr
   fill at FIX 0x80: the fade-in waits on the global script's WAIT_ANIM for Alyssa's motion 0, which loops
   under ANIM_CTRL_HOLD (open-items.md nq5 / nq6). The room shots of earlier runs were the first half of a
   split frame, drawn before the fill.
+- **The widened 3D view (2026-11-12, host task ga_wide3d.cpp).** The ROM's projection is kept; the canvas
+  squeezes the 512-wide frame about its centre into the 4:3 box, so a point past the frame's edge lands in
+  a wide window's side band. What stopped it showing was the game's 4:3 view: gaSet3dlibStruct's left /
+  right side planes (GA_3DLIB_WORK.planeTan / planeSec, read by gaObjectClippingCheck to cull objects) and
+  GA_SPR_WORK.viewScaleX (screen scale / screen width: the clip flags' +-0.5 screen and +-1 guard box in
+  gaDrawObject.c, and the guard band gaDrawObject_Redraw_Polygon cuts against). The port multiplies the side
+  planes' reach by `AlyssaPan_GaWiden()` (window aspect / (4/3), 1 at 4:3 or narrower) and divides
+  viewScaleX by it (gaInit3dlibWork and its copy tnInit3dlibWork); viewScaleX feeds no projection. On the
+  host, DrawGaFrame scissors depth-tested meshes (ZTST GEQUAL / GREATER, depth-only passes) and the fills
+  of a frame holding any of them to the whole canvas; ZTST ALWAYS / no-Z meshes (title panels, warning,
+  HUD) keep gaScissor's 4:3 box.
 
 ## The ga draw object's clipped path, ga/gaBGT_DrawObject.c (2026-11-10, slice 3)
 

@@ -77,6 +77,12 @@ enum
 /* The object, in the order the game draws it. */
 void AlyssaPan_DrawGaObject(const AlyssaPanGaObject *object);
 
+/* PORT: how much wider than 4:3 the picture is (the window's aspect over 4:3 from DisplayGeometry, 1 at
+ * 4:3 or narrower). The 3D view's horizontal reach is multiplied by it where the game culls and clips
+ * (gaSet3dlibStruct's left / right planes, GA_SPR_WORK.viewScaleX), and the host draws the depth-tested
+ * meshes past the 4:3 box: the room widened, never stretched. The projection itself is the ROM's. */
+float AlyssaPan_GaWiden(void);
+
 /* The texture the ga objects after it draw with, as the texture buffer
  * packet (game/BRANCH_CLEAR.h SUN_TBUFFER_DATA) sets it: where the ROM sends
  * TEX0_1 / CLAMP_1 to the GS (sunBGT_ExecTBufferData_VIF1), the game hands

@@ -14,6 +14,7 @@
 
 #include "ga/gaInit3dlib.h"
 
+#include "alyssapan/rendering/alyssapan_drawga.h"
 #include "ga/gaDma.h"
 #include "ga/gaSinCos.h"
 #include "game/ct3_types.h"
@@ -313,9 +314,13 @@ void gaSet3dlibStruct(float clipZ, void *work, GA_DBUFFER_DATA *drawbuffer, GA_F
 
     proj = screen[GA_SCREEN_PROJ];
     // callcheck: sqrtf (SidePlane makes it, once per plane)
-    SidePlane(w, GA_PLANE_LEFT, screen[GA_SCREEN_CX] / screen[GA_SCREEN_SCALE_X], -1.0f, proj);
-    SidePlane(w, GA_PLANE_RIGHT, (screen[GA_SCREEN_W] - screen[GA_SCREEN_CX]) / screen[GA_SCREEN_SCALE_X],
-              1.0f, proj);
+    // PORT: the left and right planes reach AlyssaPan_GaWiden() times as far, so objects in a wide
+    // window's side bands are not culled (the ROM's spans at 4:3).
+    SidePlane(w, GA_PLANE_LEFT, screen[GA_SCREEN_CX] / screen[GA_SCREEN_SCALE_X] * AlyssaPan_GaWiden(), -1.0f,
+              proj);
+    SidePlane(w, GA_PLANE_RIGHT,
+              (screen[GA_SCREEN_W] - screen[GA_SCREEN_CX]) / screen[GA_SCREEN_SCALE_X] * AlyssaPan_GaWiden(), 1.0f,
+              proj);
     SidePlane(w, GA_PLANE_TOP, (screen[GA_SCREEN_H] - screen[GA_SCREEN_CY]) / screen[GA_SCREEN_SCALE_Y],
               -1.0f, proj);
     SidePlane(w, GA_PLANE_BOTTOM, screen[GA_SCREEN_CY] / screen[GA_SCREEN_SCALE_Y], 1.0f, proj);

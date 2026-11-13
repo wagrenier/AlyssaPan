@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-12 21:32 at commit `2c832d7` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-12 21:58 at commit `e868db2` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -102,7 +102,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 6, verify 61, done 11, blocked 1
+- 65 TUs: todo 6, verify 61, done 12, blocked 1
 - next: **game/ssBrain_ChgHideAtk1.c** (frontier score 1)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
@@ -170,6 +170,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-12 21:58 `alyssapan/rendering/ga_wide3d.cpp` done: 3D pass widened at wide aspects: the game culls and clips to the window (AlyssaPan_GaWiden scales gaSet3dlibStruct side planes and viewScaleX), DrawGaFrame draw
 - 2026-11-12 21:32 `alyssapan/core/alyssa_pose.cpp` done: Screenshot test passes: Alyssa posed with head, arms and skirt after NEW, at 4:3 and 16:9 (3D pillarboxed until the widened 3D pass)
 - 2026-11-12 17:34 `alyssapan/core/alyssa_pose.cpp` partial: Motion 0 freeze settled: a gdb artefact; smoke runs reach the room (opening shots draw) and Alyssa slot 0 loops at 1000 ticks a call under ANIM_CTRL_HOLD; the b
 - 2026-11-12 17:13 `alyssapan/core/alyssa_pose.cpp` partial: Black frames after NEW named: a held OUT2_BLACK fade from the skipped opening movie; the script fade-in never comes because Alyssa motion 0 (slot 0) is frozen a
@@ -177,7 +178,6 @@ Recent sessions:
 - 2026-11-12 16:08 `alyssapan/core/alyssa_pose.cpp` partial: T-pose traced: Alyssa body slot never gets a motion (only the eye blink, slot 4, plays); fixed ExecuteAnimation resolving the character table through the behavi
 - 2026-11-12 15:48 `sdk/libgraph.cpp` verify: sceGsSetDefDBuff, the NEW path's last reached stub, written in the host SDK; queue refilled after a probe found no game stub on the NEW path
 - 2026-11-12 15:08 `game/copy2area.c` verify: copy2area and AA_pcmCallback reconstructed (SCE ezmpegstr copy2area + pcmCallback)
-- 2026-11-12 14:52 `game/AA_cpuCycles.c` verify: the movie player's audio / video clock (ezmpegstr): Count, the skew in 90 kHz ticks, the two stream stamps (4 of 4)
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|

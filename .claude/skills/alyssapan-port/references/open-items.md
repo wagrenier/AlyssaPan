@@ -1976,6 +1976,25 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    stick (asRequestExecute / the player behaviour) or the ROM does the same against a wall -- check the
    stick-released path first; (nr1)..(nr4) as above.
 
+   **alyssapan/rendering/ga_wide3d.cpp (2026-11-12 21:56, scheduled run, host task): the 3D pass is
+   widened (nr4's width half; fog is still open).** Queue refill (Claude, for the user to overrule): the
+   pinned queue held only the stale blocked ui_canvas.cpp and a 90 s smoke run past NEW reached no stub, so
+   the run took the port's first feature from this item rather than the frontier (ssBrain_ChgHideAtk1.c).
+   How (architecture.md "The ga frame on the host"): `AlyssaPan_GaWiden()` (window aspect over 4:3, >= 1)
+   widens the game's left / right cull planes (gaSet3dlibStruct) and its clip scale (viewScaleX in
+   gaInit3dlibWork / tnInit3dlibWork: clip flags and the redraw cut); DrawGaFrame draws depth-tested meshes
+   and a scene frame's fills over the whole canvas, the rest in gaScissor's 4:3 box. Seen: at 1280x720 the
+   window room (frame 2880) and the dining room (1260) fill the width with the 4:3 shot's middle unchanged
+   and nothing stretched; the content warning stays pillarboxed; at 4:3 the shots match the run before.
+   Left: (nt1) the HUD ornament (top left) stays at the 4:3 box's corner -- anchoring the 2D HUD to the
+   window edge (DisplayGeometry) is the next width task; (nt2) the title's tower is a 3D scene, so it now
+   widens too: at 16:9 frame 600 the cloud layer's far corners look darker at the bottom right (the sky
+   mesh's edge?) -- compare with work/ref/TITL; (nt3) "widened" is a host heuristic (ZTST GEQUAL /
+   GREATER, or a depth-only pass), not a ROM flag; (nt4) Clipping_Portal's narrowed planes (portal rooms,
+   Clipping_System 1) are not widened: a room behind a portal may show cut sides at 16:9 -- widen its
+   left / right tangents the same way if a portal room shows it; (nt5) any game code that culls by screen
+   x elsewhere (particles, billboards, shadows) is not yet found.
+
 ## Decisions
 
 - 2026-11-11 (Claude, scheduled run 19:15, for the user to overrule): **the ga 2D frame stays 4:3.** The

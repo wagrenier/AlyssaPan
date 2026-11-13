@@ -118,7 +118,9 @@ void gaInit3dlibWork(float *work)
     GA_SPR_WORK *spr = SPR_WORK;
 
     spr->work3dlibEE = SPR_EE((u_char *)work - g_eeScratchpad);
-    spr->viewScaleX = work[2] / work[0];
+    // PORT: divided by AlyssaPan_GaWiden(): the clip flags' screen (+-0.5) and the redraw cut's guard band
+    // reach the wide window's edges instead of 4:3's.
+    spr->viewScaleX = work[2] / work[0] / AlyssaPan_GaWiden();
     spr->viewScaleY = work[3] / work[1];
     spr->zScale = 1.0f / (work[11] - work[10]);
     spr->work6 = work[6];

@@ -142,6 +142,18 @@
    "status": "done",
    "task": "The ga full-screen fill: tiFade_Draw (game/Clipping_Portal.c, 2026-11-11) sends init_black / init_white, a GIF A+D SPRITE over the GS window 512x448, blended by its draw control (ALPHA_1 (Cs - Cd) * FIX + Cd, FIX = 128 x the fade's f), and the host drops raw GIF packets, so the screen stays flat grey where the ROM is black (fade type 4 at f 1 from frame ~60). Add a native call in alyssapan_drawga.h (colour, FIX) that the recorder keeps in draw order and the renderer draws over the whole window at any aspect (DisplayGeometry, never 4:3); call it from tiFade_Draw instead of the packet; also find where the flat 128 grey comes from. Done when the smoke shot after ATLD is black at 4:3 and wide."
   },
+  "alyssapan/rendering/ga_wide3d.cpp": {
+   "notes": "At 1280x720 the window room and dining room fill the width, middle unchanged, nothing stretched; the content warning stays pillarboxed; 4:3 shots match the run before. Left (open-items nt1..nt5): HUD ornament still at the 4:3 corner, title tower now widens (check its far corners against work/ref/TITL), widened is a depth-test heuristic, Clipping_Portal planes not widened, other screen-x culls not yet found.",
+   "sessions": [
+    {
+     "date": "2026-11-12 21:58",
+     "status": "done",
+     "summary": "3D pass widened at wide aspects: the game culls and clips to the window (AlyssaPan_GaWiden scales gaSet3dlibStruct side planes and viewScaleX), DrawGaFrame draws depth-tested meshes and scene fills past the 4:3 box"
+    }
+   ],
+   "status": "done",
+   "task": "The 3D pass widened at wide aspects (open-items.md item 8 For 3D after it, nr4; the port's first feature). At 16:9 the room is pillarboxed to 4:3 like the title: DrawGaFrame (src/alyssapan/seams.cpp) scissors every ga mesh to gaScissor's 4:3 box, and the game culls and clips to the 4:3 view (gaSet3dlibStruct's side planes for gaObjectClippingCheck, GA_SPR_WORK.viewScaleX for the clip flags and the redraw polygon cut). Widen the view from DisplayGeometry: side planes and viewScaleX by the window's aspect over 4:3, depth-tested meshes and a scene frame's fills drawn past the 4:3 box; 2D (the title, HUD) keeps the 4:3 box. Done when the room fills a 16:9 window with nothing stretched and 4:3 is unchanged."
+  },
   "alyssapan/rendering/title_wide.cpp": {
    "notes": "Probe: the backdrops are frame-sized quads (-24..522) and larger ones (sky -460..970, fog -150..660) the ROM leaves to SCISSOR_1; squeezed at 16:9 their edges were the seams. gaScissor clips the ga list to the 4:3 box (Decisions 2026-11-11, from YamiPan's textured backdrops stay 4:3). The lighter band: sky and fog meshes use REGION_REPEAT MSK 0x7f over st -0.7..1.7, drawn as clamp; gaSampling crops the cell (TextureStore::regionOf) and repeats it, shifting u v by whole cells past 0. Shots at 1024x768, 1280x720, 1680x720 after 50 s: same title in the 4:3 box, clouds and tower silhouette across the frame, no seams, no flat band. Not handled: a mesh mixing repeat and clamp axes (none on the title).",
    "sessions": [

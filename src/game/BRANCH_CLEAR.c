@@ -4,6 +4,7 @@
 // Functions below are stubs until reconstructed; see tools/reverse/stage.py.
 
 #include "common/alyssapan_stub.h"
+#include "alyssapan/rendering/alyssapan_drawga.h"
 #include "game/BRANCH_CLEAR.h"
 #include "ga/gaInit3dlib.h"
 #include "game/unassigned_data.h"
@@ -2469,7 +2470,7 @@ void tnInit3dlibWork(void *work, void *dst)
     spr->work3dlibEE = SCRATCHPAD_EE_BASE + (u_int)((u_char *)dst - g_eeScratchpad);
     for (i = 0; i < 32; i++)
         w[i] = ((const float *)work)[i];
-    spr->viewScaleX = w[2] / w[0];
+    spr->viewScaleX = w[2] / w[0] / AlyssaPan_GaWiden(); /* PORT: widened as gaInit3dlibWork's */
     spr->viewScaleY = w[3] / w[1];
     spr->zScale = 1.0f / (w[11] - w[10]);
     spr->work6 = w[6];
