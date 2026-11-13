@@ -82,7 +82,7 @@ void tiBrain_Approach_BOSS1(struct CHARACTER *chr);                             
 #define BOSS_ATK_PICK_FIRST 0           /* BRAIN_ATK_PICK: the first attack (a mode change's pick) */
 #define BOSS_ATK_PICK_BLOCKED 1         /* the AXE's special found its step blocked; HAMM's special */
 #define BOSS_ATK_PICK_HAMM_SPECIAL 2    /* while HAMM's special motion runs */
-#define TRIG_EVENT_BOSS_AXE_NO_STEP 0x0b /* global: the AXE's special skips the step check */
+#define TRIG_EVENT_BOSS_AXE_NO_STEP 0x0b /* global: Character_Init.h TRIG_EVENT_CLEARED (the game was cleared once): the AXE skips the step check */
 #define TRIG_VAR_SCISSORS_M_03 3        /* global variable: below 5 the SCISSORS_M special may start */
 #define SCISSORS_M_VAR_03_LIMIT 5
 #define BALOWS_VAR_52_CHAIN_A 4         /* TRIG_VAR_BALOWS_52 values that keep BALOWS_FACING under the chain */
@@ -104,7 +104,7 @@ void tiBrain_Approach_BOSS1(struct CHARACTER *chr);                             
 #define BOSS_INFO_HAMM_94 0x94          /* u_char: halved as HAMM's special starts, the old value kept in 0x95 */
 #define BOSS_INFO_HAMM_95 0x95          /*   and put back when the special's trace ends */
 #define BOSS_INFO_BALOWS_D4 0xd4        /* int: BALOWS: below 1 the second phase's event may fire */
-#define BOSS_INFO_AXE_F0 0xf0           /* int: cleared as the AXE's trace ends (not a pointer word) */
+#define BOSS_INFO_AXE_F0 0xf0           /* tiAvoidObject's followed polygon (BOSS_INFO_AVOID_HIT; a pointer on the PS2): cleared as the AXE's trace ends */
 #define BOSS_INFO_SPECIAL_POS 0x120     /* float[4]: Alyssa's position when the AXE's special started */
 #define BOSS_INFO_SPECIAL_KIND 0x158    /* int: BOSS_SPECIAL_*, the tiSelSpecialMode slot (BOSS_SETUP.w14c) */
 // BOSS_INFO_PHASE (0x0c) bits read here.
@@ -133,3 +133,82 @@ int tiSetSpecialMode_AXE1(void);                                                
 int tiSetSpecialMode_VITRIOL(void);                                                      // CT3 0x01872150
 int tiSetSpecialMode_HAMM(void);                                                         // CT3 0x018721a0
 extern int (*const tiSelSpecialMode[BOSS_SPECIAL_COUNT])(void);                          // CT3 0x01938640
+
+// ---- slice 2 (2026-11-13): the HP, charge, defense and chain helpers, the BALOWS / SCISSORS_M traces ----
+// BRAIN_ATK_PICK doubles as a special trace's step (then BRAIN_ATK_NONE: the trace may end).
+#define BOSS_TRACE_STEP_START 0
+#define BOSS_TRACE_STEP_RUN 1
+#define BOSS_TRACE_STEP_WAIT 2          /* SCISSORS_M: its open motion 0x40 holds */
+#define BOSS_TRACE_STEP_CLOSING 3       /* SCISSORS_M: closing (motion 0x41) */
+// tiCalcChargeTime: value steps of BOSS_CHARGE_STEP -> ticks.
+#define BOSS_CHARGE_STEP 300
+#define BOSS_CHARGE_TIME_0 0x708
+#define BOSS_CHARGE_TIME_1 0xa8c
+#define BOSS_CHARGE_TIME_2 0xe10
+#define BOSS_CHARGE_TIME_3 0x1194
+#define BOSS_CHARGE_TIME_4 0x1518
+#define BOSS_CHARGE_TIME_5 0x189c
+#define BOSS_CLEARED_DAMAGE_SCALE 1.5f  /* a boss's hit after the game was cleared once (TRIG_EVENT_CLEARED) */
+#define BOSS_HP_RATE_HIGH 0.75f         /* tiCalcHPRate bands */
+#define BOSS_HP_RATE_MID 0.5f
+#define BOSS_HP_RATE_LOW 0.25f
+#define BALOWS_RATE_DIST_0 200.0f       /* tiCalcBalowsAttackRate's distance bands */
+#define BALOWS_RATE_DIST_1 300.0f
+#define BALOWS_RATE_DIST_2 400.0f
+// The hit a defense mode sees (its layout unread past these two).
+#define BOSS_HIT_KIND 0x01              /* u_char: BALOWS guards kinds 0 / 1, SCISSORS_MAN all but 5 */
+#define BOSS_HIT_KIND_5 5
+#define BOSS_HIT_DAMAGE 0x08            /* u_short: SCISSORS_MAN takes it off its hp */
+// pBossInfo words of the traces.
+#define BOSS_INFO_SPECIAL_TIME BOSS_INFO_BALOWS_D4 /* int 0xd4: SCISSORS_M: its special's time (cleared at step 1) */
+#define BOSS_INFO_SPECIAL_TIME_MAX 0xd8 /* int: reaching it ends the special; SCISSORS_MAN's guard sets the time to it */
+#define BOSS_INFO_AVOID_HIT BOSS_INFO_AXE_F0 /* 0xf0: tiAvoidObject's followed polygon (a pointer on the PS2) */
+#define BOSS_STATE_SCISSORS_M_RAGE 0x0010 /* set as the cut starts: at random by hp rate, always once cleared */
+#define BOSS_STATE_SCISSORS_M_END 0x40000 /* ends SCISSORS_M's special at step 2 (cleared there and at step 0) */
+#define BOSS_STATE_SCISSORS_M_400000 0x400000 /* cleared as the special opens (meaning unread) */
+// BALOWS's trace.
+#define BALOWS_MOTION_SPECIAL 7         /* the special's roar (step 0) */
+#define BALOWS_MOTION_THROW 0x0b        /* the chain throw, once facing Alyssa */
+#define BALOWS_MOTION_BREAK 0x1a        /* set A's chains break (hits guarded meanwhile) */
+#define BALOWS_FACE_DOT 0.95f
+#define BALOWS_SE_BANK "E_BAL"          /* rodata 0x01934110 */
+#define BALOWS_SE_ROAR 6
+#define BALOWS_SE_BREAK 7
+#define BALOWS_SE_CHAIN_LOOP 0x1b       /* sound.c's E_BAL loop */
+#define BALOWS_VOICE_BANK "B_5A09"      /* 0x01934118 */
+#define BALOWS_VOICE_BREAK 0x10
+#define BALOWS_VOICE_THROW 0x13
+#define BALOWS_CHAIN_SE_BANK "T_0010"   /* 0x01934120 */
+#define BALOWS_CHAIN_SE_HOLD 0x0f
+#define BALOWS_SE_ALYSSA_BANK "C_0000"  /* 0x01934128 */
+#define BALOWS_SE_ALYSSA_PULLED 0x4b
+#define TRIG_VAR_BALOWS_54 0x54         /* global: the throw's progress (2 thrown, 4 Alyssa pulled; -1 after) */
+#define BALOWS_VAR_54_STARTED 1
+#define BALOWS_VAR_54_THROWN 2
+#define BALOWS_VAR_54_PULL 4
+#define BALOWS_PULL_DAMAGE 10000
+// SCISSORS_M's trace.
+#define SCISSORS_M_MOTION_CUT 0x3e
+#define SCISSORS_M_MOTION_OPEN 0x3f
+#define SCISSORS_M_MOTION_WAIT 0x40
+#define SCISSORS_M_MOTION_CLOSE 0x41
+#define SCISSORS_M_FACE_DOT 0.98f
+#define SCISSORS_M_RAGE_DIE 0x10        /* tnRand(16) below the odds: rage */
+#define SCISSORS_M_RAGE_ODDS_MID 4      /* hp rate in (0.5, 0.75] */
+#define SCISSORS_M_RAGE_ODDS_LOW 8      /* hp rate 0.5 or less */
+#define SCISSORS_M_SE_BANK "E_SMA"      /* 0x01934130 */
+#define SCISSORS_M_SE_CUT 0x21
+#define SCISSORS_M_VOICE_BANK "B_4B02"  /* 0x01934138 */
+#define SCISSORS_M_VOICE_OPEN 0x0b
+#define SCISSORS_M_VOICE_CLOSE 0x0c
+
+float tiCalcHPRate(struct CHARACTER *chr);                                               // CT3 0x01875060
+int tiCalcChargeTime(int value);                                                         // CT3 0x01875090
+void tiCalcPlayerHitPoint(int damage, struct CHARACTER *chr);                            // CT3 0x01875100
+void tiCalcBalowsAttackRate(float dist, int *rate0, int *rate1, int *rate2);             // CT3 0x01874a70
+int tiDefenseMode_BALOWS(struct CHARACTER *chr, const u_char *hit, u_char *react);       // CT3 0x01871b70
+int tiDefenseMode_SCISSORS_MAN(struct CHARACTER *chr, const u_char *hit, u_char *react); // CT3 0x01871be0
+int tiSelSPMotion_BALOWS(void);                                                          // CT3 0x01872240
+int tiSelSPMotion_HAMM(void);                                                            // CT3 0x01872880
+void tiSetChainData(int i, int setB);                                                    // CT3 0x01875930
+void tiSetChainFlag(int i, int on, int setB);                                            // CT3 0x01875630

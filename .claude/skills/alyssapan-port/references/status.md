@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-13 02:16 at commit `370fbb1` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-13 02:35 at commit `6ec6d6e` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1822**; stubs: **16**
+- reconstructed CT3 functions: **1833**; stubs: **14**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -91,7 +91,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/ssHitCheckAttackToScn.c` | 37 | 0 |
 | `src/game/ssSetTexUVforCubeMap.c` | 96 | 0 |
 | `src/game/tiAvoidObject.c` | 95 | 0 |
-| `src/game/tiBrain_ChgTrace_BOSS_BALOWS.c` | 27 | 14 |
+| `src/game/tiBrain_ChgTrace_BOSS_BALOWS.c` | 38 | 12 |
 | `src/game/tiBrain_ChgTrace_Ghost.c` | 31 | 0 |
 | `src/game/tiXcmd_TransItem.c` | 93 | 0 |
 | `src/game/tkXDTrg_GetSceneHash.c` | 50 | 0 |
@@ -105,7 +105,7 @@ Least-named game-code regions (64 KB blocks):
 - 65 TUs: partial 1, verify 66, done 14, blocked 1
 - next: **game/tiBrain_ChgTrace_BOSS_BALOWS.c** (pinned in the queue)
 - pinned queue: game/tiBrain_ChgTrace_BOSS_BALOWS.c, alyssapan/rendering/ui_canvas.cpp
-- partial: `game/tiBrain_ChgTrace_BOSS_BALOWS.c` 26/69 -- 26 functions written, 14 stubs and the todo helpers left (Trace / Attack bodies, Damage_BOSS1, Approach_BOSS1, Init pair, tiSetChain*, tiCalc*, tiSelSPMotion_*,
+- partial: `game/tiBrain_ChgTrace_BOSS_BALOWS.c` 37/69 -- 11 functions written; tiBrain_Attack_BOSS_BALOWS (0x1224 bytes) skipped and is the next run's first job. Smoke run unchanged (content warning about frame 11940,
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
@@ -176,6 +176,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-13 02:35 `game/tiBrain_ChgTrace_BOSS_BALOWS.c` partial: slice 2: the BALOWS and SCISSORS_M special traces, tiCalcHPRate / ChargeTime / PlayerHitPoint / BalowsAttackRate, the two defense modes, tiSelSPMotion_BALOWS / 
 - 2026-11-13 02:16 `game/tiBrain_ChgTrace_BOSS_BALOWS.c` partial: slice 1: the 18 boss mode changes (Chg Trace / Attack / Approach for BALOWS, SCISSORS_M / W, AXE, VITRIOL, HAMM; ChgReturn_BOSS1), Trace_BOSS_HAMM, Return_BOSS1
 - 2026-11-13 01:50 `game/hhXcmd_BGM_SE_VOLUME.c` verify: hhXcmd_BGM_SE_VOLUME written: the option menu script's sound command (SET copies trigger event 0xa8 and variables 0x4e/0x4f to the sound buffers, volumes cut to
 - 2026-11-13 01:30 `game/RotateCamera.c` verify: RotateCamera and LockerCamera, the two x commands that turn a bank's parts (bearing to Alyssa; the stick look-around with zoom)
@@ -183,7 +184,6 @@ Recent sessions:
 - 2026-11-13 00:57 `alyssapan/rendering/menu_box.cpp` done: the in-game menu (MENU.BIN, the M101.BIN floor map) keeps the 4:3 box at wide aspects (nu1)
 - 2026-11-13 00:37 `game/tiBrain_ChgTrace_Ghost.c` verify: slice 3: the last 7 ghost-brain functions -- Search_Ghost1/3, Approach_Ghost1, Attack_Ghost1/2/3, Init1; the hold shared with Attack_Ghost4 through the kind's l
 - 2026-11-13 00:19 `game/tiBrain_ChgTrace_Ghost.c` partial: slice 2: 14 ghost-brain functions -- ChgAttack_Ghost1/2/4, ChgApproach_Ghost1/2, ChgSearch_Ghost1/2/3, Damage1/2/3, Attack_Ghost4 (lunge and grab), Approach_Gho
-- 2026-11-12 23:52 `game/tiBrain_ChgTrace_Ghost.c` partial: slice 1: the small ghost-brain functions -- ChgTrace_Ghost, ChgReturn1/2, ChgAttack_Ghost3, Trace_Ghost1, Return_Ghost1, Search_Ghost2, Init3, tiGetNearPole, ti
 
 ## Frontier (called by reconstructed code, not written yet)
 

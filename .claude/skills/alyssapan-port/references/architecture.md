@@ -1576,6 +1576,19 @@ the branch scene tables and a few tk x commands.
   the boss is busy with a one-shot, the phase is deferred (bit 0x200000) and fires when the one-shot ends.
 - Names are in tiBrain_ChgTrace_BOSS_BALOWS.h (BOSS_INFO_*, BOSS_STATE_*, BOSS_SUB_*). They come from
   these tests only.
+- **Slice 2 (2026-11-13): the special traces and helpers.** In a special trace BRAIN_ATK_PICK is a step
+  counter (0 start, 1 run, SCISSORS_M 2 wait / 3 closing, 0xff done so ChgTrace may end). BALOWS's
+  submode 6 roars (E_BAL 6, motion 7), counts +0x18 to +0x1c, then breaks set A's chains (motion 0x1a,
+  T_0010 0xf stopped); submode 7 turns to Alyssa (dot 0.95), throws (motion 0xb) and waits for global
+  var 0x54 to reach 4: set B lets go and Alyssa takes tiCalcPlayerHitPoint(10000). SCISSORS_M's submode 7
+  steers round obstacles (tiAvoidObject, followed polygon at pBossInfo +0xf0) to face her (0.98) and
+  cuts (motion 0x3e), raging (state bit 0x10) at random by hp rate; its special opens (0x3f), holds
+  (0x40) until +0xd4 reaches +0xd8 or state bit 0x40000, then closes (0x41).
+- tiCalcPlayerHitPoint: no damage under events 0x1e / 0x95 or once the boss is down; halved during a
+  bend, x1.5 once the game was cleared (event 0x0b). tiCalcHPRate = hp / hpMax. tiCalcChargeTime maps
+  300-steps to 1800..6300 ticks. tiSetChainFlag(i, on, setB) registers chain i's event (set B's 0x69 + i
+  for i < 5 when setB, else 0x3c + i) after tiSetChainData recomputes its belt's half vectors from the
+  set's spine source. Defense modes take (chr, hit, react): the hit's byte 1 is its kind, +8 its damage.
 
 ## The IOP side (2026-11-09)
 

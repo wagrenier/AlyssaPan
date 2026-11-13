@@ -2100,6 +2100,27 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    - (nz5) SCISSORS_W's approach sets pick 2 (BOSS_ATK_PICK_SCISSORS_W) and HAMM's special sets pick 1:
      the attack bodies say what the picks select.
 
+   **game/tiBrain_ChgTrace_BOSS_BALOWS.c slice 2 (partial, 2026-11-13 02:35, Claude, scheduled run).**
+   Written (11): tiBrain_Trace_BOSS_BALOWS, tiBrain_Trace_BOSS_SCISSORS_M, tiCalcHPRate, tiCalcChargeTime,
+   tiCalcPlayerHitPoint, tiCalcBalowsAttackRate, tiDefenseMode_BALOWS, tiDefenseMode_SCISSORS_MAN,
+   tiSelSPMotion_BALOWS / _HAMM, tiSetChainFlag, tiSetChainData. Skipped from the brief's slice:
+   tiBrain_Attack_BOSS_BALOWS (0x1224 bytes, the next run's first job; it uses tiCalcBalowsAttackRate's
+   three weights). Smoke run unchanged: the content warning at about frame 11940, a fade, grey at the
+   end; no run reaches a boss. Open:
+   - (nz3, corrected) pBossInfo +0xf0 IS a pointer on the PS2: tiAvoidObject's followed polygon
+     (SCISSORS_M's trace passes pBossInfo + 0xf0 as lastHit). The port keeps the host pointer in a static
+     (tiBossAvoid) and the EE word as BOSS_INFO_PTR_SET or 0, so the AXE's clearing still forgets it. Not
+     in BossInfoSetPtr's side table: if another TU reads +0xf0 as a pointer, move it there.
+   - (nz6) Global event 0x0b is Character_Init.h's TRIG_EVENT_CLEARED (the game cleared once): the AXE's
+     TRIG_EVENT_BOSS_AXE_NO_STEP is the same event, so round 2 skips the step check. Kept both names.
+   - (nz7) tiSetChainFlag for chains 5..9 registers set A's event even when setB, but sets the data from
+     set B (the ROM's switch has no set B event past 4). Kept as the ROM does.
+   - (nz8) The defense modes' second argument is a hit record whose layout is unread past byte 1 (kind) and
+     +8 (u_short damage); third a u_char reaction cleared when guarded. Who calls them (a table) is not
+     found yet: the prototypes are guesses from the bodies.
+   - (nz9) tiBossApplyMatrix duplicates Clipping_Portal.c's static PortApplyMatrix. A shared header for it
+     would be cleaner (host helper, not game code).
+
 ## Decisions
 
 - 2026-11-11 (Claude, scheduled run 19:15, for the user to overrule): **the ga 2D frame stays 4:3.** The
