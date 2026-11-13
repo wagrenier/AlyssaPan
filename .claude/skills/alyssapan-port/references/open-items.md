@@ -1013,6 +1013,19 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    helpers into AA_viBuf.c (ezmpegstr's vibuf.c, from memory), then retire the key. (hx) AA_syncGetSkew's
    sign (positive = video late) is read from AA_shouldSkip's use only: AA_cpuCycles.c confirms it.
    **Next for the movie: copy2area.c, AA_cpuCycles.c, then a run with movies on.**
+   **The first run with movies on (2026-11-13, the user's report of a black screen after the content
+   warning): m_capcom.mov and m_title.mov now play, picture and sound.** Three host fixes (hazards.md
+   "AlyssaPan"): the PSS audio channel is the sub-stream header's second byte (media/mpeg_stream.cpp), and
+   the demuxer hands the callbacks the payload where it lies in the read ring, never the wrap copy (CT3's
+   callbacks unwrap it themselves: AA_pcmCallback's length came out garbage from a heap copy); the SNDDRV
+   stand-in calls Spu2::reset at its start, as the driver's sceSdInit would (iop/snd_driver_standin.cpp);
+   the UI canvas drops A == 0 for TEST_1 NOTEQUAL 0 with AFAIL KEEP (rendering/ui_canvas.cpp). Seen: the
+   Capcom logo, "Produced by CAPCOM", "Directed by Kinji Fukasaku", the opening's live action, 30 fps; the
+   title movie's PCM peaks at -6 dBFS; the smoke run (skip on) still ends on the title. So (hh) holds
+   (AA_decBs0 built its records on frameCount 0), (hm) holds (core 0's auto-DMA is mixed at BVOL), and (hs)
+   holds (the ring retires blocks). Still unseen: captions (no caption file for these two), a movie skip by
+   the pad, the attract movies (data/movie3), (hb)'s 448 -> 512 stretch question (the picture is drawn at
+   native size, centred).
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
    class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~

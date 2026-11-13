@@ -48,7 +48,7 @@ private:
     };
 
     void clearPlayback();
-    int deliverPayload(sceMpeg &mpeg, const std::uint8_t *packet, int size);
+    int deliverPayload(sceMpeg &mpeg, const std::uint8_t *packet, int size, const std::uint8_t *ringPayload);
     void readSequenceHeader(sceMpeg &mpeg, std::span<const std::uint8_t> data);
     [[nodiscard]] const StreamCallback *videoCallback() const;
     [[nodiscard]] const StreamCallback *audioCallback(int channel) const;

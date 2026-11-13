@@ -19,6 +19,11 @@ int SndDriverStandIn::start()
         return 0;
     driver.m_registered = true;
     Kernel &kernel = Kernel::instance();
+    // The driver's first call at boot is sceSdInit, which is also when the SPU2 opens the sound card and
+    // starts mixing. The movies need it even from a silent driver: their sound plays through core 0's
+    // auto-DMA (AA_audioDecResume), and its play position is the movie's clock (AA_audioDecSendToIOP).
+    // With no mixer the position never moved and every movie held its first picture behind a black screen.
+    kernel.spu2().reset();
     kernel.rpc().add(kSndRpcId, &SndDriverStandIn::serve, driver.m_buffer.data(), &driver);
     kernel.rpc().serve(&driver);
     log::info("iop: SNDDRV.IRX stand-in (silent: the stream handshake only)");

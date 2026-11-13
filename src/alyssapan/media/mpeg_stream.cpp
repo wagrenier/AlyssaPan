@@ -17,6 +17,12 @@ constexpr int kPesHeaderBytes = 6;
 constexpr int kPesExtendedBytes = 9; // start code, length, two flag bytes and the header length
 constexpr int kStreamIdOffset = 3;
 constexpr int kPackStuffingMask = 7;
+constexpr int kPesHeaderLengthOffset = 8;
+
+// SCE's audio payload opens with a 4-byte sub-stream header: 0xff, then the stream byte (0xa0 | channel for
+// PCM), then two zero bytes; the callbacks step over all four. Every CT3 movie reads ff a0 00 00, then SShd:
+// the channel is in the second byte, not the first.
+constexpr int kAudioStreamByte = 1;
 constexpr int kAudioChannelMask = 0xf;
 
 constexpr std::uint8_t kIdProgramEnd = 0xb9;
@@ -127,26 +133,32 @@ void MpegStream::readSequenceHeader(sceMpeg &mpeg, std::span<const std::uint8_t>
     }
 }
 
-// A video or audio packet. Answers its size, or 0 when the callback refused it: that is back-pressure, the
-// packet stays where it is and nothing of it may reach the decoder twice.
-int MpegStream::deliverPayload(sceMpeg &mpeg, const std::uint8_t *packet, int size)
+// A video or audio packet: `packet` is the whole packet in one piece (a copy when it wraps the ring),
+// `ringPayload` where its payload starts in the ring. Answers its size, or 0 when the callback refused it:
+// that is back-pressure, the packet stays where it is and nothing of it may reach the decoder twice.
+int MpegStream::deliverPayload(sceMpeg &mpeg, const std::uint8_t *packet, int size, const std::uint8_t *ringPayload)
 {
     const std::uint8_t id = packet[kStreamIdOffset];
     const std::uint8_t flags = packet[7];
-    const int headerBytes = packet[8];
+    const int headerBytes = packet[kPesHeaderLengthOffset];
     const int payloadBytes = size - kPesExtendedBytes - headerBytes;
     if (payloadBytes <= 0)
         return size;
 
     const std::uint8_t *const payload = packet + kPesExtendedBytes + headerBytes;
-    const StreamCallback *const callback =
-        id == kIdVideo ? videoCallback() : audioCallback(payload[0] & kAudioChannelMask);
+    const StreamCallback *callback = nullptr;
+    if (id == kIdVideo)
+        callback = videoCallback();
+    else if (payloadBytes > kAudioStreamByte)
+        callback = audioCallback(payload[kAudioStreamByte] & kAudioChannelMask);
     if (callback != nullptr)
     {
         sceMpegCbData data{};
         data.str.type = sceMpegCbStr;
         data.str.header = const_cast<u_char *>(packet);
-        data.str.data = const_cast<u_char *>(payload);
+        // As the real library: the payload where it lies in the ring, which the callbacks unwrap themselves
+        // (CT3's AA_videoCallback and AA_pcmCallback measure it against the ring's end), never the copy.
+        data.str.data = const_cast<u_char *>(ringPayload);
         data.str.len = static_cast<u_int>(payloadBytes);
         if (flags & kPtsPresent)
             data.str.pts = readTimeStamp(packet + kPtsOffset);
@@ -222,7 +234,9 @@ int MpegStream::demux(sceMpeg &mpeg, const std::uint8_t *source, int available, 
                 std::memcpy(m_linear.data() + firstPart, ring, static_cast<std::size_t>(size - firstPart));
                 packet = m_linear.data();
             }
-            if (deliverPayload(mpeg, packet, size) == 0)
+            const std::uint8_t *const ringPayload =
+                ring + (position + kPesExtendedBytes + byteAt(kPesHeaderLengthOffset)) % ringSize;
+            if (deliverPayload(mpeg, packet, size, ringPayload) == 0)
                 break;
         }
 

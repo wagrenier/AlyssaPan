@@ -68,19 +68,30 @@ Scissor scissorOf(std::uint64_t value)
     return {bound(0), bound(32), bound(16) + 1.0f, bound(48) + 1.0f};
 }
 
-// TEST_1: ATE, and ATST GEQUAL / GREATER against AREF are all a dropped fragment can be here.
+// TEST_1: ATE, and ATST GEQUAL / GREATER against AREF, or NOTEQUAL against 0 with AFAIL KEEP, are all a
+// dropped fragment can be here. Alpha has no sign, so A != 0 is A >= 1: the movie's captions
+// (AA_GetDataWord.c, TEST_1 0x3000f) draw only where the caption picture is not clear; kept, its clear black
+// hid every movie picture.
 std::uint8_t alphaTestRefOf(std::uint64_t test)
 {
     constexpr std::uint64_t kAlphaTestEnable = 1;
     constexpr int kTestGequal = 5;
     constexpr int kTestGreater = 6;
+    constexpr int kTestNotequal = 7;
+    constexpr int kAfailShift = 12;
+    constexpr std::uint64_t kAfailMask = 3;
+    constexpr std::uint64_t kAfailKeep = 0;
+    constexpr std::uint8_t kAboveZero = 1;
 
     if ((test & kAlphaTestEnable) == 0)
         return 0;
     const int method = static_cast<int>((test >> 1) & 7);
+    const auto ref = static_cast<std::uint8_t>((test >> 4) & 0xff);
+    if (method == kTestNotequal && ref == 0 && ((test >> kAfailShift) & kAfailMask) == kAfailKeep)
+        return kAboveZero;
     if (method != kTestGequal && method != kTestGreater)
         return 0;
-    return static_cast<std::uint8_t>((test >> 4) & 0xff);
+    return ref;
 }
 
 } // namespace

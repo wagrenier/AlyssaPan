@@ -7,6 +7,18 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-13, the user's report: "black screen after the warning") **Smoke runs skip every movie, so a
+  player's launch is the only thing that plays one.** The whole movie path (ten TUs, all verify) had never
+  run: a launch without skip_intro sat on a black screen from m_capcom.mov on. Three host bugs, each a
+  deadlock or a cover, none visible to a smoke run: (1) MpegStream took the audio channel from the payload's
+  first byte, but SCE's sub-stream header is `ff a0 00 00` (every CT3 movie): channel 15, no callback, no
+  audio, so readMpeg never started the display and the decoder waited on a full picture queue; (2) nothing
+  called sceSdInit (the SNDDRV stand-in), so the SPU2 mixer never ran, core 0's auto-DMA never moved, and the
+  movie clock (its play position) held the first picture; (3) the UI canvas's alpha test knew GEQUAL /
+  GREATER only, so the caption sprite's NOTEQUAL 0 kept its clear black over every picture. After any
+  change on the movie path, run `build.py --run 90 --env ALYSSAPAN_SKIP_INTRO=0`: m_capcom.mov (silent on
+  the disc: its PCM is all zeros) then m_title.mov's credits and live action. Also: a scheduled session
+  running beside you can cut the frame rate to a third; time the shots before blaming a change.
 - (2026-11-13, scheduled run, profiler) **CT3's game never idles the EE while it waits for a field.**
   gaWaitVSync spins on wait_vsync_state and main's loop spins on ga_main_timer (both cleared / bumped by the
   VSync callback), so ee::Kernel never finds every thread waiting: an EE-idle measure reads 0 after boot and
