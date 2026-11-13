@@ -59,7 +59,7 @@ static_assert(offsetof(PIA_KEY, h0c) == 0xc, "PIA_KEY.h0c");
 #define TRIG_EVENT_NO_PAD_MOVE 0x91     /* set: PIA_MOVE does not move (asPlayerInputAnalyze; name from this use) */
 #define PIAK_KIND_COUNT 19              /* asPIAK's entries: MOTION_REC_FACING 0..18 */
 #define CHARA_TARGET_COPY 0x490         /* CHARACTER: qword the target's vec, +0x10 its flags, +0x14 short part (-1 none) */
-#define CHARA_TARGET2_COPY 0x4b0        /* CHARACTER: the same for CHARA_TARGET2 (0x4b0 is also refractAxis) */
+#define CHARA_TARGET2_COPY 0x4b0        /* CHARACTER: the same for CHARA_TARGET2 */
 #define CHARA_TARGET2_POS 0x4e0         /* CHARACTER: qword pos when CHARA_TARGET2 was copied (= CHARA_BOSS_STRIKE) */
 #define CHARA_TARGET2_ROT 0x4d0         /* CHARACTER: int, rot then */
 #define CHARA_TARGET_COPY_FLAGS 0x10    /* within a copy: u_int the target's flags */

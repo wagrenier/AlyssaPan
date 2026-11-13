@@ -335,8 +335,31 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
   mipsdis.py prints COP2 registers with the GPR names (at = vf1, v0 = vf2 ..), so VU0's constant register
   reads as `zero`. gaSetLight's point lights were reconstructed with w 0 from it and lost the view's
   translation (every point light off by the camera's position: rooms lit from the wrong places). 90
-  `sqc2 zero` sites in the ROM; SceneLightSet / CharLightSet read theirs right (LightClearPos), the others
-  are not audited.
+  `sqc2 zero` sites in the ROM; SceneLightSet / CharLightSet read theirs right (LightClearPos). **All 90
+  were audited on 2026-11-13** (open-items.md, the (lt3) entry); gaSetLight was the only misreading that
+  changed anything. Most sites are the unit-matrix idiom (`vmr32.xyzw vf5,vf0` three times, then
+  `sqc2 zero,0x30` / `a1,0x20` / `a2,0x10` / `a3,0x0`: rows 3..0 of the identity). Many others are dead,
+  overwritten whole before anything reads them. When checking one, follow the qword to its first read
+  before calling a w 0 a bug.
+- (2026-11-13, the user: "when the model stop moving the vertices of her belly becomes wrong")
+  **QuatSlerp writes ts[3]; a caller's weight array must be four floats.** The ROM passes a qword
+  (asMakeStraw's sp+0x340) and QuatSlerp keeps its angle in lane 3 as scratch. StrawBlendFrame
+  declared `float ts[2]`. With the blend inlined into asMakeStraw, that write landed in the straw's
+  other locals, so the waist straw (Alyssa's parts 106 / 107 -> 161) blended its middle vertices
+  through a frame turned about 60 degrees about her spine. Standing, her jacket's back belt vanished,
+  the waist pinched and the skirt showed through. Walking frames often looked right, so it read as an
+  "idle" bug. A probe showed the A / B quaternion dots at -561 .. 529 after the loop: impossible for
+  unit quaternions. IAK_WriteKey had the same `float w[2]` (via asQuatSlerpZipVECTOR). Rule: an array
+  a ROM function takes as a qword is four floats in the port, even when the caller only fills two.
+  Grep for `[2]` at every call that reaches QuatSlerp.
+- (2026-11-13, the vf0 audit) **A struct field's offset written from the wrong store.**
+  CHARACTER.refractAxis was declared at 0x4b0 (static_assert and all), but asUpdateAnimation_Matrix's
+  three stores go to Character[i] + 0x4f0 (`sq v0,0x4f0(v1)` after the `* 0x580` index sum). The port
+  wrote 0x4b0 every frame for a refracting shadowed character. 0x4b0 is CHARA_TARGET2_COPY, which
+  AimBehind reads for the behind / sit-behind turns, so the struct field and the byte-offset #define
+  silently shared the same bytes. Rule: take a field's offset from the store's own immediate (plus the
+  base's displacement from the array symbol); when a #define comment says "also X", check that the
+  ROM really writes both there.
 - (2026-11-13, the lighting) **The ga colour blocks unpack signed** (UNPACK V4-8 with USN 0): a colour
   byte of 0x80..0xff is -128..-1 on VU1. Read unsigned, the many 0xe0..0xff bytes of lit room objects
   (small negatives) would add 224..255 instead of about 0.

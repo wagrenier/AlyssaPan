@@ -1996,7 +1996,9 @@ static void StrawBlendFrame(float out[4][4], int w, const float (*matA)[4], cons
                             const float qB[4], const float ctrl[4][4], const float stretch[4],
                             const float invRot[4][4], float scaledStretch[4])
 {
-    float ts[2], q[4], frame[4][4], bez[4], rows[4][4];
+    // ts is the ROM's qword at sp+0x340: QuatSlerp writes its angle into ts[3] (its scratch lane), so
+    // all four floats must be ours. As float[2] that store landed in whatever the compiler put next.
+    float ts[4] = { 0.0f, 0.0f, 0.0f, 0.0f }, q[4], frame[4][4], bez[4], rows[4][4];
     int i;
     ts[1] = (float)w / 255.0f;
     ts[0] = 1.0f - ts[1];
@@ -4660,7 +4662,8 @@ static void IAK_WriteKey(int bank, const BEHAVIOR_TRACK *tr, u_char *out, const 
         return;
     }
     {
-        float w[2];
+        // A qword, as the ROM's: QuatSlerp (through asQuatSlerpZipVECTOR) writes its angle into w[3].
+        float w[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
         w[1] = ((float)t / 100.0f - (float)KeyFrame(prev)) / (float)(KeyFrame(next) - KeyFrame(prev));
         w[0] = 1.0f - w[1];
         switch (tr->kind) {

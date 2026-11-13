@@ -52,14 +52,17 @@ typedef struct CHARACTER {
     u_char pad2f3[0xd];
     int w300[4];                        /* 0x300: Character_All_Init: 0 */
     u_char behavior[0x4b0 - 0x310];     /* 0x310: asInitPlayerBehaviorControler's (0x310..0x488 at least) */
-    qword refractAxis;                  /* 0x4b0: asUpdateAnimation_Matrix, for a refracting shadowed
-                                           character: row 1 of part CHARA_AXIS_HASH_ROW1's world matrix,
-                                           else row 2 of part CHARA_AXIS_HASH_ROW2's, else (0, 0, 0, 1) */
-    u_char pad4c0[0x4e0 - 0x4c0];
+    u_char pad4b0[0x4e0 - 0x4b0];       /* 0x4b0: CHARA_TARGET2_COPY .. (wideXcmd_DebugPrint.h) */
     qword strikeFrom;                   /* 0x4e0: where a boss's scripted strike comes from (CHARA_BOSS_STRIKE,
                                            wideXcmd_DebugPrint.h; tiXcmd_CheckEarthquake: the source's pos at
                                            the quake's first frame) */
-    u_char pad4f0[0x520 - 0x4f0];
+    qword refractAxis;                  /* 0x4f0: asUpdateAnimation_Matrix, for a refracting shadowed
+                                           character: row 1 of part CHARA_AXIS_HASH_ROW1's world matrix,
+                                           else row 2 of part CHARA_AXIS_HASH_ROW2's, else vf0 (0, 0, 0, 1).
+                                           Its three stores are `sq / sqc2 ..,0x4f0` off Character[i]
+                                           (0x01842960..0x01842a0c); it sat at 0x4b0 until 2026-11-13 and
+                                           overwrote CHARA_TARGET2_COPY there every frame */
+    u_char pad500[0x520 - 0x500];
     int keyTicks;                       /* 0x520: global ticks summed while the keys are enabled (asCharacterOperate) */
     int hp;                             /* 0x524: Character_All_Init: Char_Init_MAX_HP[i] */
     int hpMax;                          /* 0x528: Character_All_Init: Char_Init_MAX_HP[i] (which of the
@@ -83,7 +86,7 @@ typedef struct CHARACTER {
 static_assert(sizeof(CHARACTER) == 0x580, "CHARACTER");
 static_assert(offsetof(CHARACTER, flagsPrev) == 0x8c, "CHARACTER.flagsPrev");
 static_assert(offsetof(CHARACTER, bank) == 0x002, "CHARACTER.bank");
-static_assert(offsetof(CHARACTER, refractAxis) == 0x4b0, "CHARACTER.refractAxis");
+static_assert(offsetof(CHARACTER, refractAxis) == 0x4f0, "CHARACTER.refractAxis");
 static_assert(offsetof(CHARACTER, hp) == 0x524, "CHARACTER.hp");
 static_assert(offsetof(CHARACTER, strikeFrom) == 0x4e0, "CHARACTER.strikeFrom");
 static_assert(offsetof(CHARACTER, targetDot) == 0x0f0, "CHARACTER.targetDot");

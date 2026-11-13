@@ -4019,7 +4019,7 @@ void asGetAnalogStickInformation(int stick, int deadZone, float *degrees, float 
     u_int lo = (u_int)(0x80 - (signed char)deadZone) & 0xff;
     PAD_DATA *p = &pad[(stick & 0xff) >> 1];
     u_int x, y;
-    alignas(16) float v[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    alignas(16) float v[4] = {0.0f, 0.0f, 0.0f, 1.0f}; /* sqc2 vf0: (0, 0, 0, 1); w is never read */
     float len2, rs;
 
     if (stick & STICK_FIRST) {

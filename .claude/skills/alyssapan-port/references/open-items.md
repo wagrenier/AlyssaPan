@@ -3084,12 +3084,73 @@ apply here):
   fading quad in ATLD's bank, (128, 128, 128, 127..118)) draw black -- the hardware's answer, worth one
   look against the real game's boot screens; (lt2) the highlight (obj +0x30 != 0), TFX HIGHLIGHT /
   HIGHLIGHT2 in ui.frag and light2's program are written from the VU code but no smoke run has drawn one
-  yet (the opening rooms have none): check them on the first screen that does; (lt3) the 88 other
-  `sqc2 zero` (vf0) sites outside the lights were not audited for the w = 1 misreading (hazards.md); (lt4)
+  yet (the opening rooms have none): check them on the first screen that does; (lt3) the other
+  `sqc2 zero` (vf0) sites -- **answered 2026-11-13** in the entry below; (lt4)
   the ga frame still has no fog (item 7): the room's depth haze is the next part of the look.
+- (2026-11-13, (lt3) answered, side session of the lighting work) **The `sqc2 zero` audit.** all.dis has
+  90 sites in 48 functions; gaSetLight (1, fixed earlier), SceneLightSet (4) and CharLightSet (13) were
+  already checked. The other **72 sites in 45 functions** were each read against the port: 70 store
+  (0, 0, 0, 1) as the ROM does, or are dead stores (overwritten whole before any read). The two fixes:
+  asGetAnalogStickInformation's vector had w 0, and refractAxis was declared at CHARACTER 0x4b0 while
+  the ROM writes it at 0x4f0. The 0x4f0 fix is the one that changes behaviour (hazards.md). One line
+  per function: address(es), verdict.
+  - asUpdateAnimation_Matrix 01842a0c: w right (static vf0). **Fixed: wrong offset.** The ROM's three
+    stores go to Character[i] + 0x4f0; CHARACTER.refractAxis was at 0x4b0, so every frame a
+    refracting shadowed character's CHARA_TARGET2_COPY (read by AimBehind) was overwritten. Moved to 0x4f0.
+  - asShadowPolygonPositions 01845578: right: SpSegmentOutline's f = (1, 0, 0, 1) (vf0, then x = 1.0).
+  - asShadowDrawing_Init 01847b4c: right: shadowVec (0, 0, 0, 1).
+  - asMakeStraw 01849a04 / 01849b08: right: invRot's row 3 (0, 0, 0, 1); weight A's cache = matUnit.
+  - ExecuteAnimation 0184a708 / 0184a728, EA_001 0184bc78 / 0184bc98, EA_100 0184d21c / 0184d23c:
+    right: local / base start as the identity.
+  - asMakeMirrorMatrixByPlane 0184f990: right: flip = diag(1, -1, 1, 1). asInitMirrorMatrix 0184fd10:
+    right: identity.
+  - InitMatrixTree 0185178c: right: REC_MATRIX_PREV = identity.
+  - ConvertMatrix2Quat 01851afc: right: (0, 0, 0, 1) on the divide-by-0 path. ConvertQuat2Matrix
+    01851b60: right: row 3 (0, 0, 0, 1).
+  - asGetAnalogStickInformation 0185a054: **fixed: w was 0.** No visible effect: the w lane is never
+    read (vmul.xyz, and asRadianByO reads x / z).
+  - asViewMatrix2PosRUF 0185a8f8, asPosRUF2ViewMatrix 0185a9e4 / 0185a9f4: right: row 3 (0, 0, 0, 1)
+    before / after the inverse.
+  - camera_init0 01887478: right: view = identity.
+  - tiLightBelt2Update 0188a8d4: right: the identity (ctrl) has all four rows overwritten before use;
+    the port leaves it out.
+  - tiCalc_FootPos 0188b29c / 0188b2a0 / 0188b2a4: dead stores: each vector is overwritten whole by
+    its vsub before any read.
+  - tiPipeJointUpdate 0188bd30: dead store (the spring term overwrites it); 0188be58: right:
+    REC_MATRIX_T (0, 0, 0, 1).
+  - tiParticleSetPosition_WIND 0188c0a0: right: wind xyz 0; its w is never read (every op .xyz).
+  - tiCalc_Leaf_WIND 0188c2bc, tiCalc_Leaf 0188eb3c: right: LeafFace's rot row 3 (0, 0, 0, 1);
+    tiCalc_Leaf_WIND 0188c3a4: right: wind (0, 0, 0, 1).
+  - tiCalc_Trans_WIND 0188c740: right: accel (0, 0, 0, 1).
+  - tiCalc_matL2V 0188e808 / 0188e82c: right: rot's row 3 (0, 0, 0, 1); sc starts as the identity.
+  - tiGenerateParticle 0188fca0 / 0188fedc: right: rot's row 3; the record's colour (0, 0, 0, 1).
+  - tiHurikoReset 01890e50 / 01890e58: right: vel and step (0, 0, 0, 1).
+  - tiCalc_HurikoCLOSED 0189171c / 01891e38, tiCalc_HurikoOPEN 018924b0 / 01892bd4 (HurikoSwing):
+    right: wind (0, 0, 0, 1); vel on a hit (0, 0, 0, 1).
+  - ssParticleCashClear 01899098: right: cashVECval0 (0, 0, 0, 1).
+  - gaSetRotMatrixX 018a6bcc / 018a6bfc, gaSetRotMatrixY 018a6c3c, gaSetRotMatrixZ 018a6c9c: right:
+    SetIdentity first.
+  - ssHitCalcSlidePos2 018b16f8 / 018b1788 / 018b17c8: right: ssVuZero is vf0.
+  - Character_Init 018b3c38 / 018b3cb8, Character_All_Init 018b41d8 / 018b41e0: right: kVf0 for pos
+    and posBefore.
+  - asXcmd_I_have_x_Arrows 018dbb64: right: ARROW.dir (0, 0, 0, 1). ssAI_AXE_Init 018de3e4: right:
+    AxeInfo.dir.
+  - tiXcmd_OperateItem 018e10a8 / 018e1150 / 018e11fc: right: TiUnitMatrix; 018e134c / 018e13d0 /
+    018e1460 / 018e14f0: dead stores (DirectToCamera * step overwrites them whole before the .xyz add).
+    tiXcmd_SetRotation 018e8a60: right: identity.
+  - asChangeAlyssaMortionByHiting 018f4650, asChangeAlyssaMortionByDamaging 018f4864 / 018f4a28
+    (TurnToDamage), asChangeAlyssaMortionByHirumi 018f4b44: right: face (0, 0, +-1, 1).
+  - asCharacterMortionFunctionOperation 018f6884 / 018f6a18: right: CatchPin's up (0, 0, 1, 1).
+  - asCharacterAnimationExecute 018f798c: right: CHARA_MOVE_DELTA = vf0. asCharacterMoveByPad
+    018faba4: right: mv = vf0.
 
 ## Done
 
+- 2026-11-13 (interactive, the user: "when the model stop moving the vertices of her belly becomes
+  wrong"): Alyssa's waist, standing. StrawBlendFrame's `float ts[2]` took QuatSlerp's ts[3] write
+  (hazards.md), so the waist straw's middle vertices were turned about 60 degrees about her spine: the
+  jacket's back belt vanished and the skirt showed through. ts and IAK_WriteKey's w are now float[4];
+  standing and walking shots both show the belt. Found with a temporary probe in asMakeStraw (removed).
 - 2026-11-13 (interactive, the user: "the lighting seems minimal or very broken"): the lit ga meshes.
   Light1 meshes -- more than half the room's objects, Alyssa among them -- were drawn at a flat grey 128.
   The VU1 program's lighting is now read and ported (rendering/ga_mesh.cpp: four directional and four point
