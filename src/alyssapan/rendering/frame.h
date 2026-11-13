@@ -33,18 +33,32 @@ enum class BlendMode : std::uint8_t
 // ALPHA_1's selectors as the blend above.
 BlendMode blendModeOf(std::uint64_t alpha);
 
-// FRAME_1's FBMSK as the two halves the game's presets use.
+// FRAME_1's FBMSK as the two halves the game's presets use, or all of it (a depth-only pass: TEST_1's
+// AFAIL ZB_ONLY under ATST NEVER, or FBMSK 0xffffffff).
 enum class ColorMask : std::uint8_t
 {
     All,
     ColorOnly,
     AlphaOnly,
+    None,
+};
+
+// TEST_1's ZTST, the GS's order: a larger Z is nearer. Off: the 2D draws, which neither test nor write depth.
+enum class DepthTest : std::uint8_t
+{
+    Off,
+    Never,
+    Always,
+    GreaterOrEqual,
+    Greater,
 };
 
 struct PipelineKey
 {
     BlendMode blend = BlendMode::None;
     ColorMask mask = ColorMask::All;
+    DepthTest depth = DepthTest::Off;
+    bool depthWrite = false; // ZBUF_1's ZMSK clear
 
     auto operator<=>(const PipelineKey &) const = default;
 };
@@ -63,10 +77,11 @@ struct Image
 struct Vertex
 {
     float x, y;
+    float z; // the GS's Z over the Z buffer's largest, 0..1 (1 nearest); 0 for what tests no depth
     float u, v;
     std::uint32_t color; // the GS's RGBAQ bytes: 0x80 is 1.0
 };
-static_assert(sizeof(Vertex) == 20);
+static_assert(sizeof(Vertex) == 24);
 
 struct Scissor
 {
@@ -86,6 +101,7 @@ struct DrawCall
     bool linearFilter = false;
     bool repeat = false;
     std::uint8_t alphaTestRef = 0; // fragments below it are dropped; 0 keeps them all
+    bool alphaTestInverted = false; // the fragments at or over it are dropped instead (AFAIL's second pass)
     std::uint8_t fixedAlpha = 0x80;
     std::uint32_t firstVertex = 0;
     std::uint32_t vertexCount = 0;

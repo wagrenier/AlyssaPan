@@ -43,6 +43,15 @@ public:
     // The whole frame (the whole window, at any aspect) covered by a colour: (Cs - Cd) * FIX + Cd, FIX
     // 0x80 = the colour alone. rgba's r in the low byte, 0..255.
     void fillColor(const void *list, std::uint32_t rgba, std::uint8_t fixedAlpha);
+    // The depth test and write of the draws that follow (the 3D path's TEST_1 / ZBUF_1; the 2D draws keep
+    // DepthTest::Off). depthOnly: no colour, depth alone (AFAIL ZB_ONLY under ATST NEVER). scale turns a
+    // vertex's z, the GS's Z, into 0..1: one over the Z buffer's largest value.
+    void setDepth(const void *list, DepthTest test, bool write, bool depthOnly, float scale);
+    // The draws that follow keep only the fragments TEST_1's alpha test fails: the second pass of an AFAIL
+    // that still writes something for them (FB_ONLY: the colour, ZB_ONLY: the depth).
+    void setAlphaFailPass(const void *list, bool failPass);
+    // The whole frame's depth back to 0, the farthest, the colour untouched: the GS's depth-only clear sprite.
+    void clearDepth(const void *list);
     void begin(const void *list, int format);
     void addVertex(const void *list, const AlyssaPanUiVertex &vertex);
 
@@ -94,6 +103,11 @@ private:
         unsigned runCount = 0;
         float squeeze = 1.0f; // of x about the frame's centre
         std::optional<BlendMode> forcedBlend; // a whole-frame pass's, past what the GS context says
+        DepthTest depthTest = DepthTest::Off;
+        bool depthWrite = false;
+        bool depthOnly = false;
+        float depthScale = 0.0f;
+        bool alphaFailPass = false;
 
         std::vector<Vertex> vertices;
         std::vector<DrawCall> draws;

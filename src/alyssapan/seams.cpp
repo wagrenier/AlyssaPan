@@ -131,16 +131,160 @@ constexpr int kScissorY1Shift = 48;
 constexpr float kCanvasFrameWidth = 512.0f;
 constexpr int kRegTex11 = 0x14;
 constexpr int kRegAlpha1 = 0x42;
-// PORT: CT3's ALPHA_1 / TEX1_1 for the ga objects are not read (the draw environment's TU): (Cs - Cd) x As +
-// Cd, and bilinear magnification and minification, until they are.
+constexpr int kRegTest1 = 0x47;
+constexpr int kRegFrame1 = 0x4c;
+// Before the game's first draw control (GaMeshRecorder::GsState::controlled): (Cs - Cd) x As + Cd. PORT:
+// TEX1_1 is not read: bilinear magnification and minification.
 constexpr std::uint64_t kGaAlphaBlend = 0x44;
 constexpr std::uint64_t kGaTex1Linear = 1ull << 5 | 1ull << 6;
 
-// PRIM: triangles, Gouraud, textured, blended.
+// PRIM (and PRMODE, the same bits): triangles, Gouraud, textured, blended.
 constexpr std::uint64_t kPrimTriangle = 3;
 constexpr std::uint64_t kPrimGouraud = 1 << 3;
 constexpr std::uint64_t kPrimTextured = 1 << 4;
 constexpr std::uint64_t kPrimBlended = 1 << 6;
+
+// TEST_1's fields.
+constexpr std::uint64_t kTestAte = 1;
+constexpr int kTestAtstShift = 1;
+constexpr int kTestAfailShift = 12;
+constexpr std::uint64_t kTestZte = 1ull << 16;
+constexpr int kTestZtstShift = 17;
+enum GaAtst
+{
+    GaAtst_Never = 0,
+    GaAtst_Always = 1,
+    GaAtst_GreaterOrEqual = 5,
+    GaAtst_Greater = 6,
+};
+enum GaAfail
+{
+    GaAfail_Keep = 0,
+    GaAfail_FrameOnly = 1,
+    GaAfail_DepthOnly = 2,
+    GaAfail_RgbOnly = 3,
+};
+enum GaZtst
+{
+    GaZtst_Never = 0,
+    GaZtst_Always = 1,
+    GaZtst_GreaterOrEqual = 2,
+    GaZtst_Greater = 3,
+};
+
+// ZBUF_1: PSM (its low 4 bits, at 24) and ZMSK (32). FRAME_1's FBMSK alpha byte (RGB_ONLY keeps the alpha).
+constexpr int kZbufPsmShift = 24;
+constexpr std::uint64_t kZbufPsmMask = 0xf;
+constexpr std::uint64_t kZbufZmsk = 1ull << 32;
+constexpr std::uint64_t kFrameFbmskAlpha = 0xff000000ull << 32;
+enum GaZpsm
+{
+    GaZpsm_Z32 = 0,
+    GaZpsm_Z24 = 1,
+};
+// The Z buffer's largest value by its format (gaInit3dlib.h GA_ZMAX_*).
+constexpr float kZMaxZ32 = 4294967040.0f;
+constexpr float kZMaxZ24 = 16777215.0f;
+constexpr float kZMaxZ16 = 65535.0f;
+
+// How a mesh draws, from the GS state it came under: TEST_1's alpha test and AFAIL, its depth test, ZBUF_1's
+// mask and format, PRMODE's attributes and ALPHA_1, picked apart into the canvas's draw state (no GS
+// emulation: per-fragment results the host has no equivalent for are named below).
+struct GaDraw
+{
+    bool skip = false;
+    bool textured = false;
+    bool gouraud = true;
+    bool blended = false;
+    std::uint64_t alpha = kGaAlphaBlend;
+    std::uint64_t test = 0;  // what the canvas's alpha test reads: a discard under AREF for GEQUAL / GREATER
+    std::uint64_t frame = 0; // FBMSK
+    alyssapan::rendering::DepthTest depth = alyssapan::rendering::DepthTest::Off;
+    bool depthWrite = false;
+    bool depthOnly = false;
+    bool zWritable = false; // ZBUF_1's ZMSK clear
+    float zMax = kZMaxZ32;
+    // What the fragments that fail the alpha test still write (GaAfail): a second pass of the mesh with the
+    // test inverted. GaAfail_Keep: none.
+    int failPass = GaAfail_Keep;
+};
+
+GaDraw gaDrawOf(const alyssapan::rendering::GaMeshRecorder::GsState &gs, bool hasImage)
+{
+    using alyssapan::rendering::DepthTest;
+    GaDraw d;
+    if (!gs.controlled) {
+        // No draw control yet: as these meshes drew before the state was read.
+        d.textured = hasImage;
+        d.blended = hasImage;
+        return d;
+    }
+    // A TME draw with no picture decoded draws untextured (the white sheet beats nothing for a model).
+    d.textured = (gs.prmode & kPrimTextured) != 0 && hasImage;
+    d.gouraud = (gs.prmode & kPrimGouraud) != 0;
+    d.blended = (gs.prmode & kPrimBlended) != 0;
+    d.alpha = gs.alpha;
+    d.frame = gs.frame;
+
+    bool colourOnly = false;
+    if ((gs.test & kTestAte) != 0) {
+        const auto atst = static_cast<int>(gs.test >> kTestAtstShift & 7);
+        const auto afail = static_cast<int>(gs.test >> kTestAfailShift & 3);
+        if (atst == GaAtst_Never) {
+            switch (afail) {
+            case GaAfail_Keep:
+                d.skip = true;
+                return d;
+            case GaAfail_FrameOnly:
+                colourOnly = true;
+                break;
+            case GaAfail_DepthOnly:
+                d.depthOnly = true; // the depth pre-pass (OneMaxObjectDrawZOnly): depth and no colour
+                break;
+            case GaAfail_RgbOnly:
+                colourOnly = true;
+                d.frame |= kFrameFbmskAlpha;
+                break;
+            }
+        } else if (atst == GaAtst_GreaterOrEqual || atst == GaAtst_Greater) {
+            // The canvas discards what fails; what AFAIL keeps of it (FB_ONLY: the colour, the room's and
+            // the title's usual GEQUAL 0x7f) is a second pass that keeps only those fragments.
+            d.test = gs.test;
+            d.failPass = afail;
+        }
+        // PORT: LESS / LEQUAL / EQUAL / NOTEQUAL (none seen in CT3's ga controls) are drawn untested.
+    }
+    d.zWritable = (gs.zbuf & kZbufZmsk) == 0;
+    if ((gs.test & kTestZte) != 0) {
+        switch (static_cast<int>(gs.test >> kTestZtstShift & 3)) {
+        case GaZtst_Never:
+            d.skip = true;
+            return d;
+        case GaZtst_Always:
+            d.depth = DepthTest::Always;
+            break;
+        case GaZtst_GreaterOrEqual:
+            d.depth = DepthTest::GreaterOrEqual;
+            break;
+        case GaZtst_Greater:
+            d.depth = DepthTest::Greater;
+            break;
+        }
+        d.depthWrite = d.zWritable && !colourOnly;
+    }
+    switch (static_cast<int>(gs.zbuf >> kZbufPsmShift & kZbufPsmMask)) {
+    case GaZpsm_Z32:
+        d.zMax = kZMaxZ32;
+        break;
+    case GaZpsm_Z24:
+        d.zMax = kZMaxZ24;
+        break;
+    default:
+        d.zMax = kZMaxZ16;
+        break;
+    }
+    return d;
+}
 
 // TEX0's TFX and TCC.
 constexpr int kTex0TfxShift = 35;
@@ -266,11 +410,11 @@ GaSampling gaSampling(const alyssapan::rendering::GaMeshRecorder::Mesh &mesh)
     return sampling;
 }
 
-// PORT: CT3's frame end is not read yet (no UiCanvas kick in the game's code): the first ga object after a
-// vblank closes the previous frame, and its meshes go to the canvas as one layer, as the VU1 program would
-// have sent them (window coordinates, RGBAQ, ST), each with the texture bound when it came. Squeezed about
-// the centre at wide aspects: the projection widened, not stretched. No depth test, no fog yet
-// (open-items.md item 7).
+// One game frame (gaWaitVSync's swap to the next: GaMeshRecorder::swap) goes to the canvas as one layer, as
+// the VU1 program would have sent it (window coordinates and Z, RGBAQ, ST), each mesh with the texture bound
+// and the GS state set when it came (gaDrawOf): depth-tested against the frame's Z buffer, cleared where the
+// game clears it. Squeezed about the centre at wide aspects: the projection widened, not stretched. No fog
+// yet (open-items.md item 7).
 void DrawGaFrame(const std::vector<alyssapan::rendering::GaMeshRecorder::Mesh> &meshes)
 {
     using alyssapan::rendering::GaMeshRecorder;
@@ -279,7 +423,6 @@ void DrawGaFrame(const std::vector<alyssapan::rendering::GaMeshRecorder::Mesh> &
 
     ui.setSqueezed(list, true);
     ui.setRegister(list, kRegScissor1, gaScissor(ui.squeezeFactor()));
-    ui.setRegister(list, kRegAlpha1, kGaAlphaBlend);
     ui.setRegister(list, kRegTex11, kGaTex1Linear);
     for (const GaMeshRecorder::Mesh &mesh : meshes) {
         if (mesh.fill) {
@@ -287,49 +430,88 @@ void DrawGaFrame(const std::vector<alyssapan::rendering::GaMeshRecorder::Mesh> &
             ui.fillColor(list, mesh.fillRgba, mesh.fillFix);
             continue;
         }
+        if (mesh.depthClear) {
+            ui.clearDepth(list);
+            continue;
+        }
         if (mesh.copy != GaMeshRecorder::Mesh::Copy::None) {
             // PORT: the canvas has no render-target copy yet (open-items.md): captures and copies are
             // recorded in order and skipped here.
             continue;
         }
-        const bool textured = mesh.image != nullptr;
+        const GaDraw draw = gaDrawOf(mesh.gs, mesh.image != nullptr);
+        if (draw.skip)
+            continue;
+        const bool textured = draw.textured;
         const GaSampling sampling = textured ? gaSampling(mesh) : GaSampling{};
         const int tfx = static_cast<int>(mesh.tex0 >> kTex0TfxShift) & kTex0TfxMask;
         const bool texelAlpha = (mesh.tex0 >> kTex0TccShift & 1) != 0;
+        ui.setRegister(list, kRegAlpha1, draw.alpha);
+        ui.setRegister(list, kRegTest1, draw.test);
+        ui.setRegister(list, kRegFrame1, draw.frame);
+        ui.setDepth(list, draw.depth, draw.depthWrite, draw.depthOnly, 1.0f / draw.zMax);
+        const std::uint64_t prim = kPrimTriangle | (draw.gouraud ? kPrimGouraud : 0) |
+                                   (textured ? kPrimTextured : 0) | (draw.blended ? kPrimBlended : 0);
         if (textured) {
             ui.setRegister(list, kRegClamp1, sampling.clamp);
             ui.bindImage(list, sampling.image);
-            ui.setPrimitive(list, kPrimTriangle | kPrimGouraud | kPrimTextured | kPrimBlended, nullptr);
+            ui.setPrimitive(list, prim, nullptr);
             ui.begin(list, ALYSSAPAN_UIV_RGBAQ | ALYSSAPAN_UIV_UV);
         } else {
-            ui.setPrimitive(list, kPrimTriangle | kPrimGouraud, nullptr);
+            ui.setPrimitive(list, prim, nullptr);
             ui.begin(list, ALYSSAPAN_UIV_RGBAQ);
         }
         const float texelsU = textured ? static_cast<float>(mesh.image->width) * kGaWindowUnit : 0.0f;
         const float texelsV = textured ? static_cast<float>(mesh.image->height) * kGaWindowUnit : 0.0f;
-        for (std::size_t t = 0; t < mesh.drawn.size(); ++t) {
-            if (!mesh.drawn[t])
-                continue;
-            for (int k = 0; k < 3; ++k) {
-                const GaMeshRecorder::Vertex &v = mesh.vertices[mesh.triangles[t * 3 + k]];
-                AlyssaPanUiVertex out{};
-                std::memcpy(out.rgba, v.drawRgba.data(), sizeof(out.rgba));
-                if (textured && tfx == GaTfx_Decal) {
-                    // DECAL: the texel as it is; its alpha when TCC says so, the vertex's otherwise.
-                    out.rgba[0] = out.rgba[1] = out.rgba[2] = kGsOne;
-                    if (texelAlpha)
-                        out.rgba[3] = kGsOne;
+        const auto emitTriangles = [&] {
+            for (std::size_t t = 0; t < mesh.drawn.size(); ++t) {
+                if (!mesh.drawn[t])
+                    continue;
+                for (int k = 0; k < 3; ++k) {
+                    const GaMeshRecorder::Vertex &v = mesh.vertices[mesh.triangles[t * 3 + k]];
+                    AlyssaPanUiVertex out{};
+                    std::memcpy(out.rgba, v.drawRgba.data(), sizeof(out.rgba));
+                    if (textured && tfx == GaTfx_Decal) {
+                        // DECAL: the texel as it is; its alpha when TCC says so, the vertex's otherwise.
+                        out.rgba[0] = out.rgba[1] = out.rgba[2] = kGsOne;
+                        if (texelAlpha)
+                            out.rgba[3] = kGsOne;
+                    }
+                    // PORT: HIGHLIGHT / HIGHLIGHT2 (Ct x Cf + Af) are drawn as MODULATE until a screen needs them.
+                    out.x = gaCanvasX(v.screen[0]);
+                    out.y = gaCanvasY(v.screen[1]);
+                    // The GS clamps Z to its buffer's range (a float past 2^32 has no integer to cast to).
+                    out.z = static_cast<std::uint32_t>(std::clamp(v.screen[2], 0.0f, draw.zMax));
+                    out.u = static_cast<std::uint16_t>(
+                        std::clamp(v.drawSt[0] * texelsU + sampling.shiftU, 0.0f, kTexelMax));
+                    out.v = static_cast<std::uint16_t>(
+                        std::clamp(v.drawSt[1] * texelsV + sampling.shiftV, 0.0f, kTexelMax));
+                    ui.addVertex(list, out);
                 }
-                // PORT: HIGHLIGHT / HIGHLIGHT2 (Ct x Cf + Af) are drawn as MODULATE until a screen needs them.
-                out.x = gaCanvasX(v.screen[0]);
-                out.y = gaCanvasY(v.screen[1]);
-                out.z = static_cast<std::uint32_t>(std::max(v.screen[2], 0.0f));
-                out.u = static_cast<std::uint16_t>(
-                    std::clamp(v.drawSt[0] * texelsU + sampling.shiftU, 0.0f, kTexelMax));
-                out.v = static_cast<std::uint16_t>(
-                    std::clamp(v.drawSt[1] * texelsV + sampling.shiftV, 0.0f, kTexelMax));
-                ui.addVertex(list, out);
             }
+        };
+        emitTriangles();
+
+        if (draw.failPass != GaAfail_Keep) {
+            // The fragments that failed the alpha test, with what AFAIL still writes for them. PORT: after the
+            // mesh's passing ones rather than in their own triangle's order.
+            const float scale = 1.0f / draw.zMax;
+            ui.setAlphaFailPass(list, true);
+            switch (draw.failPass) {
+            case GaAfail_FrameOnly:
+                ui.setDepth(list, draw.depth, false, false, scale);
+                break;
+            case GaAfail_RgbOnly:
+                ui.setRegister(list, kRegFrame1, draw.frame | kFrameFbmskAlpha);
+                ui.setDepth(list, draw.depth, false, false, scale);
+                break;
+            case GaAfail_DepthOnly:
+                ui.setDepth(list, draw.depth, draw.zWritable, true, scale);
+                break;
+            }
+            ui.begin(list, textured ? ALYSSAPAN_UIV_RGBAQ | ALYSSAPAN_UIV_UV : ALYSSAPAN_UIV_RGBAQ);
+            emitTriangles();
+            ui.setAlphaFailPass(list, false);
         }
     }
     const void *lists[] = {list};
@@ -379,6 +561,30 @@ void AlyssaPan_DrawGaCopy(uint32_t fbp, int texWidth, int texHeight, float x0, f
     copy.copyRect = {x0, y0, x1, y1};
     copy.copyFix = static_cast<std::uint8_t>(std::clamp(alphaFix, 0, kFixMax));
     if (recorder.recordCopy(copy))
+        DrawGaFrame(recorder.lastFrame());
+}
+
+void AlyssaPan_DrawGaSwap(void)
+{
+    auto &recorder = alyssapan::rendering::GaMeshRecorder::instance();
+    if (recorder.swap())
+        DrawGaFrame(recorder.lastFrame());
+}
+
+void AlyssaPan_DrawGaRegister(int reg, uint64_t value)
+{
+    alyssapan::rendering::GaMeshRecorder::instance().setRegister(reg, value);
+}
+
+void AlyssaPan_DrawGaTarget(int toDisplay)
+{
+    alyssapan::rendering::GaMeshRecorder::instance().setTarget(toDisplay != 0);
+}
+
+void AlyssaPan_DrawGaClearDepth(void)
+{
+    auto &recorder = alyssapan::rendering::GaMeshRecorder::instance();
+    if (recorder.recordDepthClear())
         DrawGaFrame(recorder.lastFrame());
 }
 

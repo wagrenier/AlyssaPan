@@ -601,6 +601,38 @@ Read with `vudis.py 18ff430 335 --all` (mind hazards.md's vudis misprints). Micr
   ATLD's object matrix (obj +0x58) is all zeros (asChangeViewMatrix_forTheBank and the camera are stubs),
   so v'.z = 0 and nothing is drawn.
 
+## The ga frame on the host: its end, its GS state, its depth (2026-11-12, interactive session)
+
+- **A game frame is gaWaitVSync's swap to the next.** main's loop draws (the frame clear at the top, then
+  the draw mode's passes, the fades last), waits for a VSync since the loop's top (`while (timer ==
+  ga_main_timer)`), then gaWaitVSync waits for one more and points DISPFB at the frame just drawn: 30 Hz,
+  the title's swaps 2 fields apart. A room frame's draws take **more than one field** on the host (2..3
+  fields between swaps, 376..381 draws), so a frame cut at "the first draw after a vblank" came out as 2..3
+  partial frames. The host closes the frame at the swap (`AlyssaPan_DrawGaSwap`, ga/gaInitInterrupt.c). A
+  loop that draws without ever swapping (none known; the s_open movie's load once leaves 171 draws 10 fields
+  unswapped) is closed on the field after 10 fields (`GaMeshRecorder::closeWithoutSwap`, one warning).
+- **The display frames are 0 and 0x38000** (main's boot; gaWaitVSync swaps ga_draw / ga_disp). Every
+  off-screen pass moves `ga_draw_fbuf_address` and sends a dbuffer through gaBGT_ExecDBufferData_VIF1: the
+  shadow volume (0xc0000), the HQDOF samples (0xa8000, eight renders of the scene from shifted eyes), the
+  capture / export targets, the translucent characters and the ghosts (EFFECT_FBUF_ADDRESS). The host is
+  told which (`AlyssaPan_DrawGaTarget`) and draws nothing off-screen, except the characters and ghosts,
+  which the port composites on the frame (Clipping_Portal.c's PORT).
+- **The GS state is the ga packets' A+D pairs** (`AlyssaPan_DrawGaRegister`, from gaBGT_ExecDBufferData_VIF1
+  and gaBGT_ExecDrawCtrlData_VIF1, read by register address -- main_rtn's per-entry controls come from the
+  bank's data): FRAME_1 FBMSK, ZBUF_1 PSM / ZMSK, PRMODE (gsinit's PRMODECONT 0: ABE / TME / IIP come from
+  here, not PRIM), TEST_1, ALPHA_1. Seen in the opening (one run): ZBUF Z32 (PSM 0, ZMSK 0), FBMSK 0,
+  ALPHA_1 0x44, PRMODE 0x28 / 0x38 / 0x48 / 0x58 / 0x78, TEST_1 **0x517fb** (ATE, ATST GEQUAL, AREF 0x7f,
+  AFAIL FB_ONLY, ZTE, ZTST GEQUAL) or 0x517fa (the same without ATE). Room vertices carry alpha 0x7f, AREF
+  exactly.
+- **Depth:** the VU1 program's Z (vf17.z + vf16.z x Q, about zNear / z x zMax, larger nearer) over Z32's
+  4294967040 is the host's float depth, GEQUAL / GREATER over a clear of 0 (reversed-Z, the precise end of
+  a float). The Z buffer is cleared per global bank (ssBGT_ZBufferClear, depth-only: `AlyssaPan_DrawGaClearDepth`)
+  and depth-only pre-passes exist (OneMaxObjectDrawZOnly: ATST NEVER, AFAIL ZB_ONLY).
+- **The opening room is under a held black fade.** After NEW every room frame ends with tiFade_Draw's black
+  fill at FIX 0x80: the fade-in waits on the global script's WAIT_ANIM for Alyssa's motion 0, which loops
+  under ANIM_CTRL_HOLD (open-items.md nq5 / nq6). The room shots of earlier runs were the first half of a
+  split frame, drawn before the fill.
+
 ## The ga draw object's clipped path, ga/gaBGT_DrawObject.c (2026-11-10, slice 3)
 
 - **gaBGT_DrawObject** (0x018a3150, the clipped path) points GA_SPR_WORK 0x20..0x2c at the division
@@ -1895,3 +1927,27 @@ The auto-load at boot (MemorycardAutoLoad, xcmd_tn.c) has its own states (mcMain
   sdk/eeregs.h gained D4 TADR, D3 MADR / QWC / CHCR, IPU_CMD / CTRL / BP and D_ENABLER (all read 0).
   MpegStream never raises the TimeStamp, StopDMA or RestartDMA callbacks, so only AddDMA, Begin/EndPut,
   PutTs, Count, Flush, Reset, Create and Delete run on the host.
+
+## The opening's scene loads, the moving-shape grid, shadow casters, pendulums (2026-11-12, interactive)
+
+- **Script operands' signs.** ssTrigExecuteActCmd reads 2-byte operands through ssTrigRead2Byte (a u16) and
+  sign-extends some per case: SCENE_LOAD's count, SELF_DISCARD_LOAD's loadArg, SCENE_DRAW's part
+  (SCENE_PLACE_ORIGIN -1 / _TEMP -2) and CHARA_BEHAVIOR_LOAD / CHARA_SHAPE_LOAD's arg are signed; their
+  bank operands and SCENE_DRAW's last (the bank) are unsigned. A load count of -1 means the file's own
+  bank count (FSMltLoadProc's HEAD_WAIT takes FILE_HEAD.count when the request's count is below 1).
+- **The opening (bank 54, 0A01's script) after NEW:** FADE 0 OUT2 BLACK (held), XCMD 231 "938", then the
+  scene loads 0A19 (bank 64), 0A06 (78), 0A27 (21), each with count -1, then SEAL, A000 / A016 / A018.ANM.
+  It waits on tnXcmd_LoadWait("0A06") (XCMD 127: a scene bank of 6.. named so, one look per group), then
+  fades in (tiFade_Start 10, FADE_TYPE_IN_BLACK).
+- **ROOM files are linked at EE 0x00100000** (CT3X_BASE in every one read: 0A01, 0A02). ahRelocateFileObject
+  relocates the hit grid's cellA (0x40 words at +0x10) and **not cellB** (+0x110): those words keep the
+  link address (0A02: 0x2639aa + 2 x cell, just past cellA's lists in file terms). ssDivideHitDataToSpaceCell
+  and its readers use them as they are, so the ROM keeps the moving-shape lists in low EE RAM, 2 bytes apart
+  per cell. Host: ssHitCheckAttackToScn.c CellBList (a window at those addresses).
+- **SHADOW_CASTER** (asShadowPolygonPositions, 0x01844df0): `polys` (+4) == 0 picks the segment branch (not
+  polyCount); `verts` (+0xc) is u_int[vertCount] of EE words, each pointing at a vertex qword (the ROM does
+  `lw` then `lq`). A segment's two ends hold w = radius x 10 (low 16 bits) and point count (high 16).
+- **Pendulums (Huriko: tiHurikoUpdate, 0x018915a0 closed / 0x01892310 open) move vertices directly:** each
+  joint's posRef is a vertex of the part's ga object, taken to world space by matrix200, swung, and put back
+  into part space with its copies. Alyssa's hair (parts 63, 64, 165 of ALYS.BIN) and her skirt are
+  pendulums. All the solver's arithmetic is VU0 .xyz; the matrix applies use the vertex's own w.

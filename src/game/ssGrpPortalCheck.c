@@ -1958,7 +1958,7 @@ int ssTrigExecuteActCmd(TRIG_ACT_CMDS *cmds, int bank)
                 *pos += TRIG_CMD_NAME_LEN;
                 u_char chara = ssTrigRead1Byte(pos, data);
                 u_short loadBank = ssTrigRead2Byte(pos, data);
-                u_short arg = ssTrigRead2Byte(pos, data);
+                short arg = (short)ssTrigRead2Byte(pos, data);  // signed (the ROM sign-extends): -1 = the file's count
                 if (id == TRIG_CMD_CHARA_BEHAVIOR_LOAD) {
                     TrgCharacterBehaviorLoad(chara, name, loadBank, arg);
                 } else {
@@ -2287,7 +2287,7 @@ int ssTrigExecuteActCmd(TRIG_ACT_CMDS *cmds, int bank)
                 char *name = (char *)data + *pos;
                 *pos += TRIG_CMD_NAME_LEN;
                 u_short loadBank = ssTrigRead2Byte(pos, data);
-                u_short loadArg = ssTrigRead2Byte(pos, data);
+                short loadArg = (short)ssTrigRead2Byte(pos, data); // signed (the ROM sign-extends): -1 = the file's count
                 int draw = ssTrigRead1Byte(pos, data) - 1;
                 int byPos = ssTrigRead1Byte(pos, data) - 1;
                 SelfDiscardSceneLoad(name, loadBank, loadArg, draw, byPos, (short)ssTrigRead2Byte(pos, data), bank);
@@ -2301,7 +2301,7 @@ int ssTrigExecuteActCmd(TRIG_ACT_CMDS *cmds, int bank)
                 *pos += TRIG_CMD_NAME_LEN;
                 int on = ssTrigRead1Byte(pos, data) - 1;
                 ssTrigRead1Byte(pos, data);                     // read and dropped by the ROM
-                u_short part = ssTrigRead2Byte(pos, data);
+                short part = (short)ssTrigRead2Byte(pos, data); // signed (the ROM sign-extends): SCENE_PLACE_*
                 TrgSceneDraw(on, bank, part, name, ssTrigRead2Byte(pos, data));
             } else {
                 *pos += 11;
@@ -2312,7 +2312,8 @@ int ssTrigExecuteActCmd(TRIG_ACT_CMDS *cmds, int bank)
                 char *name = (char *)data + *pos;
                 *pos += TRIG_CMD_NAME_LEN;
                 u_short loadBank = ssTrigRead2Byte(pos, data);
-                TrgSceneLoad(name, loadBank, ssTrigRead2Byte(pos, data));
+                // the count is signed (the ROM sign-extends it): -1 = the file's own count (FSMltLoadProc)
+                TrgSceneLoad(name, loadBank, (short)ssTrigRead2Byte(pos, data));
             } else {
                 *pos += 9;
             }

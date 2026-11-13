@@ -111,6 +111,8 @@ private:
     SDL_GPUTextureFormat m_sceneFormat;
     SDL_GPUTextureFormat m_outputFormat;
     gpu::Texture m_scene;
+    gpu::Texture m_depth; // the scene's, the 3D draws' (the GS's Z buffer)
+    SDL_GPUTextureFormat m_depthFormat = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
     gpu::Texture m_output;
     gpu::Texture m_white;
     int m_sceneWidth = 0;

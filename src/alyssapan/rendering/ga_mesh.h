@@ -35,6 +35,21 @@ public:
         bool inFront = false; // view z > 0: the projection's divide makes sense
     };
 
+    // The ga path's GS state as its packets set it (alyssapan_drawga.h AlyssaPan_DrawGaRegister /
+    // AlyssaPan_DrawGaTarget): what each mesh draws under. Registers keep their values until set again, as
+    // on the GS.
+    struct GsState
+    {
+        bool controlled = false;  // a draw control (PRMODE / TEST_1) has come: before one, a mesh draws as it
+                                  // did before the state was read (blended, untested)
+        bool toDisplay = true;    // the draw buffer is one of the two display frames
+        std::uint64_t frame = 0;  // FRAME_1: FBMSK
+        std::uint64_t zbuf = 0;   // ZBUF_1: PSM, ZMSK
+        std::uint64_t prmode = 0; // PRMODE (gsinit's PRMODECONT 0: the primitives' attributes come from here)
+        std::uint64_t test = 0;   // TEST_1
+        std::uint64_t alpha = 0;  // ALPHA_1
+    };
+
     struct Mesh
     {
         int light = 0;
@@ -51,6 +66,10 @@ public:
         std::shared_ptr<Image> image;
         std::uint64_t tex0 = 0;
         std::uint64_t clamp = 0;
+        GsState gs; // the registers when it came
+
+        // The Z buffer cleared, the colour untouched (AlyssaPan_DrawGaClearDepth) instead of a mesh.
+        bool depthClear = false;
 
         // A full-screen fill (AlyssaPan_DrawGaFill) instead of a mesh: no vertices, its colour and FIX.
         bool fill = false;
@@ -75,31 +94,48 @@ public:
 
     static GaMeshRecorder &instance();
 
-    // The first object after a vblank starts a new frame: what was recorded becomes the last frame's.
-    // Answers true when that happened (the caller draws lastFrame()).
+    // A GS register of a ga packet (alyssapan_drawga.h AlyssaPan_DrawGaRegister), and whether the draw
+    // buffer is a display frame (AlyssaPan_DrawGaTarget): the meshes after them draw under them.
+    void setRegister(int reg, std::uint64_t value);
+    void setTarget(bool toDisplay);
+
+    // The game's frame ends at gaWaitVSync's swap (alyssapan_drawga.h AlyssaPan_DrawGaSwap): what was
+    // recorded since the last one becomes the last frame's. Answers true when there was anything (the
+    // caller draws lastFrame()); a frame with nothing drawn leaves the display as it is.
+    bool swap();
+
+    // An object in draw order. Drawn to a GS frame that is not a display frame (the shadow buffer, the
+    // effect buffer's HQDOF samples ..), it is not kept: the host has no such frame. The record calls answer
+    // true when they closed a frame by the field instead of a swap (closeWithoutSwap).
     bool record(const AlyssaPanGaObject &object);
 
-    // A full-screen fill in draw order (alyssapan_drawga.h AlyssaPan_DrawGaFill); it closes a frame as an
-    // object does, so a screen with nothing but a fade still reaches the display.
+    // A full-screen fill in draw order (alyssapan_drawga.h AlyssaPan_DrawGaFill).
     bool recordFill(std::uint32_t rgba, int alphaFix);
 
-    // A frame-buffer capture or copy in draw order (alyssapan_drawga.h); it closes a frame as an object does.
+    // A frame-buffer capture or copy in draw order (alyssapan_drawga.h).
     bool recordCopy(const Mesh &copy);
+
+    // The Z buffer cleared in draw order (alyssapan_drawga.h AlyssaPan_DrawGaClearDepth).
+    bool recordDepthClear();
 
     const std::vector<Mesh> &lastFrame() const { return m_last; }
 
 private:
     static void project(Mesh &mesh, const AlyssaPanGaObject &object);
     static void cull(Mesh &mesh);
-    // The first draw after a vblank: what was recorded becomes the last frame's. Answers whether it did.
-    bool nextField();
+    bool close(std::uint64_t field);
+    // A loop that draws and never swaps (none is known): its frame closes on the field, kSwaplessFields
+    // after the last close, so that it is shown and cannot grow without end.
+    bool closeWithoutSwap();
 
     std::vector<Mesh> m_frame;
     std::vector<Mesh> m_last;
-    std::uint64_t m_field = 0;
+    std::uint64_t m_closeField = 0;
+    GsState m_gs;
     bool m_loggedFirst = false;
     bool m_loggedTexture = false;
     bool m_loggedCopy = false;
+    bool m_loggedSwapless = false;
     std::shared_ptr<Image> m_image;
     std::uint64_t m_tex0 = 0;
     std::uint64_t m_clamp = 0;

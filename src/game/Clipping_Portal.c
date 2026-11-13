@@ -2831,6 +2831,8 @@ void tiChara_Translucence_Start(void)
     ga_draw_fbuf_address = (int)EFFECT_FBUF_ADDRESS;
     FlushCache(0);
     gaBGT_ExecDBufferData_VIF1(&drawbuffer_0);
+    // PORT: the characters draw onto the host's frame (see above), not into an effect buffer it lacks.
+    AlyssaPan_DrawGaTarget(1);
     // PORT: the ROM's tiVRAMViewer(0, 0, 512, 448, fbuf, 512, 448, 9, 9, CT32, 4, 0x80) copies the frame
     // into the effect buffer; the host captures it instead (see above).
     (void)fbuf;
@@ -2884,6 +2886,8 @@ void tiChara_Translucence_Start2(void)
     ga_draw_fbuf_address = (int)EFFECT_FBUF_ADDRESS;
     FlushCache(0);
     gaBGT_ExecDBufferData_VIF1(&drawbuffer_0);
+    // PORT: the ghosts draw onto the host's frame (see above), not into an effect buffer it lacks.
+    AlyssaPan_DrawGaTarget(1);
     gaBGT_ExecDrawCtrlData_VIF1(&drawctrl_0193d600);
     gaBGT_ExecDrawCommandData_VIF1((GA_DRAWCOMMAND_DATA *)ghost_clear);
 }
@@ -3117,6 +3121,12 @@ float tiGetDegFromVec(float *v, char axis)
 static HURIKO_HIT *hFace[HURIKO_HITS_MAX];      /* sbss 0x0193d650 (local): this swing's live plane hits */
 static HURIKO_HIT *hCapsule[HURIKO_HITS_MAX];   /* sbss 0x0193d720 (local): ... its capsule hits */
 
+// The swing's vector arithmetic is the ROM's .xyz VU0 ops (vadd / vsub / vmulx .xyz, both solvers): a
+// vertex's w is never touched, and must not be -- the matrix applies (vmaddw.xyzw by the vertex's own w)
+// add the translation w times. Writing all four lanes let w drift (a hit's velocity w is 1: vf0) and
+// threw the hair's vertices out by ~3x the part's translation (hazards.md, 2026-11-12).
+#define HURIKO_XYZ 3
+
 // p against the swing's live hits, capsules first; answers whether any pushed it out.
 static int HurikoHits(float *p, int bank, int nCapsule, int nFace)
 {
@@ -3136,15 +3146,15 @@ static int HurikoHits(float *p, int bank, int nCapsule, int nFace)
 // rest).
 static void HurikoSpring(float *acc, const float *p, const float *other, float rest, float stiffness)
 {
-    float d[4];
+    float d[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
     float len;
     int e;
 
-    for (e = 0; e < 4; e++) {
+    for (e = 0; e < HURIKO_XYZ; e++) {
         d[e] = other[e] - p[e];
     }
     len = gaNormalizeVector3XYZ(d, d);
-    for (e = 0; e < 4; e++) {
+    for (e = 0; e < HURIKO_XYZ; e++) {
         acc[e] += d[e] * (stiffness * (len - rest));
     }
 }
@@ -3161,7 +3171,7 @@ static void HurikoSeam(float *a, float *b, int bank, int nCapsule, int nFace)
     if (HurikoHits(mid, bank, nCapsule, nFace) == 0) {
         return;
     }
-    for (e = 0; e < 4; e++) {
+    for (e = 0; e < HURIKO_XYZ; e++) {
         float d = mid[e] - was[e];
 
         b[e] += d;
@@ -3206,12 +3216,12 @@ static void HurikoSwing(HURIKO *h, int bank, int ticks, int closed)
 
             if (w != NULL && ssTrigCheckEnable((u_short)w->part, w->bank) != 0 &&
                 (w->radius == 0.0f || tiCheckWindForce(m[3], w) != 0)) {
-                for (e = 0; e < 4; e++) {
+                for (e = 0; e < HURIKO_XYZ; e++) {
                     wind[e] += w->world10[e];
                 }
             }
         }
-        for (e = 0; e < 4; e++) {
+        for (e = 0; e < HURIKO_XYZ; e++) {
             wind[e] *= (float)ticks / 300.0f;
         }
     }
@@ -3242,12 +3252,15 @@ static void HurikoSwing(HURIKO *h, int bank, int ticks, int closed)
             float *p = HurikoRef(bank, j->posRef, 0);
             const float *up = BANK_PTR(const float *, bank, j->up);
             float len = j->length;
-            float nrm[4], rest[4], move[4], change[4], rel[4], acc[4], d[4];
+            float nrm[4], rest[4];
+            float move[4] = { 0.0f, 0.0f, 0.0f, 0.0f }, change[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+            float rel[4] = { 0.0f, 0.0f, 0.0f, 0.0f }, acc[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+            float d[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
             float along;
 
             PortApplyMatrix(nrm, m, HurikoRef(bank, j->normalRef, 0));
             PortApplyMatrix(rest, m, j->restDir);
-            for (e = 0; e < 4; e++) {
+            for (e = 0; e < HURIKO_XYZ; e++) {
                 float target = up[e] + (down[e] * len + rest[e]);
 
                 acc[e] = (p[e] - target) * (pull / len);
@@ -3256,7 +3269,7 @@ static void HurikoSwing(HURIKO *h, int bank, int ticks, int closed)
                 rel[e] = move[e] - wind[e];
             }
             along = gaInnerProductXYZ((flags & HURIKO_FLAG_WIND) ? rel : move, nrm);
-            for (e = 0; e < 4; e++) {
+            for (e = 0; e < HURIKO_XYZ; e++) {
                 acc[e] = (acc[e] - nrm[e] * (drag * along)) - change[e] * invMass;
             }
             memcpy(j->step, move, sizeof move);
@@ -3276,18 +3289,18 @@ static void HurikoSwing(HURIKO *h, int bank, int ticks, int closed)
                 float q = 1.0f / sqrtf(acc[0] * acc[0] + acc[1] * acc[1] + acc[2] * acc[2]);
 
                 if (h->maxAccel < 1.0f / q) {
-                    for (e = 0; e < 4; e++) {
+                    for (e = 0; e < HURIKO_XYZ; e++) {
                         acc[e] = acc[e] * q * h->maxAccel;
                     }
                 }
             }
-            for (e = 0; e < 4; e++) {
+            for (e = 0; e < HURIKO_XYZ; e++) {
                 p[e] = (p[e] + j->vel[e]) + acc[e] * 0.5f;
                 j->vel[e] = (j->vel[e] + acc[e]) * h->damping;
                 d[e] = p[e] - up[e];
             }
             gaNormalizeVectorXYZ(d, d);
-            for (e = 0; e < 4; e++) {
+            for (e = 0; e < HURIKO_XYZ; e++) {
                 p[e] = up[e] + d[e] * len;
             }
             j->hit = HurikoHits(p, bank, nCapsule, nFace);

@@ -11,6 +11,7 @@
 
 #include <float.h>
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "common/alyssapan_stub.h"
@@ -44,6 +45,32 @@ static struct {
 #define CHARA_SLOT_NO_COLLIDE_LO 11
 #define CHARA_SLOT_NO_COLLIDE_HI 12
 #define CHARACTER_FLAG_NO_COLLIDE 0x08000000u /* set: ssProcessHit leaves the character out */
+
+// A grid's moving-shape lists (HIT_SCENE_GRID.cellB). The ROM never relocates their words:
+// ahRelocateFileObject relocates cellA's 0x40 words only (the ROM's loop at 0x0183ee7c), and nothing
+// else writes cellB. So they keep the scene file's link-time addresses (its CT3X_BASE, 0x00100000 in every
+// ROOM file seen), and the ROM writes and reads these lists in low EE RAM, outside every bank. The lists
+// start 2 bytes apart, so a cell's second entry is its neighbour's first, and grids of different
+// scenes may share that RAM.
+// PORT (2026-11-12): a host window stands in for that RAM, at the same addresses; BANK_PTR would turn such a
+// word into a pointer outside every bank image. A word outside the window goes to a scratch list (warned once).
+#define HIT_CELLB_RAM_BASE 0x00100000u  /* the scene files' link base (CT3X_BASE) */
+#define HIT_CELLB_RAM_SIZE 0x00400000u  /* bytes: past the largest bank group a file fills */
+#define HIT_CELLB_LIST_MAX 0x100        /* cellBCount is a byte */
+static u_short *CellBList(u_int ee)
+{
+    static u_short ram[HIT_CELLB_RAM_SIZE / sizeof(u_short)];
+    static u_short scratch[HIT_CELLB_LIST_MAX];
+    static int warned;
+    if (ee >= HIT_CELLB_RAM_BASE && (ee & 1) == 0 &&
+        ee - HIT_CELLB_RAM_BASE <= HIT_CELLB_RAM_SIZE - HIT_CELLB_LIST_MAX * sizeof(u_short))
+        return &ram[(ee - HIT_CELLB_RAM_BASE) / sizeof(u_short)];
+    if (!warned) {
+        warned = 1;
+        printf("[W] [hit] a moving-shape list at EE 0x%08x is outside the low-RAM window\n", ee);
+    }
+    return scratch;
+}
 
 // The ROM's matrix-vector product (VMULAx / VMADDAy / VMADDAz / VMADDw over the rows): out = v.x r0 +
 // v.y r1 + v.z r2 + v.w r3.
@@ -208,8 +235,8 @@ static int LosGatherShapes(int bank, const LOS_SEG *seg, HIT_DATA **out)
     for (int i = 0; i < cellCount; i++) {
         for (int which = 0; which < 2; which++) {
             int cnt = which == 0 ? g->cellACount[cells[i]] : g->cellBCount[cells[i]];
-            const u_short *idx =
-                BANK_PTR(const u_short *, bank, which == 0 ? g->cellA[cells[i]] : g->cellB[cells[i]]);
+            const u_short *idx = which == 0 ? BANK_PTR(const u_short *, bank, g->cellA[cells[i]])
+                                            : CellBList(g->cellB[cells[i]]);
             for (int j = 0; j < cnt; j++) {
                 HIT_DATA *h = BANK_PTR(HIT_DATA *, bank, list[idx[j]]);
                 if ((h->flags & HIT_DATA_FLAG_NO_LOS) != 0 || (parts[h->part].flags10 & PARTS_FLAG10_NO_HIT) != 0)
@@ -1151,7 +1178,7 @@ void ssDivideHitDataToSpaceCell(MODEL_PARTS *parts, HIT_SCENE_GRID *grid)
         for (int z = z0; z < z1; z++) {
             for (int x = x0; x < x1; x++) {
                 int cell = x + z * HIT_GRID_N;
-                u_short *idx = BANK_PTR(u_short *, bank, grid->cellB[cell]);
+                u_short *idx = CellBList(grid->cellB[cell]);
                 idx[grid->cellBCount[cell]++] = (u_short)n;
             }
         }
@@ -1160,11 +1187,10 @@ void ssDivideHitDataToSpaceCell(MODEL_PARTS *parts, HIT_SCENE_GRID *grid)
 
 // One cell list's shapes into the check list (the ROM's two copies of one loop).
 static void ssAddCellToCheckList(const CHARACTER *chara, const MODEL_PARTS *parts, HIT_SCENE_GRID *grid,
-                                 int bank, u_int idxEe, int count)
+                                 int bank, const u_short *idx, int count)
 {
     const u_int *list = BANK_PTR(const u_int *, bank, grid->hitData);
     u_int *check = BANK_PTR(u_int *, bank, grid->checkList);
-    const u_short *idx = BANK_PTR(const u_short *, bank, idxEe);
     int isPlayer = chara->id == Player_BankID;
     for (int j = 0; j < count; j++) {
         u_int ee = list[idx[j]];
@@ -1190,9 +1216,10 @@ void ssAddHitDataToCheckList(CHARACTER *chara, MODEL_PARTS *parts, HIT_SCENE_GRI
     int n = chara->cellCount;
     for (int i = 0; i < n; i++) {
         int cell = chara->cells[i];
-        ssAddCellToCheckList(chara, parts, grid, bank, grid->cellA[cell], grid->cellACount[cell]);
+        ssAddCellToCheckList(chara, parts, grid, bank, BANK_PTR(const u_short *, bank, grid->cellA[cell]),
+                             grid->cellACount[cell]);
         if (withMoving)
-            ssAddCellToCheckList(chara, parts, grid, bank, grid->cellB[cell], grid->cellBCount[cell]);
+            ssAddCellToCheckList(chara, parts, grid, bank, CellBList(grid->cellB[cell]), grid->cellBCount[cell]);
     }
 }
 

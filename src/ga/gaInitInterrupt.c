@@ -4,6 +4,8 @@
 
 #include "ga/gaInitInterrupt.h"
 
+#include "alyssapan/rendering/alyssapan_drawga.h"
+
 #include "game/unassigned_data.h"
 #include "sdk/eeregs.h"
 #include "sdk/libgraph.h"
@@ -46,6 +48,9 @@ int gaWaitVSync(void)
     while (wait_vsync_state != WAIT_VSYNC_IDLE)
         ;
 
+    // PORT: DISPFB is never sent to a GS (sceGsPutDispEnv is empty): the host draw module shows the frame
+    // drawn since the last swap.
+    AlyssaPan_DrawGaSwap();
     draw = ga_draw_fbuf_address;
     *(u_long *)&ga_disp.dispfb = (*(u_long *)&ga_disp.dispfb & ~GS_DISPFB_FBP_MASK)
                                | (u_long)((u_int)draw >> GA_FBUF_ADDRESS_TO_FBP_SHIFT);

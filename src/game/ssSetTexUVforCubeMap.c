@@ -18,6 +18,7 @@
 #include "game/BRANCH_CLEAR.h"
 #include "game/ahRelocateSunPs2ObjectArry.h"
 #include "game/LinkMatrixTree.h"
+#include "alyssapan/rendering/alyssapan_drawga.h"
 #include "game/Clipping_Portal.h"
 #include "game/ahalloc.h"
 #include "game/ssGrpPortalCheck.h"
@@ -418,6 +419,8 @@ void ssBGT_ZBufferClear(void)
     gaSetupDrawCtrlData(&drawctrl, ZBUF_CLEAR_DRAWCTRL_ARGS);
     gaBGT_ExecDrawCtrlData_VIF1(&drawctrl);
     gaBGT_ExecDrawCommandData_VIF1(&drawcom_frameclear);
+    // PORT: the sprite packet reaches no GS: the host draw module clears its Z buffer in its place.
+    AlyssaPan_DrawGaClearDepth();
 }
 
 // ---- stubs (tools/reverse/stubgen.py) ----

@@ -1916,6 +1916,53 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    the REC_* offsets name the same record in two frames (MODEL_PARTS.matrix 0x1c0 = REC_MATRIX 0x180 + 0x40,
    but MODEL_PARTS.hash 0x48 is not REC_HASH 0x38 + 0x40): read records as hdr + 0x40 + i * 0x380 with REC_*.
 
+   **3D flashing and overlap (2026-11-12, interactive session, the user: "the image stays on for a frame
+   and then goes black, plus models render on top of each other"): (mp3) settled, depth in.** The flicker
+   was the host cutting ga frames on the vblank while a room frame's draws span 2..3 fields: the halves
+   alternated (hazards.md). Frames now end at gaWaitVSync's swap. **What the steady picture shows: after NEW
+   the room is under a held black fade (tiFade_Draw's fill at FIX 0x80, every frame)**, so the opening is
+   black until the fade-in's WAIT_ANIM passes -- nq5 / nq6 are the blocker, not the renderer; the room
+   shots of the alyssa_pose runs were the unfaded half of a split frame. The overlap: the ga path had no
+   depth and drew every pass on screen; now the host keeps the ga GS state (FRAME_1 / ZBUF_1 / PRMODE /
+   TEST_1 / ALPHA_1 and whether the draw buffer is a display frame: architecture.md "The ga frame on the
+   host"), a D32 depth target (GEQUAL over a clear of 0, cleared where ssBGT_ZBufferClear clears), PRMODE's
+   blend / texture / shading, and AFAIL's second pass. Checked with the fade skipped (a probe, stripped):
+   the hall and staircase through the doorway, Alyssa behind the foreground chairs, at 4:3 and 16:9; the
+   title keeps its clouds and copyright lines. Left (new): (nr1) off-screen passes are dropped until the
+   canvas has render targets -- no shadow volumes, no HQDOF blur, no capture / export copies; (nr2)
+   AFAIL's failing fragments draw after the mesh's passing ones, not in triangle order; ATST LESS / LEQUAL
+   / EQUAL / NOTEQUAL are drawn untested (none seen); (nr3) the frame clear's colour (drawcom_frameclear,
+   the fog colour) is not drawn: the host clears to black; (nr4) fog (FGE) and the widened 3D pass (item 8)
+   as before.
+
+   **The opening fades in; the hair spikes are gone (2026-11-12, interactive session, the user: "implement
+   the frame fade so it is no longer stuck with the black frame fade", then "an explosion of vertices
+   from her head every time she walks").** (nq5) settled, and its reading above was wrong: no WAIT_ANIM
+   waits. A probe of the act interpreter's waits showed bank 54's script (0A01) stuck at
+   `tnXcmd_LoadWait("0A06")`, the command before its fade-in. The script's SCENE_LOAD count 0xffff (-1:
+   the file's own count) was read unsigned, and FSMltLoad's overlap test then cancelled 0A19 and 0A06
+   (hazards.md). Fixed with four signed operands in ssTrigExecuteActCmd (SCENE_LOAD, SELF_DISCARD_LOAD,
+   SCENE_DRAW's part, CHARA_*_LOAD). The loads then reached three bugs in code that had never run:
+   - HIT_SCENE_GRID.cellB is unrelocated in the ROM too. It now has a host window
+     (ssHitCheckAttackToScn.c CellBList).
+   - SHADOW_CASTER.verts holds EE words pointing at the vertices
+     (asShadowPolygonPositions; the segment overflow had corrupted Alyssa's bank).
+   - HurikoSwing wrote all four lanes where the ROM's ops are .xyz (hazards.md).
+
+   (nq6) is settled by the last one: the long triangles were the hair and skirt pendulums' vertices with
+   w ~ 3, and the skirt now draws. Checked in smoke runs to 200 s: the room fades in (tiFade_Start
+   10 s IN_BLACK) and holds with the HUD; no crash; the ga probe finds no vertex of bank 47 off screen
+   (14 before); shots 3100 / 3600 show her plaid skirt and no spike.
+
+   Left:
+   - (ns1) She stands at the window in a running pose and the scripted pad's stick did not move her in
+     these runs; not looked into (the opening may still hold control).
+   - (ns2) CellBList keeps the ROM's 2-byte cell stride, so one cell's second moving shape overwrites the
+     next cell's first, as the ROM's would. Whether that is the ROM's real behaviour (or the low RAM is
+     something else's) is unproven.
+   - (ns3) The other 2-byte script operands were checked only in ssTrigExecuteActCmd; the condition
+     reader (ssTrigCheckCondition's reads) and detector / actor readers were not.
+
 ## Decisions
 
 - 2026-11-11 (Claude, scheduled run 19:15, for the user to overrule): **the ga 2D frame stays 4:3.** The
@@ -2575,6 +2622,12 @@ apply here):
 
 ## Done
 
+- 2026-11-12 (interactive): the opening's held black fade, (nq5) and (nq6). Fixes: signed script
+  operands, so the scene loads run and LoadWait("0A06") passes; cellB's low-RAM window; the shadow caster's
+  vertex words; HurikoSwing's .xyz lanes. The room fades in, and Alyssa's hair and skirt draw whole.
+- 2026-11-12 (interactive): (mp3) the black-frame flicker -- ga frames end at gaWaitVSync's swap; the ga
+  path gets a depth buffer and the game's GS state (off-screen passes dropped, depth-only passes, AFAIL
+  FB_ONLY's colour pass). The opening room's black is the game's held fade (nq5 / nq6).
 - 2026-11-09: AlyssaPan created: the repo, YamiPan's Pan layer (C++, HEAD 17e0108 plus 93c73f0's SPU2
   voices and sound card) trimmed to the generic, SDK, CMake, tools, the skill and its references (this
   file, architecture.md, cpp-port.md, bootstrap.md, reconstruction.md, ghidra.md, hazards.md with the

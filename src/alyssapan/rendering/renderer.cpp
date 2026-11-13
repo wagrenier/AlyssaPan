@@ -107,14 +107,42 @@ SDL_GPUColorTargetBlendState blendStateOf(PipelineKey key)
         break;
     }
 
-    if (key.mask != ColorMask::All)
+    switch (key.mask)
     {
+    case ColorMask::All:
+        break;
+    case ColorMask::ColorOnly:
         state.enable_color_write_mask = true;
-        state.color_write_mask = key.mask == ColorMask::ColorOnly
-                                     ? SDL_GPU_COLORCOMPONENT_R | SDL_GPU_COLORCOMPONENT_G | SDL_GPU_COLORCOMPONENT_B
-                                     : SDL_GPU_COLORCOMPONENT_A;
+        state.color_write_mask = SDL_GPU_COLORCOMPONENT_R | SDL_GPU_COLORCOMPONENT_G | SDL_GPU_COLORCOMPONENT_B;
+        break;
+    case ColorMask::AlphaOnly:
+        state.enable_color_write_mask = true;
+        state.color_write_mask = SDL_GPU_COLORCOMPONENT_A;
+        break;
+    case ColorMask::None:
+        state.enable_color_write_mask = true;
+        state.color_write_mask = 0;
+        break;
     }
     return state;
+}
+
+// The GS's ZTST over a depth of Z / Z max: larger is nearer, as on the GS (cleared to 0).
+static SDL_GPUCompareOp depthCompareOf(DepthTest test)
+{
+    switch (test)
+    {
+    case DepthTest::Never:
+        return SDL_GPU_COMPAREOP_NEVER;
+    case DepthTest::GreaterOrEqual:
+        return SDL_GPU_COMPAREOP_GREATER_OR_EQUAL;
+    case DepthTest::Greater:
+        return SDL_GPU_COMPAREOP_GREATER;
+    case DepthTest::Off:
+    case DepthTest::Always:
+        break;
+    }
+    return SDL_GPU_COMPAREOP_ALWAYS;
 }
 
 Renderer::Renderer(Window &window, gpu::Device &device, Config &config, EventQueue &events, ui::Overlay &overlay)
@@ -142,6 +170,13 @@ Renderer::Renderer(Window &window, gpu::Device &device, Config &config, EventQue
         info.address_mode_w = address;
         m_samplers[index] = m_device.createSampler(info);
     }
+
+    // A float depth over the GS's 1 / z-shaped Z keeps its precision where the GS has it (D32 is everywhere
+    // SDL_GPU runs; D24 the fallback).
+    m_depthFormat = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
+    if (!SDL_GPUTextureSupportsFormat(m_device.get(), m_depthFormat, SDL_GPU_TEXTURETYPE_2D,
+                                      SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET))
+        m_depthFormat = SDL_GPU_TEXTUREFORMAT_D24_UNORM;
 
     m_white = m_device.createTexture(1, 1, SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM, SDL_GPU_TEXTUREUSAGE_SAMPLER);
     m_present = std::make_unique<PresentPass>(m_device, m_window, m_config);
@@ -223,6 +258,9 @@ void Renderer::ensureTargets(const PictureLayout &layout)
     {
         m_scene = m_device.createTexture(static_cast<unsigned>(layout.renderWidth),
                                          static_cast<unsigned>(layout.renderHeight), m_sceneFormat, kUsage);
+        m_depth = m_device.createTexture(static_cast<unsigned>(layout.renderWidth),
+                                         static_cast<unsigned>(layout.renderHeight), m_depthFormat,
+                                         SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET);
         m_sceneWidth = layout.renderWidth;
         m_sceneHeight = layout.renderHeight;
     }
@@ -246,7 +284,7 @@ SDL_GPUGraphicsPipeline *Renderer::pipelineFor(PipelineKey key)
     buffer.input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX;
 
     const std::array<SDL_GPUVertexAttribute, 3> attributes{{
-        {0, 0, SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2, offsetof(Vertex, x)},
+        {0, 0, SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, offsetof(Vertex, x)},
         {1, 0, SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2, offsetof(Vertex, u)},
         {2, 0, SDL_GPU_VERTEXELEMENTFORMAT_UBYTE4_NORM, offsetof(Vertex, color)},
     }};
@@ -256,6 +294,12 @@ SDL_GPUGraphicsPipeline *Renderer::pipelineFor(PipelineKey key)
     target.blend_state = blendStateOf(key);
 
     SDL_GPUGraphicsPipelineCreateInfo info{};
+    // Every scene pass has the depth target bound; the 2D draws (DepthTest::Off) leave it alone.
+    info.target_info.has_depth_stencil_target = true;
+    info.target_info.depth_stencil_format = m_depthFormat;
+    info.depth_stencil_state.enable_depth_test = key.depth != DepthTest::Off;
+    info.depth_stencil_state.enable_depth_write = key.depth != DepthTest::Off && key.depthWrite;
+    info.depth_stencil_state.compare_op = depthCompareOf(key.depth);
     info.vertex_shader = m_vertexShader.get();
     info.fragment_shader = m_fragmentShader.get();
     info.vertex_input_state.vertex_buffer_descriptions = &buffer;
@@ -344,7 +388,16 @@ void Renderer::recordDraws(SDL_GPUCommandBuffer *commands, const Frame &frame, c
     target.store_op = SDL_GPU_STOREOP_STORE;
     target.clear_color = {0.0f, 0.0f, 0.0f, 0.0f};
 
-    SDL_GPURenderPass *const pass = SDL_BeginGPURenderPass(commands, &target, 1, nullptr);
+    // Cleared with the colour, to 0: the GS's farthest.
+    SDL_GPUDepthStencilTargetInfo depth{};
+    depth.texture = m_depth.get();
+    depth.clear_depth = 0.0f;
+    depth.load_op = clear ? SDL_GPU_LOADOP_CLEAR : SDL_GPU_LOADOP_LOAD;
+    depth.store_op = SDL_GPU_STOREOP_STORE;
+    depth.stencil_load_op = SDL_GPU_LOADOP_DONT_CARE;
+    depth.stencil_store_op = SDL_GPU_STOREOP_DONT_CARE;
+
+    SDL_GPURenderPass *const pass = SDL_BeginGPURenderPass(commands, &target, 1, &depth);
     if (pass == nullptr)
     {
         gpu::logGpuError("SDL_BeginGPURenderPass(scene)");
@@ -386,8 +439,8 @@ void Renderer::recordDraws(SDL_GPUCommandBuffer *commands, const Frame &frame, c
 
         // A texture modulates on the GS's scale, 0x80 as 1.0; a flat colour goes out as it is.
         const float colourScale = image != nullptr ? 255.0f / 128.0f : 1.0f;
-        const UiFragmentUniforms fragmentUniforms{
-            {static_cast<float>(draw.alphaTestRef) / 128.0f, colourScale, 0.0f, 0.0f}};
+        const UiFragmentUniforms fragmentUniforms{{static_cast<float>(draw.alphaTestRef) / 128.0f, colourScale,
+                                                   draw.alphaTestInverted ? 1.0f : 0.0f, 0.0f}};
         SDL_PushGPUFragmentUniformData(commands, 0, &fragmentUniforms, sizeof(fragmentUniforms));
 
         const float fixed = static_cast<float>(draw.fixedAlpha) / 128.0f;

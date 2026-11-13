@@ -37,6 +37,7 @@ constexpr float kSpriteUvInset = 1.0f / 64.0f; // texels
 constexpr std::uint64_t kScissorMask = 0x7ff;
 constexpr std::uint32_t kFbmskRgb = 0x00ffffff;
 constexpr std::uint32_t kFbmskAlpha = 0xff000000;
+constexpr std::uint32_t kFbmskAll = 0xffffffff;
 
 // ALPHA_1's selectors: A, B and D pick Cs, Cd or 0, C picks As, Ad or FIX.
 constexpr int kSourceColor = 0;
@@ -49,6 +50,8 @@ constexpr int kFixedAlpha = 2;
 ColorMask colorMaskOf(std::uint64_t frame)
 {
     const auto mask = static_cast<std::uint32_t>(frame >> 32);
+    if (mask == kFbmskAll)
+        return ColorMask::None;
     if (mask == kFbmskRgb)
         return ColorMask::AlphaOnly;
     if (mask == kFbmskAlpha)
@@ -198,6 +201,8 @@ void UiCanvas::addVertex(const void *list, const AlyssaPanUiVertex &vertex)
     converted.x = kFrameWidth / 2.0f +
                   (static_cast<float>(vertex.x) / kWindowUnit - kWindowOrigin - kFrameWidth / 2.0f) * target.squeeze;
     converted.y = static_cast<float>(vertex.y) / kWindowUnit - kWindowOrigin;
+    // Past 1 (or under 0) the host's clip space would drop the fragment where the GS clamps it.
+    converted.z = std::clamp(static_cast<float>(vertex.z) * target.depthScale, 0.0f, 1.0f);
     if ((target.format & ALYSSAPAN_UIV_UV) != 0)
     {
         converted.u = static_cast<float>(vertex.u) / kTexelUnit;
@@ -221,12 +226,15 @@ DrawCall UiCanvas::stateOf(const Layer &source)
 {
     DrawCall draw;
     draw.pipeline.blend = source.forcedBlend.value_or(source.blended ? blendModeOf(source.alpha) : BlendMode::None);
-    draw.pipeline.mask = colorMaskOf(source.frame);
+    draw.pipeline.mask = source.depthOnly ? ColorMask::None : colorMaskOf(source.frame);
+    draw.pipeline.depth = source.depthTest;
+    draw.pipeline.depthWrite = source.depthTest != DepthTest::Off && source.depthWrite;
     draw.image = source.textured ? source.image : nullptr;
     draw.scissor = source.scissor;
     draw.linearFilter = ((source.tex1 >> 5) & 1) != 0;
     draw.repeat = (source.clamp & 3) == 0;
     draw.alphaTestRef = alphaTestRefOf(source.test);
+    draw.alphaTestInverted = source.alphaFailPass && draw.alphaTestRef != 0;
     draw.fixedAlpha = static_cast<std::uint8_t>(source.alpha >> 32);
     return draw;
 }
@@ -246,7 +254,8 @@ void UiCanvas::emit(Layer &target, std::initializer_list<Vertex> triangleVertice
                    last.image == state.image &&
                    last.scissor == state.scissor &&
                    last.linearFilter == state.linearFilter && last.repeat == state.repeat &&
-                   last.alphaTestRef == state.alphaTestRef && last.fixedAlpha == state.fixedAlpha;
+                   last.alphaTestRef == state.alphaTestRef && last.alphaTestInverted == state.alphaTestInverted &&
+                   last.fixedAlpha == state.fixedAlpha;
         }();
 
     if (!continues)
@@ -373,12 +382,18 @@ void UiCanvas::fillFrame(Layer &target, BlendMode blend, std::uint32_t color, st
     const std::uint64_t previousFrame = std::exchange(target.frame, static_cast<std::uint64_t>(kFbmskAlpha) << 32);
     target.forcedBlend = blend;
 
-    const Vertex a{0.0f, 0.0f, 0.0f, 0.0f, color};
-    const Vertex b{kFrameWidth, kFrameHeight, 0.0f, 0.0f, color};
+    // A whole-frame pass neither tests nor writes depth.
+    const DepthTest previousDepth = std::exchange(target.depthTest, DepthTest::Off);
+    const bool previousDepthWrite = std::exchange(target.depthWrite, false);
+
+    const Vertex a{0.0f, 0.0f, 0.0f, 0.0f, 0.0f, color};
+    const Vertex b{kFrameWidth, kFrameHeight, 0.0f, 0.0f, 0.0f, color};
     target.run.clear();
     assemble(target, a);
     assemble(target, b);
 
+    target.depthWrite = previousDepthWrite;
+    target.depthTest = previousDepth;
     target.forcedBlend.reset();
     target.frame = previousFrame;
     target.test = previousTest;
@@ -424,6 +439,49 @@ void UiCanvas::contrastFrame(const void *list, std::uint32_t rgba)
     fillFrame(target, BlendMode::Subtractive, rgba, 0);
 }
 
+void UiCanvas::setDepth(const void *list, DepthTest test, bool write, bool depthOnly, float scale)
+{
+    std::scoped_lock lock(m_lock);
+    Layer &target = layer(list);
+    target.depthTest = test;
+    target.depthWrite = write;
+    target.depthOnly = depthOnly;
+    target.depthScale = scale;
+}
+
+void UiCanvas::setAlphaFailPass(const void *list, bool failPass)
+{
+    std::scoped_lock lock(m_lock);
+    layer(list).alphaFailPass = failPass;
+}
+
+void UiCanvas::clearDepth(const void *list)
+{
+    std::scoped_lock lock(m_lock);
+    Layer &target = layer(list);
+    const Primitive previousPrimitive = std::exchange(target.primitive, Primitive::Sprite);
+    const bool previousTextured = std::exchange(target.textured, false);
+    const bool previousBlended = std::exchange(target.blended, false);
+    const std::uint64_t previousTest = std::exchange(target.test, 0);
+    const DepthTest previousDepth = std::exchange(target.depthTest, DepthTest::Always);
+    const bool previousDepthWrite = std::exchange(target.depthWrite, true);
+    const bool previousDepthOnly = std::exchange(target.depthOnly, true);
+
+    const Vertex a{0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0};
+    const Vertex b{kFrameWidth, kFrameHeight, 0.0f, 0.0f, 0.0f, 0};
+    target.run.clear();
+    assemble(target, a);
+    assemble(target, b);
+
+    target.depthOnly = previousDepthOnly;
+    target.depthWrite = previousDepthWrite;
+    target.depthTest = previousDepth;
+    target.test = previousTest;
+    target.blended = previousBlended;
+    target.textured = previousTextured;
+    target.primitive = previousPrimitive;
+}
+
 void UiCanvas::fillColor(const void *list, std::uint32_t rgba, std::uint8_t fixedAlpha)
 {
     std::scoped_lock lock(m_lock);
@@ -444,8 +502,8 @@ void UiCanvas::drawImage(const void *list, std::shared_ptr<Image> image, float x
     const bool previousTextured = std::exchange(target.textured, true);
     const bool previousBlended = std::exchange(target.blended, false);
 
-    const Vertex a{x, y, 0.0f, 0.0f, kOpaqueWhite};
-    const Vertex b{x + width, y + height, width, height, kOpaqueWhite};
+    const Vertex a{x, y, 0.0f, 0.0f, 0.0f, kOpaqueWhite};
+    const Vertex b{x + width, y + height, 0.0f, width, height, kOpaqueWhite};
     target.run.clear();
     assemble(target, a);
     assemble(target, b);

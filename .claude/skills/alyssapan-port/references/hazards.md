@@ -7,6 +7,53 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-12, interactive session: the opening's fade) **A script operand read unsigned that the ROM
+  sign-extends.** `ssTrigRead2Byte` answers a u16, and ssTrigExecuteActCmd's cases decide the sign
+  themselves: SCENE_LOAD's count, SELF_DISCARD_LOAD's loadArg, SCENE_DRAW's part and CHARA_*_LOAD's arg
+  are `dsll32 / dsra32 16` (signed) in the ROM, and the port passed them as `u_short`. The opening's
+  `TrgSceneLoad("0A19" / "0A06" / "0A27", bank, 0xffff)` meant -1 ("the file's own count",
+  FSMltLoadProc) but arrived as 65535. FSMltLoad's overlap test then took the 65535-bank request as
+  covering every bank above it and cancelled 0A19 and 0A06. tnXcmd_LoadWait("0A06") waited for good,
+  just before the fade-in, so the screen stayed under the held black fade. That looked like the
+  WAIT_ANIM of (nq5), but no WAIT_ANIM ever waited. Rule: for each 2-byte operand, check the ROM's extension
+  (`mipsdis.py 18d5450 18d9000`, then each `jal ssTrigRead2Byte` and the instruction after it). To find what
+  a script waits on, log the act interpreter's waits: the cursor and command id where it returns 0, and
+  an XCMD's index and arguments.
+- (same session) **Fixing a hang runs code nothing reached before.** Once the rooms loaded, two
+  crashes and a corruption followed within a minute, each in code that had never run:
+  (1) HIT_SCENE_GRID.cellB is never relocated, by the ROM either (ahRelocateFileObject relocates cellA's
+  0x40 words only). The moving-shape lists live at the file's link-time addresses in low EE RAM, so
+  BANK_PTR turned them into pointers into the exe (ssHitCheckAttackToScn.c CellBList: a host window at
+  those addresses). (2) A SHADOW_CASTER's `verts` is a list of EE words pointing at the vertices, not the
+  qwords themselves: reading the pointer words as a segment's ends gave a point count of 0x3f80. The
+  outline then wrote 16,000 vertices over Alyssa's bank, and her particle lists became floats. A segment is
+  `polys == 0`; polyCount can be 1. To find such a writer, use gdbrun.py `--break`, then
+  `--cmd "watch *(T*)addr if <bad value>" continue`: a hardware watchpoint stops in the writer. A word's
+  host address is gBankSlotArea_host + (bank - 6) x 0x40000 + its offset in the bank.
+- (same session, the user: "an explosion of vertices from her head every time she walks") **Writing all
+  four lanes where the ROM's VU0 op is .xyz.** HurikoSwing (the hair and skirt pendulums) wrote its
+  steps over `e < 4`. The ROM's ops are all `.xyz`, but its matrix applies are `vmaddw.xyzw` by the
+  vertex's own w. A hit's velocity is vf0 (w 1), so a vertex's w crept to about 3, and the round trip
+  through part space added the part's translation three times. The hair spiked across the screen and the
+  skirt was thrown away (the "skirt in a column" and the bare legs of earlier shots). Rule: keep w where
+  the ROM's mask leaves it. A vertex with w != 1 in the ga probe is the sign of this bug.
+- (2026-11-12, interactive session: 3D flashing and overlap) **A frame cut on the vblank splits a slow
+  frame, and the halves alternate.** The host closed a ga frame at the first draw after a field change; a
+  room frame's draws span 2..3 fields, so the screen alternated between the room's first half and a second
+  half holding little but tiFade_Draw's fill -- "the image stays on for a frame, then goes black" (the
+  user), the black progress shots of (mp3). Worse, the fill was a held black fade (FIX 0x80): the room was
+  never meant to show, and the shots that showed it were the half without the fill. Rule: close a frame
+  where the game shows it (gaWaitVSync's swap), and count the draws per swap (one trace line per swap:
+  kept, fills and their FIX) before trusting a picture of a scene that "draws then blacks out".
+- (2026-11-12, same session) **A float alpha test drops what the GS's integer test keeps.** TEST_1 GEQUAL
+  AREF 0x7f with room vertices at alpha 0x7f: the shader's 127/255 x 255/128 against 127/128 rounded under
+  and discarded the whole room. ui.frag compares with half a 1/0x80 step of slack. And AFAIL FB_ONLY is not
+  KEEP: the failing texels still draw their colour (no Z) -- discarding them lost the title's clouds and
+  the copyright lines' edges; DrawGaFrame draws such a mesh twice, the second pass with the test inverted.
+- (2026-11-12, same session) **The ga state's off-screen passes drew on screen.** Shadow volumes (their ADD
+  / SUB faces), the HQDOF mode's eight shifted renders and depth-only pre-passes all went through
+  AlyssaPan_DrawGaObject as visible triangles: models over models. The draw buffer address and TEST_1 /
+  FBMSK say where a draw lands and what it writes (architecture.md "The ga frame on the host").
 - (2026-11-12, alyssa_pose host task) **The trigger script's two animation commands order their flag
   bytes differently.** TRIG_CMD_ANIM_RANGE reads pose, other, byPart, started, stepFromRuns, target,
   chara; TRIG_CMD_ANIM_PLAY reads pose, other, byPart, **target, toEnd, stepFromRuns**, chara (ROM

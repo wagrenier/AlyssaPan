@@ -3902,11 +3902,13 @@ void asStockShadowVolume(int bank, float (*quad)[4], int mode)
 // One caster of a level's list (0x10 bytes, bank data). layout: ee.
 typedef struct SHADOW_CASTER {
     u_short part;                       /* 0x0: the part placing it (its matrix * its scale) */
-    u_short polyCount;                  /* 0x2: 0: a segment (two qwords at verts) */
-    u_int polys;                        /* 0x4: u_short lists: n, then n vertex indices */
+    u_short polyCount;                  /* 0x2 */
+    u_int polys;                        /* 0x4: u_short lists: n, then n vertex indices; 0: a segment (the
+                                           ROM tests this word, not polyCount: a segment may have 1) */
     u_short vertCount;                  /* 0x8 */
     u_short hidePart;                   /* 0xa: skipped while this part's REC_FLAGS bit 0 is set */
-    u_int verts;                        /* 0xc: float[vertCount][4] */
+    u_int verts;                        /* 0xc: u_int[vertCount]: EE words of the vertices (qwords; the ROM
+                                           loads each word, then the qword it points to); a segment: two */
 } SHADOW_CASTER;
 static_assert(sizeof(SHADOW_CASTER) == 0x10, "SHADOW_CASTER");
 
@@ -4189,7 +4191,7 @@ void asShadowPolygonPositions(int bank)
         float (*farV)[4] = BANK_PTR(float (*)[4], bank, st[SP_TABLE_FAR]);
         float (*rays)[4] = BANK_PTR(float (*)[4], bank, st[SP_TABLE_RAYS]);
         float (*planes)[4] = BANK_PTR(float (*)[4], bank, st[SP_TABLE_PLANES]);
-        const float (*verts)[4] = BANK_PTR(const float (*)[4], bank, e->verts);
+        const u_int *verts = BANK_PTR(const u_int *, bank, e->verts);  /* EE words of the vertices */
         u_int hide;
         memcpy(&hide, parts + e->hidePart * 0x380 + REC_FLAGS, 4);
         if (hide & 1)
@@ -4202,9 +4204,11 @@ void asShadowPolygonPositions(int bank)
         gaMulMatrix(m, (float (*)[4])(rec + REC_SHADOW_MATRIX), m);
         if (e->polys == 0) {
             // a segment: its outline is the ring the quads go round
-            alignas(16) float refA[4], refB[4];
+            alignas(16) float refA[4], refB[4], ends[2][4];
             u_short ring[SP_RING_MAX + 1];
-            int split, n = SpSegmentOutline(nearV, (const float (*)[4])m, verts[0], light, refA, refB, &split), i;
+            memcpy(ends[0], BANK_PTR(const float *, bank, verts[0]), sizeof(ends[0]));
+            memcpy(ends[1], BANK_PTR(const float *, bank, verts[1]), sizeof(ends[1]));
+            int split, n = SpSegmentOutline(nearV, (const float (*)[4])m, ends[0], light, refA, refB, &split), i;
             const float *ref = refA;
             if (n < 0)
                 continue;
@@ -4227,7 +4231,7 @@ void asShadowPolygonPositions(int bank)
             u_int at = 0;
             int i, k;
             for (i = 0; i < e->vertCount; i++)
-                SpMulMatVec(nearV[i], (const float (*)[4])m, verts[i]);
+                SpMulMatVec(nearV[i], (const float (*)[4])m, BANK_PTR(const float *, bank, verts[i]));
             SpExtrude(nearV, farV, rays, e->vertCount, light, bi->shadowLength);
             for (i = 0; i < e->polyCount; i++) {
                 int n = poly[at];

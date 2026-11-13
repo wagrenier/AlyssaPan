@@ -19,6 +19,7 @@
 #include "sdk/eekernel.h"
 #include "sdk/eeregs.h"
 #include "sdk/libgraph.h"
+#include "alyssapan/rendering/alyssapan_drawga.h"
 
 #include <string.h>
 
@@ -178,12 +179,32 @@ void gaSetupDBufferData(GA_DBUFFER_DATA *dbuf, u_int fbAddr, u_int fbWidth, u_in
     dbuf->dthe.addr = SCE_GS_DTHE;
 }
 
+// main's double buffer (its boot: ga_disp_fbuf_address 0, ga_draw_fbuf_address 0x38000; gaWaitVSync swaps
+// the two). Any other draw buffer is a frame no display shows: the shadow buffer, the effect buffer ..
+#define GA_DISPLAY_FBUF_A 0x00000
+#define GA_DISPLAY_FBUF_B 0x38000
+#define GIFTAG_NLOOP_MASK 0x7fffull
+
+// PORT: no GS takes the packet: its A+D pairs go to the host draw module, which keeps the registers the ga
+// objects after it draw under (alyssapan_drawga.h AlyssaPan_DrawGaRegister).
+static void HandRegistersToHost(const GA_PACKET_HEAD *head)
+{
+    const GA_AD *ad = (const GA_AD *)(head + 1);
+    u_int n = (u_int)(head->giftag & GIFTAG_NLOOP_MASK);
+    u_int i;
+
+    for (i = 0; i < n; i++)
+        AlyssaPan_DrawGaRegister((int)(ad[i].addr & 0xff), ad[i].data);
+}
+
 // CT3 0x018a1f60: point FBP / ZBP at the current draw and Z buffers, then send the packet.
 void gaBGT_ExecDBufferData_VIF1(GA_DBUFFER_DATA *dbuf)
 {
     dbuf->frame.data = (dbuf->frame.data & ~GS_FBP_FIELD) | (u_long)((u_int)ga_draw_fbuf_address >> GS_PAGE_SHIFT);
     dbuf->zbuf.data = (dbuf->zbuf.data & ~GS_FBP_FIELD) | (u_long)((u_int)ga_zbuf_address >> GS_PAGE_SHIFT);
     gaBGT_DmaSendN_fromSPR_VIF1(dbuf, DBUFFER_QWC + 1);
+    AlyssaPan_DrawGaTarget(ga_draw_fbuf_address == GA_DISPLAY_FBUF_A || ga_draw_fbuf_address == GA_DISPLAY_FBUF_B);
+    HandRegistersToHost(&dbuf->head);
 }
 
 // CT3 0x018a1fd8: a draw control -- the primitive attributes, the alpha / depth tests, the blend, FBA,
@@ -215,6 +236,7 @@ void gaSetupDrawCtrlData(GA_DRAWCTRL_DATA *ctrl, GA_DRAWCTRL_ARGS args)
 void gaBGT_ExecDrawCtrlData_VIF1(GA_DRAWCTRL_DATA *ctrl)
 {
     gaBGT_DmaSendN_fromSPR_VIF1(ctrl, DRAWCTRL_QWC + 1);
+    HandRegistersToHost(&ctrl->head);
 }
 
 // CT3 0x018a22c8: a fog packet -- FOGCOL (r, g, b added at their bytes, unmasked) and, kept after the

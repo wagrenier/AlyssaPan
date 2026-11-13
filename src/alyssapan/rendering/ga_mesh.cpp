@@ -23,6 +23,16 @@ constexpr float kFogUnit = 16.0f;
 // flags & 3 (the program's variant, MSCAL 0x1a + 2 x it).
 constexpr int kVariantMask = 3;
 
+// The GS registers the ga packets set that decide a host draw (sce_gs.h's SCE_GS_*).
+constexpr int kRegPrmode = 0x1b;
+constexpr int kRegAlpha1 = 0x42;
+constexpr int kRegTest1 = 0x47;
+constexpr int kRegFrame1 = 0x4c;
+constexpr int kRegZbuf1 = 0x4e;
+
+// A game frame takes 2 fields (30 Hz), a slow one a few more: 10 without a swap is a loop that has none.
+constexpr std::uint64_t kSwaplessFields = 10;
+
 } // namespace
 
 GaMeshRecorder &GaMeshRecorder::instance()
@@ -113,21 +123,82 @@ void GaMeshRecorder::setTexture(std::shared_ptr<Image> image, std::uint64_t tex0
     m_clamp = clamp;
 }
 
-bool GaMeshRecorder::nextField()
+void GaMeshRecorder::setRegister(int reg, std::uint64_t value)
 {
-    const std::uint64_t field = ee::Kernel::instance().interrupts().fieldCount();
-    if (field == m_field)
+    switch (reg) {
+    case kRegFrame1:
+        m_gs.frame = value;
+        break;
+    case kRegZbuf1:
+        m_gs.zbuf = value;
+        break;
+    case kRegPrmode:
+        m_gs.prmode = value;
+        m_gs.controlled = true;
+        break;
+    case kRegTest1:
+        m_gs.test = value;
+        m_gs.controlled = true;
+        break;
+    case kRegAlpha1:
+        m_gs.alpha = value;
+        break;
+    default:
+        break; // nothing the host draws decides on
+    }
+}
+
+void GaMeshRecorder::setTarget(bool toDisplay)
+{
+    m_gs.toDisplay = toDisplay;
+}
+
+bool GaMeshRecorder::close(std::uint64_t field)
+{
+    m_closeField = field;
+    if (m_frame.empty())
         return false;
-    m_field = field;
     m_last.swap(m_frame);
     m_frame.clear();
     return true;
 }
 
+bool GaMeshRecorder::swap()
+{
+    return close(ee::Kernel::instance().interrupts().fieldCount());
+}
+
+bool GaMeshRecorder::closeWithoutSwap()
+{
+    const std::uint64_t field = ee::Kernel::instance().interrupts().fieldCount();
+    if (field - m_closeField < kSwaplessFields)
+        return false;
+    if (!m_loggedSwapless && !m_frame.empty()) {
+        m_loggedSwapless = true;
+        log::warning("[ga] {} draws and no gaWaitVSync swap for {} fields: the frame is closed on the field",
+                     m_frame.size(), field - m_closeField);
+    }
+    return close(field);
+}
+
+bool GaMeshRecorder::recordDepthClear()
+{
+    const bool frameEnded = closeWithoutSwap();
+    if (!m_gs.toDisplay)
+        return frameEnded;
+    Mesh mesh;
+    mesh.depthClear = true;
+    mesh.gs = m_gs;
+    m_frame.push_back(std::move(mesh));
+    return frameEnded;
+}
+
 bool GaMeshRecorder::recordFill(std::uint32_t rgba, int alphaFix)
 {
     constexpr int kFixMax = 0xff; // ALPHA_1's FIX is a byte
-    const bool frameEnded = nextField();
+    const bool frameEnded = closeWithoutSwap();
+    if (!m_gs.toDisplay)
+        return frameEnded;
     Mesh mesh;
     mesh.fill = true;
     mesh.fillRgba = rgba;
@@ -138,7 +209,8 @@ bool GaMeshRecorder::recordFill(std::uint32_t rgba, int alphaFix)
 
 bool GaMeshRecorder::recordCopy(const Mesh &copy)
 {
-    const bool frameEnded = nextField();
+    // A copy names its own frames: kept whatever the draw buffer is.
+    const bool frameEnded = closeWithoutSwap();
     if (!m_loggedCopy) {
         m_loggedCopy = true;
         log::info("[ga] first frame-buffer {}: GS {:#x}, {}x{} (recorded, not drawn yet: no render-target copy)",
@@ -151,8 +223,8 @@ bool GaMeshRecorder::recordCopy(const Mesh &copy)
 
 bool GaMeshRecorder::record(const AlyssaPanGaObject &object)
 {
-    const bool frameEnded = nextField();
-    if (object.vertexCount <= 0 || object.positions == nullptr)
+    const bool frameEnded = closeWithoutSwap();
+    if (object.vertexCount <= 0 || object.positions == nullptr || !m_gs.toDisplay)
         return frameEnded;
 
     Mesh mesh;
@@ -163,6 +235,7 @@ bool GaMeshRecorder::record(const AlyssaPanGaObject &object)
     mesh.image = m_image;
     mesh.tex0 = m_tex0;
     mesh.clamp = m_clamp;
+    mesh.gs = m_gs;
     if (object.position != nullptr)
         std::memcpy(mesh.position.data(), object.position, sizeof(mesh.position));
     if (object.matrix != nullptr)

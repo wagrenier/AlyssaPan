@@ -123,4 +123,31 @@ void AlyssaPan_DrawGaCapture(uint32_t fbp, int width, int height);
 void AlyssaPan_DrawGaCopy(uint32_t fbp, int texWidth, int texHeight, float x0, float y0, float x1, float y1,
                           int alphaFix);
 
+/* The frame just drawn goes to the display: where gaWaitVSync, after its
+ * VSync, points DISPFB at the draw buffer and swaps the two buffer addresses
+ * (ga/gaInitInterrupt.c), the game calls this. The frame is what was drawn
+ * since the last swap, whatever the fields it took. Added 2026-11-12. */
+void AlyssaPan_DrawGaSwap(void);
+
+/* The GS state the ga objects draw under (added 2026-11-12). Where
+ * gaBGT_ExecDBufferData_VIF1 and gaBGT_ExecDrawCtrlData_VIF1 send their
+ * packets' A+D pairs, the game hands each pair over (reg: the GS register's
+ * address, SCE_GS_*): FRAME_1's FBMSK, ZBUF_1's PSM and ZMSK, PRMODE (the
+ * primitives' attributes under gsinit's PRMODECONT 0), TEST_1's depth and
+ * alpha tests, ALPHA_1. The module keeps each value until it is set again;
+ * registers it has no use for are ignored. */
+void AlyssaPan_DrawGaRegister(int reg, uint64_t value);
+
+/* Whether the draw buffer gaBGT_ExecDBufferData_VIF1 points the GS at is
+ * one of the two display frames gaWaitVSync swaps. While it is not (the
+ * shadow volume's buffer, the HQDOF samples in the effect buffer, the
+ * export copy), the objects go to a GS frame the host does not have and are
+ * not drawn. */
+void AlyssaPan_DrawGaTarget(int toDisplay);
+
+/* The Z buffer cleared and the colour left alone, in draw order: where the
+ * ROM draws the frame-clear sprite depth-only (ssBGT_ZBufferClear, before
+ * each global bank). */
+void AlyssaPan_DrawGaClearDepth(void);
+
 #endif /* ALYSSAPAN_DRAWGA_H */
