@@ -480,16 +480,88 @@ void tiSetChainFlag(int i, int on, int setB);                                   
 void tiSetModeChain_BALOWS(float dist, u_char *mode);                                    // CT3 0x01872890
 void tiSetModeNormal_BALOWS(float dist, u_char *mode);                                   // CT3 0x01872a20
 void tiSetModeNormal_AXE2(float dist, u_char *mode);                                     // CT3 0x01873760
-// The other setters (not yet reconstructed: stubs).
-void tiSetModeNormal_HAMM(float dist, u_char *mode);
-void tiSetModeNormal_VITRIOL(float dist, u_char *mode);
-void tiSetModeNormal_AXE1(float dist, u_char *mode);
-void tiSetModeNormal_SCISSORS_M(float dist, u_char *mode);
-void tiSetModeChain_HAMM(float dist, u_char *mode);
-void tiSetModeChain_VITRIOL(float dist, u_char *mode);
-void tiSetModeChain_AXE1(float dist, u_char *mode);
-void tiSetModeChain_AXE2(float dist, u_char *mode);
-void tiSetModeChain_SCISSORS_M(float dist, u_char *mode);
+// Slice 6: the other setters (band tables in the .c: distance bands 1000 .. 100, draws of 16).
+#define BOSS_INFO_PULL_HITS 0x78        /* int: hits the boss took while a pull was due (BOSS_STATE_PULL_DUE; Damage_BOSS1 counts) */
+#define BOSS_PULL_HITS_MAX 2            /* tiSetModeChain_AXE2: from this many, no more pulls (BOSS_SUB_HOLD_5) */
+void tiSetModeNormal_HAMM(float dist, u_char *mode);                                     // CT3 0x018745e0
+void tiSetModeNormal_VITRIOL(float dist, u_char *mode);                                  // CT3 0x01873f80
+void tiSetModeNormal_AXE1(float dist, u_char *mode);                                     // CT3 0x01873b50
+void tiSetModeNormal_SCISSORS_M(float dist, u_char *mode);                               // CT3 0x01872f70
+void tiSetModeChain_HAMM(float dist, u_char *mode);                                      // CT3 0x018744a0
+void tiSetModeChain_VITRIOL(float dist, u_char *mode);                                   // CT3 0x01873ce0
+void tiSetModeChain_AXE1(float dist, u_char *mode);                                      // CT3 0x01873960
+void tiSetModeChain_AXE2(float dist, u_char *mode);                                      // CT3 0x01873220
+void tiSetModeChain_SCISSORS_M(float dist, u_char *mode);                                // CT3 0x01872c90
+// Slice 6: Damage_BOSS1's checks.
+#define TRIG_EVENT_BOSS_ARROW_ALWAYS 0x89 /* global: every arrow staggers the boss (its setter unread) */
+#define ARROW_LEVEL_STAGGER_MIN 3       /* asGetTheArrowLevel below this never staggers; 3: power 10, 4: 20, more: 100 */
+#define BOSS_INFO_ARROW_GUARD BOSS_INFO_HAMM_94 /* u_char 0x94: the boss's toughness against arrows (Damage_BOSS1 sets 12, 15, 100) */
+#define BOSS_INFO_CHAIN_SLACK 0x98      /* float: a holding set A chain farther from Alyssa than this is taut */
+#define BOSS_CHAINS_ALL 6               /* tiCheckPlayerINChains: this many holding chains catch her outright */
+#define BOSS_CHAINS_MAX 15              /* the ROM's stack arrays (0xf0 bytes of vectors each) */
+int tiCheckArrowLevel(float dist, u_char level);                                         // CT3 0x01875460
+int tiCheckPlayerINChains(CHARACTER *chr);                                               // CT3 0x01875210
+// Slice 6: tiBrain_Damage_BOSS1 (names from this use unless another TU's).
+#define BOSS_CHARA_SCISSORS_W 6         /* the SCISSORS_W bits (0x10000 / 0x20000) clear for it; its voices are B_4B02's */
+#define TRIG_VAR_CHAIN_A_BREAK TRIG_VAR_TBREAK_SHORT /* 0x53: set A's break: -1 none, 0 Alyssa caught (C_0000 0x4b),
+                                           1 sound.c's T_BREAK counts (set A's time stops), 4 the break lands */
+#define CHAIN_A_BREAK_NONE (-1)
+#define CHAIN_A_BREAK_CAUGHT 0
+#define CHAIN_A_BREAK_COUNTING 1
+#define CHAIN_A_BREAK_LANDS 4
+#define TRIG_VAR_CHAIN_B_BREAK TRIG_VAR_BALOWS_54 /* 0x54: == 1 set B's time stops (sound.c's TBREAK_LONG) */
+#define BOSS_CHAIN_SHOT_DIST 200.0f     /* a new chain's first part: this far from the set's source along the shot */
+#define BOSS_CHAIN_B_TIME_MAX 0x1194    /* set B lets go after this long holding */
+#define BOSS_CHAIN_PULL_FAR 300.0f      /* a holding set A chain farther from the boss: it is pulled back (BRAIN_BOSS_M_248) */
+#define BOSS_SHOWN_PICK_MAX 4           /* set A's release moves BOSS_INFO_SHOWN_PICK up to here (BALOWS: 5) */
+#define BOSS_SHOWN_PICK_MAX_BALOWS 5
+#define CHARA_LANDED_BLOW 0x51c         /* CHARACTER int (pad): non-zero: BOSS_INFO_APPROACH_84 is dealt to Alyssa */
+#define BRAIN_BOSS_STRIKE_DAMAGE 0x0d4  /* short: what TRIG_EVENT_BOSS_STRUCK deals */
+#define BRAIN_BOSS_GRABBED_TICKS 0x100  /* int: BOSS_STATE_BALOWS_GRABBED lasts while not above 0x104 (BALOWS, HAMM) */
+#define BRAIN_BOSS_GRABBED_MAX 0x104
+#define BRAIN_BALOWS_ATK_MAX 0x208      /* int: BOSS_STATE_BALOWS_ATTACKING lasts while BRAIN_BALOWS_ATK_TICKS is not above it */
+#define BRAIN_DAMAGE_MOTION_BACK 0x266  /* short: struck from behind (BRAIN_DAMAGE_MOTION: from the front) */
+#define BOSS_INFO_RECOVER_MAX 0x14      /* int: BOSS_STATE_BALOWS_RECOVERED ends once BOSS_INFO_SP_COOL passes it */
+#define BOSS_INFO_SCISSORS_END_TICKS 0x30 /* int: SCISSORS_M's special at step 2: BOSS_STATE_SCISSORS_M_END past _AT */
+#define BOSS_INFO_SCISSORS_END_AT 0x34  /* int: 150 .. 270 by distance (tiScissorsEndAt) */
+#define BOSS_INFO_ARROW_COUNT_LEVEL 0x8e /* u_char: arrows from this level count in BOSS_INFO_HITS_74 */
+#define BOSS_INFO_ARROW_STAGGER_LEVEL 0x8f /* u_char: arrows from this level stagger */
+#define BOSS_INFO_ROAR_TICKS 0xdc       /* int: BALOWS staggered: E_BAL BALOWS_SE_ROAR_LATE once past 0xe0 (150) */
+#define BOSS_INFO_ROAR_AT 0xe0
+#define BOSS_ROAR_AT 150
+#define BOSS_INFO_BREAK_DAMAGE 0x144    /* int: set A's break landing (CHAIN_A_BREAK_LANDS) deals this */
+#define BOSS_INFO_SHRUG_DAMAGE 0x148    /* int: a hit with no arrow, outside the look motions, deals this */
+#define BOSS_INFO_DEFENSE_KIND 0x15c    /* int: tiDefenseMode's slot (with BOSS_STATE_BIT_04) */
+#define BOSS_STATE_AXE_BACKSTAB 0x8000  /* the AXE struck from behind: damage x3, and it staggers */
+#define BOSS_STATE_BALOWS_52_ODD 0x1000000 /* TRIG_VAR_BALOWS_52 4 / 0xe: every other frame Alyssa loses 1 */
+#define BOSS_STATE_BALOWS_ROAR_DUE 0x4000000 /* BOSS_INFO_ROAR_TICKS counts while the damage motion plays */
+#define BALOWS_SE_ROAR_LATE 0x18        /* E_BAL */
+#define BOSS_VOICE_ARG BOSS_HAMM_SE_ARG /* 0x3e0: every boss voice here */
+#define BALOWS_CHAIN_HIT_MAX 5          /* TRIG_VAR_HIT_ATTACK below this: BALOWS's hit is a set B chain */
+#define BALOWS_CHAIN_HIT_DAMAGE 0x32
+#define BOSS_HIT_DAMAGE_HEAVY 150       /* Alyssa's loss to a boss blow (tiCalcPlayerHitPoint) */
+#define BOSS_HIT_DAMAGE_LIGHT 100
+#define SCISSORS_HIT_HEAVY_BELOW 0x12   /* SCISSORS_M's attacks below this: heavy, below 0x26 light, else none */
+#define SCISSORS_HIT_LIGHT_BELOW 0x26
+#define SCISSORS_M_MOTION_3E 0x3e       /* SCISSORS_M: BOSS_STATE_BALOWS_RECOVERED does not run out during it */
+#define AXE_MOTION_GUARD_51 0x51        /* the AXE (BOSS_STATE_BIT_04): BOSS_INFO_ARROW_GUARD 12 in these */
+#define AXE_MOTION_GUARD_52 0x52
+#define AXE_ARROW_GUARD_MOTION 12
+#define AXE_ARROW_GUARD_FREE 100        /* no set A chain holding */
+#define AXE_ARROW_GUARD_CHAINED 15
+#define BOSS_ARROW_PUSH_KIND1 150.0f    /* ARROW kind 1 pushes this far (else BOSS_INFO_HIT_BACKS[level]) */
+#define BOSS_STRUCK_EXTRA 100           /* TRIG_EVENT_BOSS_ARROW_ALWAYS: every hit deals this more */
+enum BOSS_REACT {                       /* how a hit was taken (the voice picks by it) */
+    BOSS_REACT_NONE = 0,
+    BOSS_REACT_CHAINS_CUT = 1,          /* set A's break landed */
+    BOSS_REACT_STAGGER = 2,
+    BOSS_REACT_SHRUG = 3,               /* a hit with no arrow */
+};
+extern int (*const tiDefenseMode[3])(struct CHARACTER *chr, const u_char *hit, u_char *react); // .data 0x01938658
+// The boss's damage step, every frame: the chain sets' times, what the boss's blows dealt Alyssa, the timers,
+// then this frame's hits: arrows chain it (set A), stagger it or only hurt; the voices; the mode it returns
+// to. 1 while the damage motion plays or the frame is taken.
+int tiBrain_Damage_BOSS1(struct CHARACTER *chr);                                         // CT3 0x0186ec40
 // The setters' tables, by BOSS_INFO_NORMAL_KIND / _CHAIN_KIND / _SP_KIND (the same order as tiSelSpecialMode).
 #define BOSS_MODE_KIND_COUNT 6
 extern void (*const tiSetNormalMode[BOSS_MODE_KIND_COUNT])(float dist, u_char *mode); // .data 0x019385e0

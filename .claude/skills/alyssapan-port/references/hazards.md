@@ -7,6 +7,15 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-13, scheduled run, boss damage) **`CHARACTER.pos` is a `qword`, which is `int[4]`.**
+  `chr->pos[k]` compiles and reads integers; use `((float *)chr->pos)[k]` (or a `float *` local), as the
+  ghost and boss code do. **A `// callcheck:` comment stops at the first `(`**: name helpers one comment
+  line each (`// callcheck: A, B (helperX)` per line), never `a (x); b (y)` on one line.
+- (2026-11-13, scheduled run, 03:57) **All-black smoke shots at ~900 frames/s are the display, not the
+  code**: with the machine's session not presenting (night run), every shot is a 2,708-byte black PNG
+  and the frame count races; the unchanged sources (git stash, same run) gave the same. Before blaming a
+  change for a black picture, check the shot sizes / frame rate and A/B against HEAD.
+
 - (2026-11-12, interactive session: the opening's fade) **A script operand read unsigned that the ROM
   sign-extends.** `ssTrigRead2Byte` answers a u16, and ssTrigExecuteActCmd's cases decide the sign
   themselves: SCENE_LOAD's count, SELF_DISCARD_LOAD's loadArg, SCENE_DRAW's part and CHARA_*_LOAD's arg

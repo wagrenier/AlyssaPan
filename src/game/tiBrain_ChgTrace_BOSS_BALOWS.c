@@ -2812,6 +2812,322 @@ void tiSetModeNormal_AXE2(float dist, u_char *mode)
     tiBossArrowBits(mode);
 }
 
+// ---- slice 6: the other setters ----
+
+// The setters' shape: from the farthest band down, the first band whose `from` the distance reaches (the
+// ROM's `from <= dist` chains) draws the mode from r (tnRand(16)): mode[k] for the first cut[k] above r,
+// cut 16 ends a band. No band reached: `none`. The tables keep the ROM's bands and odds.
+// layout: host (the port's band table, no ROM counterpart)
+typedef struct BOSS_MODE_BAND {
+    float from;
+    u_char cut[6];
+    u_char mode[6];
+} BOSS_MODE_BAND;
+
+#define BOSS_BAND_ANY (-1.0e30f)        /* the ROM's last else: any distance */
+#define BOSS_BANDS(t) (t), (int)(sizeof(t) / sizeof((t)[0]))
+
+static u_char tiBossModeBand(const BOSS_MODE_BAND *b, int n, float dist, int r, u_char none)
+{
+    int i, k;
+
+    for (i = 0; i < n; i++) {
+        if (b[i].from <= dist) {
+            for (k = 0; b[i].cut[k] <= r; k++)
+                ;
+            return b[i].mode[k];
+        }
+    }
+    return none;
+}
+
+// The AXEs' last word: near on a downed Alyssa is plain, and the special (BOSS_SUB_SPECIAL, the throw)
+// waits while the AXE (Character[BOSS_INFO_CHARA]) is still throwing.
+static void tiBossAxeModeFix(u_char *mode)
+{
+    if (*mode == BOSS_SUB_NEAR_2 && ssAI_IsDownPlaying(&Character[Player_BankID]) != 0)
+        *mode = BOSS_SUB_PLAIN;
+    if (*mode == BOSS_SUB_SPECIAL && ssAI_AXE_IsThrowing(tiBossChara()) != 0)
+        *mode = BOSS_SUB_PLAIN;
+}
+
+#define P BOSS_SUB_PLAIN
+#define N2 BOSS_SUB_NEAR_2
+#define H3 BOSS_SUB_HOLD_3
+#define N4 BOSS_SUB_NEAR_4
+#define H5 BOSS_SUB_HOLD_5
+#define SP BOSS_SUB_SPECIAL
+#define B7 BOSS_SUB_BALOWS_SPECIAL
+
+static const BOSS_MODE_BAND tiHammNormalBands[] = {
+    { 1000.0f, { 2, 12, 16 }, { H3, N2, P } },
+    { 800.0f, { 2, 11, 16 }, { H3, N2, P } },
+    { 600.0f, { 2, 8, 16 }, { H3, N2, P } },
+    { 400.0f, { 2, 16 }, { H3, P } },
+    { 200.0f, { 1, 16 }, { H3, P } },
+};
+
+// CT3 0x018745e0: HAMM's mode by distance (tiHammNormalBands; nearer plain), then the arrow bits.
+void tiSetModeNormal_HAMM(float dist, u_char *mode)
+{
+    // callcheck: asGetTheArrowLevel, ssTrigCheckEvent (tiBossArrowBits)
+    *mode = tiBossModeBand(BOSS_BANDS(tiHammNormalBands), dist, tnRand(16), P);
+    tiBossArrowBits(mode);
+}
+
+static const BOSS_MODE_BAND tiHammChainBands[] = {
+    { 1000.0f, { 10, 13, 16 }, { H5, N2, P } },
+    { 800.0f, { 8, 15, 16 }, { H5, N2, P } },
+    { 600.0f, { 6, 11, 16 }, { H5, N2, P } },
+    { BOSS_BAND_ANY, { 4, 16 }, { H5, P } },
+};
+
+// CT3 0x018744a0: HAMM's mode in the chain phase (tiHammChainBands).
+void tiSetModeChain_HAMM(float dist, u_char *mode)
+{
+    *mode = tiBossModeBand(BOSS_BANDS(tiHammChainBands), dist, tnRand(16), P);
+}
+
+static const BOSS_MODE_BAND tiVitriolNormalHighBands[] = {     /* hp rate above half */
+    { 1000.0f, { 2, 10, 12, 16 }, { H3, N2, N4, P } },
+    { 800.0f, { 2, 7, 9, 16 }, { H3, N2, N4, P } },
+    { 600.0f, { 2, 5, 7, 16 }, { H3, N2, N4, P } },
+    { 400.0f, { 2, 3, 5, 16 }, { H3, N2, N4, P } },
+    { 300.0f, { 1, 3, 16 }, { H3, N4, P } },
+    { 200.0f, { 1, 2, 16 }, { H3, N4, P } },
+    { 100.0f, { 1, 16 }, { N4, P } },
+};
+static const BOSS_MODE_BAND tiVitriolNormalLowBands[] = {      /* at or below half: more near approaches */
+    { 1000.0f, { 2, 12, 14, 16 }, { H3, N2, N4, P } },
+    { 800.0f, { 2, 10, 12, 16 }, { H3, N2, N4, P } },
+    { 600.0f, { 2, 8, 10, 16 }, { H3, N2, N4, P } },
+    { 400.0f, { 2, 6, 8, 16 }, { H3, N2, N4, P } },
+    { 300.0f, { 1, 2, 4, 16 }, { H3, N2, N4, P } },
+    { 200.0f, { 1, 3, 16 }, { H3, N4, P } },
+    { 100.0f, { 1, 16 }, { N4, P } },
+};
+
+// CT3 0x01873f80: VITRIOL's mode by distance, its odds by Character[BOSS_VITRIOL_CHARA]'s hp rate.
+void tiSetModeNormal_VITRIOL(float dist, u_char *mode)
+{
+    int r = tnRand(16);
+
+    if (BOSS_HP_RATE_MID < tiCalcHPRate(&Character[BOSS_VITRIOL_CHARA]))
+        *mode = tiBossModeBand(BOSS_BANDS(tiVitriolNormalHighBands), dist, r, P);
+    else
+        *mode = tiBossModeBand(BOSS_BANDS(tiVitriolNormalLowBands), dist, r, P);
+}
+
+static const BOSS_MODE_BAND tiVitriolChainBands[] = {
+    { 1000.0f, { 6, 9, 11, 16 }, { H5, N2, N4, P } },     /* 1000, 800 and 600: the same odds in the ROM */
+    { 800.0f, { 6, 9, 11, 16 }, { H5, N2, N4, P } },
+    { 600.0f, { 6, 9, 11, 16 }, { H5, N2, N4, P } },
+    { 400.0f, { 6, 8, 9, 16 }, { H5, N2, N4, P } },
+    { 300.0f, { 6, 8, 9, 16 }, { H5, N2, N4, P } },
+    { 200.0f, { 6, 7, 16 }, { H5, N2, P } },
+    { 100.0f, { 6, 16 }, { H5, P } },
+};
+
+// CT3 0x01873ce0: VITRIOL's mode in the chain phase (tiVitriolChainBands; nearer plain).
+void tiSetModeChain_VITRIOL(float dist, u_char *mode)
+{
+    *mode = tiBossModeBand(BOSS_BANDS(tiVitriolChainBands), dist, tnRand(16), P);
+}
+
+static const BOSS_MODE_BAND tiAxe1NormalBands[] = {
+    { 1000.0f, { 6, 10, 16 }, { H3, N4, P } },
+    { 200.0f, { 7, 8, 14, 16 }, { H3, N2, N4, P } },
+    { 100.0f, { 12, 15, 16 }, { N2, N4, P } },  /* the ROM sets H3 below 7 first, then overwrites it */
+};
+
+// CT3 0x01873b50: the first AXE's mode (tiAxe1NormalBands; nearer near), near on a downed Alyssa plain.
+void tiSetModeNormal_AXE1(float dist, u_char *mode)
+{
+    *mode = tiBossModeBand(BOSS_BANDS(tiAxe1NormalBands), dist, tnRand(16), N2);
+    if (*mode == N2 && ssAI_IsDownPlaying(&Character[Player_BankID]) != 0)
+        *mode = P;
+}
+
+static const BOSS_MODE_BAND tiAxe1ChainBands[] = {
+    { 1000.0f, { 8, 10, 14, 16 }, { H3, SP, N4, P } },
+    { 200.0f, { 8, 10, 14, 16 }, { H3, N2, N4, P } },
+    { 100.0f, { 8, 14, 15, 16 }, { H3, N2, N4, P } },
+};
+
+// CT3 0x01873960: the first AXE's mode in the chain phase (tiAxe1ChainBands; nearer near): the special
+// only from 1000, and not while the AXE throws; near on a downed Alyssa plain.
+void tiSetModeChain_AXE1(float dist, u_char *mode)
+{
+    // callcheck: ssAI_IsDownPlaying, ssAI_AXE_IsThrowing (tiBossAxeModeFix)
+    *mode = tiBossModeBand(BOSS_BANDS(tiAxe1ChainBands), dist, tnRand(16), N2);
+    tiBossAxeModeFix(mode);
+}
+
+static const BOSS_MODE_BAND tiAxe2ChainFreshBands[] = {        /* BOSS_INFO_PULL_HITS below 2 */
+    { 600.0f, { 12, 14, 15, 16 }, { H5, SP, N4, P } },
+    { 400.0f, { 12, 14, 15, 16 }, { H5, N2, N4, P } },
+    { 300.0f, { 10, 14, 15, 16 }, { H5, N2, N4, P } },
+    { 200.0f, { 8, 14, 15, 16 }, { H5, N2, N4, P } },
+    { 100.0f, { 6, 16 }, { H5, N2 } },
+    { BOSS_BAND_ANY, { 4, 16 }, { H5, N2 } },
+};
+static const BOSS_MODE_BAND tiAxe2ChainHitBands[] = {          /* hit twice while pulling: no more pulls */
+    { 600.0f, { 2, 6, 8, 16 }, { SP, N2, N4, P } },
+    { 400.0f, { 1, 6, 8, 16 }, { SP, N2, N4, P } },
+    { 300.0f, { 6, 8, 16 }, { N2, N4, P } },
+    { 200.0f, { 8, 10, 16 }, { N2, N4, P } },
+    { 100.0f, { 12, 14, 16 }, { N2, N4, P } },
+};
+
+// CT3 0x01873220: the second AXE's mode in the chain phase: pulls (BOSS_SUB_HOLD_5) until it was hit
+// BOSS_PULL_HITS_MAX times during them (BOSS_INFO_PULL_HITS), nearer near; then the AXE fix and the
+// arrow bits.
+void tiSetModeChain_AXE2(float dist, u_char *mode)
+{
+    // callcheck: ssAI_IsDownPlaying, ssAI_AXE_IsThrowing (tiBossAxeModeFix)
+    // callcheck: asGetTheArrowLevel, ssTrigCheckEvent (tiBossArrowBits)
+    int r = tnRand(16);
+
+    if (tiBossInt(BOSS_INFO_PULL_HITS) < BOSS_PULL_HITS_MAX)
+        *mode = tiBossModeBand(BOSS_BANDS(tiAxe2ChainFreshBands), dist, r, N2);
+    else
+        *mode = tiBossModeBand(BOSS_BANDS(tiAxe2ChainHitBands), dist, r, N2);
+    tiBossAxeModeFix(mode);
+    tiBossArrowBits(mode);
+}
+
+static const BOSS_MODE_BAND tiScissorsMChainBands[] = {
+    { 800.0f, { 1, 4, 7, 11, 14, 16 }, { SP, N2, H5, B7, N4, P } },
+    { 600.0f, { 1, 4, 7, 10, 13, 16 }, { SP, N2, H5, B7, N4, P } },
+    { 300.0f, { 1, 4, 6, 9, 12, 16 }, { SP, N2, H5, B7, N4, P } },
+    { 200.0f, { 1, 5, 8, 11, 12, 16 }, { SP, N2, H5, N4, B7, P } },
+    { 100.0f, { 1, 6, 9, 16 }, { SP, N2, N4, P } },
+};
+
+// CT3 0x01872c90: SCISSORS_M's mode in the chain phase (tiScissorsMChainBands; nearer plain); the
+// special only while TRIG_VAR_SCISSORS_M_03 is below SCISSORS_M_VAR_03_LIMIT.
+void tiSetModeChain_SCISSORS_M(float dist, u_char *mode)
+{
+    *mode = tiBossModeBand(BOSS_BANDS(tiScissorsMChainBands), dist, tnRand(16), P);
+    if (*mode == SP && ssTrigGetVariable(TRIG_VAR_SCISSORS_M_03, TRIG_GLOBAL, 0) >= SCISSORS_M_VAR_03_LIMIT)
+        *mode = P;
+}
+
+static const BOSS_MODE_BAND tiScissorsMNormalBands[] = {
+    { 1000.0f, { 1, 4, 9, 13, 16 }, { H3, N2, N4, B7, P } },
+    { 800.0f, { 1, 4, 10, 13, 16 }, { H3, N2, N4, B7, P } },
+    { 400.0f, { 1, 3, 10, 12, 16 }, { H3, N2, N4, B7, P } },
+    { 300.0f, { 1, 3, 9, 10, 16 }, { H3, N2, N4, B7, P } },
+    { 200.0f, { 1, 3, 8, 16 }, { H3, N2, N4, P } },
+    { 100.0f, { 2, 7, 16 }, { N2, N4, P } },
+};
+
+// CT3 0x01872f70: SCISSORS_M's mode (tiScissorsMNormalBands; nearer plain).
+void tiSetModeNormal_SCISSORS_M(float dist, u_char *mode)
+{
+    *mode = tiBossModeBand(BOSS_BANDS(tiScissorsMNormalBands), dist, tnRand(16), P);
+}
+
+#undef P
+#undef N2
+#undef H3
+#undef N4
+#undef H5
+#undef SP
+#undef B7
+
+// ---- slice 6: the damage checks ----
+
+// CT3 0x01875460: does an arrow of `level` stagger the boss at `dist`? Always once TRIG_EVENT_BOSS_ARROW_ALWAYS
+// is set; below ARROW_LEVEL_STAGGER_MIN never; else when the boss's toughness (BOSS_INFO_ARROW_GUARD) is
+// below the level's power (3: 10, 4: 20, higher 100) times the distance's rate (beyond 200 0.75, 400 0.625,
+// 600 0.5, 800 0.25; the ROM tests 1200 too, with the same rate).
+int tiCheckArrowLevel(float dist, u_char level)
+{
+    float rate, power;
+
+    if (ssTrigCheckEvent(TRIG_EVENT_BOSS_ARROW_ALWAYS, TRIG_GLOBAL, 0) != 0)
+        return 1;
+    if (1200.0f < dist)
+        rate = 0.25f;
+    else if (800.0f < dist)
+        rate = 0.25f;
+    else if (600.0f < dist)
+        rate = 0.5f;
+    else if (400.0f < dist)
+        rate = 0.625f;
+    else if (200.0f < dist)
+        rate = 0.75f;
+    else
+        rate = 1.0f;
+    if (level < ARROW_LEVEL_STAGGER_MIN)
+        return 0;
+    if (level == ARROW_LEVEL_STAGGER_MIN)
+        power = 10.0f;
+    else if (level == ARROW_LEVEL_STAGGER_MIN + 1)
+        power = 20.0f;
+    else
+        power = 100.0f;
+    return (float)pBossInfo[BOSS_INFO_ARROW_GUARD] < power * rate;
+}
+
+// CT3 0x01875210: is Alyssa (chr) caught among set A's holding chains? All BOSS_CHAINS_ALL holding: yes.
+// Else, on the ground plane, the directions from her to each holding chain's first part farther than
+// BOSS_INFO_CHAIN_SLACK (the taut ones): with two or more, yes when two of them point apart by more than a
+// limit that loosens with the holding count (dot below (held - 3) * 0.1 - 0.5), or when one has two others
+// turned away from it (dot < 0).
+int tiCheckPlayerINChains(CHARACTER *chr)
+{
+    int n = pBossInfo[BOSS_INFO_CHAIN_A_COUNT];
+    const u_char *on = (const u_char *)BossInfoGetPtr(BOSS_INFO_CHAIN_A_ON);
+    float **from = (float **)BossInfoGetPtr(BOSS_INFO_CHAIN_A_FROM);
+    float chain[BOSS_CHAINS_MAX][4], dir[BOSS_CHAINS_MAX][4];
+    float slack, limit;
+    int held = 0, taut = 0;
+    int i, j, behind;
+
+    // PORT: the ROM stores chain i's position in slot i but reads slots 0..held-1, so a holding chain
+    // after a loose one makes it read stale stack; the port reads zeroed slots there instead.
+    memset(chain, 0, sizeof(chain));
+    for (i = 0; i < n && i < BOSS_CHAINS_MAX; i++) {
+        if (on != NULL && from != NULL && on[i] == 1) {
+            chain[i][0] = from[i][0];
+            chain[i][2] = from[i][2];
+            held++;
+        }
+    }
+    if (held == BOSS_CHAINS_ALL)
+        return 1;
+    limit = (float)(held - 3) * 0.1f - 0.5f;
+    memcpy(&slack, pBossInfo + BOSS_INFO_CHAIN_SLACK, sizeof(slack));
+    for (i = 0; i < held; i++) {
+        float d[4] = { chain[i][0] - ((const float *)chr->pos)[0], 0.0f, chain[i][2] - ((const float *)chr->pos)[2], 0.0f };
+        float len = sqrtf(d[0] * d[0] + d[2] * d[2]);
+
+        // VU0's vrsqrt then vdiv: the direction is written to the next taut slot either way.
+        for (j = 0; j < 4; j++)
+            dir[taut][j] = d[j] / len;
+        if (slack < len)
+            taut++;
+    }
+    if (taut < 2)
+        return 0;
+    for (i = 0; i < taut; i++) {
+        behind = 0;
+        for (j = 0; j < taut; j++) {
+            float dot = gaInnerProductXYZ(dir[i], dir[j]);
+
+            if (dot < limit)
+                return 1;
+            if (dot < 0.0f)
+                behind++;
+        }
+        if (1 < behind)
+            return 1;
+    }
+    return 0;
+}
+
 // CT3 0x019385e0 / 0x01938600 / 0x01938620 (.data), by BOSS_INFO_NORMAL_KIND / _CHAIN_KIND / _SP_KIND.
 void (*const tiSetNormalMode[BOSS_MODE_KIND_COUNT])(float dist, u_char *mode) = {
     tiSetModeNormal_HAMM, tiSetModeNormal_VITRIOL, tiSetModeNormal_AXE1,
@@ -3132,6 +3448,704 @@ void tiBrain_Approach_BOSS1(CHARACTER *chr)
     ssAI_CompCharaDir(chr, dir, tiBossTurnSpeed(brain), avoid);
 }
 
+// ---- slice 6: the damage (tiBrain_Damage_BOSS1) ----
+
+// CT3 0x01938658 (.data, the symtab's tiDefenseMode), by BOSS_INFO_DEFENSE_KIND.
+int (*const tiDefenseMode[3])(struct CHARACTER *chr, const u_char *hit, u_char *react) = {
+    tiDefenseMode_AXE, tiDefenseMode_SCISSORS_MAN, tiDefenseMode_BALOWS,
+};
+
+static void tiBossAddInt(int off, int v)
+{
+    tiBossSetInt(off, tiBossInt(off) + v);
+}
+
+// The boss's clatter (BRAIN_BALOWS_CLATTER) is dropped: freed while it runs, BOSS_STATE_BALOWS_GRAB cleared.
+static void tiBossDropClatter(u_char *brain)
+{
+    int slot = tiBrainInt(brain, BRAIN_BALOWS_CLATTER);
+
+    if (slot == -1)
+        return;
+    if (ControllerClatteringGet(slot) == CLATTERING_RUNNING)
+        ControllerClatteringFree(slot);
+    tiBossClearBits(BOSS_STATE_BALOWS_GRAB);
+    tiBrainSetInt(brain, BRAIN_BALOWS_CLATTER, -1);
+}
+
+// Back to a fresh approach (BRAIN_ATK_PICK, the submode and its ticks cleared).
+static void tiBossDamageToApproach(u_char *brain)
+{
+    brain[BRAIN_ATK_PICK] = BOSS_ATK_PICK_FIRST;
+    brain[BRAIN_SUBMODE] = BOSS_SUB_NONE;
+    tiBrainSetInt(brain, BRAIN_BOSS_SUB1_TICKS, 0);
+    brain[BRAIN_MODE] = SS_AI_APPROACH;
+}
+
+// chr turns to face along v (the ROM's tiGetDegFromVec - 90, wrapped).
+static void tiBossFaceAlong(CHARACTER *chr, float *v)
+{
+    int deg = (int)tiGetDegFromVec(v, AXIS_Y) - 90;
+
+    if (deg < 0)
+        deg += 360;
+    chr->rot = deg * ANGLE_UNITS_PER_DEGREE;
+}
+
+// A chain of a set takes hold: its first part goes BOSS_CHAIN_SHOT_DIST from the set's source along dir,
+// or where that line meets the boss's light bank's collision first (CheckLOS).
+static void tiBossChainShot(CHARACTER *chr, const float *src, const float *dir, float *part)
+{
+    LOS_HIT los;
+    int k;
+
+    memset(&los, 0, sizeof(los));
+    for (k = 0; k < 4; k++)
+        los.seg.from[k] = src[k];
+    for (k = 0; k < 3; k++)
+        los.seg.to[k] = dir[k] * BOSS_CHAIN_SHOT_DIST + src[k];
+    los.seg.to[3] = src[3];
+    if (CheckLOS(chr->lightBank, &los) == 0)
+        memcpy(part, los.seg.to, sizeof(los.seg.to));
+    else
+        memcpy(part, los.point, sizeof(los.point));
+}
+
+// The first loose chain of a set (count `n`, holding flags `on`): its index, n when none.
+static int tiBossFreeChain(const u_char *on, int n)
+{
+    int i;
+
+    for (i = 0; i < n && on[i] != 0; i++)
+        ;
+    return i;
+}
+
+// Is any chain of the set holding?
+static int tiBossAnyChainOn(const u_char *on, int n)
+{
+    int i;
+
+    for (i = 0; i < n; i++)
+        if (on[i] == 1)
+            return 1;
+    return 0;
+}
+
+// The set A / set B times: each counts while one of its chains holds (unless its break counts) and lets
+// the set go when it runs out -- set A at its BOSS_INFO_THRESHOLDS slot (BOSS_INFO_SHOWN_PICK, which moves
+// up), a caught boss (BRAIN_BOSS_M_24A) then searching; set B after BOSS_CHAIN_B_TIME_MAX.
+static void tiBossChainTimes(CHARACTER *chr, u_char *brain, short motion)
+{
+    // callcheck: tiSetChainFlag (tiBossChainsRelease)
+    int nA = pBossInfo[BOSS_INFO_CHAIN_A_COUNT];
+    int nB = pBossInfo[BOSS_INFO_CHAIN_B_COUNT];
+    const u_char *onA = (const u_char *)BossInfoGetPtr(BOSS_INFO_CHAIN_A_ON);
+    const u_char *onB = (const u_char *)BossInfoGetPtr(BOSS_INFO_CHAIN_B_ON);
+
+    if (nA != 0 && onA != NULL && ssTrigGetVariable(TRIG_VAR_CHAIN_A_BREAK, TRIG_GLOBAL, 0) != CHAIN_A_BREAK_COUNTING) {
+        int pick, max;
+
+        if (tiBossAnyChainOn(onA, nA))
+            tiBossAddInt(BOSS_INFO_CHAIN_A_TIME, gNextTicksInterval);
+        pick = tiBossInt(BOSS_INFO_SHOWN_PICK);
+        if (tiBossInt(BOSS_INFO_THRESHOLDS + pick * 4) < tiBossInt(BOSS_INFO_CHAIN_A_TIME)) {
+            pBossInfo[BOSS_INFO_CHAIN_A_ACTIVE] = 0;
+            tiBossSetInt(BOSS_INFO_CHAIN_A_TIME, 0);
+            tiBossSetInt(BOSS_INFO_PULL_HITS, 0);
+            max = pBossInfo[BOSS_INFO_CHARA] == BOSS_CHARA_BALOWS ? BOSS_SHOWN_PICK_MAX_BALOWS : BOSS_SHOWN_PICK_MAX;
+            if (pick < max)
+                tiBossSetInt(BOSS_INFO_SHOWN_PICK, pick + 1);
+            tiBossChainsRelease(BOSS_INFO_CHAIN_A_COUNT, BOSS_INFO_CHAIN_A_ON, 0);
+            if (motion == tiBossBrainShort(brain, BRAIN_BOSS_M_24A)) {
+                asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, tiBossBrainShort(brain, BRAIN_FIND_MOTION));
+                asChangeMortionInfo_NextMortion(chr->id, tiBossBrainShort(brain, BRAIN_FIND_MOTION),
+                                                tiBossBrainShort(brain, BRAIN_SEARCH_MOTION), -1);
+                ssTrigSetVariable(TRIG_VAR_CHAIN_A_BREAK, CHAIN_A_BREAK_NONE, TRIG_GLOBAL, 0);
+                tiBossDamageToApproach(brain);
+            }
+            SSStopSE(BALOWS_CHAIN_SE_BANK, BALOWS_CHAIN_SE_HOLD, 1);
+            SSStopSE(BALOWS_SE_ALYSSA_BANK, BALOWS_SE_ALYSSA_PULLED, 1);
+        }
+    }
+    if (nB != 0 && onB != NULL && ssTrigGetVariable(TRIG_VAR_CHAIN_B_BREAK, TRIG_GLOBAL, 0) != 1) {
+        if (tiBossAnyChainOn(onB, nB))
+            tiBossAddInt(BOSS_INFO_CHAIN_B_TIME, gNextTicksInterval);
+        if (BOSS_CHAIN_B_TIME_MAX < tiBossInt(BOSS_INFO_CHAIN_B_TIME)) {
+            pBossInfo[BOSS_INFO_CHAIN_B_ACTIVE] = 0;
+            tiBossSetInt(BOSS_INFO_CHAIN_B_TIME, 0);
+            tiBossChainsRelease(BOSS_INFO_CHAIN_B_COUNT, BOSS_INFO_CHAIN_B_ON, 1);
+            ssTrigRemoveEvent(TRIG_EVENT_BALOWS_SPECIAL, TRIG_GLOBAL, 0);
+            SSStopSE(BALOWS_SE_BANK, BALOWS_SE_CHAIN_LOOP, 1);
+            SSStopSE(BALOWS_SE_ALYSSA_BANK, BALOWS_SE_ALYSSA_PULLED, 2);
+        }
+    }
+}
+
+// What the boss's blow (TRIG_VAR_HIT_ATTACK, its attack) deals Alyssa, standing and not spared: BALOWS's
+// first attacks (below BALOWS_CHAIN_HIT_MAX) chain her (set B, once per BOSS_STATE_BALOWS_100000), the
+// others by attack and boss; HAMM and SCISSORS_W deal nothing here.
+static void tiBossBlowDealt(CHARACTER *chr, const float *toPlayer)
+{
+    int attack = ssTrigGetVariable(TRIG_VAR_HIT_ATTACK, TRIG_GLOBAL, 0);
+    int damage = 0;
+
+    if (attack < 0 || ssTrigCheckEvent(TRIG_EVENT_MUTEKI, TRIG_GLOBAL, 0) != 0)
+        return;
+    switch (pBossInfo[BOSS_INFO_CHARA]) {
+    case BOSS_CHARA_BALOWS:
+        if (attack < BALOWS_CHAIN_HIT_MAX) {
+            int nB = pBossInfo[BOSS_INFO_CHAIN_B_COUNT];
+            u_char *onB = (u_char *)BossInfoGetPtr(BOSS_INFO_CHAIN_B_ON);
+            float **fromB = (float **)BossInfoGetPtr(BOSS_INFO_CHAIN_B_FROM);
+            const float *src = (const float *)BossInfoGetPtr(BOSS_INFO_CHAIN_B_SRC);
+
+            if ((tiBossState() & BOSS_STATE_BALOWS_100000) == 0 && pBossInfo[BOSS_INFO_CHAIN_B_ACTIVE] < nB &&
+                onB != NULL && fromB != NULL && src != NULL) {
+                int i;
+
+                ssTrigSetVariable(TRIG_VAR_BALOWS_08, attack, TRIG_GLOBAL, 0);
+                i = tiBossFreeChain(onB, nB);
+                damage = BALOWS_CHAIN_HIT_DAMAGE;
+                onB[i] = 1;    /* the ROM's: a free one exists, ACTIVE < count */
+                pBossInfo[BOSS_INFO_CHAIN_B_ACTIVE]++;
+                tiBossChainShot(chr, src, toPlayer, fromB[i]);
+                tiSetChainFlag(i, 1, 1);
+                if (pBossInfo[BOSS_INFO_CHAIN_B_ACTIVE] == 1)
+                    SSPlaySE(BALOWS_SE_BANK, BALOWS_SE_CHAIN_LOOP, 1);
+                if (pBossInfo[BOSS_INFO_CHAIN_B_ACTIVE] == 3)
+                    SSPlaySE(BALOWS_SE_ALYSSA_BANK, BALOWS_SE_ALYSSA_PULLED, 2);
+                tiBossSetInt(BOSS_INFO_CHAIN_B_TIME, 0);
+            }
+            tiBossSetBits(BOSS_STATE_BALOWS_100000);
+        }
+        tiCalcPlayerHitPoint(damage, chr);
+        break;
+    case BOSS_CHARA_SCISSORS:
+        if (attack < SCISSORS_HIT_HEAVY_BELOW)
+            damage = BOSS_HIT_DAMAGE_HEAVY;
+        else if (attack < SCISSORS_HIT_LIGHT_BELOW)
+            damage = BOSS_HIT_DAMAGE_LIGHT;
+        tiCalcPlayerHitPoint(damage, chr);
+        break;
+    case BOSS_CHARA_AXE:
+        if (attack == 2)
+            damage = BOSS_HIT_DAMAGE_HEAVY;
+        else if (attack == 1 || attack == 0)
+            damage = (tiBossState() & BOSS_STATE_BIT_04) != 0 ? BOSS_HIT_DAMAGE_HEAVY : BOSS_HIT_DAMAGE_LIGHT;
+        tiCalcPlayerHitPoint(damage, chr);
+        break;
+    case BOSS_CHARA_VITRIOL:
+        pBossInfo[BOSS_INFO_COUNT_8D] = 0;
+        if (ssTrigGetVariable(TRIG_VAR_HIT_ATTACK, TRIG_GLOBAL, 0) >= 0) {
+            ssTrigSetVariable(TRIG_VAR_BALOWS_08, 1, TRIG_GLOBAL, 0);
+            tiCalcPlayerHitPoint(BOSS_HIT_DAMAGE_HEAVY, chr);
+        }
+        break;
+    default:
+        break;
+    }
+}
+
+// SCISSORS_M's special end time by distance (BOSS_INFO_SCISSORS_END_AT).
+static int tiScissorsEndAt(float dist)
+{
+    if (dist < 400.0f)              /* the ROM tests 200 and 300 too, with the same answer */
+        return 150;
+    if (dist < 500.0f)
+        return 165;
+    if (dist < 600.0f)
+        return 180;
+    if (dist < 800.0f)
+        return 210;
+    if (dist < 1000.0f)
+        return 240;
+    return 270;
+}
+
+// The per-frame timers: the shared counters, BOSS_STATE_BALOWS_RECOVERED, _ATTACKING and _GRABBED running
+// out, BALOWS's special time, SCISSORS_M's special at step 2 (TRIG_VAR_BALOWS_52 by its time; its end).
+static void tiBossDamageTimers(CHARACTER *chr, u_char *brain, short motion, int boss, float dist)
+{
+    int t = gNextTicksInterval;
+
+    tiBossAddInt(BOSS_INFO_SPECIAL_COUNT, t);
+    tiBrainSetInt(brain, BRAIN_BOSS_SUB1_TICKS, tiBrainInt(brain, BRAIN_BOSS_SUB1_TICKS) + t);
+    tiBossAddInt(BOSS_INFO_SHOWN_TICKS, t);
+    tiBossAddInt(BOSS_INFO_HAMM_28, t);
+    if ((tiBossState() & BOSS_STATE_BALOWS_RECOVERED) != 0) {
+        int runs = !(boss == BOSS_CHARA_SCISSORS && motion == SCISSORS_M_MOTION_3E);
+
+        if (brain[BRAIN_SUBMODE] < BOSS_SUB_HOLD_3 && motion != tiBossBrainShort(brain, BRAIN_BOSS_SUB3_MOTION_A) &&
+            motion != tiBossBrainShort(brain, BRAIN_BOSS_SUB3_MOTION_B) &&
+            motion != tiBossBrainShort(brain, BRAIN_BOSS_STEP_LEFT) &&
+            motion != tiBossBrainShort(brain, BRAIN_BOSS_STEP_RIGHT) &&
+            motion != tiBossBrainShort(brain, BRAIN_BOSS_SUB5_MOTION) && runs) {
+            tiBossAddInt(BOSS_INFO_SP_COOL, t);
+            if (tiBossInt(BOSS_INFO_RECOVER_MAX) < tiBossInt(BOSS_INFO_SP_COOL))
+                tiBossClearBits(BOSS_STATE_BALOWS_RECOVERED);
+        }
+    }
+    if (brain[BRAIN_MODE] != SS_AI_ATTACK && (tiBossState() & BOSS_STATE_BALOWS_ATTACKING) != 0) {
+        tiBrainSetInt(brain, BRAIN_BALOWS_ATK_TICKS, tiBrainInt(brain, BRAIN_BALOWS_ATK_TICKS) + t);
+        if (tiBrainInt(brain, BRAIN_BALOWS_ATK_MAX) < tiBrainInt(brain, BRAIN_BALOWS_ATK_TICKS))
+            tiBossClearBits(BOSS_STATE_BALOWS_ATTACKING);
+    }
+    if (boss == BOSS_CHARA_BALOWS || boss == BOSS_CHARA_HAMM) {
+        if (brain[BRAIN_MODE] != SS_AI_ATTACK && (tiBossState() & BOSS_STATE_BALOWS_GRABBED) != 0) {
+            tiBrainSetInt(brain, BRAIN_BOSS_GRABBED_TICKS, tiBrainInt(brain, BRAIN_BOSS_GRABBED_TICKS) + t);
+            if (tiBrainInt(brain, BRAIN_BOSS_GRABBED_MAX) < tiBrainInt(brain, BRAIN_BOSS_GRABBED_TICKS)) {
+                tiBrainSetInt(brain, BRAIN_BOSS_GRABBED_TICKS, 0);
+                tiBossClearBits(BOSS_STATE_BALOWS_GRABBED);
+            }
+        }
+        if (boss == BOSS_CHARA_BALOWS && (tiBossState() & BOSS_STATE_BALOWS_2_READY) != 0 &&
+            (tiBossState() & BOSS_STATE_BALOWS_GRAB) == 0)
+            tiBossAddInt(BOSS_INFO_SPECIAL_TIME, -t);
+    } else if (boss == BOSS_CHARA_SCISSORS && brain[BRAIN_MODE] == SS_AI_TRACE && brain[BRAIN_ATK_PICK] == 2) {
+        int stage;
+
+        tiBossAddInt(BOSS_INFO_SPECIAL_TIME, t);
+        stage = tiBossInt(BOSS_INFO_SPECIAL_TIME) < 600 ? 0 : tiBossInt(BOSS_INFO_SPECIAL_TIME) < 1200 ? 1 : 2;
+        ssTrigSetVariable(TRIG_VAR_BALOWS_52, stage, TRIG_GLOBAL, 0);
+        if (ssTrigGetVariable(TRIG_VAR_SCISSORS_M_03, TRIG_GLOBAL, 0) < SCISSORS_M_VAR_03_LIMIT) {
+            tiBossSetInt(BOSS_INFO_SCISSORS_END_TICKS, 0);
+        } else {
+            if ((tiBossState() & BOSS_STATE_SCISSORS_M_400000) == 0) {
+                tiBossSetInt(BOSS_INFO_SCISSORS_END_AT, tiScissorsEndAt(dist));
+                tiBossSetBits(BOSS_STATE_SCISSORS_M_400000);
+            }
+            tiBossAddInt(BOSS_INFO_SCISSORS_END_TICKS, t);
+            if (tiBossInt(BOSS_INFO_SCISSORS_END_AT) < tiBossInt(BOSS_INFO_SCISSORS_END_TICKS)) {
+                tiBossSetBits(BOSS_STATE_SCISSORS_M_END);
+                tiBossClearBits(BOSS_STATE_SCISSORS_M_400000);
+                tiBossSetInt(BOSS_INFO_SCISSORS_END_TICKS, 0);
+            }
+        }
+    }
+}
+
+// The boss voices a damage takes: per boss, for a death and for a stagger or a shrug / chains cut (0: none).
+// layout: host (the port's voice table; the ROM branches per boss)
+typedef struct BOSS_DAMAGE_VOICE {
+    u_char chara;
+    const char *bank;
+    u_char dead, stagger, shrug;
+} BOSS_DAMAGE_VOICE;
+
+static const BOSS_DAMAGE_VOICE tiBossDamageVoices[] = {
+    { BOSS_CHARA_BALOWS, BALOWS_VOICE_BANK, 0x12, 0x0c, 0x0c },
+    { BOSS_CHARA_SCISSORS, SCISSORS_M_VOICE_BANK, 0x0e, 0x0e, 0x0e },
+    { BOSS_CHARA_SCISSORS_W, SCISSORS_W_VOICE_BANK, 0x10, 0x10, 0 },
+    { BOSS_CHARA_AXE, AXE_VOICE_BANK, 0x11, 0, 0x10 },
+    { BOSS_CHARA_VITRIOL, VITRIOL_VOICE_BANK, 0x0f, 0x0c, 0x0d },
+    { BOSS_CHARA_HAMM, BOSS_HAMM_SE_BANK, 0x0a, 0x0f, 0x10 },
+};
+
+static const BOSS_DAMAGE_VOICE *tiBossVoiceOf(int boss)
+{
+    int i;
+
+    for (i = 0; i < (int)(sizeof(tiBossDamageVoices) / sizeof(tiBossDamageVoices[0])); i++)
+        if (tiBossDamageVoices[i].chara == boss)
+            return &tiBossDamageVoices[i];
+    return NULL;
+}
+
+// No hit this frame: while the damage motion plays BALOWS's late roar counts (1); Alyssa down: 0; a
+// holding set A chain pulled farther than BOSS_CHAIN_PULL_FAR turns the boss (BRAIN_BOSS_M_248) back to an
+// approach (1) -- not when set A is down, in the pull motions or a special.
+static int tiBossNoHit(CHARACTER *chr, u_char *brain, short motion, int boss)
+{
+    int nA = pBossInfo[BOSS_INFO_CHAIN_A_COUNT];
+    const u_char *onA = (const u_char *)BossInfoGetPtr(BOSS_INFO_CHAIN_A_ON);
+    float **fromA = (float **)BossInfoGetPtr(BOSS_INFO_CHAIN_A_FROM);
+    int i, k;
+
+    if (ssAI_IsDamagePlaying(chr) != 0) {
+        tiBossSetInt(BOSS_INFO_APPROACH_84, 0);
+        if (boss == BOSS_CHARA_BALOWS && (tiBossState() & BOSS_STATE_BALOWS_ROAR_DUE) != 0) {
+            tiBossAddInt(BOSS_INFO_ROAR_TICKS, gNextTicksInterval);
+            if (tiBossInt(BOSS_INFO_ROAR_AT) < tiBossInt(BOSS_INFO_ROAR_TICKS)) {
+                SSPlaySE(BALOWS_SE_BANK, BALOWS_SE_ROAR_LATE, BOSS_VOICE_ARG);
+                tiBossClearBits(BOSS_STATE_BALOWS_ROAR_DUE);
+            }
+        }
+        return 1;
+    }
+    if (Character[Player_BankID].hp < 1)
+        return 0;
+    // (The ROM normalises pos - posBefore here into a vector nothing reads.)
+    if (pBossInfo[BOSS_INFO_CHAIN_A_ACTIVE] == 0 || motion == tiBossBrainShort(brain, BRAIN_BOSS_SUB5_MOTION) ||
+        motion == tiBossBrainShort(brain, BRAIN_FIND_MOTION) || motion == tiBossBrainShort(brain, BRAIN_BOSS_M_248) ||
+        motion == tiBossBrainShort(brain, BRAIN_BOSS_M_24A) || (tiBossState() & BOSS_STATE_SPECIAL_ON) != 0)
+        return ssAI_IsDamagePlaying(chr) != 0;
+    for (i = 0; i < nA && onA != NULL && fromA != NULL; i++) {
+        float d[4], len;
+
+        if (onA[i] != 1)
+            continue;
+        for (k = 0; k < 4; k++)
+            d[k] = ((const float *)chr->pos)[k] - fromA[i][k];
+        len = sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+        if (len <= BOSS_CHAIN_PULL_FAR)
+            continue;
+        for (k = 0; k < 4; k++)
+            d[k] /= len;
+        tiBossFaceAlong(chr, d);
+        asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, tiBossBrainShort(brain, BRAIN_BOSS_M_248));
+        asChangeMortionInfo_NextMortion(chr->id, tiBossBrainShort(brain, BRAIN_BOSS_M_248),
+                                        tiBossBrainShort(brain, BRAIN_SEARCH_MOTION), -1);
+        tiBossDropClatter(brain);
+        tiBossClearBits(BOSS_STATE_AXE_SPECIAL);
+        tiBossSetInt(BOSS_INFO_HITS_70, 0);
+        tiBossSetInt(BOSS_INFO_AXE_88, 0);
+        tiBossSetInt(BOSS_INFO_SPECIAL_COUNT, 0);
+        tiBossClearBits(BOSS_STATE_BALOWS_CHAIN);
+        tiBossDamageToApproach(brain);
+        tiBossSetInt(BOSS_INFO_APPROACH_84, 0);
+        return 1;
+    }
+    return 0;
+}
+
+// The damage motion after a stagger: from the front (dot < 0) or behind; with set A's third chain just
+// shot (and not an ARROW kind 1) around Alyssa caught among them (tiCheckPlayerINChains), the caught
+// motion follows and set A's break starts (CHAIN_A_BREAK_CAUGHT, C_0000's pull SE).
+static void tiBossStaggerMotion(CHARACTER *chr, u_char *brain, int off, int chained, const ARROW *arrow)
+{
+    short m = tiBossBrainShort(brain, off);
+
+    asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, m);
+    if (pBossInfo[BOSS_INFO_CHAIN_A_ACTIVE] < 3 || !chained || arrow->kind == 1 || tiCheckPlayerINChains(chr) == 0) {
+        asChangeMortionInfo_NextMortion(chr->id, m, tiBossBrainShort(brain, BRAIN_SEARCH_MOTION), -1);
+    } else {
+        asChangeMortionInfo_NextMortion(chr->id, m, tiBossBrainShort(brain, BRAIN_BOSS_M_24A), -1);
+        ssTrigSetVariable(TRIG_VAR_CHAIN_A_BREAK, CHAIN_A_BREAK_CAUGHT, TRIG_GLOBAL, 0);
+        SSPlaySE(BALOWS_SE_ALYSSA_BANK, BALOWS_SE_ALYSSA_PULLED, 1);
+    }
+}
+
+// Clears the pull's due bit (counting BOSS_INFO_PULL_HITS) and the submode as a damage ends.
+static void tiBossDamageEnd(u_char *brain)
+{
+    tiBossDropClatter(brain);
+    if ((tiBossState() & BOSS_STATE_PULL_DUE) != 0) {
+        tiBossClearBits(BOSS_STATE_PULL_DUE);
+        tiBossAddInt(BOSS_INFO_PULL_HITS, 1);
+    }
+    brain[BRAIN_ATK_PICK] = BOSS_ATK_PICK_FIRST;
+    brain[BRAIN_SUBMODE] = BOSS_SUB_NONE;
+    tiBrainSetInt(brain, BRAIN_BOSS_SUB1_TICKS, 0);
+    tiBossClearBits(BOSS_STATE_SPECIAL_ON);
+}
+
+// CT3 0x0186ec40: the boss's damage step (the header says what). The order is the ROM's: chain times,
+// blows dealt, the struck event, BALOWS's TRIG_VAR_BALOWS_52 steps (the AXE's arrow guard), timers, then
+// the hits (none: tiBossNoHit), the damage, and the mode after it.
+int tiBrain_Damage_BOSS1(struct CHARACTER *chr)
+{
+    // callcheck: asCharacterMortionChangeRequest, asChangeMortionInfo_NextMortion, ssTrigSetVariable, SSStopSE, ssTrigRemoveEvent, tiSetChainFlag (tiBossChainTimes)
+    // callcheck: CheckLOS, SSPlaySE, ssTrigCheckEvent, tiCalcPlayerHitPoint (tiBossBlowDealt, tiBossChainShot)
+    // callcheck: ControllerClatteringGet, ControllerClatteringFree (tiBossDropClatter)
+    // callcheck: tiGetDegFromVec (tiBossFaceAlong)
+    // callcheck: ssAI_IsDamagePlaying (tiBossNoHit)
+    // callcheck: tiCheckPlayerINChains (tiBossStaggerMotion)
+    u_char *brain = CharaBrainPtr(chr);
+    CHARACTER *player = &Character[Player_BankID];
+    short motion = tiBossMotion(chr);
+    int boss = pBossInfo[BOSS_INFO_CHARA];
+    int nA = pBossInfo[BOSS_INFO_CHAIN_A_COUNT];
+    u_char *onA = (u_char *)BossInfoGetPtr(BOSS_INFO_CHAIN_A_ON);
+    float **fromA = (float **)BossInfoGetPtr(BOSS_INFO_CHAIN_A_FROM);
+    float playerDir[4], bossDir[4], toPlayer[4], back[4];
+    float dist;
+    const HIT_TABLE *hits = NULL;
+    const ALL_TABLE *tbl;
+    ARROW *arrow = NULL;
+    u_int damage = 0;
+    int extra = 0, count, breakVar, landed, k;
+    int chained = 0, reset = 0, unstaggered = 0;
+    u_char react = BOSS_REACT_NONE;
+
+    tiGetCharaDirection(playerDir, player);
+    tiGetCharaDirection(bossDir, chr);
+    for (k = 0; k < 4; k++)
+        toPlayer[k] = ((const float *)player->pos)[k] - ((const float *)chr->pos)[k];
+    dist = sqrtf(toPlayer[0] * toPlayer[0] + toPlayer[1] * toPlayer[1] + toPlayer[2] * toPlayer[2]);
+    for (k = 0; k < 4; k++)
+        toPlayer[k] /= dist;        /* the VU0's 1 / |v|: Alyssa on the boss divides by 0 there too */
+    memset(back, 0, sizeof(back));
+
+    tiBossChainTimes(chr, brain, motion);
+    if (motion == tiBossBrainShort(brain, BRAIN_BOSS_SUB5_MOTION) && pBossInfo[BOSS_INFO_CHAIN_A_ACTIVE] == 0)
+        asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, tiBossBrainShort(brain, BRAIN_SEARCH_MOTION));
+    memcpy(&landed, (const u_char *)chr + CHARA_LANDED_BLOW, sizeof(landed));
+    if (landed != 0 && tiBossInt(BOSS_INFO_APPROACH_84) != 0) {
+        tiCalcPlayerHitPoint(tiBossInt(BOSS_INFO_APPROACH_84), chr);
+        tiBossSetInt(BOSS_INFO_APPROACH_84, 0);
+    }
+    if (ssAI_IsDownPlaying(player) == 0)
+        tiBossBlowDealt(chr, toPlayer);
+    ssTrigSetVariable(TRIG_VAR_HIT_ATTACK, -1, TRIG_GLOBAL, 0);
+    if (ssTrigCheckEvent(TRIG_EVENT_BOSS_STRUCK, TRIG_GLOBAL, 0) != 0) {
+        ssTrigRemoveEvent(TRIG_EVENT_BOSS_STRUCK, TRIG_GLOBAL, 0);
+        tiCalcPlayerHitPoint(tiBossBrainShort(brain, BRAIN_BOSS_STRIKE_DAMAGE), chr);
+        if (boss == BOSS_CHARA_SCISSORS_W)
+            tiBossSetBits(BOSS_STATE_SCISSORS_W_SPECIAL_DONE);
+    }
+    if (boss == BOSS_CHARA_BALOWS) {
+        int v = ssTrigGetVariable(TRIG_VAR_BALOWS_52, TRIG_GLOBAL, 0);
+
+        if (v == 3 || v == 0x0d) {
+            // A strike on Alyssa standing and not spared steps the variable by 1, else by 2.
+            if (ssTrigCheckEvent(TRIG_EVENT_BOSS_STRIKE, TRIG_GLOBAL, 0) == 0 || ssAI_IsDownPlaying(player) != 0 ||
+                ssTrigCheckEvent(TRIG_EVENT_MUTEKI, TRIG_GLOBAL, 0) != 0 ||
+                ssTrigCheckEvent(TRIG_EVENT_BOSS_ALYS_DEAD, TRIG_GLOBAL, 0) != 0)
+                ssTrigSetVariable(TRIG_VAR_BALOWS_52, v + 2, TRIG_GLOBAL, 0);
+            else
+                ssTrigSetVariable(TRIG_VAR_BALOWS_52, v + 1, TRIG_GLOBAL, 0);
+        } else if (v == BALOWS_VAR_52_FACING_A || v == BALOWS_VAR_52_FACING_B) {
+            if ((tiBossState() & BOSS_STATE_BALOWS_52_ODD) == 0) {
+                tiBossSetBits(BOSS_STATE_BALOWS_52_ODD);
+            } else {
+                tiCalcPlayerHitPoint(1, chr);
+                tiBossClearBits(BOSS_STATE_BALOWS_52_ODD);
+            }
+        }
+        if (pBossInfo[BOSS_INFO_CHAIN_A_ACTIVE] == 0)
+            tiBossClearBits(BOSS_STATE_HOLD_1000);
+    } else if (boss == BOSS_CHARA_AXE && (tiBossState() & BOSS_STATE_BIT_04) != 0) {
+        if (motion == AXE_MOTION_GUARD_51 || motion == AXE_MOTION_GUARD_52)
+            pBossInfo[BOSS_INFO_ARROW_GUARD] = AXE_ARROW_GUARD_MOTION;
+        else if (pBossInfo[BOSS_INFO_CHAIN_A_ACTIVE] == 0)
+            pBossInfo[BOSS_INFO_ARROW_GUARD] = AXE_ARROW_GUARD_FREE;
+        else
+            pBossInfo[BOSS_INFO_ARROW_GUARD] = AXE_ARROW_GUARD_CHAINED;
+    }
+
+    // PORT: the ROM reads All_table_TBL[bank] whatever it holds; no table reads as no hits.
+    tbl = All_table_TBL[chr->bank];
+    if (tbl != NULL)
+        hits = BANK_PTR(const HIT_TABLE *, chr->bank, tbl->hits);
+    tiBossDamageTimers(chr, brain, motion, boss, dist);
+    breakVar = ssTrigGetVariable(TRIG_VAR_CHAIN_A_BREAK, TRIG_GLOBAL, 0);
+    if (breakVar != CHAIN_A_BREAK_LANDS) {
+        count = hits != NULL ? hits->count : 0;
+    } else {
+        count = 1;
+        ssTrigSetVariable(TRIG_VAR_CHAIN_A_BREAK, CHAIN_A_BREAK_NONE, TRIG_GLOBAL, 0);
+    }
+    if (count == 0)
+        return tiBossNoHit(chr, brain, motion, boss);
+    if (ssTrigGetVariable(TRIG_VAR_CHAIN_A_BREAK, TRIG_GLOBAL, 0) >= 0)
+        return 1;
+
+    if (breakVar != CHAIN_A_BREAK_LANDS) {
+        const HIT_REC *recs = BANK_PTR(const HIT_REC *, chr->bank, hits->recs);
+        int i;
+
+        for (i = 0; i < count && recs != NULL; i++) {
+            arrow = asAttackedArrowInformation((int)recs[i].attacker);
+            if (arrow != NULL)
+                break;
+        }
+        if (arrow == NULL) {
+            if (motion != tiBossBrainShort(brain, BRAIN_BOSS_M_24A) && motion != tiBossBrainShort(brain, BRAIN_LOOK_MOTION) &&
+                motion != tiBossBrainShort(brain, BRAIN_LOOK_MOTION_ALT)) {
+                extra += tiBossInt(BOSS_INFO_SHRUG_DAMAGE);
+                asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, tiBossBrainShort(brain, BRAIN_LOOK_MOTION));
+                asChangeMortionInfo_NextMortion(chr->id, tiBossBrainShort(brain, BRAIN_LOOK_MOTION),
+                                                tiBossBrainShort(brain, BRAIN_SEARCH_MOTION), -1);
+                react = BOSS_REACT_SHRUG;
+                reset = 1;
+            }
+        } else {
+            u_char level = arrow->level;
+            u_char guarded;
+            float push[4], scale;
+
+            damage = arrow->shootArg2;
+            tiBossAddInt(BOSS_INFO_HITS_70, 1);
+            if ((tiBossState() & BOSS_STATE_BIT_04) != 0 &&
+                tiDefenseMode[tiBossInt(BOSS_INFO_DEFENSE_KIND)](chr, (const u_char *)arrow, &guarded) != 0)
+                return guarded;
+            if (pBossInfo[BOSS_INFO_ARROW_COUNT_LEVEL] <= level)
+                tiBossAddInt(BOSS_INFO_HITS_74, 1);
+            if (pBossInfo[BOSS_INFO_CHAIN_A_ACTIVE] < nA && tiCheckArrowLevel(dist, level) && onA != NULL && fromA != NULL) {
+                const float *src = (const float *)BossInfoGetPtr(BOSS_INFO_CHAIN_A_SRC);
+                int c = tiBossFreeChain(onA, nA);
+
+                chained = 1;
+                pBossInfo[BOSS_INFO_CHAIN_A_ACTIVE]++;
+                onA[c] = 1;
+                if (src != NULL)
+                    tiBossChainShot(chr, src, arrow->dir, fromA[c]);
+                tiSetChainFlag(c, 1, 0);
+                tiBossSetInt(BOSS_INFO_CHAIN_A_TIME, 0);
+                if (pBossInfo[BOSS_INFO_CHAIN_A_ACTIVE] == 1)
+                    SSPlaySE(BALOWS_CHAIN_SE_BANK, BALOWS_CHAIN_SE_HOLD, 1);
+                reset = 1;
+            }
+            if (boss == BOSS_CHARA_AXE && 0.0f < gaInnerProductXYZ(bossDir, arrow->dir)) {
+                damage *= 3;
+                tiBossSetBits(BOSS_STATE_AXE_BACKSTAB);
+            }
+            if (pBossInfo[BOSS_INFO_ARROW_STAGGER_LEVEL] <= level || chained ||
+                (tiBossState() & BOSS_STATE_AXE_BACKSTAB) != 0 || arrow->kind == 1) {
+                tiBossClearBits(BOSS_STATE_AXE_BACKSTAB);
+                if (gaInnerProductXYZ(bossDir, arrow->dir) < 0.0f) {
+                    for (k = 0; k < 4; k++)
+                        back[k] = arrow->dir[k] * -1.0f;
+                    tiBossStaggerMotion(chr, brain, BRAIN_DAMAGE_MOTION, chained, arrow);
+                } else {
+                    gaCopyVectorXYZ(back, arrow->dir);
+                    tiBossStaggerMotion(chr, brain, BRAIN_DAMAGE_MOTION_BACK, chained, arrow);
+                }
+                react = BOSS_REACT_STAGGER;
+                if ((boss == BOSS_CHARA_HAMM || boss == BOSS_CHARA_BALOWS) && brain[BRAIN_MODE] == SS_AI_TRACE)
+                    reset = 1;
+                tiBossFaceAlong(chr, back);
+            } else {
+                unstaggered = 1;
+            }
+            // The arrow pushes the boss along it on the ground plane.
+            push[0] = arrow->dir[0];
+            push[1] = 0.0f;
+            push[2] = arrow->dir[2];
+            if (arrow->kind == 1)
+                scale = BOSS_ARROW_PUSH_KIND1;
+            else
+                memcpy(&scale, pBossInfo + BOSS_INFO_HIT_BACKS + level * 4, sizeof(scale));
+            for (k = 0; k < 3; k++)
+                ((float *)chr->pos)[k] += push[k] * scale;
+        }
+    } else {
+        damage = (u_int)tiBossInt(BOSS_INFO_BREAK_DAMAGE);
+        asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, tiBossBrainShort(brain, BRAIN_LOOK_MOTION));
+        asChangeMortionInfo_NextMortion(chr->id, tiBossBrainShort(brain, BRAIN_LOOK_MOTION),
+                                        tiBossBrainShort(brain, BRAIN_SEARCH_MOTION), -1);
+        pBossInfo[BOSS_INFO_CHAIN_A_ACTIVE] = 0;
+        tiBossSetInt(BOSS_INFO_CHAIN_A_TIME, 0);
+        tiBossChainsRelease(BOSS_INFO_CHAIN_A_COUNT, BOSS_INFO_CHAIN_A_ON, 0);
+        ssTrigRegisterEvent(TRIG_EVENT_CHAINS_CUT, TRIG_GLOBAL, 0);
+        SSStopSE(BALOWS_CHAIN_SE_BANK, BALOWS_CHAIN_SE_HOLD, 1);
+        SSStopSE(BALOWS_SE_ALYSSA_BANK, BALOWS_SE_ALYSSA_PULLED, 1);
+        react = BOSS_REACT_CHAINS_CUT;
+        reset = 1;
+    }
+
+    // The damage: doubled in HAMM's special, tripled in SCISSORS_W's, BOSS_STRUCK_EXTRA more with
+    // TRIG_EVENT_BOSS_ARROW_ALWAYS; summed into BOSS_INFO_AXE_88 outside the AXE's special.
+    if ((tiBossState() & BOSS_STATE_HAMM_SPECIAL) != 0)
+        damage <<= 1;
+    if ((tiBossState() & BOSS_STATE_SCISSORS_W_SPECIAL) != 0)
+        damage *= 3;
+    if (ssTrigCheckEvent(TRIG_EVENT_BOSS_ARROW_ALWAYS, TRIG_GLOBAL, 0) != 0)
+        damage += BOSS_STRUCK_EXTRA;
+    if ((tiBossState() & BOSS_STATE_AXE_SPECIAL) == 0)
+        tiBossAddInt(BOSS_INFO_AXE_88, (int)damage);
+    chr->hp -= (int)damage;
+    chr->hp -= extra;
+    if (chr->hp < 1) {
+        const BOSS_DAMAGE_VOICE *voice = tiBossVoiceOf(boss);
+
+        if (unstaggered) {
+            // The fall: from the front (LOOK) or behind (LOOK_ALT), the boss facing along the blow.
+            short m;
+
+            if (gaInnerProductXYZ(bossDir, arrow->dir) < 0.0f) {
+                for (k = 0; k < 4; k++)
+                    back[k] = arrow->dir[k] * -1.0f;
+                m = tiBossBrainShort(brain, BRAIN_LOOK_MOTION);
+            } else {
+                gaCopyVectorXYZ(back, arrow->dir);
+                m = tiBossBrainShort(brain, BRAIN_LOOK_MOTION_ALT);
+            }
+            asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, m);
+            asChangeMortionInfo_NextMortion(chr->id, m, 0, -1);
+            tiBossFaceAlong(chr, back);
+        }
+        SdStopSE(tiBrainInt(brain, BRAIN_BOSS_SE));
+        if (voice != NULL)
+            SSPlaySE(voice->bank, voice->dead, BOSS_VOICE_ARG);
+        tiBossDropClatter(brain);
+        if (0 < player->hp) {
+            ssTrigRegisterEvent(TRIG_EVENT_BOSS_SE_STOP, TRIG_GLOBAL, 0);
+            ssTrigRegisterEvent(TRIG_EVENT_NO_HIT_B0, TRIG_GLOBAL, 0);
+            brain[BRAIN_MODE] = SS_AI_RETURN;
+            return 1;
+        }
+    } else {
+        const BOSS_DAMAGE_VOICE *voice = tiBossVoiceOf(boss);
+
+        if (react != BOSS_REACT_NONE)
+            SdStopSE(tiBrainInt(brain, BRAIN_BOSS_SE));
+        if (voice != NULL) {
+            u_char v = react == BOSS_REACT_STAGGER ? voice->stagger :
+                       react == BOSS_REACT_SHRUG || react == BOSS_REACT_CHAINS_CUT ? voice->shrug : 0;
+
+            if (v != 0)
+                SSPlaySE(voice->bank, v, BOSS_VOICE_ARG);
+        }
+    }
+
+    // The mode after it.
+    switch (brain[BRAIN_MODE]) {
+    case SS_AI_TRACE:
+        if (reset) {
+            brain[BRAIN_ATK_PICK] = BOSS_ATK_PICK_FIRST;
+            brain[BRAIN_SUBMODE] = BOSS_SUB_NONE;
+            tiBrainSetInt(brain, BRAIN_BOSS_SUB1_TICKS, 0);
+            tiBossSetInt(BOSS_INFO_SPECIAL_COUNT, 0);
+            tiBossSetInt(BOSS_INFO_HAMM_28, 0);
+            tiBossSetInt(BOSS_INFO_HITS_70, 0);
+            tiBossSetInt(BOSS_INFO_HITS_74, 0);
+            pBossInfo[BOSS_INFO_COUNT_8D] = 0;
+            tiBossSetInt(BOSS_INFO_AXE_88, 0);
+            brain[BRAIN_MODE] = SS_AI_APPROACH;
+        }
+        tiBossClearBits(BOSS_STATE_SPECIAL_ON);
+        if (boss == BOSS_CHARA_BALOWS) {
+            tiBossSetInt(BOSS_INFO_ROAR_TICKS, 0);
+            tiBossSetInt(BOSS_INFO_ROAR_AT, BOSS_ROAR_AT);
+            tiBossSetBits(BOSS_STATE_BALOWS_ROAR_DUE);
+        } else if (boss == BOSS_CHARA_SCISSORS) {
+            tiBossClearBits(BOSS_STATE_SCISSORS_M_END);
+        } else if (boss == BOSS_CHARA_AXE) {
+            tiBossClearBits(BOSS_STATE_AXE_SPECIAL);
+        } else if (boss == BOSS_CHARA_VITRIOL) {
+            pBossInfo[BOSS_INFO_ARROW_GUARD] = pBossInfo[BOSS_INFO_HAMM_95];
+        } else if (boss == BOSS_CHARA_HAMM) {
+            pBossInfo[BOSS_INFO_ARROW_GUARD] = pBossInfo[BOSS_INFO_HAMM_95];
+            tiBossClearBits(BOSS_STATE_HAMM_SPECIAL);
+        }
+        break;
+    case SS_AI_ATTACK:
+        if (unstaggered)
+            return ssAI_IsDamagePlaying(chr) != 0;
+        tiBossDamageEnd(brain);
+        brain[BRAIN_MODE] = SS_AI_APPROACH;
+        if (boss == BOSS_CHARA_SCISSORS_W) {
+            tiBossClearBits(BOSS_STATE_SCISSORS_W_SPECIAL_DONE);
+            tiBossClearBits(BOSS_STATE_SCISSORS_W_SPECIAL);
+        } else if (boss == BOSS_CHARA_AXE) {
+            tiBossClearBits(BOSS_STATE_AXE_SPECIAL);
+        }
+        break;
+    case SS_AI_APPROACH:
+        if (boss == BOSS_CHARA_VITRIOL && pBossInfo[BOSS_INFO_CHAIN_A_ACTIVE] != 0)
+            tiBossSetBits(BOSS_STATE_HOLD_1000);
+        if (unstaggered && (boss != BOSS_CHARA_AXE || brain[BRAIN_SUBMODE] != BOSS_SUB_NEAR_2))
+            return ssAI_IsDamagePlaying(chr) != 0;
+        tiBossDamageEnd(brain);
+        break;
+    default:
+        return 1;
+    }
+    return 1;
+}
+
 // ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x01874960
@@ -3146,68 +4160,4 @@ int tiBrain_Init_BOSS_SCISSORS_W(struct CHARACTER *chr)
 {
     ALYSSAPAN_STUB("tiBrain_Init_BOSS_SCISSORS_W", 0x01874830);
     return {};
-}
-
-
-// stub of CT3 0x0186ec40
-int tiBrain_Damage_BOSS1(struct CHARACTER *chr)
-{
-    ALYSSAPAN_STUB("tiBrain_Damage_BOSS1", 0x0186ec40);
-    return {};
-}
-
-
-
-// stub of CT3 0x01873960
-void tiSetModeChain_AXE1(float dist, u_char *mode)
-{
-    ALYSSAPAN_STUB("tiSetModeChain_AXE1", 0x01873960);
-}
-
-// stub of CT3 0x01873220
-void tiSetModeChain_AXE2(float dist, u_char *mode)
-{
-    ALYSSAPAN_STUB("tiSetModeChain_AXE2", 0x01873220);
-}
-
-// stub of CT3 0x018744a0
-void tiSetModeChain_HAMM(float dist, u_char *mode)
-{
-    ALYSSAPAN_STUB("tiSetModeChain_HAMM", 0x018744a0);
-}
-
-// stub of CT3 0x01872c90
-void tiSetModeChain_SCISSORS_M(float dist, u_char *mode)
-{
-    ALYSSAPAN_STUB("tiSetModeChain_SCISSORS_M", 0x01872c90);
-}
-
-// stub of CT3 0x01873ce0
-void tiSetModeChain_VITRIOL(float dist, u_char *mode)
-{
-    ALYSSAPAN_STUB("tiSetModeChain_VITRIOL", 0x01873ce0);
-}
-
-// stub of CT3 0x01873b50
-void tiSetModeNormal_AXE1(float dist, u_char *mode)
-{
-    ALYSSAPAN_STUB("tiSetModeNormal_AXE1", 0x01873b50);
-}
-
-// stub of CT3 0x018745e0
-void tiSetModeNormal_HAMM(float dist, u_char *mode)
-{
-    ALYSSAPAN_STUB("tiSetModeNormal_HAMM", 0x018745e0);
-}
-
-// stub of CT3 0x01872f70
-void tiSetModeNormal_SCISSORS_M(float dist, u_char *mode)
-{
-    ALYSSAPAN_STUB("tiSetModeNormal_SCISSORS_M", 0x01872f70);
-}
-
-// stub of CT3 0x01873f80
-void tiSetModeNormal_VITRIOL(float dist, u_char *mode)
-{
-    ALYSSAPAN_STUB("tiSetModeNormal_VITRIOL", 0x01873f80);
 }

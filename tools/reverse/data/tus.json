@@ -1752,7 +1752,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 74..74, 14 functions keyed by their statics, 68 unkeyed; file name from the names"
   },
   "game/tiBrain_ChgTrace_BOSS_BALOWS.c": {
-   "notes": "Left: the nine other tiSetMode setters (stubs from stubgen), Init_BOSS1, Init_BOSS_SCISSORS_W, Damage_BOSS1. Smoke run unchanged (grey at the end); no run reaches a boss. Open items nz18..nz22: BOSS_INFO_CHARA is the boss identity (2 HAMM, 3 VITRIOL, 4 AXE, 5 SCISSORS, 32 BALOWS), BRAIN_SUBMODE values from the setters, HAMM grab chains 0x69 to 0x66 (ROM quirk, checked), the attack-marking test on pick != 0, the arrow-dodge bits.",
+   "notes": "Left: tiBrain_Init_BOSS1 and tiBrain_Init_BOSS_SCISSORS_W (the last two stubs). No smoke run reaches a boss. This run's shots are all black at about 900 frames a second, identical on the unchanged sources (A/B with git stash): the display was not presenting, not a regression (hazards.md 2026-11-13). Open items nz23..nz27: SCISSORS_W is boss chara 6, damage-side names from one use (0x78 pull hits, 0x94 arrow guard, 0x98 chain slack, 0x144 / 0x148 damages, brain 0x266 hit from behind), TRIG_VAR 0x53 is set A's break (-1, 0 caught, 1 counting, 4 lands), the chain-check stack quirk.",
    "ranges": [
     [
      "01867fb0",
@@ -1784,6 +1784,11 @@
      "date": "2026-11-13 03:41",
      "status": "partial",
      "summary": "slice 5: Attack_BOSS_VITRIOL, Attack_BOSS_HAMM (grab, rattle, bite, strikes), Approach_BOSS1 (submode end tests, the setter and picker dispatch, shout, side-step, pull, the arrow dodge), tiSetModeChain_BALOWS, tiSetModeNormal_BALOWS, tiSetModeNormal_AXE2, the three setter tables tiSetNormalMode / tiSetChainMode / tiSelSPMotion"
+    },
+    {
+     "date": "2026-11-13 04:01",
+     "status": "partial",
+     "summary": "slice 6: the nine other mode setters (band tables), tiCheckArrowLevel, tiCheckPlayerINChains, tiBrain_Damage_BOSS1 (chain set times, blows dealt, timers, arrow hits: chain, stagger, push, damage, voices, the mode after) and the table tiDefenseMode (0x01938658)"
     }
    ],
    "status": "partial",

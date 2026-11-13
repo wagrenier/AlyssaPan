@@ -2184,6 +2184,31 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    - (nz22) BOSS_STATE 0x10000000 / 0x20000000 (BOSS_STATE_ARROW_*): set after the clear with arrow level
      >= 2 on 6 / then 5 of 10; the approach then walks 45 (or 315) degrees off the line to Alyssa beyond
      120: a dodge of her aim, by reading. TRIG_EVENT_BOSS_65 is removed every approach frame (setter unread).
+   Slice 6 (2026-11-13, scheduled run): the nine other setters (band tables BOSS_MODE_BAND in the .c, the
+   ROM's bands and odds), tiCheckArrowLevel, tiCheckPlayerINChains, tiBrain_Damage_BOSS1 and the table
+   tiDefenseMode (0x01938658: AXE, SCISSORS_MAN, BALOWS by BOSS_INFO_DEFENSE_KIND 0x15c). Left: Init_BOSS1,
+   Init_BOSS_SCISSORS_W (the last two stubs). Smoke shots all black this run, the same on the unchanged
+   sources (A/B run): the display, not the code (hazards.md 2026-11-13). Open:
+   - (nz23) BOSS_CHARA_SCISSORS_W = 6 from Damage_BOSS1's per-boss branches (its 0x10000 / 0x20000 bits,
+     B_4B02 voices); BOSS_CHARA_SCISSORS (5) is then SCISSORS_M. Confirm in tiBrain_Init_BOSS_SCISSORS_W.
+   - (nz24) Damage names from one use: BOSS_INFO_PULL_HITS 0x78 (hits while BOSS_STATE_PULL_DUE; AXE2's
+     chain setter stops pulling at 2), BOSS_INFO_ARROW_GUARD = BOSS_INFO_HAMM_94 (toughness against arrows;
+     the AXE sets 12 / 100 / 15, VITRIOL and HAMM restore it from 0x95), BOSS_INFO_CHAIN_SLACK 0x98 (float),
+     ARROW_LEVEL_STAGGER_MIN 3, BOSS_INFO_ARROW_COUNT_LEVEL 0x8e / _STAGGER_LEVEL 0x8f, BOSS_INFO_ROAR_*
+     0xdc / 0xe0, BOSS_INFO_BREAK_DAMAGE 0x144, _SHRUG_DAMAGE 0x148, BOSS_INFO_RECOVER_MAX 0x14,
+     BOSS_INFO_SCISSORS_END_* 0x30 / 0x34, BRAIN 0x0d4 (strike damage), 0x100 / 0x104 (grabbed time),
+     0x208 (attack time max), 0x266 (damage from behind), CHARACTER +0x51c (CHARA_LANDED_BLOW, pad):
+     BattleStart / Init_BOSS1 should confirm them.
+   - (nz25) TRIG_VAR 0x53 is set A's break (TRIG_VAR_CHAIN_A_BREAK = sound.h's TRIG_VAR_TBREAK_SHORT): -1
+     none, 0 Alyssa caught among the chains (tiCheckPlayerINChains after a third chain), 1 sound.c counts,
+     4 the break lands (BOSS_INFO_BREAK_DAMAGE, all set A chains let go, TRIG_EVENT_CHAINS_CUT). Who moves
+     it from 0 to 1 and 4 is unread (sound.c / a script).
+   - (nz26) ROM quirks kept or ported: tiCheckPlayerINChains stores chain i at slot i but reads slots
+     0..held-1 (stale stack after a loose chain: the port reads zeroed slots); tiSetModeNormal_AXE1's 100
+     band sets the shout below 7 and then overwrites it (near below 12); several setters repeat a band
+     with the same odds (kept as rows). The ROM's unsigned arrow damage (ARROW.shootArg2) is u_int here.
+   - (nz27) BOSS_STATE_BIT_04 is the defense switch (tiDefenseMode runs only with it; the AXE's arrow guard
+     too); the BALOWS bits BOSS_STATE_BALOWS_52_ODD (0x1000000) and _ROAR_DUE (0x4000000) are new.
 
 ## Decisions
 
