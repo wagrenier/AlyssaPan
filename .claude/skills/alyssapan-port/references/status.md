@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-13 03:19 at commit `95f641c` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-13 03:41 at commit `d74eea0` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1844**; stubs: **8**
+- reconstructed CT3 functions: **1851**; stubs: **14**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -91,7 +91,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/ssHitCheckAttackToScn.c` | 37 | 0 |
 | `src/game/ssSetTexUVforCubeMap.c` | 96 | 0 |
 | `src/game/tiAvoidObject.c` | 95 | 0 |
-| `src/game/tiBrain_ChgTrace_BOSS_BALOWS.c` | 49 | 6 |
+| `src/game/tiBrain_ChgTrace_BOSS_BALOWS.c` | 56 | 12 |
 | `src/game/tiBrain_ChgTrace_Ghost.c` | 31 | 0 |
 | `src/game/tiXcmd_TransItem.c` | 93 | 0 |
 | `src/game/tkXDTrg_GetSceneHash.c` | 50 | 0 |
@@ -105,7 +105,7 @@ Least-named game-code regions (64 KB blocks):
 - 65 TUs: partial 1, verify 66, done 14, blocked 1
 - next: **game/tiBrain_ChgTrace_BOSS_BALOWS.c** (pinned in the queue)
 - pinned queue: game/tiBrain_ChgTrace_BOSS_BALOWS.c, alyssapan/rendering/ui_canvas.cpp
-- partial: `game/tiBrain_ChgTrace_BOSS_BALOWS.c` 48/69 -- 10 functions written (the whole brief slice); 20 left: Attack_BOSS_VITRIOL / HAMM, Init_BOSS1 / SCISSORS_W, Approach_BOSS1, Damage_BOSS1 and the rest. Smoke run
+- partial: `game/tiBrain_ChgTrace_BOSS_BALOWS.c` 54/69 -- Left: the nine other tiSetMode setters (stubs from stubgen), Init_BOSS1, Init_BOSS_SCISSORS_W, Damage_BOSS1. Smoke run unchanged (grey at the end); no run reach
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
@@ -176,6 +176,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-13 03:41 `game/tiBrain_ChgTrace_BOSS_BALOWS.c` partial: slice 5: Attack_BOSS_VITRIOL, Attack_BOSS_HAMM (grab, rattle, bite, strikes), Approach_BOSS1 (submode end tests, the setter and picker dispatch, shout, side-ste
 - 2026-11-13 03:19 `game/tiBrain_ChgTrace_BOSS_BALOWS.c` partial: slice 4: SCISSORS_W attack (strike, vanish, warp, reappear, special), AXE trace and attack, VITRIOL trace (roar and sprays), tiDefenseMode_AXE, the six tiSelSPM
 - 2026-11-13 02:55 `game/tiBrain_ChgTrace_BOSS_BALOWS.c` partial: slice 3: BALOWS and SCISSORS_M attack bodies (the grab and its rattle, the blood throw, the swing, charge, stamp, down hit; the SCISSORS_M slash combos, thrust 
 - 2026-11-13 02:35 `game/tiBrain_ChgTrace_BOSS_BALOWS.c` partial: slice 2: the BALOWS and SCISSORS_M special traces, tiCalcHPRate / ChargeTime / PlayerHitPoint / BalowsAttackRate, the two defense modes, tiSelSPMotion_BALOWS / 
@@ -183,7 +184,6 @@ Recent sessions:
 - 2026-11-13 01:50 `game/hhXcmd_BGM_SE_VOLUME.c` verify: hhXcmd_BGM_SE_VOLUME written: the option menu script's sound command (SET copies trigger event 0xa8 and variables 0x4e/0x4f to the sound buffers, volumes cut to
 - 2026-11-13 01:30 `game/RotateCamera.c` verify: RotateCamera and LockerCamera, the two x commands that turn a bank's parts (bearing to Alyssa; the stick look-around with zoom)
 - 2026-11-13 01:12 `game/tnXcmd.c` verify: all 8 tn x commands: the lever struggle, the player and monster control locks, PlayerDamage, Probability
-- 2026-11-13 00:57 `alyssapan/rendering/menu_box.cpp` done: the in-game menu (MENU.BIN, the M101.BIN floor map) keeps the 4:3 box at wide aspects (nu1)
 
 ## Frontier (called by reconstructed code, not written yet)
 

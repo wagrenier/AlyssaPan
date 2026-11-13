@@ -2162,6 +2162,28 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
      (tiCalcPlayerHitPoint 20) outside its busy list: left out.
    - (nz17) BOSS_INFO_VITRIOL_TURN (0xac) is indexed by the step (2..6) after the increment: 0xb4..0xc4,
      the last word being BOSS_INFO_WARP_COUNT; read as the ROM does.
+   Slice 5 (2026-11-13, scheduled run): Attack_BOSS_VITRIOL, Attack_BOSS_HAMM, Approach_BOSS1, the
+   setters tiSetModeChain_BALOWS / Normal_BALOWS / Normal_AXE2 and the three setter tables (tiSetNormalMode
+   0x019385e0, tiSetChainMode 0x01938600, tiSelSPMotion 0x01938620; nz14's table found: the approach calls
+   the pickers). The nine other setters are stubs (stubgen). Left: those nine, Init_BOSS1,
+   Init_BOSS_SCISSORS_W, Damage_BOSS1. Smoke run unchanged (grey at the end); no boss reached. Open:
+   - (nz18) **BOSS_INFO_CHARA is the boss's identity**: the approach keys its voices on it (2 HAMM, 3
+     VITRIOL, 4 AXE, 5 SCISSORS, 32 BALOWS; header BOSS_CHARA_*), so tiSelSPMotion_VITRIOL's fixed
+     Character[3] and tiSetModeChain_BALOWS's Character[32] are the bosses themselves -- the ROM's fixed
+     addresses kept. AXE1's voice is B_0A04 (0x019341c0), AXE2's B_3D03 (BOSS_STATE_BIT_04 tells them apart).
+   - (nz19) The setters write BRAIN_SUBMODE: 1 is new (BOSS_SUB_PLAIN, the default walk: search motion,
+     its timer); 3 the shout, 4 the side-step, 5 the pull (adds BOSS_INFO_0x68 to set A's pull time when
+     it ends). BOSS_STATE 0x0002 (BOSS_STATE_BALOWS_RECOVERED) is "a special used" for every boss
+     (BOSS_INFO 0x10 = BOSS_INFO_SP_COOL resets with it): rename both when the clearer is read.
+   - (nz20) HAMM's standing grab chains the miss motion (0x69 -> 0x66), not the turn (0x65 -> 0x66): checked
+     in the disassembly (0x0186e95c), kept. Its SdReqPlaySE(6, 2) takes a2 = 1 from the pick test (Ghidra
+     shows two arguments); ControllerClatteringGet takes the slot (Ghidra dropped it, as for BALOWS).
+   - (nz21) The VITRIOL / HAMM attacks mark an attack (BRAIN 0x204 = 0, BOSS_STATE_BALOWS_ATTACKING) when the
+     pick is not 0 after the far choice -- the ROM's literal test (pick 0 is how the mode change leaves it);
+     VITRIOL's strikes end the attack every frame no blow lands (the motion plays out).
+   - (nz22) BOSS_STATE 0x10000000 / 0x20000000 (BOSS_STATE_ARROW_*): set after the clear with arrow level
+     >= 2 on 6 / then 5 of 10; the approach then walks 45 (or 315) degrees off the line to Alyssa beyond
+     120: a dodge of her aim, by reading. TRIG_EVENT_BOSS_65 is removed every approach frame (setter unread).
 
 ## Decisions
 

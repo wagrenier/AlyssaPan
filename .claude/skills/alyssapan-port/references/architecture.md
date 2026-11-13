@@ -1283,6 +1283,13 @@ Ticks$892.
   +0x2f0), 0x104 / 0x108 (last part's drawOnPos), 0x10c / 0x110 (u_char holding flags). **Host form**:
   the block keeps the EE layout; its pointer words live in a side table (BossInfoGetPtr / SetPtr,
   tiXcmd_TransItem.h), the EE word reads 1 or 0; the lists are host pointers.
+- **The boss brain's dispatch (2026-11-13, tiBrain_ChgTrace_BOSS_BALOWS.c slice 5)**: +0 also names the
+  boss in the brain code (2 HAMM, 3 VITRIOL, 4 AXE, 5 SCISSORS, 0x20 BALOWS: the approach's voices key on
+  it). Three .data tables of six (HAMM, VITRIOL, AXE1, AXE2, SCISSORS_M, BALOWS) pick the boss's code by the
+  words BattleStart sets: tiSetNormalMode (0x019385e0) by +0x14c, tiSetChainMode (0x01938600, with set A
+  up) by +0x150, tiSelSPMotion (0x01938620) by +0x154, beside tiSelSpecialMode (0x01938640) by +0x158.
+  tiBrain_Approach_BOSS1 calls the setter for a new BRAIN_SUBMODE (1 walk, 2 chase, 3 shout, 4 side-step,
+  5 pull, 6 / 7 / 8 the specials), then the special picker unless +0xc bit 2 says a special was used.
 
 ## Branches, scenes and doors, game/tkXDTrg_GetSceneHash.c (2026-11-11, slice 1)
 

@@ -408,3 +408,139 @@ int tiSelSPMotion_VITRIOL(u_char *pick);                                        
 int tiSelSPMotion_HAMM(u_char *pick);                                                    // CT3 0x01872880
 void tiSetChainData(int i, int setB);                                                    // CT3 0x01875930
 void tiSetChainFlag(int i, int on, int setB);                                            // CT3 0x01875630
+
+// ---- slice 5 (2026-11-13): VITRIOL's and HAMM's attacks, the mode setters ----
+// VITRIOL's attack (tiBrain_Attack_BOSS_VITRIOL): three strikes (each with its landed motion) and the acid.
+#define VITRIOL_MOTION_ATK_0 0x28       /* attack state 0's strike: landed VITRIOL_MOTION_ATK_0_HIT */
+#define VITRIOL_MOTION_ATK_0_HIT 0x29
+#define VITRIOL_MOTION_ATK_0_2A 0x2a    /* in the busy list only (meaning unread) */
+#define VITRIOL_MOTION_ATK_1 0x2b       /* attack state 1's */
+#define VITRIOL_MOTION_ATK_1_HIT 0x2c
+#define VITRIOL_MOTION_ATK_1_2D 0x2d
+#define VITRIOL_MOTION_DOWN 0x2e        /* attack state 3's: Alyssa down */
+#define VITRIOL_MOTION_DOWN_HIT 0x2f
+#define VITRIOL_MOTION_DOWN_30 0x30
+#define VITRIOL_MOTION_ACID 0x3a        /* attack state 4's: past VITRIOL_ACID_TICKS the acid SE */
+#define VITRIOL_ATK_0 0
+#define VITRIOL_ATK_1 1
+#define VITRIOL_ATK_DOWN 3
+#define VITRIOL_ATK_ACID 4
+#define VITRIOL_ACID_TICKS 0x19
+#define VITRIOL_SE_ACID 0x1c            /* VITRIOL_SE_BANK "E_RYUSAN" */
+#define VITRIOL_ATK_NEAR 100.0f         /* nearer: a strike at even odds (state 3 when Alyssa is down) */
+#define VITRIOL_ATK_MID 200.0f          /* the far weights (of 16): strikes 9 / 7 / 2 / 0 by these bands, */
+#define VITRIOL_ATK_FAR 300.0f          /*   the acid 0 / 0 / 1 / 2 */
+#define VITRIOL_ATK_FARTHEST 600.0f
+// HAMM's attack (tiBrain_Attack_BOSS_HAMM): two strikes, the down strike and the grab.
+#define HAMM_MOTION_ATK_0 0x1d          /* attack state 0's strike: landed HAMM_MOTION_ATK_0_HIT, missed _END */
+#define HAMM_MOTION_ATK_0_HIT 0x58
+#define HAMM_MOTION_ATK_0_END 0x59
+#define HAMM_MOTION_ATK_1 0x27          /* attack state 1's */
+#define HAMM_MOTION_ATK_1_HIT 0x5a
+#define HAMM_MOTION_ATK_1_END 0x5b
+#define HAMM_MOTION_DOWN 0x5c           /* attack state 3's: Alyssa down */
+#define HAMM_MOTION_DOWN_HIT 0x5d
+#define HAMM_MOTION_DOWN_END 0x5e
+#define HAMM_MOTION_GRAB_TURN 0x65      /* the grab, Alyssa standing: turn, reach (HAMM_MOTION_GRAB_REACH), hold */
+#define HAMM_MOTION_GRAB_REACH 0x66
+#define HAMM_MOTION_GRAB 0x67           /* holding her: the rattle runs, she bleeds (state 4's .panic) */
+#define HAMM_MOTION_GRAB_DROP 0x68      /* she fell or lost the rattle: a bite on a timer */
+#define HAMM_MOTION_GRAB_MISS 0x69      /* the reach found her out of reach (or bending) */
+#define HAMM_MOTION_GRAB_FREE 0x6a      /* she won the rattle */
+#define HAMM_MOTION_LOW_GRAB_TURN 0x55  /* the same with Alyssa bending */
+#define HAMM_MOTION_LOW_GRAB_REACH 0x56
+#define HAMM_MOTION_LOW_GRAB_MISS 0x57
+#define HAMM_ATK_0 0
+#define HAMM_ATK_1 1
+#define HAMM_ATK_DOWN 3
+#define HAMM_ATK_GRAB 4                 /* the grab's angle, damage (.panic) and rattle (.wFar) */
+#define HAMM_PICK_STRUCK 2              /* BRAIN_ATK_PICK: the blow landed / the reach caught her */
+#define HAMM_GRAB_NEAR 75.0f            /* nearer: the grab (12 of 16) or strike 1; farther strike 0 / 1 */
+#define HAMM_ATK_MID 200.0f
+#define HAMM_GRAB_REACH 130.0f          /* the reach misses farther */
+#define HAMM_GRAB_ANGLE 0x3ffc          /*   or outside this angle */
+#define HAMM_LOCK 0x100                 /* asAlyssaLockedByAnything: kept byte 1 | LOCKED_SET_* (BALOWS_LOCK's) */
+#define HAMM_BITE_TICKS 0xfa            /* BOSS_INFO_BITE_TICKS past it: the bite lands */
+#define HAMM_BITE_DAMAGE 0x14
+#define HAMM_SE_BANK "E_HAMMER"         /* 0x019341b0 */
+#define HAMM_SE_GRAB 0x21
+#define HAMM_VOICE_GRAB 0x0c            /* BOSS_HAMM_SE_BANK "B_1A04": the grab's voice */
+#define HAMM_HIT_SE_JLS 6               /* SdReqPlaySE(6, 2, 1) as a strike lands (a2 = 1 from the pick test) */
+#define HAMM_HIT_SE 2
+// The mode setters (tiSetMode*: the boss's next BRAIN_SUBMODE by distance and hp; called through data).
+#define BOSS_SUB_PLAIN 1                /* the setters' default */
+#define BOSS_BALOWS_CHARA 32            /* tiSetModeChain_BALOWS reads Character[32]'s hp (the ROM's fixed address) */
+#define BOSS_MODE_FAR 200.0f            /* farther: BOSS_SUB_HOLD_3 on 1 of 16 */
+#define BOSS_MODE_NEAR 100.0f           /* BALOWS before the second phase: the same from here; AXE2's bands */
+#define BOSS_STATE_ARROW_10000000 0x10000000 /* after the clear, arrow level >= 2, 6 of 10: meaning unread */
+#define BOSS_STATE_ARROW_20000000 0x20000000 /*   and on 5 of 10 more */
+#define BALOWS_CHAIN_D4_MAX 0x5dc       /* BOSS_INFO_BALOWS_D4 below it: BOSS_STATE_BALOWS_CHAIN */
+#define BALOWS_VAR_52_FACING_A 4        /* TRIG_VAR_BALOWS_52 4 or 0xe: BOSS_SUB_BALOWS_FACING */
+#define BALOWS_VAR_52_FACING_B 0x0e
+void tiSetModeChain_BALOWS(float dist, u_char *mode);                                    // CT3 0x01872890
+void tiSetModeNormal_BALOWS(float dist, u_char *mode);                                   // CT3 0x01872a20
+void tiSetModeNormal_AXE2(float dist, u_char *mode);                                     // CT3 0x01873760
+// The other setters (not yet reconstructed: stubs).
+void tiSetModeNormal_HAMM(float dist, u_char *mode);
+void tiSetModeNormal_VITRIOL(float dist, u_char *mode);
+void tiSetModeNormal_AXE1(float dist, u_char *mode);
+void tiSetModeNormal_SCISSORS_M(float dist, u_char *mode);
+void tiSetModeChain_HAMM(float dist, u_char *mode);
+void tiSetModeChain_VITRIOL(float dist, u_char *mode);
+void tiSetModeChain_AXE1(float dist, u_char *mode);
+void tiSetModeChain_AXE2(float dist, u_char *mode);
+void tiSetModeChain_SCISSORS_M(float dist, u_char *mode);
+// The setters' tables, by BOSS_INFO_NORMAL_KIND / _CHAIN_KIND / _SP_KIND (the same order as tiSelSpecialMode).
+#define BOSS_MODE_KIND_COUNT 6
+extern void (*const tiSetNormalMode[BOSS_MODE_KIND_COUNT])(float dist, u_char *mode); // .data 0x019385e0
+extern void (*const tiSetChainMode[BOSS_MODE_KIND_COUNT])(float dist, u_char *mode);  // .data 0x01938600
+extern int (*const tiSelSPMotion[BOSS_MODE_KIND_COUNT])(u_char *pick);                // .data 0x01938620
+
+// ---- slice 5: the approach (tiBrain_Approach_BOSS1) ----
+// BOSS_INFO_CHARA identifies the boss (the voices and the fixed-address reads agree): the approach's per-boss
+// voices key on it, so tiSelSPMotion_VITRIOL's Character[3] and tiSetModeChain_BALOWS's Character[32] are
+// the bosses themselves.
+#define BOSS_CHARA_HAMM 2
+#define BOSS_CHARA_VITRIOL 3            /* = BOSS_VITRIOL_CHARA */
+#define BOSS_CHARA_AXE 4
+#define BOSS_CHARA_SCISSORS 5
+#define BOSS_CHARA_BALOWS 32            /* = BOSS_BALOWS_CHARA */
+#define BOSS_INFO_SP_COOL 0x10          /* int: cleared whenever BOSS_STATE_BALOWS_RECOVERED (0x2) is set (= BOSS_INFO_BALOWS_10) */
+#define BOSS_INFO_WAIT_TICKS BOSS_INFO_SHOWN_TICKS /* int 0x20: submode 2 lasts while below 0x24 */
+#define BOSS_INFO_WAIT_MAX 0x24
+#define BOSS_INFO_SIDE_TICKS BOSS_INFO_HAMM_28 /* int 0x28: submode 4's side-step lasts while below 0x38 */
+#define BOSS_INFO_SIDE_BASE 0x2c        /* int: submode 4's length (+- 100 with BOSS_STATE_BIT_2000) */
+#define BOSS_INFO_SIDE_MAX BOSS_INFO_HIDDEN_DELAY /* int 0x38 */
+#define BOSS_INFO_CHAIN_PULL_ADD 0x68   /* int: added to BOSS_INFO_CHAIN_A_TIME when submode 5 ends (BOSS_STATE_PULL_DUE) */
+#define BOSS_INFO_LAST_SHOUT 0xe4       /* short: the AXE's last submode-3 motion (it alternates) */
+#define BOSS_INFO_NORMAL_KIND 0x14c     /* int: tiSetNormalMode's slot */
+#define BOSS_INFO_CHAIN_KIND 0x150      /* int: tiSetChainMode's slot (with set A up) */
+#define BOSS_INFO_SP_KIND 0x154         /* int: tiSelSPMotion's slot */
+#define BOSS_STATE_SIDE_LEFT 0x0001     /* submode 4 steps toward 270 degrees (else 90) */
+#define BOSS_STATE_PULL_DUE 0x0400      /* submode 5 started: its end adds BOSS_INFO_CHAIN_PULL_ADD */
+#define BRAIN_BOSS_SUB1_TICKS BRAIN_HIDE_ATK_TIMER /* int 0x20c: submode 1 lasts while not below 0x214 */
+#define BRAIN_BOSS_SUB1_MAX 0x214
+#define BRAIN_BOSS_M_248 0x248          /* short: busy motions the approach waits out (meaning unread) */
+#define BRAIN_BOSS_M_24A 0x24a
+#define BRAIN_BOSS_SUB5_MOTION 0x24c    /* short: submode 5's motion (a voice, then search) */
+#define BRAIN_BOSS_SUB3_MOTION_A 0x250  /* short: submode 3's two motions (a voice; = BRAIN_BALOWS_FOLLOW_MOTION) */
+#define BRAIN_BOSS_SUB3_MOTION_B 0x252
+#define BRAIN_BOSS_STEP_LEFT 0x260      /* short: submode 4's side-steps */
+#define BRAIN_BOSS_STEP_RIGHT 0x262
+#define BRAIN_BOSS_M_268 0x268
+#define BRAIN_BOSS_M_26A 0x26a
+#define BOSS_MOTION_APPROACH_29 0x29    /* busy too; VITRIOL in submode 4 plays it on TRIG_EVENT_BOSS_65 */
+#define TRIG_EVENT_BOSS_65 0x65         /* global: removed every approach frame (its setter unread) */
+#define BOSS_DEAD_FACE_DOT 0.9f         /* Alyssa down: turn until facing her this well, then motion 0 */
+#define BOSS_SUB2_NEAR 100.0f           /* submode 2 ends nearer */
+#define BOSS_SUB2_HIT_DAMAGE 0x14       /* VITRIOL's landed blow in submode 2 */
+#define BOSS_ARROW_NEAR 120.0f          /* the arrow bits clear nearer; farther the approach angles off 45 degrees */
+#define BOSS_AVOID_FAR 75.0f            /* the approach avoids obstacles only farther */
+#define BOSS_ANGLE_45 0x1ffe            /* gaSetRotMatrixY units (GHOST_DEGREE 0xb6 a degree) */
+#define BOSS_ANGLE_90 0x3ffc
+#define BOSS_ANGLE_270 0xbff4
+#define BOSS_ANGLE_315 0xdff2
+#define BOSS_VOICE_AXE1_BANK "B_0A04"   /* 0x019341c0: the AXE without BOSS_STATE_BIT_04 */
+#define BALOWS_VOICE_SHOUT 0x0d         /* BALOWS_VOICE_BANK "B_5A09" */
+#define BALOWS_SE_SHOUT 0x1f            /* BALOWS_SE_BANK "E_BAL" */
+void tiBrain_Approach_BOSS1(struct CHARACTER *chr);                                      // CT3 0x01870e00
