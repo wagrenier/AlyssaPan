@@ -1,5 +1,6 @@
 {
  "queue": [
+  "game/tiBrain_ChgTrace_BOSS_BALOWS.c",
   "alyssapan/rendering/ui_canvas.cpp"
  ],
  "settings": {
@@ -1751,12 +1752,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 74..74, 14 functions keyed by their statics, 68 unkeyed; file name from the names"
   },
   "game/tiBrain_ChgTrace_BOSS_BALOWS.c": {
+   "notes": "26 functions written, 14 stubs and the todo helpers left (Trace / Attack bodies, Damage_BOSS1, Approach_BOSS1, Init pair, tiSetChain*, tiCalc*, tiSelSPMotion_*, tiDefenseMode_*). Smoke run unchanged (content warning frame 11040); no run reaches a boss. callcheck: CheckLOS and ssTrigRegisterEvent are called through the static helpers tiBossLos / tiBossBalows2Fire. Open items nz1..nz5 (open-items.md item 8): names from this use only, bytes 0x92 / 0x93 for these bosses, +0xf0 and +0x120 are data inside the boss info pointer range, BRAIN_BOSS_SE = BRAIN_GHOST_SE, picks 1 / 2.",
    "ranges": [
     [
      "01867fb0",
      "01875b10"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-13 02:16",
+     "status": "partial",
+     "summary": "slice 1: the 18 boss mode changes (Chg Trace / Attack / Approach for BALOWS, SCISSORS_M / W, AXE, VITRIOL, HAMM; ChgReturn_BOSS1), Trace_BOSS_HAMM, Return_BOSS1, the six tiSetSpecialMode pickers and their table tiSelSpecialMode (0x01938640)"
+    }
+   ],
+   "status": "partial",
    "why": "tumap.py (bootstrap 5): symtab local chunks 80..80, 14 functions keyed by their statics, 55 unkeyed; file name from the names"
   },
   "game/tiBrain_ChgTrace_Ghost.c": {

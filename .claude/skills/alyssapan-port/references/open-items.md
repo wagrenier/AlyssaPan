@@ -2075,6 +2075,31 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    setting, 0 all) is not seen. Left as todo TU: game/tiBrain_ChgTrace_BOSS_BALOWS.c (34 stubs of 69) --
    the next run takes it, a slice per run.
 
+   **game/tiBrain_ChgTrace_BOSS_BALOWS.c slice 1 (partial, 2026-11-13 02:15, Claude, scheduled run).**
+   The queue was empty and tus.py found nothing on the frontier, so this run queued the last todo TU, as
+   the run before had named it. Written (26 functions): the 18 mode changes
+   tiBrain_Chg{Trace,Attack,Approach}_BOSS_{BALOWS,SCISSORS_M,AXE,VITRIOL,HAMM}, ChgAttack /
+   ChgApproach_BOSS_SCISSORS_W and ChgReturn_BOSS1; the bodies Trace_BOSS_HAMM (empty) and Return_BOSS1;
+   the six special-mode pickers tiSetSpecialMode_* and their table tiSelSpecialMode (0x01938640).
+   architecture.md "The bosses' mode changes" has the pattern. The 15 s smoke run is unchanged: the content
+   warning at frame 11040, black after. No run reaches a boss. callcheck reports CheckLOS and
+   ssTrigRegisterEvent as missing, but the code calls both through the static helpers tiBossLos and
+   tiBossBalows2Fire. Left: 14 stubs (the Trace / Attack bodies, Damage_BOSS1, Approach_BOSS1, the Init
+   pair) and the todo helpers (tiSetChainFlag / Data, tiCalcPlayerHitPoint, tiCalcHPRate, tiSelSPMotion_*,
+   tiDefenseMode_*, the rest of the 40). Open:
+   - (nz1) Every BOSS_INFO_* / BOSS_STATE_* / BOSS_SUB_* name the header adds is named from these tests
+     only.
+   - (nz2) Bytes 0x92 / 0x93 are tiXcmd_TransItem.h's CHAIN_A_ACTIVE / CHAIN_B_ACTIVE. BALOWS's picker
+     compares 0x93 with 2, and VITRIOL / AXE2 read 0x92 as a switch. So the bytes may be counts, or mean
+     something else for these bosses: the chain TU (tiSetChainFlag / tiSetChainData) decides.
+   - (nz3) pBossInfo +0xf0 (AXE) and +0x120..0x12c (Alyssa's position kept by the AXE's special) fall
+     inside the BOSS_INFO_PTR_FIRST..LAST range. They are plain data, not pointer words, so the side table
+     must never treat them as pointers.
+   - (nz4) BRAIN_BOSS_SE (0x278) is the same word as the ghosts' BRAIN_GHOST_SE. HAMM's special keeps its
+     SE handle there.
+   - (nz5) SCISSORS_W's approach sets pick 2 (BOSS_ATK_PICK_SCISSORS_W) and HAMM's special sets pick 1:
+     the attack bodies say what the picks select.
+
 ## Decisions
 
 - 2026-11-11 (Claude, scheduled run 19:15, for the user to overrule): **the ga 2D frame stays 4:3.** The

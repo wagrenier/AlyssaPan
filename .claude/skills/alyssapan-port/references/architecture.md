@@ -1556,6 +1556,27 @@ the branch scene tables and a few tk x commands.
   position, yaw 0x10000 minus the part's X-axis angle) while a global ready variable is not below 1;
   SetArrowPath2 60 back along a part's X axis.
 
+## The bosses' mode changes, game/tiBrain_ChgTrace_BOSS_BALOWS.c (2026-11-13, slice 1)
+
+- Six boss kinds share one brain object: BALOWS, SCISSORS_M / _W, AXE, VITRIOL, HAMM (and BOSS1's
+  return). Each has Chg{Trace,Attack,Approach} functions in ssAI_charaMain's tables. The pattern: a
+  trace ends into an approach when no attack is picked (BRAIN_ATK_PICK 0xff) and no listed one-shot
+  motion plays. An attack ends into an approach when the pick is 0 or none. An approach (with Alyssa's
+  hp > 0 and the submode not 3 / 5) turns into a trace when the boss's **special mode** starts. If it
+  doesn't, it turns into an attack (pick 0) when she is in sight (CheckLOS on the boss's light bank,
+  both ends raised 30) and within the boss's range: SCISSORS_M 400, AXE 100, VITRIOL 1000, HAMM 250
+  (200 in the NEAR submodes 2 / 4). BALOWS attacks without a range check.
+- **The special mode**: pBossInfo +0x158 selects one of the six pickers in `tiSelSpecialMode`
+  (.data 0x01938640: HAMM, VITRIOL, AXE1, AXE2, SCISSORS_M, BALOWS; BattleStart writes the setup's
+  w14c there and in +0x14c / +0x150 / +0x154). Each picker answers 1 and resets its counters when its
+  counts pass their limits: +0x18 past +0x1c, +0x70 (5 / 7 / 9), +0x88 (100 / 200), byte +0x8d, HAMM's
+  +0x74 within +0x28 <= 1800. BALOWS's starts when byte +0x93 > 2: it registers event 0x6e and puts
+  the boss in submode 7.
+- BALOWS's second phase (event 0x55e, TRIG_EVENT_BALOWS_2) waits on state bit 0x100 and +0xd4 < 1. When
+  the boss is busy with a one-shot, the phase is deferred (bit 0x200000) and fires when the one-shot ends.
+- Names are in tiBrain_ChgTrace_BOSS_BALOWS.h (BOSS_INFO_*, BOSS_STATE_*, BOSS_SUB_*). They come from
+  these tests only.
+
 ## The IOP side (2026-11-09)
 
 The EE loads `cdrom0:\IOP\IOPRP255.IMG;1` (an IOP reboot), then `SIO2MAN`, `PADMAN`, `MCMAN`, `MCSERV`,

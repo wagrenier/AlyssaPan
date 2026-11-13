@@ -45,3 +45,91 @@ void tiBrain_Attack_BOSS_HAMM(struct CHARACTER *chr);                           
 void tiBrain_Return_BOSS1(struct CHARACTER *chr);                                        // CT3 0x0186ec10
 int tiBrain_Damage_BOSS1(struct CHARACTER *chr);                                         // CT3 0x0186ec40
 void tiBrain_Approach_BOSS1(struct CHARACTER *chr);                                      // CT3 0x01870e00
+
+// ---- slice 1 (2026-11-13): the mode changes and the special-mode pickers ----
+// The bosses' Chg<Mode> functions pick the next SS_AI_* mode (brain[BRAIN_MODE]) from the motion the boss
+// plays (CHARA_MOTION_SLOTS[0]: a one-shot listed per boss is never cut), BRAIN_ATK_PICK (0xff: no attack
+// picked, so a trace may end) and the boss info (pBossInfo, tiXcmd_TransItem.h). Names below come from
+// these uses only; the Trace / Attack / Approach bodies (later slices) confirm them.
+
+// BRAIN_SUBMODE values the bosses use (the meaning of 2..5 and 8 is read from these tests only).
+#define BOSS_SUB_NONE 0                 /* a fresh approach / trace */
+#define BOSS_SUB_NEAR_2 2               /* an approach that only attacks within BOSS_NEAR_LIMIT */
+#define BOSS_SUB_HOLD_3 3               /* no mode change from an approach */
+#define BOSS_SUB_NEAR_4 4               /* as BOSS_SUB_NEAR_2 */
+#define BOSS_SUB_HOLD_5 5               /* as BOSS_SUB_HOLD_3 (not BALOWS) */
+#define BOSS_SUB_SPECIAL 6              /* the special mode is on: the approach turns into a trace */
+#define BOSS_SUB_BALOWS_SPECIAL 7       /* tiSetSpecialMode_BALOWS's: a SCISSORS_M approach -> trace */
+#define BOSS_SUB_BALOWS_FACING 8        /* BALOWS: attack only when Alyssa is ahead (BOSS_FACING_*) */
+#define BOSS_NEAR_LIMIT 200.0f          /* BOSS_SUB_NEAR_2 / _4: farther, no attack */
+#define BOSS_LOS_EYE_Y 30.0f            /* the sight line runs this far above both feet */
+#define BOSS_ATTACK_RANGE_SCISSORS_M 400.0f
+#define BOSS_ATTACK_RANGE_AXE 100.0f
+#define BOSS_ATTACK_RANGE_VITRIOL 1000.0f
+#define BOSS_ATTACK_RANGE_HAMM 250.0f
+#define BOSS_ATTACK_RANGE_BALOWS_CHAIN 100.0f /* BALOWS_FACING under BOSS_STATE_BALOWS_CHAIN */
+#define BOSS_FACING_DOT 0.05f           /* BALOWS_FACING: facing . to-Alyssa above this: she is ahead */
+#define BOSS_FACING_DOT_CHAIN 0.5f      /* the same under BOSS_STATE_BALOWS_CHAIN */
+#define BOSS_AXE_STEP 150.0f            /* the AXE's special: the step it checks behind / ahead of it */
+#define BOSS_AXE_MOTION_BACKSTEP 0x13   /* played before BRAIN_ATTACK_MOTION when Alyssa is ahead */
+#define BOSS_SCISSORS_W_MOTION_APPROACH 0x38
+#define BOSS_HAMM_MOTION_SPECIAL 0x40   /* then BOSS_HAMM_MOTION_SPECIAL_2, then BRAIN_SEARCH_MOTION */
+#define BOSS_HAMM_MOTION_SPECIAL_2 0x4a /* ChgTrace_BOSS_HAMM: playing it sets BRAIN_ATK_PICK 2 */
+#define BOSS_HAMM_SE_BANK "B_1A04"      /* 0x01934108 */
+#define BOSS_HAMM_SE_SPECIAL 0xb
+#define BOSS_HAMM_SE_ARG 0x3e0
+#define BOSS_RETURN_MOTION 0            /* tiBrain_Return_BOSS1 holds motion 0 */
+#define BOSS_ATK_PICK_FIRST 0           /* BRAIN_ATK_PICK: the first attack (a mode change's pick) */
+#define BOSS_ATK_PICK_BLOCKED 1         /* the AXE's special found its step blocked; HAMM's special */
+#define BOSS_ATK_PICK_HAMM_SPECIAL 2    /* while HAMM's special motion runs */
+#define TRIG_EVENT_BOSS_AXE_NO_STEP 0x0b /* global: the AXE's special skips the step check */
+#define TRIG_VAR_SCISSORS_M_03 3        /* global variable: below 5 the SCISSORS_M special may start */
+#define SCISSORS_M_VAR_03_LIMIT 5
+#define BALOWS_VAR_52_CHAIN_A 4         /* TRIG_VAR_BALOWS_52 values that keep BALOWS_FACING under the chain */
+#define BALOWS_VAR_52_CHAIN_B 0xe
+#define BALOWS_CHAIN_SETS_MIN 2         /* BOSS_INFO_CHAIN_B_ACTIVE above it: BALOWS's special starts */
+#define TRIG_EVENT_BALOWS_SPECIAL 0x6e  /* registered (global) as BALOWS's special starts */
+#define BOSS_AXE1_CHARA 4               /* tiSetSpecialMode_AXE1 tests Character[4] (the ROM's fixed address) */
+
+// Boss info words (pBossInfo offsets; tiXcmd_TransItem.h has the rest).
+#define BOSS_INFO_SPECIAL_COUNT 0x18    /* int: past BOSS_INFO_SPECIAL_AT the special starts */
+#define BOSS_INFO_SPECIAL_AT 0x1c       /* int: BOSS_SETUP.w1c */
+#define BOSS_INFO_HAMM_28 0x28          /* int: HAMM: cleared while BOSS_INFO_HITS_74 is 0; past 1800 both clear */
+#define BOSS_INFO_HAMM_28_MAX 0x708
+#define BOSS_INFO_HITS_70 0x70          /* int: a count each special tests (HAMM > 5, AXE > 7, VITRIOL > 9) */
+#define BOSS_INFO_HITS_74 0x74          /* int: HAMM: above 2 (within BOSS_INFO_HAMM_28_MAX) the special */
+#define BOSS_INFO_APPROACH_84 0x84      /* int: cleared whenever a boss turns to an approach */
+#define BOSS_INFO_AXE_88 0x88           /* int: AXE1 > 200, AXE2 > 100: the special starts */
+#define BOSS_INFO_COUNT_8D 0x8d         /* u_char: SCISSORS_M > 4, VITRIOL > 2 (3 with byte 0x92): the special */
+#define BOSS_INFO_HAMM_94 0x94          /* u_char: halved as HAMM's special starts, the old value kept in 0x95 */
+#define BOSS_INFO_HAMM_95 0x95          /*   and put back when the special's trace ends */
+#define BOSS_INFO_BALOWS_D4 0xd4        /* int: BALOWS: below 1 the second phase's event may fire */
+#define BOSS_INFO_AXE_F0 0xf0           /* int: cleared as the AXE's trace ends (not a pointer word) */
+#define BOSS_INFO_SPECIAL_POS 0x120     /* float[4]: Alyssa's position when the AXE's special started */
+#define BOSS_INFO_SPECIAL_KIND 0x158    /* int: BOSS_SPECIAL_*, the tiSelSpecialMode slot (BOSS_SETUP.w14c) */
+// BOSS_INFO_PHASE (0x0c) bits read here.
+#define BOSS_STATE_AXE_SPECIAL 0x0008   /* the AXE's special is on (AXE1 / AXE2 end it) */
+#define BOSS_STATE_HAMM_SPECIAL 0x0020  /* HAMM's special motion is playing */
+#define BOSS_STATE_BALOWS_2_READY 0x0100 /* BALOWS: the second phase waits (TRIG_EVENT_BALOWS_2) */
+#define BOSS_STATE_HOLD_1000 0x1000     /* VITRIOL: the approach attacks at once; AXE2: the special starts */
+#define BOSS_STATE_SPECIAL_ON 0x80000   /* a special mode runs (HAMM sets it; every trace's end clears it) */
+#define BOSS_STATE_BALOWS_2_DEFER 0x200000 /* BALOWS_2_READY came during a one-shot: fire it after */
+#define BOSS_STATE_BALOWS_CHAIN 0x800000 /* BALOWS_FACING: the chain variant (TRIG_VAR_BALOWS_52) */
+// BOSS_INFO_SPECIAL_KIND: the slots of tiSelSpecialMode.
+enum {
+    BOSS_SPECIAL_HAMM = 0,
+    BOSS_SPECIAL_VITRIOL = 1,
+    BOSS_SPECIAL_AXE1 = 2,
+    BOSS_SPECIAL_AXE2 = 3,
+    BOSS_SPECIAL_SCISSORS_M = 4,
+    BOSS_SPECIAL_BALOWS = 5,
+    BOSS_SPECIAL_COUNT = 6
+};
+// Each answers 1 when the boss's special mode starts now (and resets its counters).
+int tiSetSpecialMode_BALOWS(void);                                                       // CT3 0x01871eb0
+int tiSetSpecialMode_SCISSORS_M(void);                                                   // CT3 0x01871f20
+int tiSetSpecialMode_AXE2(void);                                                         // CT3 0x01871f90
+int tiSetSpecialMode_AXE1(void);                                                         // CT3 0x018720b0
+int tiSetSpecialMode_VITRIOL(void);                                                      // CT3 0x01872150
+int tiSetSpecialMode_HAMM(void);                                                         // CT3 0x018721a0
+extern int (*const tiSelSpecialMode[BOSS_SPECIAL_COUNT])(void);                          // CT3 0x01938640
