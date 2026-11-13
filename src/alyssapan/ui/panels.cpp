@@ -182,12 +182,34 @@ private:
             m_config.save();
         }
 
+        drawAnisotropyItems(display);
         drawGpuDriverItems(display);
 
         ImGui::Separator();
         const rendering::Renderer::Stats stats = m_application.renderer().stats();
         ImGui::TextDisabled("  game %.1f fps, shown %.1f", stats.gameRate, stats.presentRate);
         ImGui::EndMenu();
+    }
+
+    // RosePan's anisotropy levels: the renderer rebuilds its samplers on the next frame; the active level is 1 when
+    // the device refused anisotropic samplers.
+    void drawAnisotropyItems(DisplaySettings &display)
+    {
+        ImGui::Separator();
+        ImGui::TextDisabled("Texture anisotropy");
+        const int current = rendering::SamplerTable::levelFor(display.anisotropy);
+        for (int level = 1; level <= rendering::SamplerTable::kMaxAnisotropy; level *= 2)
+        {
+            const std::string label = level == 1 ? std::string("Off") : std::format("{}x", level);
+            if (ImGui::MenuItem(label.c_str(), nullptr, current == level) && current != level)
+            {
+                display.anisotropy = level;
+                m_config.save();
+            }
+        }
+        const rendering::SamplerTable &samplers = m_application.renderer().samplers();
+        if (samplers.activeLevel() != samplers.requestedLevel())
+            ImGui::TextDisabled("  active: %dx (the device refused more)", samplers.activeLevel());
     }
 
     // MikuPan's driver choice: SDL's names, read once (the build's set does not change); a device cannot change

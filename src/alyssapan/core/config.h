@@ -81,6 +81,9 @@ struct DisplaySettings
     // that cannot start falls back to SDL's choice. Both apply on the next start.
     std::string gpuDriver;
     bool gpuDebug = false; // the backend's validation layer: slow, for finding GPU misuse
+    // Texture anisotropy on the linear samplers: 1 (off), 2, 4, 8 or 16 (rendering/sampler_table.h rounds
+    // other values down to a power of two). Applies on the next frame.
+    int anisotropy = 1;
     // Between two game frames, the cameras, lights, models and bones blend from the older one's places to the newer
     // one's (rendering/frame_blend.h): the game still runs at 25 frames a second, the picture moves at the monitor's
     // rate.

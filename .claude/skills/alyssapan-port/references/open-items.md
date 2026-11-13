@@ -1041,8 +1041,14 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    itself is unseen and so is the highlight expansion on a real HDR display (headroom 1 here: the lift
    has nowhere to go); (hdr3) the 06:28 session's commit 8367449 swept this run's half-written
    hdr_output.* and present_pass changes in with its own (git add -A while two sessions shared the
-   tree), so 8367449 alone does not build; the next commit completes it. MSAA / anisotropy are the next
-   parts of (c)); (d) ~~the real memory card~~ (done 2026-11-09: `io::MemoryCards` behind
+   tree), so 8367449 alone does not build; the next commit completes it. ~~Anisotropy~~ (done 2026-11-13
+   07:05 run, alyssapan/rendering/sampler_table.cpp, Claude: the queue was empty, so the run queued the
+   next part of (c). Seen: ALYSSAPAN_ANISOTROPY=16 logs 16x requested, 16x active on D3D12 and the title
+   draws as before (no device loss: the linear-only rule holds); the default (1x) at 16:9 draws the same
+   pillarboxed title. Open: (an1) nothing on the title is minified at a slant, so the sharper textures
+   are unseen -- the first 3D room (floors at grazing angles) shows it; textures have one mip level, so
+   only the anisotropic taps act; (an2) the menu items were not clicked: smoke runs have no mouse). MSAA
+   is the next part of (c)); (d) ~~the real memory card~~ (done 2026-11-09: `io::MemoryCards` behind
    sdk/libmc.cpp; a scratch test wrote, listed and read a save through sceMc* calls; no smoke run reaches
    McInit yet, so the game's own mc_* code has not exercised it), reverb and volume
    groups (YamiPan's SPU2 is next to them), the audio dump; (e) `libsdr` (CT3 calls `sceSdRemote`), newlib

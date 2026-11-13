@@ -148,29 +148,14 @@ static SDL_GPUCompareOp depthCompareOf(DepthTest test)
 
 Renderer::Renderer(Window &window, gpu::Device &device, Config &config, EventQueue &events, ui::Overlay &overlay)
     : m_window(window), m_device(device), m_config(config), m_events(events), m_overlay(overlay), m_canvas(*this),
-      m_sceneFormat(SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM), m_outputFormat(SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM)
+      m_sceneFormat(SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM), m_outputFormat(SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM),
+      m_samplers(device)
 {
     m_vertexShader = m_device.loadShader("ui.vert", SDL_GPU_SHADERSTAGE_VERTEX, {.samplers = 0, .uniformBuffers = 1});
     m_fragmentShader =
         m_device.loadShader("ui.frag", SDL_GPU_SHADERSTAGE_FRAGMENT, {.samplers = 1, .uniformBuffers = 1});
 
-    for (std::size_t index = 0; index < m_samplers.size(); index++)
-    {
-        const bool linear = (index & 1) != 0;
-        const bool repeat = (index & 2) != 0;
-        const SDL_GPUSamplerAddressMode address =
-            repeat ? SDL_GPU_SAMPLERADDRESSMODE_REPEAT : SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
-        const SDL_GPUFilter filter = linear ? SDL_GPU_FILTER_LINEAR : SDL_GPU_FILTER_NEAREST;
-
-        SDL_GPUSamplerCreateInfo info{};
-        info.min_filter = filter;
-        info.mag_filter = filter;
-        info.mipmap_mode = SDL_GPU_SAMPLERMIPMAPMODE_NEAREST;
-        info.address_mode_u = address;
-        info.address_mode_v = address;
-        info.address_mode_w = address;
-        m_samplers[index] = m_device.createSampler(info);
-    }
+    m_samplers.update(m_config.display.anisotropy);
 
     // A float depth over the GS's 1 / z-shaped Z keeps its precision where the GS has it (D32 is everywhere
     // SDL_GPU runs; D24 the fallback).
@@ -323,7 +308,7 @@ SDL_GPUGraphicsPipeline *Renderer::pipelineFor(PipelineKey key)
 
 SDL_GPUSampler *Renderer::samplerFor(bool linear, bool repeat) const
 {
-    return m_samplers[(linear ? 1u : 0u) | (repeat ? 2u : 0u)].get();
+    return m_samplers.get(linear, repeat);
 }
 
 void Renderer::uploadImages(SDL_GPUCopyPass *copy, Frame &frame)
@@ -532,6 +517,8 @@ void Renderer::renderOnce()
         m_hdr->refreshDisplay();
         applyPresentMode();
     }
+    // Between frames: the overlay's Graphics menu may have moved the anisotropy.
+    m_samplers.update(m_config.display.anisotropy);
 
     const PictureLayout layout = computeLayout(windowWidth, windowHeight, m_config.display);
     const bool layoutChanged = [&] {

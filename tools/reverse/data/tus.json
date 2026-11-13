@@ -214,6 +214,18 @@
    "status": "done",
    "task": "nu1: the in-game menu (MENU.BIN, M<nnn>.BIN maps) at wide aspects: keep it in the 4:3 box (Decisions 2026-11-11)"
   },
+  "alyssapan/rendering/sampler_table.cpp": {
+   "notes": "Seen: 16x requested and active on D3D12, the title draws as before at 4:3; 1x at 16:9 draws the same pillarboxed title. Unseen: the sharper textures (nothing on the title is slanted; the first 3D room shows it) and the menu clicks (no mouse in smoke runs). MSAA is the next part of shim c.",
+   "sessions": [
+    {
+     "date": "2026-11-13 07:12",
+     "status": "verify",
+     "summary": "Texture anisotropy (shim c, part 3): rendering::SamplerTable owns the renderer samplers and rebuilds them at the [display] anisotropy level (1/2/4/8/16, env ALYSSAPAN_ANISOTROPY), linear samplers only, fallback when refused; Settings > Graphics lists the levels"
+    }
+   ],
+   "status": "verify",
+   "task": "Shim (c), part 3 (cpp-port.md item 8, anisotropy half; RosePan rosepan_renderer.cpp SetAnisotropy and its sampler table): texture anisotropy 1/2/4/8/16 as rendering::SamplerTable owning the renderer samplers; [display] anisotropy, env ALYSSAPAN_ANISOTROPY; only on all-linear samplers (D3D12 has one anisotropic filter value); falls back to plain samplers when the device refuses; Settings > Graphics lists the levels and the active one. MSAA is the next part."
+  },
   "alyssapan/rendering/title_wide.cpp": {
    "notes": "Probe: the backdrops are frame-sized quads (-24..522) and larger ones (sky -460..970, fog -150..660) the ROM leaves to SCISSOR_1; squeezed at 16:9 their edges were the seams. gaScissor clips the ga list to the 4:3 box (Decisions 2026-11-11, from YamiPan's textured backdrops stay 4:3). The lighter band: sky and fog meshes use REGION_REPEAT MSK 0x7f over st -0.7..1.7, drawn as clamp; gaSampling crops the cell (TextureStore::regionOf) and repeats it, shifting u v by whole cells past 0. Shots at 1024x768, 1280x720, 1680x720 after 50 s: same title in the 4:3 box, clouds and tower silhouette across the frame, no seams, no flat band. Not handled: a mesh mixing repeat and clamp axes (none on the title).",
    "sessions": [
