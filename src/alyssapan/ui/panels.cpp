@@ -84,6 +84,9 @@ private:
             setWindowMode(WindowMode::Windowed);
         if (ImGui::MenuItem("Borderless fullscreen", "Alt+Enter", mode == WindowMode::Borderless))
             setWindowMode(WindowMode::Borderless);
+        if (ImGui::MenuItem("Exclusive fullscreen", "Alt+Enter", mode == WindowMode::Exclusive))
+            setWindowMode(WindowMode::Exclusive);
+        drawWindowSizeMenu();
         if (ImGui::MenuItem("Pause in the background", nullptr, &m_config.window.pauseInBackground))
             m_config.save();
 
@@ -194,6 +197,32 @@ private:
         volumeSlider("Effects", audio.effects);
         if (ImGui::MenuItem("Mute in the background", nullptr, &audio.muteInBackground))
             m_config.save();
+        ImGui::EndMenu();
+    }
+
+    // MikuPan's presets: a chosen size leaves fullscreen and centres the window; sizes larger than the
+    // display are shown but disabled.
+    void drawWindowSizeMenu()
+    {
+        if (!ImGui::BeginMenu("Window size"))
+            return;
+        Window &window = m_application.window();
+        const auto [width, height] = window.windowedSize();
+        for (const WindowSizePreset &preset : windowSizePresets())
+        {
+            const bool current = !window.fullscreen() && preset.width == width && preset.height == height;
+            if (ImGui::MenuItem(preset.label, nullptr, current, window.fitsDisplay(preset.width, preset.height)))
+            {
+                window.setWindowedSize(preset.width, preset.height);
+                m_config.display.windowMode = WindowMode::Windowed;
+                m_config.display.windowWidth = preset.width;
+                m_config.display.windowHeight = preset.height;
+                m_config.save();
+            }
+        }
+        ImGui::Separator();
+        if (ImGui::MenuItem("Centre the window", nullptr, false, !window.fullscreen()))
+            window.centre();
         ImGui::EndMenu();
     }
 

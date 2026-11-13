@@ -1017,7 +1017,12 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
    class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~
    (done 2026-11-09; pause in the background is written but no run has exercised it: smoke windows sit
-   in the background, so turning it on there would freeze the run); (b) exclusive fullscreen, window position and presets; (c) the HDR swapchain,
+   in the background, so turning it on there would freeze the run); ~~(b) exclusive fullscreen, window position and presets~~ (done 2026-11-13,
+   alyssapan/core/window_modes.cpp, Claude, scheduled run: the queue was empty and no smoke run reaches a
+   stub, so the run took the next shim in this list; open: (wm1) exclusive mode itself is unseen -- RDP
+   refuses the mode change and the fallback to borderless is what ran; (wm2) the presets menu and Centre
+   were built but not clicked: smoke runs have no mouse; (wm3) a maximised window saves its last plain
+   size and place, not the maximised state -- MikuPan kept none either); (c) the HDR swapchain,
    MSAA, anisotropy, GPU driver choice; (d) ~~the real memory card~~ (done 2026-11-09: `io::MemoryCards` behind
    sdk/libmc.cpp; a scratch test wrote, listed and read a save through sceMc* calls; no smoke run reaches
    McInit yet, so the game's own mc_* code has not exercised it), reverb and volume

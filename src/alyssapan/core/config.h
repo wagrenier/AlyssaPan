@@ -17,7 +17,12 @@ enum class WindowMode
 {
     Windowed,
     Borderless, // desktop fullscreen: no video mode switch, so alt-tab is instant
+    Exclusive,  // the display's own fullscreen at the desktop's mode: the driver owns the screen (MikuPan)
 };
+
+// A window position nobody has saved yet: the window is centred on its display instead. Far outside any
+// real desktop, so it can share the position's ini keys (MikuPan kept separate state for this).
+inline constexpr int kWindowUnplaced = -32768;
 
 enum class RenderResolution
 {
@@ -63,6 +68,9 @@ struct DisplaySettings
     WindowMode windowMode = WindowMode::Windowed;
     int windowWidth = 1280;
     int windowHeight = 960;
+    // The windowed window's top-left corner on the desktop, saved on quit; kWindowUnplaced centres it.
+    int windowX = kWindowUnplaced;
+    int windowY = kWindowUnplaced;
     AspectMode aspectMode = AspectMode::Auto;
     float aspectRatio = 16.0f / 9.0f;
     RenderResolution renderMode = RenderResolution::MatchWindow;

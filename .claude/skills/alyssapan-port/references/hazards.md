@@ -7,6 +7,12 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-13, scheduled run, window modes) **Exclusive fullscreen fails over Remote Desktop**: SDL's
+  SDL_SetWindowFullscreen with a display mode answers "ChangeDisplaySettingsEx() failed: DISP_CHANGE_FAILED"
+  on this machine's RDP session, and the window stays windowed. Window::setMode now falls back to
+  borderless (logged as a warning), so a test of exclusive mode here only proves the fallback; the real
+  mode change needs a local console session.
+
 - (2026-11-13, scheduled run, boss damage) **`CHARACTER.pos` is a `qword`, which is `int[4]`.**
   `chr->pos[k]` compiles and reads integers; use `((float *)chr->pos)[k]` (or a `float *` local), as the
   ghost and boss code do. **A `// callcheck:` comment stops at the first `(`**: name helpers one comment

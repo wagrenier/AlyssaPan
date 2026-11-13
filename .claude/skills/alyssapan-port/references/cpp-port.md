@@ -113,8 +113,13 @@ Platform, game-independent (1-5 carried over 2026-11-09, host task `alyssapan/co
    pixel density, or `[ui] scale` (0 = follow; `ALYSSAPAN_UI_SCALE`); both styles rebuilt from defaults.
 5. ~~Cursor auto-hide~~ `ui::Overlay::hideIdleCursor`: still for `[ui] cursor_hide_seconds` (2), or
    borderless with the bar down, through `ImGui::SetMouseCursor(None)`.
-6. Exclusive fullscreen, position restore and centring, size presets: MikuPan
-   `mikupan_renderer.cpp:1610-1735`, `ui/mikupan_ui_settings.cpp:80-175` (and save the position: new).
+6. ~~Exclusive fullscreen, position restore and centring, size presets~~ done 2026-11-13 (host task
+   `alyssapan/core/window_modes.cpp`, Window members): `WindowMode::Exclusive` ("exclusive": the desktop's
+   own mode; borderless when the display refuses, as over RDP), Alt+Enter back to the last fullscreen
+   used; `[display] window_x / window_y` saved on quit (-32768 = centred), used when the title bar's
+   corner is still on a display, else centred; Settings > Display > Window size (MikuPan's presets, 4:3
+   and wide, larger than the display disabled; leave fullscreen, un-maximise, centre) and "Centre the
+   window"; test runs set `ALYSSAPAN_WINDOW_MODE / _X / _Y`.
 7. The HDR swapchain (scRGB / HDR10, display headroom): RosePan `rosepan_renderer.cpp`
    (`SetHdrMode`, `GetHdrDisplayInfo`); the settings and PresentPass exist, the swapchain is SDR.
 8. MSAA and anisotropy with their maxima: same RosePan file (`SetMsaaSamples`, `SetAnisotropy`).

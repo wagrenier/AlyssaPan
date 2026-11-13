@@ -24,9 +24,10 @@ struct EnumNames;
 template <>
 struct EnumNames<WindowMode>
 {
-    static constexpr std::array<std::pair<WindowMode, std::string_view>, 2> names{{
+    static constexpr std::array<std::pair<WindowMode, std::string_view>, 3> names{{
         {WindowMode::Windowed, "windowed"},
         {WindowMode::Borderless, "borderless"},
+        {WindowMode::Exclusive, "exclusive"},
     }};
 };
 
@@ -203,6 +204,8 @@ void DisplaySettings::serialize(Archive &archive)
     archive("window_mode", windowMode);
     archive("window_width", windowWidth);
     archive("window_height", windowHeight);
+    archive("window_x", windowX);
+    archive("window_y", windowY);
     archive("aspect", aspectMode);
     archive("aspect_ratio", aspectRatio);
     archive("render_mode", renderMode);
@@ -304,6 +307,9 @@ void Config::applyEnvironment()
     apply("ALYSSAPAN_RENDER_SCALE", display.renderScale);
     apply("ALYSSAPAN_WINDOW_WIDTH", display.windowWidth);
     apply("ALYSSAPAN_WINDOW_HEIGHT", display.windowHeight);
+    apply("ALYSSAPAN_WINDOW_MODE", display.windowMode);
+    apply("ALYSSAPAN_WINDOW_X", display.windowX);
+    apply("ALYSSAPAN_WINDOW_Y", display.windowY);
     apply("ALYSSAPAN_PRESENT_MODE", display.presentMode);
     apply("ALYSSAPAN_UI_SCALE", ui.scale);
 }

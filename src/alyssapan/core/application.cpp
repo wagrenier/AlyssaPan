@@ -137,6 +137,9 @@ void Application::pumpEvents()
         case SDL_EVENT_WINDOW_RESIZED:
             m_window->noteResized();
             break;
+        case SDL_EVENT_WINDOW_MOVED:
+            m_window->noteMoved();
+            break;
         default:
             break;
         }
@@ -173,6 +176,9 @@ void Application::quit()
     const auto [width, height] = m_window->windowedSize();
     m_config.display.windowWidth = width;
     m_config.display.windowHeight = height;
+    const auto [x, y] = m_window->windowedPosition();
+    m_config.display.windowX = x;
+    m_config.display.windowY = y;
     m_config.display.windowMode = m_window->mode();
     m_input->saveBindings(m_config.ini());
     m_config.save();

@@ -27,19 +27,24 @@ std::expected<Window, std::string> Window::create(const DisplaySettings &setting
         return std::unexpected(std::format("SDL_CreateWindow: {}", SDL_GetError()));
 
     Window result(window, settings);
+    result.place(settings.windowX, settings.windowY);
     result.setMode(settings.windowMode);
     return result;
 }
 
 Window::Window(SDL_Window *window, const DisplaySettings &settings)
-    : m_window(window), m_mode(WindowMode::Windowed), m_windowedWidth(settings.windowWidth),
-      m_windowedHeight(settings.windowHeight)
+    : m_window(window), m_mode(WindowMode::Windowed),
+      m_fullscreenMode(settings.windowMode == WindowMode::Exclusive ? WindowMode::Exclusive
+                                                                    : WindowMode::Borderless),
+      m_windowedWidth(settings.windowWidth), m_windowedHeight(settings.windowHeight),
+      m_windowedX(kWindowUnplaced), m_windowedY(kWindowUnplaced)
 {
 }
 
 Window::Window(Window &&other) noexcept
     : m_window(std::exchange(other.m_window, nullptr)), m_mode(other.m_mode),
-      m_windowedWidth(other.m_windowedWidth), m_windowedHeight(other.m_windowedHeight)
+      m_fullscreenMode(other.m_fullscreenMode), m_windowedWidth(other.m_windowedWidth),
+      m_windowedHeight(other.m_windowedHeight), m_windowedX(other.m_windowedX), m_windowedY(other.m_windowedY)
 {
 }
 
@@ -57,35 +62,18 @@ std::pair<int, int> Window::pixelSize() const
     return {width, height};
 }
 
-void Window::setMode(WindowMode mode)
-{
-    runOnMainThread([this, mode] {
-        // Borderless only: no video mode of its own, so alt-tab is instant and the desktop stays as
-        // it is. A low render resolution is the render-resolution setting's job.
-        if (mode == WindowMode::Borderless)
-            SDL_SetWindowFullscreenMode(m_window, nullptr);
-        if (!SDL_SetWindowFullscreen(m_window, mode == WindowMode::Borderless))
-        {
-            log::error("SDL_SetWindowFullscreen: {}", SDL_GetError());
-            return;
-        }
-        // The change lands some frames later otherwise, and the next frame would be recorded at a
-        // size thrown away a frame on.
-        SDL_SyncWindow(m_window);
-        m_mode = mode;
-    });
-}
-
-void Window::toggleFullscreen()
-{
-    setMode(m_mode == WindowMode::Windowed ? WindowMode::Borderless : WindowMode::Windowed);
-}
-
 void Window::noteResized()
 {
-    if (m_mode != WindowMode::Windowed)
+    if (!keepsPlacement())
         return;
     SDL_GetWindowSize(m_window, &m_windowedWidth, &m_windowedHeight);
+}
+
+void Window::noteMoved()
+{
+    if (!keepsPlacement())
+        return;
+    SDL_GetWindowPosition(m_window, &m_windowedX, &m_windowedY);
 }
 
 void Window::setIcon(const std::filesystem::path &png)

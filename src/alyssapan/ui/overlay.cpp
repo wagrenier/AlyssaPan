@@ -180,7 +180,7 @@ void Overlay::hideIdleCursor()
     const float idleSeconds = m_application.config().ui.cursorHideSeconds;
     const bool idle = idleSeconds > 0.0f && std::chrono::steady_clock::now() - m_lastMouseActivity >=
                                                 std::chrono::duration<float>(idleSeconds);
-    const bool fullscreenPlay = m_application.window().mode() == WindowMode::Borderless && !m_menuVisible;
+    const bool fullscreenPlay = m_application.window().fullscreen() && !m_menuVisible;
     if (idle || fullscreenPlay)
         ImGui::SetMouseCursor(ImGuiMouseCursor_None);
 }
