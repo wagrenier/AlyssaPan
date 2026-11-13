@@ -149,7 +149,11 @@ Platform, game-independent (1-5 carried over 2026-11-09, host task `alyssapan/co
    `ALYSSAPAN_GPU_DRIVER / _DEBUG`; `Device::create(paths, driver, debug)` falls back to SDL's choice with a
    warning when the named driver does not start; Settings > Graphics has a drop-down of `gpu::availableDrivers()` (the user, 2026-11-13),
    the debug layer and the running driver (applies on restart).
-10. User-directory override for test runs: ReiPan `reipan/io/reipan_paths.cpp:340` (`REIPAN_USER_DIR`).
+10. ~~User-directory override for test runs~~ done 2026-11-13 (host task `alyssapan/core/user_dir.cpp`, ReiPan's
+    `REIPAN_USER_DIR`): `ALYSSAPAN_USER_DIR` (non-empty) replaces SDL's pref path in `Paths` (ini, log, cards;
+    `ALYSSAPAN_MEMCARD_DIR` still wins for the cards) and the log's first lines name it; `build.py --run`
+    sets `work/user/`, so a smoke run's settings never reach the player's ini (`--env ALYSSAPAN_USER_DIR=`
+    runs with the player's).
 11. Log level and assert hook: RosePan `rosepan/io/rosepan_log.cpp:586`.
 12. Profiler phases and stutter attribution: RosePan `rosepan_profiler.cpp:103`, `rosepan_ui.cpp:2327`.
 
@@ -162,7 +166,9 @@ PS2 platform, generic across games:
 17. Playing from a disc image (.iso): MioPan `miopan/io/miopan_iso9660.cpp`, MikuPan
     `io/mikupan_disc_image.cpp`; `io::Disc` already answers sector reads.
 18. Save import / export (card images, PSU / MAX / XPS / CBS): MioPan `miopan/save/*.cpp`, `miopan_ui_saves.cpp`.
-19. newlib's 31-bit `rand()`: RosePan `rosepan/os/rosepan_rand.cpp` (CT3 links newlib: likely needed).
+19. ~~newlib's 31-bit `rand()`~~ not needed (checked 2026-11-13): CT3 links no `rand` / `srand` (none in
+    alyssapan_functions.txt); the game draws from its own `rnd` / `rndf` (game/BRANCH_CLEAR.c, 64-bit seed at
+    0x01937e00), already reconstructed.
 20. Frame limiter / vblank-wait harness: RosePan `os/rosepan_pacing.cpp`, MikuPan `mikupan_framelimiter.cpp`.
 21. SDK pieces CT3 imports that YamiPan never needed: **`libsdr` (sdremote, CT3 uses it)**, `libvu0`
     functions, `libipu`, the EE timers (`eeregs.cpp`): RosePan / MioPan `sdk/`.

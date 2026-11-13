@@ -50,6 +50,8 @@ Application::Application(std::span<char *> arguments) : m_arguments(arguments)
 
     crash::install();
     log::open(m_paths.logFile());
+    if (m_paths.userDirectoryOverridden())
+        log::info("user directory {} (ALYSSAPAN_USER_DIR)", pathToUtf8(m_paths.userDirectory()));
     m_config.load(m_paths.configFile());
     m_paths.discoverDataFolder(m_config.paths.dataFolder);
 }

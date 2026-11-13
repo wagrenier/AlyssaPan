@@ -89,6 +89,18 @@
    "status": "done",
    "task": "Host task (the user, 2026-11-11: reach the title). Find why the run stops presenting frames after m_title.mov and hhXcmd_PlayADS: in the 16:25 probe (every stubbed x command answering done, both movies skipped) frames stop near frame 1860 and TITL.BIN never loads. Run with a time limit (build.py --run, or gdbrun.py under Monitor with a timeout), break or sample where the main loop spins (a load wait, a script wait, a movie or stream wait), name the stub or loop that holds it, and queue its TU at the top. Write findings in open-items.md item 8; no game code here unless it is the one-line fix."
   },
+  "alyssapan/core/user_dir.cpp": {
+   "notes": "45 s smoke run: log names work/user, ini and log written there, the player's APPDATA files untouched, the title draws as before at 4:3. Smoke runs now start from default settings, not the player's ini (ud1).",
+   "sessions": [
+    {
+     "date": "2026-11-13 07:29",
+     "status": "done",
+     "summary": "Shim 10: ALYSSAPAN_USER_DIR overrides the user directory (ini, log, cards) in Paths; build.py --run sets work/user so smoke runs never touch the player's settings; newlib rand marked not needed (CT3 has its own rnd)"
+    }
+   ],
+   "status": "done",
+   "task": "Shim 10 (cpp-port.md): ALYSSAPAN_USER_DIR overrides the user directory (settings, log, cards) so scripted runs keep theirs apart from the player's; build.py --run points it at work/user"
+  },
   "alyssapan/core/window.cpp": {
    "notes": "InputSystem::loadControllerMappings reads resources/gamecontrollerdb.txt (568 mappings). Window::setIcon loads resources/alyssapan.png; extern/icon.rc gives the exe its icon; both drawn by tools/make_icon.py. Application::updateBackgroundState mutes through Spu2Voices::setOutputMuted (stream gain) and holds the field clock through InterruptController::setHeld. Overlay follows the display scale (1.5 on this machine) or [ui] scale; idle cursor hides after [ui] cursor_hide_seconds. New ini keys [window] pause_in_background, [ui] scale and cursor_hide_seconds, [audio] mute_in_background round-trip (written on first run, scale read back from the file). Whole-window shots at 1280x960 and 1600x680 show the bar; the game picture is still black (stubs). Pause in the background is written but untested in a run.",
    "sessions": [

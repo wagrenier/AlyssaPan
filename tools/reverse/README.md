@@ -183,6 +183,7 @@ these hooks:
 | `ALYSSAPAN_SHOT_DIR` / `ALYSSAPAN_SHOT_EVERY`: save every Nth presented frame as `shot_<frame>.png` + `last.png` | `rendering::Screenshotter` | build.py --run, tus.py finish (progress/) |
 | `ALYSSAPAN_AUTOPAD`: scripted pad 0, `<read>:<BUTTON>[*<reads>],...`, host input masked | `io::InputSystem` | build.py --pad, settings.smoke_pad |
 | `ALYSSAPAN_DATA_DIR`: the game's data folder | `Paths` | build.py (`alyssapan.GAME_DATA`) |
+| `ALYSSAPAN_USER_DIR`: the user directory (ini, log, cards) instead of `%APPDATA%/Mikompilation/AlyssaPan`; empty = unset | `Paths` | build.py --run (`work/user/`) |
 | `ALYSSAPAN_TEX_DUMP=<dir>`: write every newly decoded TIM2 file to `<dir>/<hash>.tm2`, for `tm2png.py` | `rendering::TextureStore` | `build.py --env`, a screen's references |
 | `ALYSSAPAN_SMOOTH_MOTION=0/1` (the ini's `smooth_motion`), `ALYSSAPAN_BLEND_ALPHA=<0..1>`: every blendable present at that share (deterministic shots), `ALYSSAPAN_BLEND_LOG=1`: a `[blend]` line per present (frame, ms since its field, share, matrices and effect quads blended of all, the quads' mean step, the first skinned model's first bone, each pass's eye) | `rendering::Renderer`, `FrameBlend` | `build.py --env`, smooth-motion checks |
 | the EE main thread named `AlyssaPanGame` | `ee::Kernel` | gdbrun.py / gdbdrive.py |

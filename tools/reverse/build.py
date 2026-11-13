@@ -101,6 +101,10 @@ if '--run' in sys.argv:
     every = sys.argv[sys.argv.index('--shot-every') + 1] if '--shot-every' in sys.argv else '60'
     run_env = dict(env, ALYSSAPAN_SHOT_DIR=str(shots), ALYSSAPAN_SHOT_EVERY=every)
     run_env.setdefault('ALYSSAPAN_DATA_DIR', str(alyssapan.GAME_DATA))
+    # Smoke runs keep their settings and log apart from the player's (work/user/alyssapan.ini, .log;
+    # Paths): a run's window, graphics or HDR choices never reach the player's ini. --env
+    # ALYSSAPAN_USER_DIR= (empty) runs with the player's directory.
+    run_env.setdefault('ALYSSAPAN_USER_DIR', str(alyssapan.WORK / 'user'))
     # Smoke runs save to a card of their own (work/memcard/mc<port>-<slot>/), never the user's.
     run_env.setdefault('ALYSSAPAN_MEMCARD_DIR', str(alyssapan.WORK / 'memcard'))
     # Smoke runs skip the movies (RosePan's rule; src/alyssapan/core/movie_skip.h): --env ALYSSAPAN_SKIP_INTRO=0 plays them.

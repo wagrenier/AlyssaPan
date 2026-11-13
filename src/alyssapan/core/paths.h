@@ -15,7 +15,10 @@ class Paths
 public:
     Paths();
 
+    // ALYSSAPAN_USER_DIR when set (scripted runs), else SDL's per-user folder
+    // (%APPDATA%/Mikompilation/AlyssaPan), else the install directory.
     const std::filesystem::path &userDirectory() const { return m_user; }
+    bool userDirectoryOverridden() const { return m_userOverridden; }
     std::filesystem::path configFile() const { return m_user / "alyssapan.ini"; }
     std::filesystem::path logFile() const { return m_user / "alyssapan.log"; }
     std::filesystem::path memoryCardDirectory() const { return m_user / "memcard"; }
@@ -41,6 +44,7 @@ private:
     std::filesystem::path m_user;
     std::filesystem::path m_base;
     std::filesystem::path m_data;
+    bool m_userOverridden = false;
 };
 
 // UTF-8 is what SDL and the settings file speak; std::filesystem must be told.

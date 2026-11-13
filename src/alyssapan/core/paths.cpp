@@ -29,7 +29,16 @@ Paths::Paths()
     if (const char *base = SDL_GetBasePath())
         m_base = pathFromUtf8(base);
 
-    if (char *const user = SDL_GetPrefPath("Mikompilation", "AlyssaPan"))
+    // A scripted run (build.py --run, tests) keeps its settings, log and cards apart from the player's,
+    // so a smoke run's window size, position or graphics choices never land in the player's ini
+    // (ReiPan's REIPAN_USER_DIR). Empty counts as unset, so `--env ALYSSAPAN_USER_DIR=` gives the
+    // player's directory back.
+    if (const char *const override = std::getenv("ALYSSAPAN_USER_DIR"); override != nullptr && *override)
+    {
+        m_user = pathFromUtf8(override);
+        m_userOverridden = true;
+    }
+    else if (char *const user = SDL_GetPrefPath("Mikompilation", "AlyssaPan"))
     {
         m_user = pathFromUtf8(user);
         SDL_free(user);

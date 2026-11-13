@@ -1057,8 +1057,14 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    either; add it if MSAA leaves their edges hard); **(c) is complete**); (d) ~~the real memory card~~ (done 2026-11-09: `io::MemoryCards` behind
    sdk/libmc.cpp; a scratch test wrote, listed and read a save through sceMc* calls; no smoke run reaches
    McInit yet, so the game's own mc_* code has not exercised it), reverb and volume
-   groups (YamiPan's SPU2 is next to them), the audio dump; (e) `libsdr` (CT3 calls `sceSdRemote`), newlib
-   `rand`; (f) .iso reading, save import / export; (g) RmlUi menus and translations; (h) CI and AlyssaPan's
+   groups (YamiPan's SPU2 is next to them), the audio dump; (e) `libsdr` (CT3 calls `sceSdRemote`), ~~newlib
+   `rand`~~ (not needed, 2026-11-13: CT3 has its own rnd, cpp-port.md 19); ~~(e2) the user-directory
+   override~~ (done 2026-11-13 07:24 run, alyssapan/core/user_dir.cpp, Claude: the queue held only the
+   blocked ui_canvas task and (d)'s audio items have nothing to act on while SNDDRV is the silent stand-in,
+   so the run took cpp-port.md item 10. Seen: a 45 s smoke run logs "user directory .../work/user", writes
+   its ini and log there, leaves the player's %APPDATA% files untouched, and draws the title as before.
+   Open: (ud1) smoke runs now start from default settings instead of the player's ini -- the player's ini
+   held aspect auto / 1.78, which the runs used to inherit; pass --env for a setting a check needs); (f) .iso reading, save import / export; (g) RmlUi menus and translations; (h) CI and AlyssaPan's
    own `extern/`. A shim CT3's boot needs earlier (libsdr, the card) moves ahead of TUs when a run hits it.
 3. ~~**io::Disc's path table is root-only**~~ (2026-11-10, game/ArtoolDebugOpen.c): CT3 reads sectors
    through libcdvd and finds the pack with sceCdSearchFile, so the subfolders' files now get sectors and
