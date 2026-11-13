@@ -154,7 +154,14 @@ Platform, game-independent (1-5 carried over 2026-11-09, host task `alyssapan/co
     `ALYSSAPAN_MEMCARD_DIR` still wins for the cards) and the log's first lines name it; `build.py --run`
     sets `work/user/`, so a smoke run's settings never reach the player's ini (`--env ALYSSAPAN_USER_DIR=`
     runs with the player's).
-11. Log level and assert hook: RosePan `rosepan/io/rosepan_log.cpp:586`.
+11. ~~Log level and assert hook~~ done 2026-11-13 (host task `alyssapan/core/logger.cpp`, RosePan's
+    `rosepan_log.cpp`): `[log] level` debug / info / warning / error / off (env `ALYSSAPAN_LOG_LEVEL`;
+    debug, the default, keeps today's output) filters the file and stdout, the banner past it;
+    `log::installFailureHooks` logs a failed SDL_assert (then SDL's own handler), `std::terminate` (with the
+    exception's what()) and `abort()` (SIGABRT: where the C runtime's assert ends); the crash report
+    (`crash_report.cpp`) writes its lines into alyssapan.log too (`log::writeFromFault`, try-lock), and names
+    GCC's SEH code 0x20474343 as an uncaught C++ exception. CT3 has no assert routine of its own (none in the
+    symtab), so RosePan's ROM-marker classification has nothing to carry.
 12. Profiler phases and stutter attribution: RosePan `rosepan_profiler.cpp:103`, `rosepan_ui.cpp:2327`.
 
 PS2 platform, generic across games:

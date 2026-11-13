@@ -53,6 +53,18 @@
    "status": "done",
    "task": "After NEW the first room scene 0A02.BIN loads, then sunAlloc error / JUNC size=16416 and size=464 and the run crashes (access violation). Find what exhausts gHeapJunc (0x96000 bytes, main.c) -- a host size larger than the EE one, a block never freed, or a free the ROM does that the port skips -- fix it, then the crash. Repro: build.py --run 50 --pad 600:START*10,800:START*10 (pad reads are 30 a second). open-items.md item 8, newgame_trace.cpp note."
   },
+  "alyssapan/core/logger.cpp": {
+   "notes": "Probed and removed: warning level drops info, abort / terminate / access violation / uncaught throw all logged in work/user/alyssapan.log. Smoke shot unchanged: the content warning. Unseen: a failed SDL_assert (nothing calls one). Open lg1..lg3 in open-items item 2: MinGW throw skips terminate, game printf still stdout only, no menu item.",
+   "sessions": [
+    {
+     "date": "2026-11-13 07:59",
+     "status": "verify",
+     "summary": "Log level and failure hooks (cpp-port item 11): [log] level / ALYSSAPAN_LOG_LEVEL filters file and stdout; SDL_assert, std::terminate and abort leave [E] records; the crash report also writes into alyssapan.log and names GCC's uncaught-exception code"
+    }
+   ],
+   "status": "verify",
+   "task": "cpp-port.md item 11 (RosePan rosepan_log.cpp): the log level ([log] level, ALYSSAPAN_LOG_LEVEL; debug keeps today's output) and the failure hooks: SDL assertions, std::terminate and abort() logged, and the crash report written into alyssapan.log as well as stdout. The queue was empty and no smoke run reaches a stub; libsdr (item 21) is already wired in sdk/sif.cpp."
+  },
   "alyssapan/core/movie_skip.cpp": {
    "notes": "AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT branch AA_movieSkipped: nothing decoded, the skip event where the pad could skip, GS cleared, tiFade handed on, memory map freed, banks reloaded. build.py --run sets ALYSSAPAN_SKIP_INTRO=1 by default. The real wait before the movies is the stub aaXcmd_MovieFedeOutCancel (game/PicPaz.c, queued first); a reverted probe making it answer XCMD_DONE showed m_capcom.mov and m_title.mov skipped and frames past 900, still flat grey (TITL not drawn yet).",
    "sessions": [

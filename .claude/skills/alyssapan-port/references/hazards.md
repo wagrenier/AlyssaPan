@@ -7,6 +7,11 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-13, scheduled run, logger) **MinGW: an uncaught throw skips std::terminate.** GCC's x64 C++
+  exceptions are SEH exceptions (code 0x20474343, 'GCC '): with no catch, the unhandled-exception filter
+  (crash_report.cpp) runs and the process ends with 0xc00000ff, so a std::set_terminate hook never sees
+  it. The crash report names the code; to log a what(), catch at the thread's top instead.
+  Also: `cat > /dev/null` in a Bash call waits on stdin for good -- never use it as a no-op.
 - (2026-11-13, scheduled run, HDR) **Two sessions in one tree: git add -A takes the other's files.** The
   06:28 session (finishing past its limit after the lock was released) committed 8367449 with git add -A
   while the 06:45 run had hdr_output.* and present_pass edits half written, so that commit does not build

@@ -1,8 +1,10 @@
 #include "alyssapan/core/application.h"
 
+#include <array>
 #include <cstdio>
 #include <cstdlib>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -50,9 +52,17 @@ Application::Application(std::span<char *> arguments) : m_arguments(arguments)
 
     crash::install();
     log::open(m_paths.logFile());
+    log::installFailureHooks();
     if (m_paths.userDirectoryOverridden())
         log::info("user directory {} (ALYSSAPAN_USER_DIR)", pathToUtf8(m_paths.userDirectory()));
     m_config.load(m_paths.configFile());
+    if (m_config.logging.level != log::Level::Debug)
+    {
+        constexpr std::array<std::string_view, 5> kLevelNames{"debug", "info", "warning", "error", "off"};
+        log::info("log level {}: records below it are dropped ([log] level, ALYSSAPAN_LOG_LEVEL)",
+                  kLevelNames[static_cast<std::size_t>(m_config.logging.level)]);
+    }
+    log::setLevel(m_config.logging.level);
     m_paths.discoverDataFolder(m_config.paths.dataFolder);
 }
 

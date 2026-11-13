@@ -1064,7 +1064,16 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    so the run took cpp-port.md item 10. Seen: a 45 s smoke run logs "user directory .../work/user", writes
    its ini and log there, leaves the player's %APPDATA% files untouched, and draws the title as before.
    Open: (ud1) smoke runs now start from default settings instead of the player's ini -- the player's ini
-   held aspect auto / 1.78, which the runs used to inherit; pass --env for a setting a check needs); (f) .iso reading, save import / export; (g) RmlUi menus and translations; (h) CI and AlyssaPan's
+   held aspect auto / 1.78, which the runs used to inherit; pass --env for a setting a check needs); ~~(e3) log level and assert hook~~ (done 2026-11-13 07:45 run,
+   alyssapan/core/logger.cpp, Claude: the queue was empty and libsdr (e) turned out to be wired already
+   (sdk/sif.cpp: sceSdRemote runs the libsd call), so the run took cpp-port.md item 11. Seen with a removed
+   probe: ALYSSAPAN_LOG_LEVEL=warning drops info lines and keeps warnings; abort, std::terminate, an
+   access violation and an uncaught throw each leave their record in work/user/alyssapan.log; the 15 s
+   smoke run shows the content warning as before. Open: (lg1) an uncaught throw never reaches
+   std::terminate under MinGW (the SEH filter takes it first, hazards.md), so its what() is not logged,
+   only the frames; (lg2) the game's own printf (AA_*, the [stub] lines) still goes to stdout only, not
+   the file -- RosePan routed it with a force-included macro, which this tree has none of: a seam in
+   sdk/newlib would do it; (lg3) no Settings menu item for the level (ini and env only)); (f) .iso reading, save import / export; (g) RmlUi menus and translations; (h) CI and AlyssaPan's
    own `extern/`. A shim CT3's boot needs earlier (libsdr, the card) moves ahead of TUs when a run hits it.
 3. ~~**io::Disc's path table is root-only**~~ (2026-11-10, game/ArtoolDebugOpen.c): CT3 reads sectors
    through libcdvd and finds the pack with sceCdSearchFile, so the subfolders' files now get sectors and

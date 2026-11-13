@@ -8,6 +8,8 @@
 #include <memory>
 #include <string>
 
+#include "alyssapan/core/logger.h"
+
 namespace alyssapan
 {
 
@@ -149,6 +151,15 @@ struct UiSettings
     void serialize(Archive &archive);
 };
 
+// The log file's threshold (RosePan's ROSEPAN_LOG_LEVEL, here also in the file): debug keeps everything.
+struct LogSettings
+{
+    log::Level level = log::Level::Debug;
+
+    template <class Archive>
+    void serialize(Archive &archive);
+};
+
 // Percent on top of the game's own mix: 100 is the level the game asks for.
 struct AudioSettings
 {
@@ -170,6 +181,7 @@ public:
     PathSettings paths;
     GameSettings game;
     AudioSettings audio;
+    LogSettings logging; // not "log": a member of that name would hide the log namespace in Config's methods
 
     // Reads the file over the defaults, then the environment over that. A missing file is the first
     // run: the defaults stand and the file is written.

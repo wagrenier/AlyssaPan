@@ -84,6 +84,19 @@ struct EnumNames<PresentMode>
     }};
 };
 
+template <>
+struct EnumNames<log::Level>
+{
+    static constexpr std::array<std::pair<log::Level, std::string_view>, 6> names{{
+        {log::Level::Debug, "debug"},
+        {log::Level::Info, "info"},
+        {log::Level::Warning, "warning"},
+        {log::Level::Warning, "warn"},
+        {log::Level::Error, "error"},
+        {log::Level::Off, "off"},
+    }};
+};
+
 template <class Enum>
 std::optional<Enum> enumFromName(std::string_view text)
 {
@@ -194,6 +207,10 @@ void visitSections(Config_ &config, IniFile &file)
         Visitor visitor(file, "audio");
         config.audio.serialize(visitor);
     }
+    {
+        Visitor visitor(file, "log");
+        config.logging.serialize(visitor);
+    }
 }
 
 } // namespace
@@ -261,6 +278,12 @@ void AudioSettings::serialize(Archive &archive)
     archive("mute_in_background", muteInBackground);
 }
 
+template <class Archive>
+void LogSettings::serialize(Archive &archive)
+{
+    archive("level", level);
+}
+
 Config::Config() : m_ini(std::make_unique<IniFile>()) {}
 Config::~Config() = default;
 
@@ -321,6 +344,7 @@ void Config::applyEnvironment()
     apply("ALYSSAPAN_MSAA", display.msaa);
     apply("ALYSSAPAN_HDR", display.hdrMode);
     apply("ALYSSAPAN_UI_SCALE", ui.scale);
+    apply("ALYSSAPAN_LOG_LEVEL", logging.level);
 }
 
 } // namespace alyssapan
