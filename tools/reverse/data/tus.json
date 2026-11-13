@@ -1365,12 +1365,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 118..118, 21 functions keyed by their statics, 19 unkeyed; source string fileio.c"
   },
   "game/hhXcmd_BGM_SE_VOLUME.c": {
+   "notes": "Not reached by the 15 s smoke run (memory card check, then the content warning near frame 11880, as before); no run opens the options. Defaults named SOUND_BGM_VOLUME_DEFAULT / SOUND_SE_VOLUME_DEFAULT in the header; main.c system_init still writes them as literals. open-items ny1.",
    "ranges": [
     [
      "018dc1e0",
      "018dc330"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-13 01:50",
+     "status": "verify",
+     "summary": "hhXcmd_BGM_SE_VOLUME written: the option menu script's sound command (SET copies trigger event 0xa8 and variables 0x4e/0x4f to the sound buffers, volumes cut to 20, then SSSetSoundMode(atoi(argv[1])); otherwise factory reset stereo/20/18, mode all)."
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 131..131, 1 functions keyed by their statics, 0 unkeyed; file name from the names"
   },
   "game/hhXcmd_DressUp.c": {

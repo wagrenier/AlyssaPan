@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-13 01:31 at commit `57fe269` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-13 01:50 at commit `9922cb0` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1794**; stubs: **37**
+- reconstructed CT3 functions: **1795**; stubs: **36**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -79,7 +79,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/asXcmd.c` | 21 | 0 |
 | `src/game/copy2area.c` | 2 | 0 |
 | `src/game/fileio.c` | 40 | 0 |
-| `src/game/hhXcmd_BGM_SE_VOLUME.c` | 0 | 1 |
+| `src/game/hhXcmd_BGM_SE_VOLUME.c` | 1 | 0 |
 | `src/game/hhXcmd_DressUp.c` | 26 | 0 |
 | `src/game/main.c` | 29 | 0 |
 | `src/game/main2.c` | 18 | 0 |
@@ -102,7 +102,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 2, verify 65, done 14, blocked 1
+- 65 TUs: todo 1, verify 66, done 14, blocked 1
 - next: **None** (nothing on the frontier and no queued TU)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
@@ -151,6 +151,7 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/asXcmd.c` 20/20 -- Smoke run unchanged (the content-warning screen; no scene script runs yet). PanicSet source 8 now adds to PANIC_INFO.gauge (the ROM indexes rise[8]); AttackTarg
 - verify: `game/copy2area.c` 2/2 -- Movies are skipped in smoke runs, so the PCM path is not reached; the title scene renders unchanged. Verify when a movie plays with sound: the 4-byte PCM packet
 - verify: `game/fileio.c` 40/40 -- All 40 functions written. Round2ChangeChar keeps the ROM order of its 150 Round2ChangeSectInfo pairs as three tables; round values named from the file names onl
+- verify: `game/hhXcmd_BGM_SE_VOLUME.c` 1/1 -- Not reached by the 15 s smoke run (memory card check, then the content warning near frame 11880, as before); no run opens the options. Defaults named SOUND_BGM_
 - verify: `game/hhXcmd_DressUp.c` 22/22 -- A smoke run now passes hhXcmd_LoadSE and stops in the m_capcom.mov decode loop (shots end at frame 420, flat grey): the movie skip host task is the next blocker
 - verify: `game/main.c` 29/29 -- Smoke run: build green, layoutcheck OK, callcheck: main_rtn_Particle2 matches the ROM (extra BankEePtr only); AllDrawObject / GlobalDrawObject / DrawObjectRefra
 - verify: `game/main2.c` 18/18 -- Smoke run leaves main2 and runs the frame loop with no crash; the shot stays black because FSMltLoad (fileio.c) is a stub so no bank loads. PORT BankReady skips
@@ -174,6 +175,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-13 01:50 `game/hhXcmd_BGM_SE_VOLUME.c` verify: hhXcmd_BGM_SE_VOLUME written: the option menu script's sound command (SET copies trigger event 0xa8 and variables 0x4e/0x4f to the sound buffers, volumes cut to
 - 2026-11-13 01:30 `game/RotateCamera.c` verify: RotateCamera and LockerCamera, the two x commands that turn a bank's parts (bearing to Alyssa; the stick look-around with zoom)
 - 2026-11-13 01:12 `game/tnXcmd.c` verify: all 8 tn x commands: the lever struggle, the player and monster control locks, PlayerDamage, Probability
 - 2026-11-13 00:57 `alyssapan/rendering/menu_box.cpp` done: the in-game menu (MENU.BIN, the M101.BIN floor map) keeps the 4:3 box at wide aspects (nu1)
@@ -181,7 +183,6 @@ Recent sessions:
 - 2026-11-13 00:19 `game/tiBrain_ChgTrace_Ghost.c` partial: slice 2: 14 ghost-brain functions -- ChgAttack_Ghost1/2/4, ChgApproach_Ghost1/2, ChgSearch_Ghost1/2/3, Damage1/2/3, Attack_Ghost4 (lunge and grab), Approach_Gho
 - 2026-11-12 23:52 `game/tiBrain_ChgTrace_Ghost.c` partial: slice 1: the small ghost-brain functions -- ChgTrace_Ghost, ChgReturn1/2, ChgAttack_Ghost3, Trace_Ghost1, Return_Ghost1, Search_Ghost2, Init3, tiGetNearPole, ti
 - 2026-11-12 23:32 `game/ssBrain_ChgHideAtk1.c` verify: slice 4: ssBrain_Approach1 and ssBrain_Search1 -- all 34 functions written, code complete
-- 2026-11-12 23:17 `game/ssBrain_ChgHideAtk1.c` partial: slice 3: ssBrain_Init1, ssBrain_HideAtk1, ssBrain_Attack1, ssBrain_Trace1 and ssAI_SetSpecialAttack; BRAIN_ATK_STATE named whole but 0x00..0x03 (chain, panic, w
 
 ## Frontier (called by reconstructed code, not written yet)
 

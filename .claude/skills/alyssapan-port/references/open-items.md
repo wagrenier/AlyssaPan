@@ -2062,6 +2062,19 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    the script that calls it confirms. Left as todo TUs: game/hhXcmd_BGM_SE_VOLUME.c,
    game/tiBrain_ChgTrace_BOSS_BALOWS.c.
 
+   **game/hhXcmd_BGM_SE_VOLUME.c (verify, 2026-11-13 01:50, Claude, scheduled run; queue refill: the
+   queue was empty and tus.py found nothing on the frontier, so the run took the smaller of the two todo
+   TUs, for the user to overrule):** its one function, ssXcmd_functions slot 191. argv[0] "SET" / "set"
+   copies the option menu's trigger state (event 0xa8 monaural, variables 0x4e / 0x4f BGM / SE volume) to
+   SOUND_STEREO_MONAURAL_BUFF / BGM_ / SE_MASTER_VOLUME_BUFF, each volume cut to 20 as a byte (the ROM
+   compares the stored byte: a negative variable reads 20), and calls SSSetSoundMode(atoi(argv[1])); any
+   other argv[0] resets stereo, BGM 20, SE 18 (SOUND_BGM_ / SOUND_SE_VOLUME_DEFAULT, new in its header;
+   main.c's system_init still writes 20 / 18 as literals) with SOUND_MODE_ALL. Both ways the trigger state
+   is written back. The 15 s smoke run is unchanged (memory card check, then the content warning near frame
+   11880); no run opens the options. Open: (ny1) which argv[1] modes the option scripts pass (1..3 one
+   setting, 0 all) is not seen. Left as todo TU: game/tiBrain_ChgTrace_BOSS_BALOWS.c (34 stubs of 69) --
+   the next run takes it, a slice per run.
+
 ## Decisions
 
 - 2026-11-11 (Claude, scheduled run 19:15, for the user to overrule): **the ga 2D frame stays 4:3.** The
