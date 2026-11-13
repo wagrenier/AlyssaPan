@@ -1752,7 +1752,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 74..74, 14 functions keyed by their statics, 68 unkeyed; file name from the names"
   },
   "game/tiBrain_ChgTrace_BOSS_BALOWS.c": {
-   "notes": "11 functions written; tiBrain_Attack_BOSS_BALOWS (0x1224 bytes) skipped and is the next run's first job. Smoke run unchanged (content warning about frame 11940, fade, grey); no run reaches a boss. Open items nz3 corrected (pBossInfo +0xf0 is tiAvoidObject's polygon pointer, kept host-side in tiBossAvoid), nz6..nz9 (event 0x0b is TRIG_EVENT_CLEARED, chains 5..9 event quirk, defense-mode hit layout, duplicated matrix helper).",
+   "notes": "2 functions written; tiBrain_Attack_BOSS_SCISSORS_W (0x0186b7a0, 0xda0 bytes) is the next run's first job, then the AXE / VITRIOL / HAMM attacks. Smoke run unchanged (content warning, fade, black at the end); no run reaches a boss. Open items nz10..nz13: the bosses' reading of BRAIN_ATK_STATE, shared phase bits 0x40 / 0x800, the grab heal and the ClatteringGet argument Ghidra dropped, the blood part write.",
    "ranges": [
     [
      "01867fb0",
@@ -1769,6 +1769,11 @@
      "date": "2026-11-13 02:35",
      "status": "partial",
      "summary": "slice 2: the BALOWS and SCISSORS_M special traces, tiCalcHPRate / ChargeTime / PlayerHitPoint / BalowsAttackRate, the two defense modes, tiSelSPMotion_BALOWS / HAMM, tiSetChainFlag / tiSetChainData"
+    },
+    {
+     "date": "2026-11-13 02:55",
+     "status": "partial",
+     "summary": "slice 3: BALOWS and SCISSORS_M attack bodies (the grab and its rattle, the blood throw, the swing, charge, stamp, down hit; the SCISSORS_M slash combos, thrust and stab)"
     }
    ],
    "status": "partial",

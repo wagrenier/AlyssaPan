@@ -202,6 +202,98 @@ extern int (*const tiSelSpecialMode[BOSS_SPECIAL_COUNT])(void);                 
 #define SCISSORS_M_VOICE_OPEN 0x0b
 #define SCISSORS_M_VOICE_CLOSE 0x0c
 
+// ---- slice 3 (2026-11-13): BALOWS's attack (tiBrain_Attack_BOSS_BALOWS) ----
+// Its motions (the one-shots its attack body drives; 0x18 is the miss after the grab's lunge).
+#define BALOWS_MOTION_GRAB_MISS 0x18    /* the lunge found Alyssa out of reach */
+#define BALOWS_MOTION_BLOOD 9           /* attack 2: the blood throw (BOSS_INFO_BLOOD_PART placed) */
+#define BALOWS_MOTION_SWING 0x0a        /* attack 1 (brain attack state 0) */
+#define BALOWS_MOTION_GRAB_TURN 0x0c    /* the grab: turning in, then BALOWS_MOTION_GRAB_LUNGE */
+#define BALOWS_MOTION_GRAB 0x0d         /* holding Alyssa: the rattle runs, she bleeds, it heals */
+#define BALOWS_MOTION_GRAB_DROP 0x0e    /* she fell or lost the rattle: a bite on a timer */
+#define BALOWS_MOTION_GRAB_FREE 0x0f    /* she won the rattle */
+#define BALOWS_MOTION_GRAB_LUNGE 0x1b   /* reaches for her: in reach, BALOWS_MOTION_GRAB follows */
+#define BALOWS_MOTION_RECOVER 0x1c      /* after a follow-up (BOSS_STATE_BALOWS_FOLLOW) */
+#define BALOWS_MOTION_STAMP 0x1d        /* near (attack state 5): turns while its timer runs */
+#define BALOWS_MOTION_DOWN_HIT 0x1e     /* Alyssa down near it (attack state 6) */
+#define BALOWS_MOTION_CHARGE 8          /* attack 0 far (attack state 1) */
+// The brain's attack states BALOWS uses (BRAIN_ATK_STATES + n * 0x20): .b00 as an int timer, .chain as its
+// limit (turning stops past it), .angle for ssAI_IsTrgWithinAngle, .panic as BOSS_INFO_APPROACH_84's value.
+#define BALOWS_ATK_SWING 0              /* BALOWS_MOTION_SWING */
+#define BALOWS_ATK_CHARGE 1             /* BALOWS_MOTION_CHARGE */
+#define BALOWS_ATK_BLOOD 2              /* BALOWS_MOTION_BLOOD (angle only) */
+#define BALOWS_ATK_GRAB 4               /* the grab: .b00 cleared at its end, .panic the bite's damage per
+                                           frame (and twice that healed), .wFar the rattle's time */
+#define BALOWS_ATK_STAMP 5              /* BALOWS_MOTION_STAMP */
+#define BALOWS_ATK_DOWN_HIT 6           /* BALOWS_MOTION_DOWN_HIT */
+#define BRAIN_BALOWS_ATK_TICKS 0x204    /* int: cleared as an attack starts */
+#define BRAIN_BALOWS_FOLLOW_MOTION 0x250 /* short: a landed stamp / charge may chain into it (even odds) */
+#define BRAIN_BALOWS_CLATTER 0x274      /* int: the grab's pad rattle slot (ControllerClatteringSet), -1 none */
+#define BALOWS_NEAR 100.0f              /* nearer: the grab, the stamp or the down hit */
+#define BALOWS_GRAB_REACH 130.0f        /* the lunge holds her within it and BALOWS_GRAB_ANGLE */
+#define BALOWS_GRAB_ANGLE 0x3ffc
+#define BALOWS_CHARGE_NEAR 200.0f       /* attack 0: the charge's odds (of 16) by distance */
+#define BALOWS_CHARGE_MID 300.0f
+#define BALOWS_CHARGE_ODDS_NEAR 4
+#define BALOWS_CHARGE_ODDS_MID 12
+#define BALOWS_CHARGE_ODDS_FAR 16
+#define BALOWS_BITE_TICKS 0x113         /* BOSS_INFO_BITE_TICKS past it: the bite lands */
+#define BALOWS_BITE_DAMAGE 20
+#define BALOWS_VOICE_DELAY 0xfb         /* the swing's voice once its timer passes it (BOSS_STATE_BALOWS_FOLLOW) */
+#define BALOWS_LUNGE_HP_RATE 0.6f       /* the lunge's voice: above it 0xe, else 10 */
+#define BALOWS_BLOOD_HP_RATE 0.5f       /* the blood lands on Alyssa: odds 14 of 16 above it, else 8 */
+#define BALOWS_BLOOD_ODDS_HIGH 0xe
+#define BALOWS_BLOOD_ODDS_LOW 8
+#define BALOWS_BLOOD_AHEAD 100.0f       /* else this far ahead of her */
+#define BALOWS_BLOOD_RAISE 10.0f        /*   and this high */
+#define BALOWS_LOCK 0x200               /* asAlyssaLockedByAnything: kept byte 2 | LOCKED_SET_* */
+#define ALYSSA_MOTION_KIND2_HELD 4      /* MOTION_REC_KIND2 (asMothOperate.h MOTH_SHAKE_MOTION_KIND2): down */
+#define BALOWS_SE_GRAB 1                /* E_BAL, slot 1, while the grab holds */
+#define BALOWS_SE_STAMP 0x19
+#define BALOWS_SE_RECOVER 0x1f
+#define BALOWS_VOICE_CHARGE 0x0b        /* B_5A09 (BALOWS_VOICE_BANK) */
+#define BALOWS_VOICE_LUNGE_HIGH 0x0e
+#define BALOWS_VOICE_LUNGE_LOW 0x0a
+#define BALOWS_VOICE_BLOOD 0x0f
+#define BALOWS_VOICE_SWING 0x11
+// pBossInfo words of BALOWS's attack.
+#define BOSS_INFO_BALOWS_10 0x10        /* int: cleared as the recover starts (meaning unread) */
+#define BOSS_INFO_BITE_TICKS 0x3c       /* int: BALOWS_MOTION_GRAB_DROP's bite timer */
+#define BOSS_INFO_GRAB_TICKS 0xd0       /* int: the grab's ticks: tiCalcChargeTime of it adds to 0xd4 */
+#define BOSS_INFO_BLOOD_NEAR 0x138      /* float: Alyssa this near BOSS_INFO_BLOOD_POS: BOSS_STATE_BALOWS_NEAR_BLOOD */
+#define BALOWS_BLOOD_FLAGS 3            /* written to the blood part's PARTS_ANIM_FLAGS (dirty | 2) */
+// BOSS_INFO_PHASE bits BALOWS's attack uses.
+#define BOSS_STATE_BALOWS_RECOVERED 0x0002 /* set as the recover starts (meaning unread) */
+#define BOSS_STATE_BALOWS_ATTACKING 0x0040 /* an attack started; no new one from far until it clears (SCISSORS_M too) */
+#define BOSS_STATE_BALOWS_GRAB 0x0080   /* the grab's rattle runs */
+#define BOSS_STATE_BALOWS_GRABBED 0x0200 /* the grab happened (no second grab: the stamp instead) */
+#define BOSS_STATE_BALOWS_FOLLOWED 0x0800 /* the landed blow's follow-up was decided (SCISSORS_M too) */
+#define BOSS_STATE_BALOWS_100000 0x100000 /* cleared as the swing starts (meaning unread) */
+#define BOSS_STATE_BALOWS_FOLLOW 0x2000000 /* a follow-up / voice is due */
+#define BOSS_STATE_BALOWS_NEAR_BLOOD 0x8000000 /* Alyssa near the blood: the throw sets TRIG_VAR_BALOWS_52 0xb */
+// Triggers.
+#define TRIG_EVENT_BALOWS_NO_GRAB 0x55c /* global: no grab (the number tiBrain_ChgTrace_Ghost.h's TRIG_EVENT_GHOST_1D_ON has) */
+#define TRIG_VAR_BALOWS_08 8            /* global: -1 as the swing starts (meaning unread) */
+#define TRIG_VAR_BALOWS_56 0x56         /* global: 0 / 1 / 2 by the phase, hp and the cleared flag at the swing */
+#define BALOWS_VAR_52_BLOOD 1           /* TRIG_VAR_BALOWS_52 after the blood throw */
+#define BALOWS_VAR_52_BLOOD_NEAR 0xb    /*   with the second phase waiting and Alyssa near the blood */
+
+// ---- slice 3: SCISSORS_M's attack (tiBrain_Attack_BOSS_SCISSORS_M) ----
+#define SCISSORS_M_MOTION_SLASH 0x29    /* attack state 0: the slash (a combo of 1..6, BOSS_INFO_COMBO_*) */
+#define SCISSORS_M_MOTION_SLASH_END 0x2a /*   after a landed slash, then the search motion */
+#define SCISSORS_M_MOTION_THRUST 0x2c   /* attack state 1: BOSS_SUB_NEAR_2's attack from afar */
+#define SCISSORS_M_MOTION_THRUST_END 0x2d
+#define SCISSORS_M_MOTION_STAB 0x2f     /* attack state 3: Alyssa down within SCISSORS_M_NEAR */
+#define SCISSORS_M_MOTION_STAB_END 0x30
+#define SCISSORS_M_ATK_SLASH 0
+#define SCISSORS_M_ATK_THRUST 1
+#define SCISSORS_M_ATK_STAB 3
+#define SCISSORS_M_NEAR 100.0f          /* nearer: the slash (or the stab on Alyssa down) */
+#define SCISSORS_M_DIST_1 200.0f        /* farther: the slash's odds (of 16) by distance and set A's chains */
+#define SCISSORS_M_DIST_2 300.0f
+#define SCISSORS_M_DIST_3 400.0f
+#define BOSS_INFO_COMBO_DONE 0x7c       /* int: SCISSORS_M: slashes of this combo so far */
+#define BOSS_INFO_COMBO_LEN 0x80        /* int: SCISSORS_M: the combo's slashes (tnRand(8): 1 1 2 2 3 4 5 6), 0 none */
+
 float tiCalcHPRate(struct CHARACTER *chr);                                               // CT3 0x01875060
 int tiCalcChargeTime(int value);                                                         // CT3 0x01875090
 void tiCalcPlayerHitPoint(int damage, struct CHARACTER *chr);                            // CT3 0x01875100

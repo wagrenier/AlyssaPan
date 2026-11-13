@@ -10,6 +10,7 @@
 #include "game/BRANCH_CLEAR.h"
 #include "game/Character_Init.h"
 #include "game/Clipping_Portal.h"
+#include "game/LinkMatrixTree.h"
 #include "game/ahRelocateSunPs2ObjectArry.h"
 #include "game/ct3_types.h"
 #include "game/sound.h"
@@ -1085,6 +1086,580 @@ void tiBrain_Trace_BOSS_SCISSORS_M(CHARACTER *chr)
     }
 }
 
+// ---- slice 3 (2026-11-13): BALOWS's attack ----
+
+static const short BalowsAttackBodyBusy[] = { 0x1e, 0x1d, 0xf, 0xe, 0xd, 0x1b, 0x18, 0xc, 0xa, 9, 0x1c, 8 };
+
+static int tiBrainInt(const u_char *brain, int off)
+{
+    int v;
+
+    memcpy(&v, brain + off, sizeof(v));
+    return v;
+}
+
+static void tiBrainSetInt(u_char *brain, int off, int v)
+{
+    memcpy(brain + off, &v, sizeof(v));
+}
+
+// Attack state n's field at `field` (BRAIN_ATK_STATE, ssBrain_ChgHideAtk1.h).
+static u_char *tiBalowsState(u_char *brain, int n)
+{
+    return brain + BRAIN_ATK_STATES + n * (int)sizeof(BRAIN_ATK_STATE);
+}
+
+static int tiBalowsAngleOk(u_char *brain, int n, const float *dir, CHARACTER *chr)
+{
+    const BRAIN_ATK_STATE *st = (const BRAIN_ATK_STATE *)tiBalowsState(brain, n);
+
+    return ssAI_IsTrgWithinAngle(dir, chr, st->angle) != 0;
+}
+
+// The state's timer (.b00 as an int) cleared, and BOSS_INFO_APPROACH_84 set from its .panic.
+static void tiBalowsStartTimed(u_char *brain, int n)
+{
+    const BRAIN_ATK_STATE *st = (const BRAIN_ATK_STATE *)tiBalowsState(brain, n);
+
+    tiBrainSetInt(brain, BRAIN_ATK_STATES + n * (int)sizeof(BRAIN_ATK_STATE), 0);
+    tiBossSetInt(BOSS_INFO_APPROACH_84, st->panic);
+}
+
+static void tiBalowsPlay(CHARACTER *chr, int motion, int next)
+{
+    asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, motion);
+    asChangeMortionInfo_NextMortion(chr->id, motion, next, -1);
+}
+
+// The grab's turn, lunge and hold.
+static void tiBalowsGrab(CHARACTER *chr)
+{
+    asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, BALOWS_MOTION_GRAB_TURN);
+    asChangeMortionInfo_NextMortion(chr->id, BALOWS_MOTION_GRAB_TURN, BALOWS_MOTION_GRAB_LUNGE, -1);
+    asChangeMortionInfo_NextMortion(chr->id, BALOWS_MOTION_GRAB_LUNGE, BALOWS_MOTION_GRAB, -1);
+}
+
+// A timed attack (stamp, charge, down hit) whose state n's timer and BOSS_INFO_APPROACH_84 start.
+static void tiBalowsTimedAttack(CHARACTER *chr, u_char *brain, int n, int motion, int special)
+{
+    tiBalowsPlay(chr, motion, tiBossBrainShort(brain, BRAIN_SEARCH_MOTION));
+    tiBalowsStartTimed(brain, n);
+    if (special)
+        tiBossSetBits(BOSS_STATE_SPECIAL_ON);
+    tiBossClearBits(BOSS_STATE_BALOWS_FOLLOWED);
+    brain[BRAIN_ATK_PICK] = 1;
+}
+
+// Alyssa's current motion record's MOTION_REC_KIND2 (-1 without a table; the ROM reads it regardless).
+static int tiBalowsAlyssaKind2(const CHARACTER *ch)
+{
+    const u_char *table;
+    u_int ee;
+    short slot;
+
+    memcpy(&ee, (const u_char *)ch + CHARA_MOTION_TABLE, sizeof(ee));
+    memcpy(&slot, (const u_char *)ch + CHARA_MOTION_SLOTS, sizeof(slot));
+    table = (const u_char *)BankEePtr(ch->bank, ee);
+    return table != NULL ? table[slot * CHARA_MOTION_SIZE + MOTION_REC_KIND2] : -1;
+}
+
+// A timed one-shot runs: state n's timer counts, chr turns toward Alyssa until it passes the state's limit
+// (.chain); a landed blow (CHARA_HIT_LANDED) decides once whether the follow-up motion comes next.
+static void tiBalowsTimedRun(CHARACTER *chr, u_char *brain, const float *dir, int n, int motion, int coin)
+{
+    const BRAIN_ATK_STATE *st = (const BRAIN_ATK_STATE *)tiBalowsState(brain, n);
+    int off = BRAIN_ATK_STATES + n * (int)sizeof(BRAIN_ATK_STATE);
+    int landed;
+
+    tiBrainSetInt(brain, off, tiBrainInt(brain, off) + gNextTicksInterval);
+    if (tiBrainInt(brain, off) < st->chain)
+        ssAI_CompCharaDir(chr, (float *)dir, tiBossTurnSpeed(brain), 1);
+    memcpy(&landed, (const u_char *)chr + CHARA_HIT_LANDED, sizeof(landed));
+    if (landed == 0 || (tiBossState() & BOSS_STATE_BALOWS_FOLLOWED) != 0)
+        return;
+    if (!coin) {
+        asChangeMortionInfo_NextMortion(chr->id, motion, tiBossBrainShort(brain, BRAIN_BALOWS_FOLLOW_MOTION), -1);
+        tiBossSetBits(BOSS_STATE_BALOWS_FOLLOW | BOSS_STATE_BALOWS_FOLLOWED);
+        return;
+    }
+    if (tnRand(10) < 5) {
+        asChangeMortionInfo_NextMortion(chr->id, motion, tiBossBrainShort(brain, BRAIN_BALOWS_FOLLOW_MOTION), -1);
+        tiBossSetBits(BOSS_STATE_BALOWS_FOLLOW);
+    } else {
+        asChangeMortionInfo_NextMortion(chr->id, motion, tiBossBrainShort(brain, BRAIN_SEARCH_MOTION), -1);
+    }
+    tiBossSetBits(BOSS_STATE_BALOWS_FOLLOWED);
+}
+
+// The grab ends (rattle won, lost, or Alyssa down): the slot dropped, BALOWS_GRABBED, the grab state's
+// timer cleared, the grab's SE stopped; won or lost, the grab's time feeds the second phase.
+static void tiBalowsGrabEnd(u_char *brain, int charge)
+{
+    tiBrainSetInt(brain, BRAIN_BALOWS_CLATTER, -1);
+    tiBossClearBits(BOSS_STATE_BALOWS_GRAB);
+    tiBossSetBits(BOSS_STATE_BALOWS_GRABBED);
+    tiBrainSetInt(brain, BRAIN_ATK_STATES + BALOWS_ATK_GRAB * (int)sizeof(BRAIN_ATK_STATE), 0);
+    if (charge) {
+        tiBossSetInt(BOSS_INFO_BALOWS_D4,
+                     tiBossInt(BOSS_INFO_BALOWS_D4) + tiCalcChargeTime(tiBossInt(BOSS_INFO_GRAB_TICKS)));
+        tiBossSetBits(BOSS_STATE_BALOWS_2_READY);
+    }
+    SSStopSE(BALOWS_SE_BANK, BALOWS_SE_GRAB, 1);
+}
+
+// BALOWS_MOTION_GRAB: Alyssa held (BALOWS_LOCK), the bite's damage on her, twice that healed (to hpMax).
+// The first frame opens the rattle; then the grab's ticks count until she wins it (BALOWS_MOTION_GRAB_FREE),
+// loses it (BALOWS_MOTION_GRAB_DROP, the bite timer from 0) or is down (the drop, no charge).
+static void tiBalowsGrabHold(CHARACTER *chr, u_char *brain)
+{
+    const BRAIN_ATK_STATE *st = (const BRAIN_ATK_STATE *)tiBalowsState(brain, BALOWS_ATK_GRAB);
+    int slot, got;
+
+    asAlyssaLockedByAnything(BALOWS_LOCK | LOCKED_SET_1);
+    tiCalcPlayerHitPoint(st->panic, chr);
+    chr->hp += st->panic * 2;
+    if (chr->hpMax < chr->hp)
+        chr->hp = chr->hpMax;
+    if ((tiBossState() & BOSS_STATE_BALOWS_GRAB) == 0) {
+        CLATTERING_SET set = { st->wFar, -1, -1, -1 };
+
+        tiBrainSetInt(brain, BRAIN_BALOWS_CLATTER, ControllerClatteringSet(&set));
+        tiBossSetBits(BOSS_STATE_BALOWS_GRAB);
+        tiBossClearBits(BOSS_STATE_BALOWS_2_DEFER);
+        tiBossSetInt(BOSS_INFO_GRAB_TICKS, 0);
+        SSPlaySE(BALOWS_SE_BANK, BALOWS_SE_GRAB, 1);
+        return;
+    }
+    tiBossSetInt(BOSS_INFO_GRAB_TICKS, tiBossInt(BOSS_INFO_GRAB_TICKS) + gNextTicksInterval);
+    slot = tiBrainInt(brain, BRAIN_BALOWS_CLATTER);
+    if (slot == -1)
+        return;
+    got = ControllerClatteringGet(slot);
+    if (Character[Player_BankID].hp < 0) {
+        if (got == CLATTERING_RUNNING)
+            ControllerClatteringFree(slot);
+        asAlyssaLockedByAnything(BALOWS_LOCK | LOCKED_SET_2);
+        asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, BALOWS_MOTION_GRAB_DROP);
+        tiBalowsGrabEnd(brain, 0);
+        return;
+    }
+    if (got == CLATTERING_WON) {
+        asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, BALOWS_MOTION_GRAB_FREE);
+        tiBalowsGrabEnd(brain, 1);
+    } else if (got == CLATTERING_LOST) {
+        asAlyssaLockedByAnything(BALOWS_LOCK | LOCKED_SET_3);
+        asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, BALOWS_MOTION_GRAB_DROP);
+        tiBossSetInt(BOSS_INFO_BITE_TICKS, 0);
+        tiBalowsGrabEnd(brain, 1);
+    }
+}
+
+// BALOWS_MOTION_BLOOD: the blood part (BOSS_INFO_BLOOD_PART) lands on Alyssa (odds by hp rate) or
+// BALOWS_BLOOD_AHEAD ahead of her, raised; TRIG_VAR_BALOWS_52 tells the script which, the strike's event
+// goes. PORT: no blood part set skips the placement (the ROM writes through a null pointer).
+static void tiBalowsBlood(CHARACTER *chr, u_char *brain)
+{
+    const CHARACTER *player = &Character[Player_BankID];
+    u_char *part = (u_char *)BossInfoGetPtr(BOSS_INFO_BLOOD_PART);
+    int odds = BALOWS_BLOOD_HP_RATE < tiCalcHPRate(chr) ? BALOWS_BLOOD_ODDS_HIGH : BALOWS_BLOOD_ODDS_LOW;
+    float pos[4];
+    int var;
+
+    if (tnRand(AI_ATK_WEIGHT) < odds) {
+        memcpy(pos, player->pos, sizeof(pos));
+    } else {
+        float fwd[4];
+        int k;
+
+        tiGetCharaDirection(fwd, player);
+        for (k = 0; k < 3; k++)
+            pos[k] = fwd[k] * BALOWS_BLOOD_AHEAD + ((const float *)player->pos)[k];
+        pos[1] += BALOWS_BLOOD_RAISE;
+    }
+    pos[3] = 1.0f;
+    if (part != NULL) {
+        memcpy(part + PARTS_ANIM_BASE_POS - PARTS_HDR_RECORDS, pos, sizeof(pos));
+        part[PARTS_ANIM_FLAGS - PARTS_HDR_RECORDS] = BALOWS_BLOOD_FLAGS;
+    }
+    var = BALOWS_VAR_52_BLOOD;
+    if ((tiBossState() & BOSS_STATE_BALOWS_2_READY) != 0 && (tiBossState() & BOSS_STATE_BALOWS_NEAR_BLOOD) != 0) {
+        var = BALOWS_VAR_52_BLOOD_NEAR;
+        tiBossClearBits(BOSS_STATE_BALOWS_NEAR_BLOOD);
+    }
+    ssTrigSetVariable(TRIG_VAR_BALOWS_52, var, TRIG_GLOBAL, 0);
+    tiBossSetSE(brain, SSPlaySE(BALOWS_VOICE_BANK, BALOWS_VOICE_BLOOD, BOSS_HAMM_SE_ARG));
+    ssTrigRemoveEvent(TRIG_EVENT_BOSS_STRIKE, TRIG_GLOBAL, 0);
+    brain[BRAIN_ATK_PICK] = BRAIN_ATK_NONE;
+}
+
+// BALOWS_MOTION_SWING: state 0's timer turns it; the first frame (pick 1) sets TRIG_VAR_BALOWS_56 by the
+// phase, hp and the cleared flag and makes the voice due, which comes past BALOWS_VOICE_DELAY.
+static void tiBalowsSwing(CHARACTER *chr, u_char *brain, const float *dir)
+{
+    const BRAIN_ATK_STATE *st = (const BRAIN_ATK_STATE *)tiBalowsState(brain, BALOWS_ATK_SWING);
+    int off = BRAIN_ATK_STATES + BALOWS_ATK_SWING * (int)sizeof(BRAIN_ATK_STATE);
+
+    tiBrainSetInt(brain, off, tiBrainInt(brain, off) + gNextTicksInterval);
+    if (tiBrainInt(brain, off) < st->chain)
+        ssAI_CompCharaDir(chr, (float *)dir, tiBossTurnSpeed(brain), 1);
+    if (brain[BRAIN_ATK_PICK] == 1) {
+        float hp;
+        int v;
+
+        tiBossClearBits(BOSS_STATE_BALOWS_100000);
+        ssTrigSetVariable(TRIG_VAR_BALOWS_08, -1, TRIG_GLOBAL, 0);
+        hp = tiCalcHPRate(chr);
+        if ((tiBossState() & BOSS_STATE_BALOWS_2_READY) == 0)
+            v = ssTrigCheckEvent(TRIG_EVENT_CLEARED, TRIG_GLOBAL, 0) != 0 ? 1 : 0;
+        else if (hp <= BOSS_HP_RATE_MID)
+            v = tnRand(10) < 5 ? 1 : 2;
+        else
+            v = ssTrigCheckEvent(TRIG_EVENT_CLEARED, TRIG_GLOBAL, 0) != 0 ? 2 : 1;
+        ssTrigSetVariable(TRIG_VAR_BALOWS_56, v, TRIG_GLOBAL, 0);
+        tiBossSetBits(BOSS_STATE_BALOWS_FOLLOW);
+        brain[BRAIN_ATK_PICK] = BRAIN_ATK_NONE;
+    }
+    if ((tiBossState() & BOSS_STATE_BALOWS_FOLLOW) != 0 && BALOWS_VOICE_DELAY <= tiBrainInt(brain, off)) {
+        tiBossSetSE(brain, SSPlaySE(BALOWS_VOICE_BANK, BALOWS_VOICE_SWING, BOSS_HAMM_SE_ARG));
+        tiBossClearBits(BOSS_STATE_BALOWS_FOLLOW);
+    }
+}
+
+// No one-shot playing: pick the next attack. BALOWS_FACING swings (or, chained, grabs); near, the down hit
+// when Alyssa is down, else the grab once, else the stamp; farther, tiCalcBalowsAttackRate's weights pick
+// the blood throw, the swing, or the charge / stamp.
+static void tiBalowsPickAttack(CHARACTER *chr, u_char *brain, const float *dir, float dist)
+{
+    CHARACTER *player = &Character[Player_BankID];
+    u_char *pick = brain + BRAIN_ATK_PICK;
+    int r, r0, r1, r2, n;
+
+    if (*pick == BRAIN_ATK_NONE)
+        return;
+    if (brain[BRAIN_SUBMODE] == BOSS_SUB_BALOWS_FACING) {
+        if ((tiBossState() & BOSS_STATE_BALOWS_CHAIN) == 0) {
+            tiBalowsPlay(chr, BALOWS_MOTION_SWING, tiBossBrainShort(brain, BRAIN_SEARCH_MOTION));
+            tiBrainSetInt(brain, BRAIN_ATK_STATES + BALOWS_ATK_SWING * (int)sizeof(BRAIN_ATK_STATE), 0);
+        } else {
+            tiBossClearBits(BOSS_STATE_BALOWS_CHAIN);
+            if (ssTrigCheckEvent(TRIG_EVENT_BOSS_ALYS_DEAD, TRIG_GLOBAL, 0) == 0)
+                tiBalowsGrab(chr);
+            tiBossClearBits(BOSS_STATE_BALOWS_ATTACKING);
+        }
+        *pick = 1;
+        brain[BRAIN_SUBMODE] = BOSS_SUB_NONE;
+        return;
+    }
+    r = tnRand(AI_ATK_WEIGHT);
+    if (dist < BALOWS_NEAR) {
+        if (ssAI_IsDownPlaying(player) != 0 || tiBalowsAlyssaKind2(player) == ALYSSA_MOTION_KIND2_HELD) {
+            if (tiBalowsAngleOk(brain, BALOWS_ATK_DOWN_HIT, dir, chr))
+                tiBalowsTimedAttack(chr, brain, BALOWS_ATK_DOWN_HIT, BALOWS_MOTION_DOWN_HIT, 0);
+            return;
+        }
+        if ((tiBossState() & BOSS_STATE_BALOWS_GRABBED) == 0 &&
+            ssTrigCheckEvent(TRIG_EVENT_BALOWS_NO_GRAB, TRIG_GLOBAL, 0) == 0 &&
+            ssTrigCheckEvent(TRIG_EVENT_BOSS_ALYS_DEAD, TRIG_GLOBAL, 0) == 0) {
+            if (!tiBalowsAngleOk(brain, BALOWS_ATK_GRAB, dir, chr))
+                return;
+            tiBalowsGrab(chr);
+            tiBossClearBits(BOSS_STATE_BALOWS_FOLLOWED);
+            *pick = 1;
+            tiBossClearBits(BOSS_STATE_BALOWS_ATTACKING);
+            return;
+        }
+        if ((tiBossState() & BOSS_STATE_BALOWS_ATTACKING) != 0 || !tiBalowsAngleOk(brain, BALOWS_ATK_STAMP, dir, chr))
+            return;
+        tiBalowsTimedAttack(chr, brain, BALOWS_ATK_STAMP, BALOWS_MOTION_STAMP, 1);
+        return;
+    }
+    if ((tiBossState() & BOSS_STATE_BALOWS_ATTACKING) != 0)
+        return;
+    tiCalcBalowsAttackRate(dist, &r0, &r1, &r2);
+    n = r < r0 ? 0 : r < r1 ? 1 : r < r2 ? 2 : -1;
+    tiBossClearBits(BOSS_STATE_BALOWS_NEAR_BLOOD);
+    {
+        const float *blood = (const float *)BossInfoGetPtr(BOSS_INFO_BLOOD_POS);
+        float near;
+
+        memcpy(&near, pBossInfo + BOSS_INFO_BLOOD_NEAR, sizeof(near));
+        if (blood != NULL) {
+            const float *p = (const float *)player->pos;
+            float d[3] = { p[0] - blood[0], p[1] - blood[1], p[2] - blood[2] };
+
+            if (sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]) < near)
+                tiBossSetBits(BOSS_STATE_BALOWS_NEAR_BLOOD);
+        }
+    }
+    if (0 < ssTrigGetVariable(TRIG_VAR_BALOWS_52, TRIG_GLOBAL, 0) && n == 2)
+        n = 1;
+    if (ssAI_IsDownPlaying(player) == 0) {
+        if (n == 2) {
+            if (tiBalowsAngleOk(brain, BALOWS_ATK_BLOOD, dir, chr)) {
+                tiBalowsPlay(chr, BALOWS_MOTION_BLOOD, tiBossBrainShort(brain, BRAIN_SEARCH_MOTION));
+                *pick = 1;
+            }
+        } else if (n == 1) {
+            if (tiBalowsAngleOk(brain, BALOWS_ATK_SWING, dir, chr)) {
+                tiBalowsPlay(chr, BALOWS_MOTION_SWING, tiBossBrainShort(brain, BRAIN_SEARCH_MOTION));
+                tiBrainSetInt(brain, BRAIN_ATK_STATES + BALOWS_ATK_SWING * (int)sizeof(BRAIN_ATK_STATE), 0);
+                *pick = 1;
+            }
+        } else if (n == 0) {
+            int odds = dist < BALOWS_CHARGE_NEAR ? BALOWS_CHARGE_ODDS_NEAR
+                     : dist < BALOWS_CHARGE_MID  ? BALOWS_CHARGE_ODDS_MID
+                                                 : BALOWS_CHARGE_ODDS_FAR;
+
+            if (tnRand(AI_ATK_WEIGHT) < odds) {
+                if (tiBalowsAngleOk(brain, BALOWS_ATK_CHARGE, dir, chr))
+                    tiBalowsTimedAttack(chr, brain, BALOWS_ATK_CHARGE, BALOWS_MOTION_CHARGE, 1);
+            } else if (tiBalowsAngleOk(brain, BALOWS_ATK_STAMP, dir, chr)) {
+                tiBalowsTimedAttack(chr, brain, BALOWS_ATK_STAMP, BALOWS_MOTION_STAMP, 1);
+            }
+        }
+    }
+    if (*pick != 0) {
+        tiBrainSetInt(brain, BRAIN_BALOWS_ATK_TICKS, 0);
+        tiBossSetBits(BOSS_STATE_BALOWS_ATTACKING);
+    }
+}
+
+// CT3 0x01869930: BALOWS's attack. With no one-shot playing it picks the next attack
+// (tiBalowsPickAttack); else it runs the one playing: the swing, charge, stamp and down hit turn on their
+// timers and may chain a follow-up; the grab's lunge holds Alyssa within reach, its hold runs the rattle;
+// the drop bites on a timer; the recover / free motions return to the search motion; the blood throw
+// places the blood.
+void tiBrain_Attack_BOSS_BALOWS(CHARACTER *chr)
+{
+    // callcheck: ControllerClatteringFree, ControllerClatteringGet, ControllerClatteringSet, SSStopSE (tiBalowsGrabHold makes them)
+    // callcheck: asCharacterMortionChangeRequest, ssAI_IsDownPlaying, ssTrigCheckEvent, ssTrigGetVariable (tiBalowsPlay / PickAttack)
+    // callcheck: ssTrigRemoveEvent, ssTrigSetVariable, tiCalcBalowsAttackRate, tiCalcChargeTime (tiBalowsBlood / Swing / PickAttack)
+    // callcheck: tiGetCharaDirection, tnRand (tiBalowsBlood / PickAttack)
+    u_char *brain = CharaBrainPtr(chr);
+    u_char *pick = brain + BRAIN_ATK_PICK;
+    short m = tiBossMotion(chr);
+    float dir[4];
+    float dist = tiBossToPlayer(chr, dir);
+
+    if (!TI_BOSS_BUSY(chr, BalowsAttackBodyBusy)) {
+        tiBalowsPickAttack(chr, brain, dir, dist);
+        return;
+    }
+    switch (m) {
+    case BALOWS_MOTION_GRAB_DROP:
+        if (*pick != BRAIN_ATK_NONE) {
+            tiBossSetInt(BOSS_INFO_BITE_TICKS, tiBossInt(BOSS_INFO_BITE_TICKS) + gNextTicksInterval);
+            if (BALOWS_BITE_TICKS < tiBossInt(BOSS_INFO_BITE_TICKS)) {
+                tiCalcPlayerHitPoint(BALOWS_BITE_DAMAGE, chr);
+                *pick = BRAIN_ATK_NONE;
+            }
+        }
+        asChangeMortionInfo_NextMortion(chr->id, BALOWS_MOTION_GRAB_DROP, tiBossBrainShort(brain, BRAIN_SEARCH_MOTION), -1);
+        brain[BRAIN_SUBMODE] = BOSS_SUB_NONE;
+        return;
+    case BALOWS_MOTION_RECOVER:
+    case BALOWS_MOTION_GRAB_FREE:
+        if (m == BALOWS_MOTION_RECOVER && (tiBossState() & BOSS_STATE_BALOWS_FOLLOW) != 0) {
+            tiBossSetInt(BOSS_INFO_BALOWS_10, 0);
+            tiBossSetBits(BOSS_STATE_BALOWS_RECOVERED);
+            tiBossSetSE(brain, SSPlaySE(BALOWS_SE_BANK, BALOWS_SE_RECOVER, BOSS_HAMM_SE_ARG));
+            tiBossClearBits(BOSS_STATE_BALOWS_FOLLOW);
+        }
+        asChangeMortionInfo_NextMortion(chr->id, m, tiBossBrainShort(brain, BRAIN_SEARCH_MOTION), -1);
+        brain[BRAIN_SUBMODE] = BOSS_SUB_NONE;
+        *pick = BRAIN_ATK_NONE;
+        return;
+    case BALOWS_MOTION_GRAB:
+        tiBalowsGrabHold(chr, brain);
+        return;
+    case BALOWS_MOTION_GRAB_LUNGE:
+        if (*pick != 2) {
+            if (BALOWS_GRAB_REACH < dist || ssAI_IsTrgWithinAngle(dir, chr, BALOWS_GRAB_ANGLE) == 0) {
+                tiBalowsPlay(chr, BALOWS_MOTION_GRAB_MISS, tiBossBrainShort(brain, BRAIN_SEARCH_MOTION));
+                *pick = BRAIN_ATK_NONE;
+                return;
+            }
+            tiBossSetSE(brain, SSPlaySE(BALOWS_VOICE_BANK,
+                                        BALOWS_LUNGE_HP_RATE < tiCalcHPRate(chr) ? BALOWS_VOICE_LUNGE_HIGH
+                                                                                 : BALOWS_VOICE_LUNGE_LOW,
+                                        BOSS_HAMM_SE_ARG));
+            *pick = 2;
+        }
+        asAlyssaLockedByAnything(BALOWS_LOCK | LOCKED_SET_1);
+        return;
+    case BALOWS_MOTION_GRAB_TURN:
+        ssAI_CompCharaDir(chr, dir, tiBossTurnSpeed(brain), 1);
+        return;
+    case BALOWS_MOTION_SWING:
+        tiBalowsSwing(chr, brain, dir);
+        return;
+    case BALOWS_MOTION_BLOOD:
+        if (*pick != BRAIN_ATK_NONE)
+            tiBalowsBlood(chr, brain);
+        return;
+    case BALOWS_MOTION_DOWN_HIT:
+        tiBalowsTimedRun(chr, brain, dir, BALOWS_ATK_DOWN_HIT, BALOWS_MOTION_DOWN_HIT, 0);
+        *pick = BRAIN_ATK_NONE;
+        return;
+    case BALOWS_MOTION_STAMP:
+        tiBalowsTimedRun(chr, brain, dir, BALOWS_ATK_STAMP, BALOWS_MOTION_STAMP, 1);
+        if (*pick != BRAIN_ATK_NONE)
+            tiBossSetSE(brain, SSPlaySE(BALOWS_SE_BANK, BALOWS_SE_STAMP, BOSS_HAMM_SE_ARG));
+        *pick = BRAIN_ATK_NONE;
+        return;
+    case BALOWS_MOTION_CHARGE:
+        tiBalowsTimedRun(chr, brain, dir, BALOWS_ATK_CHARGE, BALOWS_MOTION_CHARGE, 1);
+        if (*pick != BRAIN_ATK_NONE)
+            tiBossSetSE(brain, SSPlaySE(BALOWS_VOICE_BANK, BALOWS_VOICE_CHARGE, BOSS_HAMM_SE_ARG));
+        *pick = BRAIN_ATK_NONE;
+        return;
+    default:                            /* BALOWS_MOTION_GRAB_MISS */
+        return;
+    }
+}
+
+// ---- slice 3: SCISSORS_M's attack ----
+
+static const short ScissorsMAttackBodyBusy[] = { 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f, 0x30, 0x31 };
+
+// A timed one-shot of state n with its end motion: its timer turns chr; a landed blow (once) queues the end
+// motion, then the search motion.
+static void tiScissorsTimedRun(CHARACTER *chr, u_char *brain, float *dir, int n, int motion, int end)
+{
+    const BRAIN_ATK_STATE *st = (const BRAIN_ATK_STATE *)tiBalowsState(brain, n);
+    int off = BRAIN_ATK_STATES + n * (int)sizeof(BRAIN_ATK_STATE);
+    int landed;
+
+    tiBrainSetInt(brain, off, tiBrainInt(brain, off) + gNextTicksInterval);
+    if (tiBrainInt(brain, off) < st->chain)
+        ssAI_CompCharaDir(chr, dir, tiBossTurnSpeed(brain), 1);
+    memcpy(&landed, (const u_char *)chr + CHARA_HIT_LANDED, sizeof(landed));
+    if (landed != 0 && (tiBossState() & BOSS_STATE_BALOWS_FOLLOWED) == 0) {
+        asChangeMortionInfo_NextMortion(chr->id, motion, end, -1);
+        asChangeMortionInfo_NextMortion(chr->id, end, tiBossBrainShort(brain, BRAIN_SEARCH_MOTION), -1);
+        tiBossSetBits(BOSS_STATE_BALOWS_FOLLOWED);
+    }
+}
+
+// The attack's start: motion, state n's timer and BOSS_INFO_APPROACH_84 (tiBalowsStartTimed), pick 1,
+// one more toward the special (BOSS_INFO_COUNT_8D).
+static void tiScissorsStart(CHARACTER *chr, u_char *brain, int n, int motion)
+{
+    tiBalowsPlay(chr, motion, tiBossBrainShort(brain, BRAIN_SEARCH_MOTION));
+    tiBalowsStartTimed(brain, n);
+    tiBossClearBits(BOSS_STATE_BALOWS_FOLLOWED);
+    brain[BRAIN_ATK_PICK] = 1;
+    pBossInfo[BOSS_INFO_COUNT_8D]++;
+}
+
+// A fresh slash (pick 0) draws its combo's length.
+static void tiScissorsComboDraw(const u_char *brain)
+{
+    static const int lengths[8] = { 1, 1, 2, 2, 3, 4, 5, 6 };
+
+    if (brain[BRAIN_ATK_PICK] != BOSS_ATK_PICK_FIRST)
+        return;
+    tiBossSetInt(BOSS_INFO_COMBO_LEN, lengths[tnRand(8)]);
+    tiBossSetInt(BOSS_INFO_COMBO_DONE, 1);
+}
+
+// CT3 0x0186af60: SCISSORS_M's attack. A combo under way slashes again while Alyssa is ahead. Else: Alyssa
+// down within SCISSORS_M_NEAR, the stab; near, the slash (a fresh combo); BOSS_SUB_NEAR_2, the thrust;
+// farther (no attack running), the slash at odds by distance and set A's chains. The one-shots turn on
+// their timers and queue their end motion when the blow lands.
+void tiBrain_Attack_BOSS_SCISSORS_M(CHARACTER *chr)
+{
+    // callcheck: asCharacterMortionChangeRequest, ssAI_IsTrgWithinAngle (tiBalowsPlay / tiBalowsAngleOk make them)
+    u_char *brain = CharaBrainPtr(chr);
+    u_char *pick = brain + BRAIN_ATK_PICK;
+    short m = tiBossMotion(chr);
+    float dir[4], fwd[4];
+    float dist = tiBossToPlayer(chr, dir);
+    int odds;
+
+    if (TI_BOSS_BUSY(chr, ScissorsMAttackBodyBusy)) {
+        if (m == SCISSORS_M_MOTION_STAB || m == SCISSORS_M_MOTION_THRUST) {
+            if (m == SCISSORS_M_MOTION_STAB)
+                tiScissorsTimedRun(chr, brain, dir, SCISSORS_M_ATK_STAB, m, SCISSORS_M_MOTION_STAB_END);
+            else
+                tiScissorsTimedRun(chr, brain, dir, SCISSORS_M_ATK_THRUST, m, SCISSORS_M_MOTION_THRUST_END);
+            if (*pick == BRAIN_ATK_NONE)
+                return;
+            brain[BRAIN_SUBMODE] = BOSS_SUB_NONE;
+            *pick = BRAIN_ATK_NONE;
+            return;
+        }
+        if (m == SCISSORS_M_MOTION_SLASH) {
+            const BRAIN_ATK_STATE *st = (const BRAIN_ATK_STATE *)tiBalowsState(brain, SCISSORS_M_ATK_SLASH);
+            int off = BRAIN_ATK_STATES + SCISSORS_M_ATK_SLASH * (int)sizeof(BRAIN_ATK_STATE);
+            int landed;
+
+            tiBrainSetInt(brain, off, tiBrainInt(brain, off) + gNextTicksInterval);
+            if (tiBrainInt(brain, off) < st->chain)
+                ssAI_CompCharaDir(chr, dir, tiBossTurnSpeed(brain), 1);
+            memcpy(&landed, (const u_char *)chr + CHARA_HIT_LANDED, sizeof(landed));
+            if (landed == 0 || (tiBossState() & BOSS_STATE_BALOWS_FOLLOWED) != 0) {
+                if (tiBossInt(BOSS_INFO_COMBO_LEN) <= tiBossInt(BOSS_INFO_COMBO_DONE))
+                    tiBossSetInt(BOSS_INFO_COMBO_LEN, 0);
+            } else {
+                asChangeMortionInfo_NextMortion(chr->id, SCISSORS_M_MOTION_SLASH, SCISSORS_M_MOTION_SLASH_END, -1);
+                asChangeMortionInfo_NextMortion(chr->id, SCISSORS_M_MOTION_SLASH_END,
+                                                tiBossBrainShort(brain, BRAIN_SEARCH_MOTION), -1);
+                tiBossSetBits(BOSS_STATE_BALOWS_FOLLOWED);
+                pBossInfo[BOSS_INFO_COUNT_8D] = 0;
+                tiBossSetInt(BOSS_INFO_COMBO_LEN, 0);
+                brain[BRAIN_SUBMODE] = BOSS_SUB_NONE;
+            }
+            *pick = BRAIN_ATK_NONE;
+        }
+        return;
+    }
+    if (*pick == BRAIN_ATK_NONE)
+        return;
+    if (tiBossInt(BOSS_INFO_COMBO_LEN) != 0) {
+        tiGetCharaDirection(fwd, chr);
+        if (gaInnerProductXYZ(dir, fwd) < 0.0f) {
+            *pick = BRAIN_ATK_NONE;
+            return;
+        }
+        tiBalowsPlay(chr, SCISSORS_M_MOTION_SLASH, tiBossBrainShort(brain, BRAIN_SEARCH_MOTION));
+        tiBalowsStartTimed(brain, SCISSORS_M_ATK_SLASH);
+        tiBossSetInt(BOSS_INFO_COMBO_DONE, tiBossInt(BOSS_INFO_COMBO_DONE) + 1);
+        tiBossClearBits(BOSS_STATE_BALOWS_FOLLOWED);
+        return;
+    }
+    (void)tnRand(AI_ATK_WEIGHT);        /* drawn and unused (the ROM's) */
+    if (ssAI_IsDownPlaying(&Character[Player_BankID]) != 0) {
+        if (dist < SCISSORS_M_NEAR && tiBalowsAngleOk(brain, SCISSORS_M_ATK_STAB, dir, chr))
+            tiScissorsStart(chr, brain, SCISSORS_M_ATK_STAB, SCISSORS_M_MOTION_STAB);
+        return;
+    }
+    if (dist < SCISSORS_M_NEAR) {
+        if (!tiBalowsAngleOk(brain, SCISSORS_M_ATK_SLASH, dir, chr))
+            return;
+        tiScissorsComboDraw(brain);
+        tiScissorsStart(chr, brain, SCISSORS_M_ATK_SLASH, SCISSORS_M_MOTION_SLASH);
+        return;
+    }
+    if (brain[BRAIN_SUBMODE] == BOSS_SUB_NEAR_2) {
+        if (tiBalowsAngleOk(brain, SCISSORS_M_ATK_THRUST, dir, chr))
+            tiScissorsStart(chr, brain, SCISSORS_M_ATK_THRUST, SCISSORS_M_MOTION_THRUST);
+        return;
+    }
+    if ((tiBossState() & BOSS_STATE_BALOWS_ATTACKING) != 0)
+        return;
+    if (pBossInfo[BOSS_INFO_CHAIN_A_ACTIVE] == 0)
+        odds = dist < SCISSORS_M_DIST_1 ? 5 : dist < SCISSORS_M_DIST_2 ? 3 : dist < SCISSORS_M_DIST_3 ? 2 : 0;
+    else
+        odds = dist < SCISSORS_M_DIST_1 ? 3 : dist < SCISSORS_M_DIST_2 ? 1 : 0;
+    if (tnRand(AI_ATK_WEIGHT) < odds && tiBalowsAngleOk(brain, SCISSORS_M_ATK_SLASH, dir, chr)) {
+        tiScissorsComboDraw(brain);
+        tiScissorsStart(chr, brain, SCISSORS_M_ATK_SLASH, SCISSORS_M_MOTION_SLASH);
+    }
+    tiBrainSetInt(brain, BRAIN_BALOWS_ATK_TICKS, 0);
+    tiBossSetBits(BOSS_STATE_BALOWS_ATTACKING);
+}
+
 // ---- stubs (tools/reverse/stubgen.py) ----
 
 // stub of CT3 0x01874960
@@ -1113,22 +1688,10 @@ void tiBrain_Attack_BOSS_AXE(struct CHARACTER *chr)
     ALYSSAPAN_STUB("tiBrain_Attack_BOSS_AXE", 0x0186cac0);
 }
 
-// stub of CT3 0x01869930
-void tiBrain_Attack_BOSS_BALOWS(struct CHARACTER *chr)
-{
-    ALYSSAPAN_STUB("tiBrain_Attack_BOSS_BALOWS", 0x01869930);
-}
-
 // stub of CT3 0x0186e0d0
 void tiBrain_Attack_BOSS_HAMM(struct CHARACTER *chr)
 {
     ALYSSAPAN_STUB("tiBrain_Attack_BOSS_HAMM", 0x0186e0d0);
-}
-
-// stub of CT3 0x0186af60
-void tiBrain_Attack_BOSS_SCISSORS_M(struct CHARACTER *chr)
-{
-    ALYSSAPAN_STUB("tiBrain_Attack_BOSS_SCISSORS_M", 0x0186af60);
 }
 
 // stub of CT3 0x0186b7a0

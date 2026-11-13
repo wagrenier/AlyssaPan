@@ -2121,6 +2121,25 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    - (nz9) tiBossApplyMatrix duplicates Clipping_Portal.c's static PortApplyMatrix. A shared header for it
      would be cleaner (host helper, not game code).
 
+   **game/tiBrain_ChgTrace_BOSS_BALOWS.c slice 3 (partial, 2026-11-13 02:55, Claude, scheduled run).**
+   Written (2): tiBrain_Attack_BOSS_BALOWS (0x01869930) and tiBrain_Attack_BOSS_SCISSORS_M (0x0186af60).
+   tiBrain_Attack_BOSS_SCISSORS_W (0x0186b7a0, 0xda0 bytes) left from the brief's slice: the next run's
+   first job, then the AXE / VITRIOL / HAMM attacks, Trace_BOSS_AXE / VITRIOL, Init_BOSS1 /
+   SCISSORS_W, Approach_BOSS1, Damage_BOSS1. Smoke run unchanged (content warning, fade, black at the
+   end); no run reaches a boss, so both bodies are unproven on screen. Open:
+   - (nz10) The bosses reuse the stalkers' BRAIN_ATK_STATE records differently: .b00 read as an int timer,
+     .chain as its limit (turning stops past it), .panic as BOSS_INFO_APPROACH_84, .wFar as the grab's
+     rattle time. Names in tiBrain_ChgTrace_BOSS_BALOWS.h (BALOWS_ATK_*); the BRAIN_ATK_STATE field names
+     stay the stalkers'. A boss-side union would read better once Init_BOSS1 shows how they are filled.
+   - (nz11) BOSS_INFO_PHASE bits 0x40 / 0x800 (BOSS_STATE_BALOWS_ATTACKING / _FOLLOWED) are shared by
+     BALOWS and SCISSORS_M; 0x2, 0x100000 and boss info 0x10 are written with no reader found yet.
+   - (nz12) The BALOWS grab heals the boss twice the damage it does each frame (chr->hp += panic * 2, to
+     hpMax) and ControllerClatteringGet takes the slot in a0 (Ghidra dropped the argument: mipsdis shows
+     lw a0,0x274(s0)). Event 0x55c (TRIG_EVENT_BALOWS_NO_GRAB) has the number of the ghosts'
+     TRIG_EVENT_GHOST_1D_ON: one global event, two readers, meaning to settle.
+   - (nz13) The blood part (BOSS_INFO_BLOOD_PART, part + 0x40) gets PARTS_ANIM_BASE_POS and flags 3; with
+     no part set the port skips the write (the ROM writes through null).
+
 ## Decisions
 
 - 2026-11-11 (Claude, scheduled run 19:15, for the user to overrule): **the ga 2D frame stays 4:3.** The

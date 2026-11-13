@@ -558,6 +558,13 @@ fFade / Fade_Type / FadeEndTicks before hunting loops -- FADE_TYPE_OUT2_* fades 
 script starts another fade. Hardware watchpoints work through the cmd channel (`watch -l ... if ...`,
 then `continue`: a hit is dumped and held like a break); one that never fires means the value is frozen.
 
+### Ghidra drops an argument loaded before a branch; callcheck reads one line per annotation (2026-11-13)
+tiBrain_Attack_BOSS_BALOWS's decompilation shows `ControllerClatteringGet()` with no argument: the slot
+was loaded into a0 before the `== -1` test (`lw a0,0x274(s0)`), and Ghidra lost it across the branch.
+When a callee's known prototype takes an argument the call shows without, read `mipsdis.py` round the jal.
+And a `// callcheck:` annotation is read from its own line only: list the helper-made calls one comment
+line each (a wrapped list leaves the later lines MISSING).
+
 ## From the siblings (2026-11-09 digest of MioPan, ReiPan, RosePan, MikuPan)
 
 - **Ghidra misses functions even with symbols**: code reached only through data (dispatch tables,
