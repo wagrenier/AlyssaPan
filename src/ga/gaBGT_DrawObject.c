@@ -256,7 +256,7 @@ static void DrawClipped(const GA_SPR_WORK *spr, const u_char *obj, int light)
     o.vertexCount = (int)*(const u_int *)(obj + GA_OBJ_VERTEX_COUNT);
     o.primCount = (int)*(const u_int *)(obj + GA_OBJ_PRIM_COUNT);
     o.light = light;
-    if (light == ALYSSAPAN_GA_LIGHT1) {
+    if (light != ALYSSAPAN_GA_LIGHT0) {
         o.normalBlock = ObjEePtr(bank, obj, GA_OBJ_NORMALS);
         o.lightMatrix = (const float *)ObjEePtr(bank, obj, GA_OBJ_LIGHT_MATRIX);
         o.lightWork = ObjEePtr(bank, obj, GA_OBJ_LIGHT_WORK);
@@ -283,8 +283,9 @@ static void gaBGT_DrawObject_SetupDma_light0(u_char *obj)
 }
 
 // The body of SetupDma_light1 (mscal = GA_SPR_WORK.vifMscal6) and SetupDma_light2 (vifMscalA): the ROM has
-// the same code twice but for that one REF.
-static void SetupDmaLit(u_char *obj, u_int mscal)
+// the same code twice but for that one REF. The MSCAL picks the VU1 program (6: light1's lighting 0x2b9,
+// 0xa: light2's 0x3b8), so the host is told which (light).
+static void SetupDmaLit(u_char *obj, u_int mscal, int light)
 {
     GA_SPR_WORK *spr = SPR_WORK;
     u_char *st;
@@ -302,20 +303,19 @@ static void SetupDmaLit(u_char *obj, u_int mscal)
     PutTag(st + 0x160, DMA_REF | StQwc(n), *(const u_int *)(obj + GA_OBJ_ST));
     ((u_int *)(SprPtr(spr->indexPacketEE) + 0x10))[0] = VIF_MSCNT_CODE;
     SetupClipTail(spr);
-    // PORT: light2's VU1 program (MSCAL 0xa) is not read; the host lights it as light1.
-    DrawClipped(spr, obj, ALYSSAPAN_GA_LIGHT1);
+    DrawClipped(spr, obj, light);
 }
 
 // CT3 0x018a4404
 static void gaBGT_DrawObject_SetupDma_light1(u_char *obj)
 {
-    SetupDmaLit(obj, offsetof(GA_SPR_WORK, vifMscal6));
+    SetupDmaLit(obj, offsetof(GA_SPR_WORK, vifMscal6), ALYSSAPAN_GA_LIGHT1);
 }
 
 // CT3 0x018a49ec
 static void gaBGT_DrawObject_SetupDma_light2(u_char *obj)
 {
-    SetupDmaLit(obj, offsetof(GA_SPR_WORK, vifMscalA));
+    SetupDmaLit(obj, offsetof(GA_SPR_WORK, vifMscalA), ALYSSAPAN_GA_LIGHT2);
 }
 
 // One light kind's local-view chain, as the ROM spells it out per kind: the vertex block's place, the

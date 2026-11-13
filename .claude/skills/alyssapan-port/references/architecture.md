@@ -374,7 +374,9 @@ the TU map's evidence.
 - **gaSetLight(lightWork, view)**: GA_LIGHT_WORK +0x10 `dirView` = the four directional lights (dirPos)
   under the view's rotation (row 3's xyz cleared), stored as columns, rows x, y, z, -w; +0x50 `omniView`
   = the four point lights' xyz under the whole view, columns, row 3 = their own w. The point-light
-  products reuse one qword whose w carries over (0 while the view's w column is 0, 0, 0, 1).
+  products reuse one qword, first set to vf0 = (0, 0, 0, 1) (`sqc2 zero`, hazards.md), whose w carries
+  over: 1 while the view's w column is 0, 0, 0, 1, so the view's translation applies (fixed 2026-11-13:
+  the port had w 0, every point light sat off by the camera's position).
 - **gaSetZRollMatrix(roll)**: a 2x2 rotation by roll scaled by the work's scaleX / scaleY (read through
   GA_SPR_WORK.work3dlibEE) into the scratchpad at 0x70000300 ([0] c * sx, [1] s * sy, [4] -s * sx, [5] c *
   sy), for the VU1 renderer. gaCopyObject (0x018a8140) is a no-op in the ROM (it stores into its own stack
@@ -595,11 +597,46 @@ Read with `vudis.py 18ff430 335 --all` (mind hazards.md's vudis misprints). Micr
   then XGKICK. Variants 0 and 1 cull: the screen edges' outer product (OPMULA / OPMSUB), z's sign flag (MAC
   0x20) sets the third XYZF2's ADC bit -- variant 0 drops z < 0, variant 1 drops z >= 0; 0x1d9 keeps all.
 - 0x0af is the same projection over an index list (the clipped path's); 0x084 is light1's transform (no
-  colour conversion); light1's lighting is at 0x296 / 0x40b (via 0x192 / 0x196), not read.
+  colour conversion, xyz only); the lighting is below ("The VU1 lighting").
 - Host: `rendering::GaMeshRecorder::project` / `cull` do this per object; seams.cpp's DrawGaFrame hands a
   frame's triangles to UiCanvas (squeezed at wide aspects = the projection widened). Smoke run 2026-11-10:
   ATLD's object matrix (obj +0x58) is all zeros (asChangeViewMatrix_forTheBank and the camera are stubs),
   so v'.z = 0 and nothing is drawn.
+
+## The VU1 lighting (2026-11-13, interactive session: `rendering/ga_mesh.cpp` litColour)
+
+Read with `vudis.py 18ff430 335 --all`. The entries and their chains (MSCAL, then each MSCNT runs the
+code after the last [E]):
+- **nc2 light1** (MSCAL 0x22..0x28 -> 0x17f; nc2 light2 objects too): 0x084 transform, MSCNT 0x296
+  normals, MSCNT 0x40b lighting, MSCNT 0x0f5 projection. **Clipped light1** (MSCAL 6 -> 0x161): 0x25a
+  normals, 0x2b9 lighting, 0x0af. **Clipped light2** (SetupDma_light2, MSCAL 0xa -> 0x19c): 0x25a, 0x3b8,
+  0x0af. MSCAL 2 -> 0x138 is light0's clipped entry. The clipped routines read their vertices through
+  the reference list (`ilw.w`), the nc2 ones in order; otherwise the same maths.
+- **VU memory**: positions 0.., normals then ST at 0x80.. (the ST REF comes after the lighting's MSCNT),
+  colours 0x100.. (UNPACK V4-8, **USN 0: bytes sign-extended**, so 0x80..0xff are -128..-1; most such
+  bytes in the data are 0xe0..0xff, and a few 2D quads carry 0x80 = -128, drawn black), the light work at
+  0x180..0x18f (the 17-qword CNT minus its VIF head: dirView x / y / z rows, the -w row, omniView x / y / z,
+  the point scales, dirColor[4], omniColor[4]; `AlyssaPanGaLightSet`), vf16..vf20 / vf29 / vf30 saved at
+  0x190..0x196 while 0x40b runs.
+- **Normals** (0x296 / 0x25a): n' = L0 n.x + L1 n.y + L2 n.z, L = the header's light matrix vf21..vf23
+  (obj +0x5c), xyz stored back in place. No renormalisation.
+- **Lighting** (0x40b / 0x2b9 / 0x3b8): the point scales minus 1.0, all four zero flags set (FMAND 0xf) ->
+  the directional-only path (0x4bc / 0x36b): c = colour + sum_j dirColor[j] max(I_j (n . dir_j), 0) per
+  component (alpha too). Otherwise also + sum_j omniColor[j] e_j with p_j = (omni_j - v) x scale_j
+  (v the view-space vertex): light1 e_j = max(max(n . p_j, 0) / |p_j| - max(n . p_j, 0), 0), a cosine that
+  fades linearly to 0 at |p| = 1 (the range 1 / scale); **light2 (0x3b8) e_j = max(|p_j| - |p_j|^2, 0)**:
+  it adds |p|^2 where light1 adds n . p (0x3dd), so no angle term -- the ROM's, kept. RSQRT latencies are
+  met exactly (13 instructions to the Q read): the pipelined loops compute what the plain formula does.
+  The EE's redraw (trans_for_gs, gaDrawObject_Redraw_Polygon.c) lights GA_LIGHT_KIND_1 the same way.
+- **Highlight** (0x5a8 nc2 / 0x4f4 clipped), when vf30.w (obj +0x30) is non-zero, after the directional
+  path or light1's full path (light2's full path returns without it): vf20.w = 0 (the ambient adds no
+  alpha), v^ = v / |v|, r = v^ - 2 (v^ . n') n', s = max(r . -dir_0, 0), alpha = obj +0x30 x -I_0 x s^4
+  (only w stored). The GS's TFX HIGHLIGHT / HIGHLIGHT2 then add it to the colour (Ct Cf + Af).
+- The projection (0x0f5) adds vf20 (the part's ambient, obj +0x38's qword) and clamps 0..vf29.z.
+- **Seen (2026-11-13, the dining room 0A01.BIN and the window room):** light1 objects outnumber light0
+  (about 6 : 4 drawn); the room's light sets have no directional light (I = 0) and one point light (scale
+  0.005, colour 140); vertex colours ~15..70 with ambient 11; no highlight (obj +0x30 = 0) and no light2
+  object yet, and every texture MODULATE.
 
 ## The ga frame on the host: its end, its GS state, its depth (2026-11-12, interactive session)
 
@@ -684,8 +721,8 @@ Read with `vudis.py 18ff430 335 --all` (mind hazards.md's vudis misprints). Micr
   SPR bit if in the scratchpad), then REF FLUSH MSCNT FLUSHE; 0x104 = the end.
 - Host: the set-ups build that packet in the scratchpad and hand the object, whole, to the draw module
   (the GPU clips; the EE's big / near division is the GS's workaround); billboards are not handed over yet
-  (their local view is not read), light2 is lit as light1. The 15 s smoke run of 2026-11-10 reaches neither
-  gaBGT_DrawObject nor the gaDrawObject stubs (gaObjectClippingCheck is a stub; ATLD draws through nc2).
+  (their local view is not read); light2 gets its own lighting (2026-11-13, "The VU1 lighting"). The 15 s
+  smoke run of 2026-11-10 reaches neither gaBGT_DrawObject nor the gaDrawObject stubs (gaObjectClippingCheck is a stub; ATLD draws through nc2).
 
 ## The local view and index passes, ga/gaDrawObject.c (2026-11-12, slice 1)
 

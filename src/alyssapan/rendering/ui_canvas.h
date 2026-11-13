@@ -85,6 +85,7 @@ private:
     {
         // The GS context, as far as it decides anything here.
         std::uint64_t alpha = 0;
+        std::uint64_t tex0 = 0; // TFX and TCC (the 3D path sets it; the 2D draws leave MODULATE)
         std::uint64_t clamp = 0;
         std::uint64_t tex1 = 0;
         std::uint64_t test = 0;

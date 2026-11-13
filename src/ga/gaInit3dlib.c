@@ -360,9 +360,10 @@ void gaCopyObject2(void *dst, const void *src)
 // CT3 0x018a8258
 // The four directional lights go through the view's rotation only (a copy of view with row 3's xyz
 // cleared, its w kept) into dirView's columns, w negated; the four point lights' xyz go through the whole
-// view into omniView's columns, their w copied. The point lights reuse one qword: gaCopyVectorXYZ replaces
-// its xyz, so each product's w carries the previous product's w (0 for a view whose w column is 0, 0, 0, 1)
-// -- kept.
+// view into omniView's columns, their w copied. The point lights reuse one qword, first set to vf0 (0, 0, 0,
+// 1: `sqc2 zero` stores VU0's vf0, not a zero -- hazards.md): gaCopyVectorXYZ replaces its xyz, so the first
+// product has w 1 (the view's translation applies) and each later one carries the previous product's w (1
+// for a view whose w column is 0, 0, 0, 1) -- kept.
 void gaSetLight(void *lightWork, float (*view)[4])
 {
     GA_LIGHT_WORK *lw = (GA_LIGHT_WORK *)lightWork;
@@ -381,7 +382,8 @@ void gaSetLight(void *lightWork, float (*view)[4])
         lw->dirView[3][i] = -v[3];
     }
 
-    memset(v, 0, sizeof(v));
+    v[0] = v[1] = v[2] = 0.0f;
+    v[3] = 1.0f;                        /* sqc2 vf0 */
     for (int i = 0; i < LIGHT_SLOTS; i++) {
         gaCopyVectorXYZ(v, lw->omniPos[i]);
         VecMulMatrix(v, v, view);

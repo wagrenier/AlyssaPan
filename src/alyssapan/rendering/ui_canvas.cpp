@@ -18,6 +18,7 @@ namespace
 {
 
 // The GS registers that decide anything here (sce_gs.h has them as macros for the game).
+constexpr int kRegTex01 = 0x06;
 constexpr int kRegClamp1 = 0x08;
 constexpr int kRegTex11 = 0x14;
 constexpr int kRegScissor1 = 0x40;
@@ -94,6 +95,24 @@ std::uint8_t alphaTestRefOf(std::uint64_t test)
     return ref;
 }
 
+// TEX0's TFX and TCC as the fragment shader's texture function.
+TextureFunction textureFunctionOf(std::uint64_t tex0)
+{
+    constexpr int kTccShift = 34;
+    constexpr int kTfxShift = 35;
+    constexpr std::uint64_t kTfxMask = 3;
+    constexpr std::uint64_t kTfxHighlight = 2;
+    constexpr std::uint64_t kTfxHighlight2 = 3;
+
+    const std::uint64_t tfx = (tex0 >> kTfxShift) & kTfxMask;
+    const bool texelAlpha = ((tex0 >> kTccShift) & 1) != 0;
+    if (tfx != kTfxHighlight && tfx != kTfxHighlight2)
+        return TextureFunction::Modulate; // MODULATE, and DECAL as its callers send it
+    if (!texelAlpha)
+        return TextureFunction::HighlightVertexAlpha;
+    return tfx == kTfxHighlight ? TextureFunction::Highlight : TextureFunction::Highlight2;
+}
+
 } // namespace
 
 BlendMode blendModeOf(std::uint64_t alpha)
@@ -136,6 +155,9 @@ void UiCanvas::setRegister(const void *list, int reg, std::uint64_t value)
     {
     case kRegAlpha1:
         target.alpha = value;
+        break;
+    case kRegTex01:
+        target.tex0 = value;
         break;
     case kRegClamp1:
         target.clamp = value;
@@ -250,6 +272,7 @@ DrawCall UiCanvas::stateOf(const Layer &source)
     draw.alphaTestRef = alphaTestRefOf(source.test);
     draw.alphaTestInverted = source.alphaFailPass && draw.alphaTestRef != 0;
     draw.fixedAlpha = static_cast<std::uint8_t>(source.alpha >> 32);
+    draw.textureFunction = source.textured ? textureFunctionOf(source.tex0) : TextureFunction::Modulate;
     return draw;
 }
 
@@ -269,7 +292,7 @@ void UiCanvas::emit(Layer &target, std::initializer_list<Vertex> triangleVertice
                    last.scissor == state.scissor &&
                    last.linearFilter == state.linearFilter && last.repeat == state.repeat &&
                    last.alphaTestRef == state.alphaTestRef && last.alphaTestInverted == state.alphaTestInverted &&
-                   last.fixedAlpha == state.fixedAlpha;
+                   last.fixedAlpha == state.fixedAlpha && last.textureFunction == state.textureFunction;
         }();
 
     if (!continues)

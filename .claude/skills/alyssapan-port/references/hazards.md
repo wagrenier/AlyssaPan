@@ -316,6 +316,15 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
   to ~10.6 in the probe runs: the uncycled upload may be serialising frames. The user (2026-11-10): stick
   to CT3 -- no renderer comparison with YamiPan; keep the workaround, and if CT3's frame rate suffers once
   real draws land, look at how CT3's own frame end feeds the renderer.
+- (2026-11-13, the lighting) **`sqc2 zero` / `lqc2 zero` is vf0 = (0, 0, 0, 1), not a zero qword**:
+  mipsdis.py prints COP2 registers with the GPR names (at = vf1, v0 = vf2 ..), so VU0's constant register
+  reads as `zero`. gaSetLight's point lights were reconstructed with w 0 from it and lost the view's
+  translation (every point light off by the camera's position: rooms lit from the wrong places). 90
+  `sqc2 zero` sites in the ROM; SceneLightSet / CharLightSet read theirs right (LightClearPos), the others
+  are not audited.
+- (2026-11-13, the lighting) **The ga colour blocks unpack signed** (UNPACK V4-8 with USN 0): a colour
+  byte of 0x80..0xff is -128..-1 on VU1. Read unsigned, the many 0xe0..0xff bytes of lit room objects
+  (small negatives) would add 224..255 instead of about 0.
 - (2026-11-10, gaBGT_DrawObject.c slice 2) **vudis.py misprints three lower-op fields**: `iaddiu`'s
   imm15 (`iaddiu vi1, vi1, 0x801` is +1, `0x804` +4, `0x1007` +7: high bits leak in), `mtir`'s component
   (it prints the dest mask, not fsf: the kick routines' `mtir.` / `.w` / `.z` are x / y / z, as the

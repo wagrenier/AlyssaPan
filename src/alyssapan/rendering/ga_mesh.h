@@ -3,7 +3,9 @@
 // 2026-11-10 (ga/gaBGT_DrawObject.c slice 1) as a recorder; slice 2 (2026-11-10) adds the light0 VU1
 // program's maths (vu1_object_draw_program 0x04d, the transform, and 0x0f5, the projection; architecture.md
 // "The VU1 object program"): each vertex leaves here where the ROM's XYZF2 / RGBAQ / STQ would put it.
-// Light1's lighting (0x296, 0x40b) is not read: its meshes are projected the same way, their colour grey.
+// 2026-11-13: the lit programs' lighting too (light1 0x296 / 0x40b and the clipped 0x25a / 0x2b9, light2
+// 0x3b8, the highlight 0x5a8 / 0x4f4; architecture.md "The VU1 lighting"): four directional and four point
+// lights per object from its light work, and a specular in the vertex alpha.
 #pragma once
 
 #include <array>
@@ -27,8 +29,8 @@ public:
         std::array<float, 2> st;
         std::array<std::uint8_t, 4> rgba;
 
-        // What the VU1 program sends to the GS (light0 maths): window x, y in 12.4 (2048 x 16 the centre),
-        // Z, fog; ST after the offset (the GS divides the STQ back to this); RGBA clamped to 0..255.
+        // What the VU1 program sends to the GS: window x, y in 12.4 (2048 x 16 the centre), Z, fog; ST after
+        // the offset (the GS divides the STQ back to this); RGBA lit (lit kinds), plus the ambient, clamped.
         std::array<float, 4> screen{};
         std::array<float, 2> drawSt{};
         std::array<std::uint8_t, 4> drawRgba{};

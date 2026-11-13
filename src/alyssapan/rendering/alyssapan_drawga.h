@@ -17,13 +17,34 @@
 
 #include <stdint.h>
 
-/* Which VU1 set-up the ROM chose (the object's flags & 0x1c, then the
- * set-up function): 0 is light0 (no normals: colours as they are), 1 is
- * light1 (normals and the light work). */
+/* Which VU1 lighting the ROM's chain runs (the object's flags & 0x1c, then
+ * the set-up function, whose MSCAL picks the program; architecture.md "The
+ * VU1 object program"): 0 is light0 (no normals: colours as they are), 1 is
+ * light1 (normals and the light work: 0x296 / 0x2b9 / 0x40b), 2 is light2
+ * (the clipped path's SetupDma_light2, MSCAL 0xa: 0x3b8, another point-light
+ * term). The no-clip paths send light2 objects through light1's set-up, so
+ * they come as light1. */
 enum
 {
     ALYSSAPAN_GA_LIGHT0 = 0,
     ALYSSAPAN_GA_LIGHT1 = 1,
+    ALYSSAPAN_GA_LIGHT2 = 2,
+};
+
+/* The light work as the lit programs read it (VU1 0x180..0x18f: the 16
+ * qwords after GA_LIGHT_WORK's VIF head qword, which gaSetLight and the light
+ * set-ups fill; game/ct3_types.h GA_LIGHT_WORK). Structure of arrays: lane k
+ * of each row is light k. */
+struct AlyssaPanGaLightSet
+{
+    float dir[3][4];            /* VU 0x180..0x182: the directional lights' x, y, z under the view's
+                                   rotation (dirView) */
+    float intensity[4];         /* VU 0x183: their -w (dirView row 3) */
+    float point[3][4];          /* VU 0x184..0x186: the point lights' x, y, z (omniView) */
+    float pointScale[4];        /* VU 0x187: their w, an inverse range; all four 1.0 = no point light (the
+                                   programs then skip the point term) */
+    float dirColour[4][4];      /* VU 0x188..0x18b: RGBA per directional light (dirColor) */
+    float pointColour[4][4];    /* VU 0x18c..0x18f: RGBA per point light (omniColor) */
 };
 
 /* One ga draw object as its set-up sends it. Every pointer is a host
@@ -38,14 +59,17 @@ struct AlyssaPanGaObject
     const float *positions;     /* +0x60: vertexCount x (x y z w) */
     const void *stBlock;        /* +0x68: one qword of VIF codes, then vertexCount x (s t) floats */
     const void *colourBlock;    /* +0x6c: one qword of VIF codes, then vertexCount x RGBA bytes */
-    const void *normalBlock;    /* +0x64, light1 only: one qword of VIF codes, then vertexCount qwords */
+    const void *normalBlock;    /* +0x64, lit only: one qword of VIF codes, then vertexCount qwords (x y z) */
     const uint16_t *indices;    /* +0x50: primCount x 4 halfwords (qword offsets of the vertices) */
     const float *position;      /* +0x38: the qword at that EE address, the part's ALL_TABLE.partsPos: the
                                    ambient RGB the light0 program adds to each colour (vf20), alpha in w */
     const float *matrix;        /* +0x58: 4 qwords */
-    const float *lightMatrix;   /* +0x5c, light1 only: 3 qwords */
-    const void *lightWork;      /* +0x3c, light1 only: 17 qwords (GA_LIGHT_WORK) */
-    float lightScale;           /* +0x30, light1 only (the set-up stores it at scratchpad 0xcc) */
+    const float *lightMatrix;   /* +0x5c, lit only: 3 qwords, the rows that turn a normal into the view
+                                   (n' = row0 n.x + row1 n.y + row2 n.z) */
+    const void *lightWork;      /* +0x3c, lit only: 17 qwords (GA_LIGHT_WORK): a VIF head qword, then an
+                                   AlyssaPanGaLightSet */
+    float lightScale;           /* +0x30, lit only (the set-up stores it at scratchpad 0xcc, the header's
+                                   vf30.w): non-zero, the vertex alpha becomes a specular highlight */
     uint64_t gsReg70;           /* +0x70: two floats, not a GS register: the VU1 program's Z offset and
                                    fog base (the header's 0x78 = vf17.zw) */
     uint64_t gsReg78;           /* +0x78: two floats, not a GS register: the ST offset (the header's 0xc0 =

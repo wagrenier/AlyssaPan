@@ -3079,8 +3079,25 @@ apply here):
   the small motor's 1 a near-zero strength. Fix in the shim (read the align from scePadSetActAlign) when
   vibration is tested; tiVibrationOn is the caller.
 
+- (2026-11-13, the lighting, interactive) Left from the VU1 lighting work (architecture.md "The VU1
+  lighting"): (lt1) the colour blocks unpack signed (USN 0), so the few 2D quads with colour 0x80 (a
+  fading quad in ATLD's bank, (128, 128, 128, 127..118)) draw black -- the hardware's answer, worth one
+  look against the real game's boot screens; (lt2) the highlight (obj +0x30 != 0), TFX HIGHLIGHT /
+  HIGHLIGHT2 in ui.frag and light2's program are written from the VU code but no smoke run has drawn one
+  yet (the opening rooms have none): check them on the first screen that does; (lt3) the 88 other
+  `sqc2 zero` (vf0) sites outside the lights were not audited for the w = 1 misreading (hazards.md); (lt4)
+  the ga frame still has no fog (item 7): the room's depth haze is the next part of the look.
+
 ## Done
 
+- 2026-11-13 (interactive, the user: "the lighting seems minimal or very broken"): the lit ga meshes.
+  Light1 meshes -- more than half the room's objects, Alyssa among them -- were drawn at a flat grey 128.
+  The VU1 program's lighting is now read and ported (rendering/ga_mesh.cpp: four directional and four point
+  lights per object, light2's variant, the specular highlight in the alpha), the GS's HIGHLIGHT /
+  HIGHLIGHT2 texture functions reach ui.frag, the colour blocks unpack signed as the VIF does, and
+  gaSetLight's point lights get the view's translation (`sqc2 zero` is vf0, w 1; they sat off by the
+  camera's position). The dining room and the window room now shade from their candle and window lights;
+  Alyssa is lit front and back. (e) and (g) of item 4 and (li3) / (lj3) are answered.
 - 2026-11-12 (interactive): the opening's held black fade, (nq5) and (nq6). Fixes: signed script
   operands, so the scene loads run and LoadWait("0A06") passes; cellB's low-RAM window; the shadow caster's
   vertex words; HurikoSwing's .xyz lanes. The room fades in, and Alyssa's hair and skirt draw whole.

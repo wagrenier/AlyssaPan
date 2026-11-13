@@ -148,6 +148,7 @@ constexpr float kWindowMax = 65535.0f;
 constexpr float kTexelMax = 65535.0f;
 
 // The GS registers UiCanvas::setRegister reads, and the values the ga path's draws take.
+constexpr int kRegTex01 = 0x06;
 constexpr int kRegClamp1 = 0x08;
 constexpr int kRegScissor1 = 0x40;
 constexpr int kScissorX1Shift = 16; // SCISSOR_1: SCAX0 0, SCAX1 16, SCAY0 32, SCAY1 48
@@ -592,6 +593,7 @@ void DrawGaFrame(const std::vector<alyssapan::rendering::GaMeshRecorder::Mesh> &
         const std::uint64_t prim = kPrimTriangle | (draw.gouraud ? kPrimGouraud : 0) |
                                    (textured ? kPrimTextured : 0) | (draw.blended ? kPrimBlended : 0);
         if (textured) {
+            ui.setRegister(list, kRegTex01, mesh.tex0); // TFX / TCC: HIGHLIGHT adds the lit meshes' specular
             ui.setRegister(list, kRegClamp1, sampling.clamp);
             ui.bindImage(list, sampling.image);
             ui.setPrimitive(list, prim, nullptr);
@@ -616,7 +618,6 @@ void DrawGaFrame(const std::vector<alyssapan::rendering::GaMeshRecorder::Mesh> &
                         if (texelAlpha)
                             out.rgba[3] = kGsOne;
                     }
-                    // PORT: HIGHLIGHT / HIGHLIGHT2 (Ct x Cf + Af) are drawn as MODULATE until a screen needs them.
                     out.x = gaCanvasX(v.screen[0], anchorShift);
                     out.y = gaCanvasY(v.screen[1]);
                     // The GS clamps Z to its buffer's range (a float past 2^32 has no integer to cast to).

@@ -43,6 +43,17 @@ enum class ColorMask : std::uint8_t
     None,
 };
 
+// TEX0's TFX (with TCC where it decides the alpha), as ui.frag combines the texel Ct with the vertex colour
+// Cf. DECAL needs none: its callers send the vertex colour as 0x80, which MODULATE turns into the texel.
+// The values are ui.frag's (uParams.w).
+enum class TextureFunction : std::uint8_t
+{
+    Modulate = 0,           // Cv = Ct Cf, Av = At Af (TCC 1) or Af
+    Highlight = 1,          // Cv = Ct Cf + Af, Av = At + Af (TCC 1)
+    Highlight2 = 2,         // Cv = Ct Cf + Af, Av = At (TCC 1)
+    HighlightVertexAlpha = 3, // HIGHLIGHT or HIGHLIGHT2 under TCC 0: Cv = Ct Cf + Af, Av = Af
+};
+
 // TEST_1's ZTST, the GS's order: a larger Z is nearer. Off: the 2D draws, which neither test nor write depth.
 enum class DepthTest : std::uint8_t
 {
@@ -103,6 +114,7 @@ struct DrawCall
     std::uint8_t alphaTestRef = 0; // fragments below it are dropped; 0 keeps them all
     bool alphaTestInverted = false; // the fragments at or over it are dropped instead (AFAIL's second pass)
     std::uint8_t fixedAlpha = 0x80;
+    TextureFunction textureFunction = TextureFunction::Modulate;
     std::uint32_t firstVertex = 0;
     std::uint32_t vertexCount = 0;
 };
