@@ -2308,6 +2308,21 @@ apply here):
   hidden): ssBrain_BankDrawOn answers 0 there. callcheck MISSING lines are the static helpers again. Not
   reached by a 15 s smoke run (the shots show the boot screens as before).
 
+- (2026-11-13, game/tiBrain_ChgTrace_Ghost.c slice 1, scheduled run) **partial**: queue refill (Claude, for the
+  user to overrule): the queue held only the stale blocked ui_canvas.cpp and no stub is reached on the NEW path,
+  so the run took the next brain TU after ssBrain_ChgHideAtk1.c. Written: ChgTrace_Ghost (empty), ChgReturn1 / 2,
+  ChgAttack_Ghost3, Trace_Ghost1, Return_Ghost1, Search_Ghost2, Init3, tiGetNearPole, tiCheckAlysStatusForGhost
+  (10 of 31; 21 stubs left: the Chg{Attack,Approach,Search}_Ghost*, the Damage three, the Attack / Approach /
+  Search bodies, Init1 / Init2). A ghost fades through CHARACTER.translucentAlpha (Search_Ghost2 in by
+  BRAIN_GHOST_ALPHA_STEP 0x1b0 up to _MAX 0x1b4, Trace / Return out by 1 a frame, hidden at 0). Guesses: (gh1)
+  the brain words 0x1b0 / 0x1b4 / 0x204 / 0x220 / 0x260 / 0x274 mean other things in ssBrain's brain kind
+  (0x1b0 is its BRAIN_APPROACH_NEAR): the ghost names are this kind's, from these uses only; (gh2) ChgReturn2
+  sets SS_AI_ATTACK (3) with submode 0, ChgReturn1 SS_AI_SEARCH with submode 1 -- as the ROM, odd for a
+  return2; (gh3) PORT: a ghost pole word is BankEeAddr of the script's bank, which CHARA_JUNC does not keep, so
+  tiGetNearPole resolves it by the bank holding the EE address (the fourth copy of BankOfEeAddr: a shared
+  helper in ct3_types.h would do for all); (gh4) tiCheckAlysStatusForGhost's events are BRANCH_CLEAR.h's
+  TRIG_EVENT_PANIC_OFF_63 / _ON_4D. Not reached by the 15 s smoke run (boot screens, content warning, as before).
+
 - (2026-11-12, game/tiAvoidObject.c slice 6) **code complete, verify**: the last 12 functions --
   LetMonsterInFromShadow, SetMonsterPos, BarrierCheck, SerchCheck, IsTrgWithinAngle, IsGetToGLinkPole,
   SetNextGLinkPolePoint, GetScnLinkPoleID and the group route search (GRS_InitParam, GRS_GetNextDistance,

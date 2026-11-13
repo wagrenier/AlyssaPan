@@ -1,5 +1,6 @@
 {
  "queue": [
+  "game/tiBrain_ChgTrace_Ghost.c",
   "alyssapan/rendering/ui_canvas.cpp"
  ],
  "settings": {
@@ -1730,12 +1731,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 80..80, 14 functions keyed by their statics, 55 unkeyed; file name from the names"
   },
   "game/tiBrain_ChgTrace_Ghost.c": {
+   "notes": "21 stubs left: ChgAttack_Ghost1/2/4, ChgApproach_Ghost1/2, ChgSearch_Ghost1/2/3, Damage1/2/3, Attack_Ghost1..4, Approach_Ghost1/2, Search_Ghost1/3, Init1/2. Next slice: the Chg* mode changes (ChgAttack_Ghost4 uses tiGetNearPole and tiCheckAlysStatusForGhost). Ghost words named from these uses only (open-items gh1..gh4). Not reached by the smoke run (boot screens as before).",
    "ranges": [
     [
      "01875b10",
      "0187b160"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-12 23:52",
+     "status": "partial",
+     "summary": "slice 1: the small ghost-brain functions -- ChgTrace_Ghost, ChgReturn1/2, ChgAttack_Ghost3, Trace_Ghost1, Return_Ghost1, Search_Ghost2, Init3, tiGetNearPole, tiCheckAlysStatusForGhost; the ghost brain words named"
+    }
+   ],
+   "status": "partial",
    "why": "tumap.py (bootstrap 5): symtab local chunks 81..81, 18 functions keyed by their statics, 13 unkeyed; file name from the names"
   },
   "game/tiXcmd_TransItem.c": {

@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-12 23:33 at commit `6ab9631` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-12 23:52 at commit `c480e68` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1753**; stubs: **76**
+- reconstructed CT3 functions: **1763**; stubs: **68**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -92,7 +92,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/ssSetTexUVforCubeMap.c` | 96 | 0 |
 | `src/game/tiAvoidObject.c` | 95 | 0 |
 | `src/game/tiBrain_ChgTrace_BOSS_BALOWS.c` | 0 | 34 |
-| `src/game/tiBrain_ChgTrace_Ghost.c` | 0 | 29 |
+| `src/game/tiBrain_ChgTrace_Ghost.c` | 10 | 21 |
 | `src/game/tiXcmd_TransItem.c` | 93 | 0 |
 | `src/game/tkXDTrg_GetSceneHash.c` | 50 | 0 |
 | `src/game/tnXcmd.c` | 0 | 8 |
@@ -102,9 +102,10 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 5, verify 62, done 13, blocked 1
-- next: **None** (nothing on the frontier and no queued TU)
-- pinned queue: alyssapan/rendering/ui_canvas.cpp
+- 65 TUs: todo 4, partial 1, verify 62, done 13, blocked 1
+- next: **game/tiBrain_ChgTrace_Ghost.c** (pinned in the queue)
+- pinned queue: game/tiBrain_ChgTrace_Ghost.c, alyssapan/rendering/ui_canvas.cpp
+- partial: `game/tiBrain_ChgTrace_Ghost.c` 10/31 -- 21 stubs left: ChgAttack_Ghost1/2/4, ChgApproach_Ghost1/2, ChgSearch_Ghost1/2/3, Damage1/2/3, Attack_Ghost1..4, Approach_Ghost1/2, Search_Ghost1/3, Init1/2. Nex
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
@@ -171,6 +172,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-12 23:52 `game/tiBrain_ChgTrace_Ghost.c` partial: slice 1: the small ghost-brain functions -- ChgTrace_Ghost, ChgReturn1/2, ChgAttack_Ghost3, Trace_Ghost1, Return_Ghost1, Search_Ghost2, Init3, tiGetNearPole, ti
 - 2026-11-12 23:32 `game/ssBrain_ChgHideAtk1.c` verify: slice 4: ssBrain_Approach1 and ssBrain_Search1 -- all 34 functions written, code complete
 - 2026-11-12 23:17 `game/ssBrain_ChgHideAtk1.c` partial: slice 3: ssBrain_Init1, ssBrain_HideAtk1, ssBrain_Attack1, ssBrain_Trace1 and ssAI_SetSpecialAttack; BRAIN_ATK_STATE named whole but 0x00..0x03 (chain, panic, w
 - 2026-11-12 22:59 `game/ssBrain_ChgHideAtk1.c` partial: slice 2: the setters ssAI_Set{Trace,Attack,Approach,Search}Mode, ssAI_SearchToApproachMode, ssBrain_ChgSearch1 and ssBrain_Damage1; the attack states named as B
@@ -178,7 +180,6 @@ Recent sessions:
 - 2026-11-12 22:22 `alyssapan/rendering/hud_anchor.cpp` done: The HUD (INFO.BIN bank) anchors to the window edges at wide aspects: main_rtn tags its bank, the frame pass moves side-third HUD meshes out by the side band
 - 2026-11-12 21:58 `alyssapan/rendering/ga_wide3d.cpp` done: 3D pass widened at wide aspects: the game culls and clips to the window (AlyssaPan_GaWiden scales gaSet3dlibStruct side planes and viewScaleX), DrawGaFrame draw
 - 2026-11-12 21:32 `alyssapan/core/alyssa_pose.cpp` done: Screenshot test passes: Alyssa posed with head, arms and skirt after NEW, at 4:3 and 16:9 (3D pillarboxed until the widened 3D pass)
-- 2026-11-12 17:34 `alyssapan/core/alyssa_pose.cpp` partial: Motion 0 freeze settled: a gdb artefact; smoke runs reach the room (opening shots draw) and Alyssa slot 0 loops at 1000 ticks a call under ANIM_CTRL_HOLD; the b
 
 ## Frontier (called by reconstructed code, not written yet)
 
