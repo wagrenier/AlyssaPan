@@ -1022,12 +1022,21 @@
    "why": "split 2026-11-11 (architecture.md The TU map): QuatSlerp, ahCos, ahSin, ahAcos reference no local symbol; the cut before BRANCH_CLEAR follows the names (quaternion and angle math here, game state after), and Convert.c's locals (symtab 1086..1087) end before them"
   },
   "game/RotateCamera.c": {
+   "notes": "Smoke run unchanged (content warning at frame 11040); no run reaches these commands. ROM quirk kept: the leave action is checked with ssTrigCheckInput mode 1, which always answers 0. Action directions (0x0c..0x0f) and zoom stick halves not yet seen on screen. open-items nx1..nx3.",
    "ranges": [
     [
      "018d9a40",
      "018da090"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-13 01:30",
+     "status": "verify",
+     "summary": "RotateCamera and LockerCamera, the two x commands that turn a bank's parts (bearing to Alyssa; the stick look-around with zoom)"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 127..127, 1 functions keyed by their statics, 1 unkeyed; file name from the names"
   },
   "game/SdMasterVolumeSetSE.c": {

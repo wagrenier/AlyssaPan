@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-13 01:12 at commit `5119bfe` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-13 01:31 at commit `57fe269` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1792**; stubs: **39**
+- reconstructed CT3 functions: **1794**; stubs: **37**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -67,7 +67,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/LinkMatrixTree.c` | 4 | 0 |
 | `src/game/PicPaz.c` | 9 | 0 |
 | `src/game/QuatSlerp.c` | 5 | 0 |
-| `src/game/RotateCamera.c` | 0 | 2 |
+| `src/game/RotateCamera.c` | 2 | 0 |
 | `src/game/SdMasterVolumeSetSE.c` | 61 | 0 |
 | `src/game/ahRelocateSunPs2ObjectArry.c` | 93 | 0 |
 | `src/game/ahalloc.c` | 7 | 0 |
@@ -102,7 +102,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 3, verify 64, done 14, blocked 1
+- 65 TUs: todo 2, verify 65, done 14, blocked 1
 - next: **None** (nothing on the frontier and no queued TU)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
@@ -139,6 +139,7 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/LinkMatrixTree.c` 4/4 -- Code complete, nothing on screen shows it yet: the smoke run still crashes at main.c 2106 (ActressMP NULL, the known blocker) and the shot stays black. LinkMatr
 - verify: `game/PicPaz.c` 9/10 -- The smoke run passes aaXcmd_MovieFedeOutCancel: both title movies start and are skipped; the shot stays flat grey since TITL draws nothing yet (title_trace.cpp 
 - verify: `game/QuatSlerp.c` 4/4 -- Evidence (architecture.md The TU map, The split of QuatSlerp.c; tools seams.py, databands.py): the range's 75 locals are symtab 1088..1162, one hash-ordered run
+- verify: `game/RotateCamera.c` 2/2 -- Smoke run unchanged (content warning at frame 11040); no run reaches these commands. ROM quirk kept: the leave action is checked with ssTrigCheckInput mode 1, w
 - verify: `game/SdMasterVolumeSetSE.c` 61/61 -- All 61 functions written. callcheck MISSING on SdLoadSQProc is its step helpers (SdLoadSQOpen/Read/Send/Command), as for SdLoadSEProc. ROM slips kept: step 6 pr
 - verify: `game/ahRelocateSunPs2ObjectArry.c` 93/93 -- All 93 functions written; nothing reaches the general body yet (the two written callers pass one flag each; asCharacterAnimationExecute and asResetCharacterPosi
 - verify: `game/ahalloc.c` 7/7 -- Host block header is 0x20 bytes (EE 0x10). SunAllocInit runs at boot; nothing calls _SunAlloc yet. AlignedNum is a stub answering 0, so game/AlignedNum.c is que
@@ -173,6 +174,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-13 01:30 `game/RotateCamera.c` verify: RotateCamera and LockerCamera, the two x commands that turn a bank's parts (bearing to Alyssa; the stick look-around with zoom)
 - 2026-11-13 01:12 `game/tnXcmd.c` verify: all 8 tn x commands: the lever struggle, the player and monster control locks, PlayerDamage, Probability
 - 2026-11-13 00:57 `alyssapan/rendering/menu_box.cpp` done: the in-game menu (MENU.BIN, the M101.BIN floor map) keeps the 4:3 box at wide aspects (nu1)
 - 2026-11-13 00:37 `game/tiBrain_ChgTrace_Ghost.c` verify: slice 3: the last 7 ghost-brain functions -- Search_Ghost1/3, Approach_Ghost1, Attack_Ghost1/2/3, Init1; the hold shared with Attack_Ghost4 through the kind's l
@@ -180,7 +182,6 @@ Recent sessions:
 - 2026-11-12 23:52 `game/tiBrain_ChgTrace_Ghost.c` partial: slice 1: the small ghost-brain functions -- ChgTrace_Ghost, ChgReturn1/2, ChgAttack_Ghost3, Trace_Ghost1, Return_Ghost1, Search_Ghost2, Init3, tiGetNearPole, ti
 - 2026-11-12 23:32 `game/ssBrain_ChgHideAtk1.c` verify: slice 4: ssBrain_Approach1 and ssBrain_Search1 -- all 34 functions written, code complete
 - 2026-11-12 23:17 `game/ssBrain_ChgHideAtk1.c` partial: slice 3: ssBrain_Init1, ssBrain_HideAtk1, ssBrain_Attack1, ssBrain_Trace1 and ssAI_SetSpecialAttack; BRAIN_ATK_STATE named whole but 0x00..0x03 (chain, panic, w
-- 2026-11-12 22:59 `game/ssBrain_ChgHideAtk1.c` partial: slice 2: the setters ssAI_Set{Trace,Attack,Approach,Search}Mode, ssAI_SearchToApproachMode, ssBrain_ChgSearch1 and ssBrain_Damage1; the attack states named as B
 
 ## Frontier (called by reconstructed code, not written yet)
 

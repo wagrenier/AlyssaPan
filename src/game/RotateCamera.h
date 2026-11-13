@@ -1,5 +1,5 @@
-// game/RotateCamera.h -- CT3 game/RotateCamera.c: the declarations other TUs call (ssGrpPortalCheck.c, 2026-11-11).
-// Prototypes from the call sites; the TU that writes these functions confirms them.
+// game/RotateCamera.h -- CT3 game/RotateCamera.c: the two x commands (written 2026-11-13).
+// Confirmed by the TU: (argc, argv, bank), answering XCMD_WAIT / XCMD_DONE.
 #pragma once
 
 #include "sdk/scetypes.h"

@@ -2046,6 +2046,22 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    TRG_CHAR_STOP_KEYS (0x1) is what tnXcmd_PlayerControllStop sets: the name fits. Left as todo TUs:
    game/RotateCamera.c, game/hhXcmd_BGM_SE_VOLUME.c, game/tiBrain_ChgTrace_BOSS_BALOWS.c.
 
+   **game/RotateCamera.c (verify, 2026-11-13 01:30, Claude, scheduled run; queue refill: the queue was
+   empty and tus.py found nothing on the frontier, so the run took the next smallest todo TU with real work,
+   for the user to overrule):** both x commands. RotateCamera turns argv[0]'s part about Y towards Alyssa
+   (bearing + argv[2] degrees) every frame while temp event argv[1] is set (XCMD_WAIT), done once it is
+   clear. LockerCamera is a look-around: stick 0 pans / tilts by 2 degrees a frame within argv[4..7]'s
+   limits (or KEY_MAP actions 0x0c..0x0f held), stick 1 zooms (CameLang 0.5..1.5 scales argv[1]'s part's
+   initial translation), the pan part argv[0] turns about Y from rest argv[3], the tilt part argv[1] about
+   X; temp event argv[8] puts them back and ends it. Statics LDeg1 0x019447b8, LDeg2 0x019447bc, CameLang
+   0x0193a900 (sdata, 1.0). The 15 s smoke run is unchanged (content warning at frame 11040, black after);
+   no run reaches these commands. Open: (nx1) the ROM checks the leave action (KEY_MAP 5 or 6 by argv[2])
+   with ssTrigCheckInput mode 1, which reads no pad word and answers 0: that exit never fires (kept); (nx2)
+   which way the 0x0c..0x0f actions and the zoom stick halves turn on screen is not seen: the LOCKER_ACT_*
+   names say DEC / INC only; (nx3) the hiding place (locker) reading of LockerCamera comes from its name:
+   the script that calls it confirms. Left as todo TUs: game/hhXcmd_BGM_SE_VOLUME.c,
+   game/tiBrain_ChgTrace_BOSS_BALOWS.c.
+
 ## Decisions
 
 - 2026-11-11 (Claude, scheduled run 19:15, for the user to overrule): **the ga 2D frame stays 4:3.** The
