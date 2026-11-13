@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-13 04:34 at commit `6b0c67b` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-13 06:34 at commit `4443aa5` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -102,11 +102,12 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: verify 68, done 14, blocked 1
+- 65 TUs: verify 69, done 14, blocked 1
 - next: **None** (nothing on the frontier and no queued TU)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `alyssapan/core/window_modes.cpp` 0/0 -- Seen: the exclusive start over RDP falls back to borderless (content warning pillarboxed 4:3 on the 3:2 desktop); saved position 100,150 restored; 20000,20000 c
+- verify: `alyssapan/gpu/device.cpp` 0/0 -- Seen: vulkan draws the title as direct3d12 does; a bad name warns and falls back; the debug layer starts and the title draws. Unseen: D3D12 debug messages go to
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
 - verify: `ga/gaDmaSync_VIF1.c` 5/5 -- Host: kicks leave CHCR.STR clear (the transfer is over), so the syncs return at once; the BGT send keeps the copy and the flip, the packet goes nowhere (draw mo
@@ -177,6 +178,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-13 06:34 `alyssapan/gpu/device.cpp` verify: GPU driver choice and debug layer (shim c part 1, MikuPan MikuPan_GPUInit): display gpu_driver and gpu_debug settings with env overrides, Device::create falls b
 - 2026-11-13 04:34 `alyssapan/core/window_modes.cpp` verify: Sibling shim 2(b): exclusive fullscreen (borderless fallback when the display refuses), window position saved and restored or centred, windowed size presets and
 - 2026-11-13 04:08 `game/tiBrain_ChgTrace_BOSS_BALOWS.c` verify: slice 7: tiBrain_Init_BOSS1 and tiBrain_Init_BOSS_SCISSORS_W, the last two stubs: the TU's code is complete
 - 2026-11-13 04:01 `game/tiBrain_ChgTrace_BOSS_BALOWS.c` partial: slice 6: the nine other mode setters (band tables), tiCheckArrowLevel, tiCheckPlayerINChains, tiBrain_Damage_BOSS1 (chain set times, blows dealt, timers, arrow 
@@ -184,7 +186,6 @@ Recent sessions:
 - 2026-11-13 03:19 `game/tiBrain_ChgTrace_BOSS_BALOWS.c` partial: slice 4: SCISSORS_W attack (strike, vanish, warp, reappear, special), AXE trace and attack, VITRIOL trace (roar and sprays), tiDefenseMode_AXE, the six tiSelSPM
 - 2026-11-13 02:55 `game/tiBrain_ChgTrace_BOSS_BALOWS.c` partial: slice 3: BALOWS and SCISSORS_M attack bodies (the grab and its rattle, the blood throw, the swing, charge, stamp, down hit; the SCISSORS_M slash combos, thrust 
 - 2026-11-13 02:35 `game/tiBrain_ChgTrace_BOSS_BALOWS.c` partial: slice 2: the BALOWS and SCISSORS_M special traces, tiCalcHPRate / ChargeTime / PlayerHitPoint / BalowsAttackRate, the two defense modes, tiSelSPMotion_BALOWS / 
-- 2026-11-13 02:16 `game/tiBrain_ChgTrace_BOSS_BALOWS.c` partial: slice 1: the 18 boss mode changes (Chg Trace / Attack / Approach for BALOWS, SCISSORS_M / W, AXE, VITRIOL, HAMM; ChgReturn_BOSS1), Trace_BOSS_HAMM, Return_BOSS1
 
 ## Frontier (called by reconstructed code, not written yet)
 

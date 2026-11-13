@@ -76,7 +76,7 @@ bool Application::startServices()
     m_window.emplace(std::move(*window));
     m_window->setIcon(m_paths.resource("resources/alyssapan.png"));
 
-    auto device = gpu::Device::create(m_paths);
+    auto device = gpu::Device::create(m_paths, m_config.display.gpuDriver, m_config.display.gpuDebug);
     if (!device)
     {
         log::error("{}", device.error());

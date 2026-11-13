@@ -19,6 +19,7 @@
 #include "alyssapan/core/config.h"
 #include "alyssapan/core/paths.h"
 #include "alyssapan/core/window.h"
+#include "alyssapan/gpu/device.h"
 #include "alyssapan/io/input_system.h"
 #include "alyssapan/rendering/renderer.h"
 
@@ -181,10 +182,39 @@ private:
             m_config.save();
         }
 
+        drawGpuDriverItems(display);
+
         ImGui::Separator();
         const rendering::Renderer::Stats stats = m_application.renderer().stats();
         ImGui::TextDisabled("  game %.1f fps, shown %.1f", stats.gameRate, stats.presentRate);
         ImGui::EndMenu();
+    }
+
+    // MikuPan's driver choice: SDL's names, read once (the build's set does not change); a device cannot change
+    // backend while it runs, so a choice applies on the next start and the running one is shown beside it.
+    void drawGpuDriverItems(DisplaySettings &display)
+    {
+        static const std::vector<std::string> drivers = gpu::availableDrivers();
+
+        ImGui::Separator();
+        ImGui::TextDisabled("GPU driver (applies on restart)");
+        if (ImGui::MenuItem("Automatic", nullptr, display.gpuDriver.empty()))
+        {
+            display.gpuDriver.clear();
+            m_config.save();
+        }
+        for (const std::string &driver : drivers)
+        {
+            if (ImGui::MenuItem(driver.c_str(), nullptr, display.gpuDriver == driver))
+            {
+                display.gpuDriver = driver;
+                m_config.save();
+            }
+        }
+        if (ImGui::MenuItem("Debug layer", nullptr, &display.gpuDebug))
+            m_config.save();
+        const std::string running(m_application.device().driverName());
+        ImGui::TextDisabled("  running: %s", running.c_str());
     }
 
     void drawAudioMenu()

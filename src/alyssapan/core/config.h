@@ -77,6 +77,10 @@ struct DisplaySettings
     float renderScale = 1.0f;
     UpscaleFilter upscaleFilter = UpscaleFilter::Linear;
     PresentMode presentMode = PresentMode::VSync;
+    // SDL_GPU's backend by SDL's name ("direct3d12", "vulkan", "metal"); empty lets SDL choose. A driver
+    // that cannot start falls back to SDL's choice. Both apply on the next start.
+    std::string gpuDriver;
+    bool gpuDebug = false; // the backend's validation layer: slow, for finding GPU misuse
     // Between two game frames, the cameras, lights, models and bones blend from the older one's places to the newer
     // one's (rendering/frame_blend.h): the game still runs at 25 frames a second, the picture moves at the monitor's
     // rate.

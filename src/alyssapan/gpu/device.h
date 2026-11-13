@@ -9,6 +9,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include <SDL3/SDL_gpu.h>
 
@@ -75,8 +76,13 @@ struct ShaderResources
 class Device
 {
 public:
-    // Creates the device; the window is claimed by claimWindow, on the window's thread.
-    static std::expected<std::unique_ptr<Device>, std::string> create(const Paths &paths);
+    // Creates the device on `driver` (an SDL driver name; empty, or one that fails, lets SDL choose), with the
+    // backend's validation layer when `debug`. The window is claimed by claimWindow, on the window's thread.
+    static std::expected<std::unique_ptr<Device>, std::string> create(const Paths &paths, std::string_view driver,
+                                                                      bool debug);
+
+    // The backend that runs ("direct3d12", "vulkan", "metal").
+    std::string_view driverName() const;
 
     ~Device();
     Device(const Device &) = delete;
@@ -107,6 +113,9 @@ private:
     SDL_GPUDevice *m_device;
     const Paths &m_paths;
 };
+
+// The SDL_GPU drivers this build has, by SDL's names, in SDL's order of preference.
+std::vector<std::string> availableDrivers();
 
 // The last SDL error, with what was being done.
 void logGpuError(std::string_view what);

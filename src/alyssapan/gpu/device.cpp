@@ -38,17 +38,47 @@ void logGpuError(std::string_view what)
     log::error("{}: {}", what, SDL_GetError());
 }
 
-std::expected<std::unique_ptr<Device>, std::string> Device::create(const Paths &paths)
+std::vector<std::string> availableDrivers()
+{
+    std::vector<std::string> drivers;
+    const int count = SDL_GetNumGPUDrivers();
+    for (int i = 0; i < count; ++i)
+    {
+        if (const char *const name = SDL_GetGPUDriver(i))
+            drivers.emplace_back(name);
+    }
+    return drivers;
+}
+
+std::expected<std::unique_ptr<Device>, std::string> Device::create(const Paths &paths, std::string_view driver,
+                                                                   bool debug)
 {
     constexpr SDL_GPUShaderFormat formats =
         SDL_GPU_SHADERFORMAT_SPIRV | SDL_GPU_SHADERFORMAT_DXIL | SDL_GPU_SHADERFORMAT_MSL;
 
-    SDL_GPUDevice *const device = SDL_CreateGPUDevice(formats, false, nullptr);
+    // MikuPan's rule: a named driver that cannot start (not built in, no such GPU support, or a stale name in
+    // the settings file) is not fatal: SDL's own choice runs instead, and the log says why.
+    SDL_GPUDevice *device = nullptr;
+    if (!driver.empty())
+    {
+        const std::string name(driver);
+        device = SDL_CreateGPUDevice(formats, debug, name.c_str());
+        if (device == nullptr)
+            log::warning("GPU driver '{}' did not start ({}); letting SDL choose", name, SDL_GetError());
+    }
+    if (device == nullptr)
+        device = SDL_CreateGPUDevice(formats, debug, nullptr);
     if (device == nullptr)
         return std::unexpected(std::format("SDL_CreateGPUDevice: {}", SDL_GetError()));
 
-    log::info("GPU driver: {}", SDL_GetGPUDeviceDriver(device));
+    log::info("GPU driver: {}{}", SDL_GetGPUDeviceDriver(device), debug ? " (debug layer on)" : "");
     return std::unique_ptr<Device>(new Device(device, paths));
+}
+
+std::string_view Device::driverName() const
+{
+    const char *const name = SDL_GetGPUDeviceDriver(m_device);
+    return name != nullptr ? name : "";
 }
 
 Device::Device(SDL_GPUDevice *device, const Paths &paths) : m_device(device), m_paths(paths) {}

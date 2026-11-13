@@ -212,6 +212,8 @@ void DisplaySettings::serialize(Archive &archive)
     archive("render_scale", renderScale);
     archive("upscale_filter", upscaleFilter);
     archive("present_mode", presentMode);
+    archive("gpu_driver", gpuDriver);
+    archive("gpu_debug", gpuDebug);
     archive("hdr", hdrMode);
     archive("hdr_paper_white", hdrPaperWhite);
     archive("hdr_peak", hdrPeak);
@@ -311,6 +313,8 @@ void Config::applyEnvironment()
     apply("ALYSSAPAN_WINDOW_X", display.windowX);
     apply("ALYSSAPAN_WINDOW_Y", display.windowY);
     apply("ALYSSAPAN_PRESENT_MODE", display.presentMode);
+    apply("ALYSSAPAN_GPU_DRIVER", display.gpuDriver);
+    apply("ALYSSAPAN_GPU_DEBUG", display.gpuDebug);
     apply("ALYSSAPAN_UI_SCALE", ui.scale);
 }
 

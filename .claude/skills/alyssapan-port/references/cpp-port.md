@@ -123,7 +123,11 @@ Platform, game-independent (1-5 carried over 2026-11-09, host task `alyssapan/co
 7. The HDR swapchain (scRGB / HDR10, display headroom): RosePan `rosepan_renderer.cpp`
    (`SetHdrMode`, `GetHdrDisplayInfo`); the settings and PresentPass exist, the swapchain is SDR.
 8. MSAA and anisotropy with their maxima: same RosePan file (`SetMsaaSamples`, `SetAnisotropy`).
-9. GPU driver choice and debug layer: MikuPan `mikupan_gpu.cpp:771`.
+9. ~~GPU driver choice and debug layer~~ done 2026-11-13 (host task `alyssapan/gpu/device.cpp`, MikuPan's
+   `MikuPan_GPUInit`): `[display] gpu_driver` (SDL's name; empty = SDL chooses) and `gpu_debug`, env
+   `ALYSSAPAN_GPU_DRIVER / _DEBUG`; `Device::create(paths, driver, debug)` falls back to SDL's choice with a
+   warning when the named driver does not start; Settings > Graphics lists `gpu::availableDrivers()`,
+   the debug layer and the running driver (applies on restart).
 10. User-directory override for test runs: ReiPan `reipan/io/reipan_paths.cpp:340` (`REIPAN_USER_DIR`).
 11. Log level and assert hook: RosePan `rosepan/io/rosepan_log.cpp:586`.
 12. Profiler phases and stutter attribution: RosePan `rosepan_profiler.cpp:103`, `rosepan_ui.cpp:2327`.

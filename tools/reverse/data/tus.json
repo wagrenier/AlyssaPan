@@ -1,6 +1,5 @@
 {
  "queue": [
-  "alyssapan/gpu/device.cpp",
   "alyssapan/rendering/ui_canvas.cpp"
  ],
  "settings": {
@@ -115,8 +114,15 @@
    "task": "Sibling shim 2(b) / cpp-port.md To carry over 6: exclusive fullscreen, window position saved and restored (centred when unknown or off-screen), windowed size presets, from MikuPan mikupan_renderer.cpp / ui/mikupan_ui_settings.cpp, as Window members"
   },
   "alyssapan/gpu/device.cpp": {
-   "claimed": "2026-11-13 06:29",
-   "status": "active",
+   "notes": "Seen: vulkan draws the title as direct3d12 does; a bad name warns and falls back; the debug layer starts and the title draws. Unseen: D3D12 debug messages go to OutputDebugString not the log (gd1); the Graphics menu items were not clicked (gd2). Next in shim c: HDR, then MSAA and anisotropy.",
+   "sessions": [
+    {
+     "date": "2026-11-13 06:34",
+     "status": "verify",
+     "summary": "GPU driver choice and debug layer (shim c part 1, MikuPan MikuPan_GPUInit): display gpu_driver and gpu_debug settings with env overrides, Device::create falls back to SDL choice, Settings Graphics lists the drivers"
+    }
+   ],
+   "status": "verify",
    "task": "Shim (c), part 1 (cpp-port.md item 9, MikuPan mikupan_gpu.cpp MikuPan_GPUInit): GPU driver choice and debug layer. [display] gpu_driver (empty = automatic) and gpu_debug, env ALYSSAPAN_GPU_DRIVER / ALYSSAPAN_GPU_DEBUG; Device::create tries the named driver, falls back to automatic; Settings > Graphics lists SDL's drivers (applies on restart)."
   },
   "alyssapan/iop/fsys_server.cpp": {
