@@ -7,6 +7,21 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-13, the user: "the targeted 30fps is always reached, the frametime is awful") **Judge pacing by
+  time on screen, never by a frame rate, and never over Remote Desktop.** The game's frames were perfect (a
+  swap every 33.37 ms of field time, kicked within 1 ms of the field); the picture was not. Three causes:
+  (1) the renderer showed the newest frame at each present, so a frame arriving at a hair either side of the
+  present flipped between 1 and 3 refreshes (60 Hz drifts through that against the 59.94-field clock for
+  seconds every ~17 s; a 59.94 Hz monitor can sit in it for good, depending on the phase at boot); (2) an
+  RDP session's swapchain releases its images in pairs (presents a few ms, then ~60 ms apart), and
+  newest-wins dropped one game frame per pair: 163 of 800 frames never shown, the rest held 62 ms, while
+  both counters read 30; (3) the old Frame graph plotted rates averaged over 500 ms on an autofit axis, so
+  the window's 14..16-frame aliasing (27..32 FPS) filled the plot and real holds were invisible. Fix:
+  rendering/frame_pacing.h -- frames queue (at most 2 waiting) and, under VSync, each stays the whole
+  refreshes a game frame spans (2 at 60 Hz, 4 at 120); the Frame graph plots ms on screen per game frame
+  (`ALYSSAPAN_SHOW_GRAPH` opens it). Left as is: RDP composes at 32 Hz here (no DWMFRAMEINTERVAL set), and
+  29.97 fps on 32 Hz holds one frame in 15 twice whatever the port does (so do 144 / 165 Hz); measure pacing
+  on a local display.
 - (2026-11-13, the user's report: "black screen after the warning") **Smoke runs skip every movie, so a
   player's launch is the only thing that plays one.** The whole movie path (ten TUs, all verify) had never
   run: a launch without skip_intro sat on a black screen from m_capcom.mov on. Three host bugs, each a

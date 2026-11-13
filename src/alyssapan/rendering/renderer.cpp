@@ -207,9 +207,12 @@ std::unique_ptr<Frame> Renderer::takeFreeFrame()
 void Renderer::submit(std::unique_ptr<Frame> frame)
 {
     std::scoped_lock lock(m_lock);
-    if (m_incoming != nullptr)
-        m_free.push_back(std::move(m_incoming)); // never shown: overtaken
-    m_incoming = std::move(frame);
+    m_queue.push_back(std::move(frame));
+    while (m_queue.size() > kMaxQueuedFrames)
+    {
+        m_free.push_back(std::move(m_queue.front())); // never shown: the display fell behind
+        m_queue.pop_front();
+    }
 }
 
 PictureLayout Renderer::layout() const
@@ -551,17 +554,35 @@ void Renderer::renderOnce()
         m_pipelineSamples = m_msaa->activeCount();
     }
 
+    // Under VSync a present stays on screen one refresh, so the frame on screen keeps it for the whole refreshes
+    // a game frame spans (FramePacing::hold) and the next is the oldest waiting. Taking the newest instead
+    // lets a frame that comes a hair late on one refresh and a hair early on the next stay 1 then 3 (60 Hz
+    // against the game's 59.94-field clock drifts through that for seconds at a time), and drops one in
+    // every burst of presents (a Remote Desktop session's swapchain releases its images in pairs). A second
+    // frame waiting means the display is behind: the next goes up at once. Other present modes, which do not
+    // follow the display, show the newest.
+    const bool paced = m_config.display.presentMode == PresentMode::VSync;
+    const unsigned hold = paced ? m_pacing.hold() : 1;
     bool newFrame = false;
     {
         std::scoped_lock lock(m_lock);
-        if (m_incoming != nullptr)
+        while (!paced && m_queue.size() > 1)
+        {
+            m_free.push_back(std::move(m_queue.front()));
+            m_queue.pop_front();
+        }
+        const bool due = m_shown == nullptr || m_shownPresents >= hold || m_queue.size() > 1;
+        if (!m_queue.empty() && due)
         {
             if (m_shown != nullptr)
                 m_free.push_back(std::move(m_shown));
-            m_shown = std::move(m_incoming);
+            m_shown = std::move(m_queue.front());
+            m_queue.pop_front();
             newFrame = true;
         }
     }
+    if (newFrame)
+        m_shownPresents = 0;
     const bool redraw = newFrame || layoutChanged || samplesChanged;
 
     {
@@ -635,6 +656,11 @@ void Renderer::renderOnce()
         gpu::logGpuError("SDL_SubmitGPUCommandBuffer");
     m_staging.clear();
     phase.reset();
+    if (swapchain != nullptr) // minimised: nothing was shown
+    {
+        m_pacing.presented(FramePacing::Clock::now(), newFrame && m_shown != nullptr ? &m_shown->time : nullptr);
+        m_shownPresents++;
+    }
 
     if (shotDue)
         m_screenshots->write();

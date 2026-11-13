@@ -16,6 +16,7 @@
 #include <array>
 #include <atomic>
 #include <cstdint>
+#include <deque>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -29,6 +30,7 @@
 #include "alyssapan/os/thread.h"
 #include "alyssapan/rendering/display_geometry.h"
 #include "alyssapan/rendering/frame.h"
+#include "alyssapan/rendering/frame_pacing.h"
 #include "alyssapan/rendering/msaa_targets.h"
 #include "alyssapan/rendering/sampler_table.h"
 #include "alyssapan/rendering/texture_store.h"
@@ -71,7 +73,9 @@ public:
     // A frame to fill, with its storage from a frame already shown.
     std::unique_ptr<Frame> takeFreeFrame();
 
-    // Hands a finished frame over. Only the newest is shown: one not yet shown is overtaken.
+    // Hands a finished frame over. Under VSync the frames are shown in order, each for the refreshes it spans
+    // (renderOnce); a frame waiting behind kMaxQueuedFrames newer ones is dropped, so the picture never lags
+    // further. Other present modes show the newest.
     void submit(std::unique_ptr<Frame> frame);
 
     // The layout of the last present, from any thread. Read this, never the window, for the shape.
@@ -97,10 +101,16 @@ public:
     const SamplerTable &samplers() const { return m_samplers; }
     // The scene's multisampling (render thread: the overlay reads the active count).
     const MsaaTargets &msaa() const { return *m_msaa; }
+    // How long each game frame stayed on screen (render thread: the overlay's Frame graph).
+    const FramePacing &pacing() const { return m_pacing; }
 
     SDL_GPUTextureFormat outputFormat() const { return m_outputFormat; }
 
 private:
+    // Frames waiting to be shown at most: a burst of two presents (a swapchain that releases its images in
+    // pairs) finds two.
+    static constexpr std::size_t kMaxQueuedFrames = 2;
+
     void threadMain();
     void renderOnce();
     void ensureTargets(const PictureLayout &layout);
@@ -154,11 +164,12 @@ private:
     // The frame on screen, kept to draw again when the scene target changes size.
     std::unique_ptr<Frame> m_shown;
     mutable std::mutex m_lock;
-    std::unique_ptr<Frame> m_incoming;
-    std::unique_ptr<Frame> m_overtaken; // the frame m_incoming replaced before it was taken
+    std::deque<std::unique_ptr<Frame>> m_queue; // submitted, not yet shown: oldest first
     std::vector<std::unique_ptr<Frame>> m_free;
     PictureLayout m_layout;
     Stats m_stats;
+    FramePacing m_pacing;          // render thread
+    unsigned m_shownPresents = 0;  // presents m_shown has had (render thread)
 
     std::uint64_t m_lastFrameNumber = 0;
     std::uint64_t m_statPresents = 0;

@@ -717,9 +717,11 @@ private:
 class PerformancePanel final : public Panel
 {
 public:
-    // ALYSSAPAN_SHOW_PHASES opens Frame phases at start, for runs that have no mouse.
+    // ALYSSAPAN_SHOW_PHASES / ALYSSAPAN_SHOW_GRAPH open Frame phases / Frame graph at start, for runs that have
+    // no mouse.
     explicit PerformancePanel(Application &application)
-        : m_application(application), m_phases(std::getenv("ALYSSAPAN_SHOW_PHASES") != nullptr)
+        : m_application(application), m_graph(std::getenv("ALYSSAPAN_SHOW_GRAPH") != nullptr),
+          m_phases(std::getenv("ALYSSAPAN_SHOW_PHASES") != nullptr)
     {
     }
 
@@ -737,9 +739,6 @@ public:
     void drawWindow() override
     {
         const rendering::Renderer::Stats stats = m_application.renderer().stats();
-        m_presentHistory[m_cursor] = static_cast<float>(stats.presentRate);
-        m_gameHistory[m_cursor] = static_cast<float>(stats.gameRate);
-        m_cursor = (m_cursor + 1) % kHistory;
 
         if (m_summary)
         {
@@ -758,29 +757,47 @@ public:
         }
 
         if (m_graph)
-        {
-            ImGui::SetNextWindowSize(ImVec2(520.0f, 260.0f), ImGuiCond_FirstUseEver);
-            if (ImGui::Begin("Frame graph", &m_graph))
-            {
-                if (ImPlot::BeginPlot("##rates", ImVec2(-1.0f, -1.0f)))
-                {
-                    ImPlot::SetupAxes("", "FPS", ImPlotAxisFlags_NoTickLabels, ImPlotAxisFlags_AutoFit);
-                    ImPlot::PlotLine("Game", m_gameHistory.data(), static_cast<int>(kHistory), 1.0, 0.0, 0,
-                                     static_cast<int>(m_cursor));
-                    ImPlot::PlotLine("Present", m_presentHistory.data(), static_cast<int>(kHistory), 1.0, 0.0, 0,
-                                     static_cast<int>(m_cursor));
-                    ImPlot::EndPlot();
-                }
-            }
-            ImGui::End();
-        }
+            drawGraph();
 
         if (m_phases)
             drawPhases();
     }
 
 private:
-    static constexpr std::size_t kHistory = 600;
+    // The y axis's first range: two 30 fps frames, so a frame held a refresh longer shows as the step it is
+    // (an autofit axis made a half-second rate's 28-32 FPS wobble fill the plot). Zoomable.
+    static constexpr double kGraphMaxMs = 70.0;
+
+    // Each game frame's time on screen (rendering/frame_pacing.h), against the game's own frame interval.
+    void drawGraph()
+    {
+        using rendering::FramePacing;
+        ImGui::SetNextWindowSize(ImVec2(520.0f, 300.0f), ImGuiCond_FirstUseEver);
+        if (ImGui::Begin("Frame graph", &m_graph))
+        {
+            const FramePacing &pacing = m_application.renderer().pacing();
+            const FramePacing::Summary summary = pacing.summary();
+            ImGui::Text("On screen %.1f ms (deviation %.1f) | game %.1f ms | presents %.1f Hz", summary.meanMs,
+                        summary.deviationMs, summary.gameMs, summary.refreshHz);
+            // Under VSync the presents follow the display, so their rate is its refresh.
+            if (m_application.config().display.presentMode == PresentMode::VSync && FramePacing::uneven(summary))
+                ImGui::TextWrapped("The display refreshes at %.1f Hz, no multiple of the game's %.2f fps: some frames "
+                                   "stay on screen a refresh longer than others.",
+                                   summary.refreshHz, 1000.0 / summary.gameMs);
+            if (ImPlot::BeginPlot("##frametimes", ImVec2(-1.0f, -1.0f)))
+            {
+                ImPlot::SetupAxes("game frames", "ms on screen", ImPlotAxisFlags_NoTickLabels, 0);
+                ImPlot::SetupAxisLimits(ImAxis_X1, 0.0, static_cast<double>(FramePacing::kHistory), ImPlotCond_Always);
+                ImPlot::SetupAxisLimits(ImAxis_Y1, 0.0, kGraphMaxMs, ImPlotCond_Once);
+                if (summary.gameMs > 0.0)
+                    ImPlot::PlotInfLines("game frame", &summary.gameMs, 1, ImPlotInfLinesFlags_Horizontal);
+                ImPlot::PlotLine("on screen", pacing.onScreenMs().data(), static_cast<int>(pacing.count()), 1.0, 0.0,
+                                 0, static_cast<int>(pacing.offset()));
+                ImPlot::EndPlot();
+            }
+        }
+        ImGui::End();
+    }
 
     // Where each thread's frame goes (core/profiler.h): per lane, the frame, its work (the frame less its
     // waits), then each phase, as the mean per frame and the worst frame of the last half second.
@@ -841,9 +858,6 @@ private:
     bool m_summary = false;
     bool m_graph = false;
     bool m_phases = false;
-    std::array<float, kHistory> m_presentHistory{};
-    std::array<float, kHistory> m_gameHistory{};
-    std::size_t m_cursor = 0;
 };
 
 } // namespace
