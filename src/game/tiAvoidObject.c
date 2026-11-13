@@ -1976,7 +1976,7 @@ int ssAI_SetMonsterPos(CHARACTER *chr, const float *pos, short group, u_char ban
         if (brain[BRAIN_MODE] != SS_AI_TRACE)
             return 0;
         if (ssAI_BrainWord(brain, BRAIN_ROOM) != ssAI_BrainWord(brain, BRAIN_GOAL_ROOM) &&
-            ssAI_BrainShort(brain, BRAIN_SCN_END_POLE) == -1 && ssAI_SetTraceMode(chr, 0) == -1)
+            ssAI_BrainShort(brain, BRAIN_SCN_END_POLE) == -1 && ssAI_SetTraceMode(chr, NULL) == -1)
             return -1;
     }
     return 0;

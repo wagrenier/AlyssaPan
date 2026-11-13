@@ -2241,6 +2241,19 @@ apply here):
   BarrierCheck, SerchCheck, IsTrgWithinAngle, IsGetToGLinkPole, SetNextGLinkPolePoint, GetScnLinkPoleID,
   then the 4 past the slice.
 
+- (2026-11-12, game/ssBrain_ChgHideAtk1.c slice 1) **partial**: the mode changes ssBrain_Chg{HideAtk,
+  Return,Attack,Trace,Approach}1, ssBrain_Return1, all 13 transitions (ssAI_<From>To<To>Mode) and
+  ssAI_SetHideAtkMode written; the brain words they read are named in ssBrain_ChgHideAtk1.h. Guesses for the
+  sessions that write the setters and mode bodies to confirm: (a) BRAIN_TRACE_ROOM (0x038) -- one test only;
+  (b) BRAIN_SUBMODE value 1 (no sight checks, like SCN_LINK) has no name yet; (c) TRIG_EVENT_AI_ATTACK (0xd6):
+  only its removal is seen here (BRAIN_ATTACK_ON 0x184 cleared with it); (d) ssAI_SetSearchMode's second
+  argument (0 from TraceToSearch) and ssAI_SetAttackMode's third (0 from approach / hide attack, 1 from
+  search) are unnamed; (e) ssAI_SetTraceMode takes the target CHARACTER (the ROM passes
+  Character[Player_BankID]); tiAvoidObject.c's SetMonsterPos call now passes NULL for its 0. Not reached by a
+  smoke run (no stalker in 15 s). callcheck: ChgHideAtk1's ssAI_ForceBrainEnd goes through the helper
+  ssBrain_EndIfFailed. Left: SetTraceMode, SetAttackMode, SetApproachMode, SetSearchMode, then Attack1,
+  Trace1, Approach1, Search1, HideAtk1, ChgSearch1, Damage1, Init1.
+
 - (2026-11-12, game/tiAvoidObject.c slice 6) **code complete, verify**: the last 12 functions --
   LetMonsterInFromShadow, SetMonsterPos, BarrierCheck, SerchCheck, IsTrgWithinAngle, IsGetToGLinkPole,
   SetNextGLinkPolePoint, GetScnLinkPoleID and the group route search (GRS_InitParam, GRS_GetNextDistance,

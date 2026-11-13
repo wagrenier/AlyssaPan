@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-12 22:22 at commit `700fb5d` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-12 22:33 at commit `c66e93a` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1719**; stubs: **91**
+- reconstructed CT3 functions: **1739**; stubs: **88**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -85,7 +85,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/main2.c` | 18 | 0 |
 | `src/game/movie.c` | 20 | 0 |
 | `src/game/sound.c` | 73 | 0 |
-| `src/game/ssBrain_ChgHideAtk1.c` | 0 | 15 |
+| `src/game/ssBrain_ChgHideAtk1.c` | 20 | 12 |
 | `src/game/ssCalcInversMatrix2.c` | 5 | 0 |
 | `src/game/ssGrpPortalCheck.c` | 74 | 0 |
 | `src/game/ssHitCheckAttackToScn.c` | 37 | 0 |
@@ -102,9 +102,10 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 6, verify 61, done 13, blocked 1
-- next: **game/ssBrain_ChgHideAtk1.c** (frontier score 1)
+- 65 TUs: todo 5, partial 1, verify 61, done 13, blocked 1
+- next: **game/ssBrain_ChgHideAtk1.c** (continuing a partial TU)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp
+- partial: `game/ssBrain_ChgHideAtk1.c` 20/34 -- Not reached by a 15 s smoke run (no stalker; the run ends on the content warning then the title fade). ssAI_SetTraceMode now takes the target CHARACTER (tiAvoid
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
@@ -170,6 +171,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-12 22:32 `game/ssBrain_ChgHideAtk1.c` partial: slice 1: the mode changes ssBrain_Chg{HideAtk,Return,Attack,Trace,Approach}1, ssBrain_Return1, the 13 mode transitions and ssAI_SetHideAtkMode; brain words name
 - 2026-11-12 22:22 `alyssapan/rendering/hud_anchor.cpp` done: The HUD (INFO.BIN bank) anchors to the window edges at wide aspects: main_rtn tags its bank, the frame pass moves side-third HUD meshes out by the side band
 - 2026-11-12 21:58 `alyssapan/rendering/ga_wide3d.cpp` done: 3D pass widened at wide aspects: the game culls and clips to the window (AlyssaPan_GaWiden scales gaSet3dlibStruct side planes and viewScaleX), DrawGaFrame draw
 - 2026-11-12 21:32 `alyssapan/core/alyssa_pose.cpp` done: Screenshot test passes: Alyssa posed with head, arms and skirt after NEW, at 4:3 and 16:9 (3D pillarboxed until the widened 3D pass)
@@ -177,15 +179,17 @@ Recent sessions:
 - 2026-11-12 17:13 `alyssapan/core/alyssa_pose.cpp` partial: Black frames after NEW named: a held OUT2_BLACK fade from the skipped opening movie; the script fade-in never comes because Alyssa motion 0 (slot 0) is frozen a
 - 2026-11-12 16:42 `alyssapan/core/alyssa_pose.cpp` partial: T-pose cause fixed: TrigAnimStart read TRIG_CMD_ANIM_PLAY flag bytes in RANGE order, so the PLAY that gives Alyssa her first body motion (target 2, hash c1830bf
 - 2026-11-12 16:08 `alyssapan/core/alyssa_pose.cpp` partial: T-pose traced: Alyssa body slot never gets a motion (only the eye blink, slot 4, plays); fixed ExecuteAnimation resolving the character table through the behavi
-- 2026-11-12 15:48 `sdk/libgraph.cpp` verify: sceGsSetDefDBuff, the NEW path's last reached stub, written in the host SDK; queue refilled after a probe found no game stub on the NEW path
 
 | TU (by frontier score) | state | done/stubs/total | KB | score | reached stubs |
 |---|---|---|---|---|---|
-| `game/ssBrain_ChgHideAtk1.c` | todo | 0/15/34 | 29.6 | 1 | 0 |
+| `game/ssBrain_ChgHideAtk1.c` | partial | 20/12/34 | 29.6 | 10 | 0 |
 
 ## Frontier (called by reconstructed code, not written yet)
 
 | CT3 addr | name | call sites | provenance | state | inferred file |
 |---|---|---|---|---|---|
-| `018817b0` | ssAI_SetTraceMode | 1 | sym | stub | game/ssBrain_ChgHideAtk1.c |
+| `018817b0` | ssAI_SetTraceMode | 4 | sym | stub | game/ssBrain_ChgHideAtk1.c |
+| `01881280` | ssAI_SetAttackMode | 3 | sym | stub | game/ssBrain_ChgHideAtk1.c |
+| `01881b10` | ssAI_SetApproachMode | 2 | sym | stub | game/ssBrain_ChgHideAtk1.c |
+| `01881f90` | ssAI_SetSearchMode | 1 | sym | stub | game/ssBrain_ChgHideAtk1.c |
 

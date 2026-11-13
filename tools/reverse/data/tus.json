@@ -1488,12 +1488,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 119..119, 24 functions keyed by their statics, 43 unkeyed; source string sound.c"
   },
   "game/ssBrain_ChgHideAtk1.c": {
+   "notes": "Not reached by a 15 s smoke run (no stalker; the run ends on the content warning then the title fade). ssAI_SetTraceMode now takes the target CHARACTER (tiAvoidObject.c passes NULL). callcheck: ChgHideAtk1 reaches ssAI_ForceBrainEnd through the helper ssBrain_EndIfFailed. Next slice: SetTraceMode, SetAttackMode, SetApproachMode, SetSearchMode, then Attack1, Trace1, Approach1, Search1, HideAtk1, ChgSearch1, Damage1, Init1. Guesses in open-items.md.",
    "ranges": [
     [
      "0187b160",
      "01882890"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-12 22:32",
+     "status": "partial",
+     "summary": "slice 1: the mode changes ssBrain_Chg{HideAtk,Return,Attack,Trace,Approach}1, ssBrain_Return1, the 13 mode transitions and ssAI_SetHideAtkMode; brain words named in the header"
+    }
+   ],
+   "status": "partial",
    "why": "tumap.py (bootstrap 5): symtab local chunks 82..82, 2 functions keyed by their statics, 32 unkeyed; file name from the names"
   },
   "game/ssCalcInversMatrix2.c": {
