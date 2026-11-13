@@ -1963,6 +1963,19 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    - (ns3) The other 2-byte script operands were checked only in ssTrigExecuteActCmd; the condition
      reader (ssTrigCheckCondition's reads) and detector / actor readers were not.
 
+   **alyssa_pose.cpp done (2026-11-12 21:32, scheduled run): the screenshot test passes.** Two smoke runs
+   (build.py --run 150 / 120 --pad "600:START*10,800:START*10,1200:START*10,1400:START*10"), the second
+   with ALYSSAPAN_WINDOW_WIDTH=1280 / _HEIGHT=720: after NEW the room fades in; Alyssa is posed with head,
+   hair, arms, jacket, plaid skirt, socks and shoes, no T-pose and no spikes, in the wide dining-room shot
+   (frame 1260, running between the doors and the table) and at the window (frames 3000..4380); the
+   scripted START opens the in-game menu (Guest Wing (1 Fl.), frame 1440) with its map. At 16:9 the scene
+   keeps its shape but is pillarboxed to 4:3: the 3D pass is not widened yet (item 8 "For 3D after it",
+   nr4), a renderer task of its own, not this one's. No code changed this run. Left, for a host task of
+   their own: (ns1) after the pad's last input she keeps a running cycle in place against the window (legs
+   move from shot to shot, no displacement): either the run motion's end request never comes without a
+   stick (asRequestExecute / the player behaviour) or the ROM does the same against a wall -- check the
+   stick-released path first; (nr1)..(nr4) as above.
+
 ## Decisions
 
 - 2026-11-11 (Claude, scheduled run 19:15, for the user to overrule): **the ga 2D frame stays 4:3.** The

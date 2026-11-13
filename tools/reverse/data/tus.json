@@ -1,6 +1,5 @@
 {
  "queue": [
-  "alyssapan/core/alyssa_pose.cpp",
   "alyssapan/rendering/ui_canvas.cpp"
  ],
  "settings": {
@@ -11,7 +10,7 @@
  },
  "tus": {
   "alyssapan/core/alyssa_pose.cpp": {
-   "notes": "Smoke runs (build.py --run 150 --pad 600:START*10,800:START*10,1200:START*10,1400:START*10) reach the room; black presents between camera shots remain (mp3). Next (open-items nq6): Alyssa drawn posed but with long triangles from her body converging on one far point (shot 285000). Probe the host draw of two-matrix objects (DRAW_OBJ_MATRIX / MATRIX2 +0x58/+0x5c from LinkMatrixTree): log view-space vertices far from her BasePoint with the object part and its REC_GA_MATRIX / REC_GA_MATRIX2, compare with BuildMatrixTree view pass (REC_DRAW_MATRIX 0x300, REC_VIEW_MATRIX 0x340). Then head/arms in close shots, then mp3.",
+   "notes": "No code this run; the fixes of 2c832d7 (signed script operands, HurikoSwing xyz, ga frames at the swap) settled the T-pose, spikes and black frames. Left: ns1 running cycle in place at the window with no stick input; nr4 the 3D pass is not widened at wide aspects",
    "sessions": [
     {
      "date": "2026-11-12 16:08",
@@ -32,9 +31,14 @@
      "date": "2026-11-12 17:34",
      "status": "partial",
      "summary": "Motion 0 freeze settled: a gdb artefact; smoke runs reach the room (opening shots draw) and Alyssa slot 0 loops at 1000 ticks a call under ANIM_CTRL_HOLD; the body spikes are not the static parts zero matrices (kind 1, never written in the ROM either)"
+    },
+    {
+     "date": "2026-11-12 21:32",
+     "status": "done",
+     "summary": "Screenshot test passes: Alyssa posed with head, arms and skirt after NEW, at 4:3 and 16:9 (3D pillarboxed until the widened 3D pass)"
     }
    ],
-   "status": "partial",
+   "status": "done",
    "task": "Alyssa draws after NEW but wrong (open-items.md item 8, mn3 / mp3): in close shots no head, arms or skirt; in wide shots a T-pose. Find why those parts keep their bind pose (log MODEL_PARTS matrices of her bank per frame against the behaviour tracks: BuildMatrixTree, asUpDateGAobjectsAnimation), fix it in the TU that owns it, then the black frames between room shots. Done when the shot shows her posed with head and arms at 4:3 and wide."
   },
   "alyssapan/core/junc_heap.cpp": {
