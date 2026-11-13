@@ -42,28 +42,35 @@ int ssAI_SetTraceMode(struct CHARACTER *chr, struct CHARACTER *target);         
 // The brain's attack states (wideXcmd_TriggerInit.c BRAIN_STATES: BrainSet copies them in): a stalker's
 // strikes, each with a weight per situation (the weights of one column add up to AI_ATK_WEIGHT; the set
 // picks state i with weight[i] / the weights left) and the reach ChgSearch1 strikes from a search with.
-// Slice 2 (2026-11-12): the fields the setters and ChgSearch1 read; 0x00..0x07, 0x14, 0x15, 0x18, 0x1e,
-// 0x1f not read here.
+// Slice 2 (2026-11-12): the fields the setters and ChgSearch1 read; slice 3 the mode bodies'; 0x00..0x03
+// not read here.
 typedef struct BRAIN_ATK_STATE {
-    u_char b00[8];
+    u_char b00[4];
+    int chain;                          /* 0x04: non-zero: the strike goes on (TRIG_EVENT_AI_ATTACK held) into
+                                           state (u_char)chain near its end; ssBrain_Init1 divides it by 5 */
     float reach;                        /* 0x08: ChgSearch1 strikes from a search within it */
     float reachPanic;                   /* 0x0c: the same with TRIG_EVENT_PANIC_3 */
     short angle;                        /* 0x10: ssAI_IsTrgWithinAngle's angle for reach */
     short anglePanic;                   /* 0x12: for reachPanic */
-    u_char b14[2];
+    u_short panic;                      /* 0x14: the panic a landed strike adds (x AI_STRIKE_PANIC[_HIT]) */
     u_char wDown;                       /* 0x16: weight when the target bends or is down (from a search) */
     u_char fromSearch;                  /* 0x17: non-zero: ChgSearch1 may strike with it (the first one) */
-    u_char b18;
+    u_char wSpecial;                    /* 0x18: ssAI_SetSpecialAttack's weight (within BRAIN_ATK_STAND) */
     u_char wFar;                        /* 0x19: from a search, farther than BRAIN_ATK_NEAR */
     u_char wPanic;                      /* 0x1a: from a search, near, TRIG_EVENT_PANIC_3 */
     u_char wWide;                       /* 0x1b: from a search, near, in a wide room (AI_ATK_WIDE_ROOM) */
     u_char wNear;                       /* 0x1c: from a search, near, a small room; ssAI_SetHideAtkMode's */
     u_char motion;                      /* 0x1d: its motion (skipped while chr waits in BRAIN_END_MOTION) */
-    u_char b1e[2];
+    u_char nextMotion;                  /* 0x1e: played after motion (0: none), then the mode's motion (HideAtk1
+                                           reads it signed once: lb) */
+    u_char extraMotion;                 /* 0x1f: Attack1 may play it once the blow landed (BRAIN_ATK_EXTRA_RATE) */
 } BRAIN_ATK_STATE;
 static_assert(sizeof(BRAIN_ATK_STATE) == 0x20, "BRAIN_ATK_STATE");
 static_assert(offsetof(BRAIN_ATK_STATE, wDown) == 0x16 && offsetof(BRAIN_ATK_STATE, motion) == 0x1d,
               "BRAIN_ATK_STATE fields");
+static_assert(offsetof(BRAIN_ATK_STATE, chain) == 0x04 && offsetof(BRAIN_ATK_STATE, panic) == 0x14 &&
+              offsetof(BRAIN_ATK_STATE, wSpecial) == 0x18 && offsetof(BRAIN_ATK_STATE, nextMotion) == 0x1e,
+              "BRAIN_ATK_STATE fields (slice 3)");
 #define BRAIN_ATK_STATES 0x080          /* BRAIN_ATK_STATE[BRAIN_ATK_COUNT] */
 #define BRAIN_ATK_COUNT 0x180           /* u_char */
 #define BRAIN_ATK_PICK 0x181            /* u_char: the state the setters picked, BRAIN_ATK_NONE */
@@ -178,3 +185,40 @@ int ssAI_ApproachToTraceMode(struct CHARACTER *chr);                            
 int ssAI_SearchToReturnMode(struct CHARACTER *chr);                                      // CT3 0x01882690
 int ssAI_SearchToTraceMode(struct CHARACTER *chr, int found);                            // CT3 0x018826d0
 int ssAI_SearchToAttackMode(struct CHARACTER *chr);                                      // CT3 0x01882790
+
+// ---- slice 3 (2026-11-12): ssBrain_Init1, ssBrain_HideAtk1, ssBrain_Attack1, ssAI_SetSpecialAttack ----
+#define BRAIN_SUBMODE_AT_POLE 4         /* a hide attack at its pole: chr stays there, facing Alyssa */
+#define BRAIN_ATK_EXTRA_RATE 0x183      /* s_char: of AI_ATK_WEIGHT, the chance of a state's extraMotion */
+#define BRAIN_ATK_STAND 0x1c0           /* float: an attack stands within it (and may strike specially);
+                                           beyond it + AI_ATK_STAND_MARGIN a waiting attack walks on */
+#define BRAIN_SPECIAL_TIMER 0x210       /* int: ticks toward the next SetSpecialAttack (AI_SPECIAL_TICKS) */
+#define BRAIN_ATK_PERIOD 0x214          /* int: BRAIN_HIDE_ATK_TIMER's period: a new state is picked */
+#define BRAIN_TURN_SPEED 0x270          /* int: ssAI_CompCharaDir's speed (an attack turns at a quarter) */
+#define AI_ATK_STAND_MARGIN 50.0f
+#define AI_ATK_PERIOD_REST 300          /* stopping: the timer is set this short of BRAIN_ATK_PERIOD */
+#define AI_SPECIAL_TICKS 50
+#define AI_SPECIAL_ANGLE_LESS 0x2000    /* SetSpecialAttack narrows a state's angle by an eighth of a turn */
+#define AI_STRIKE_PANIC 1.6f            /* panic x it when a strike lands (with the vibration) */
+#define AI_STRIKE_PANIC_HIT 1.8f        /* when it lands after CHARA_HIT_LANDED */
+#define AI_STRIKE_SEEN_RANGE 400.0f     /* Attack1: a blow nearer than it shakes when chr is on screen */
+#define AI_STRIKE_SEEN_HEAD 180.0f      /* the second point checked: chr's position raised by it */
+#define AI_STRIKE_SEEN_MARGIN 30.0f     /* ssPointCheckWithinScreen's margin */
+#define AI_STRIKE_VIBRATION_TIME 10     /* tiVibrationOn's frames */
+#define AI_STRIKE_END_FRAMES 100        /* a chained strike goes on this close to the motion's end */
+#define TRIG_VAR_STRIKE_VIBRATE 0x47    /* tiVibrationOn's second motor argument for a strike */
+#define MOTION_REC_HIT_FRAME 0x24       /* motion record int: the frame its blow lands (guess: Attack1 chains
+                                           only up to it; open-items) */
+#define AI_ATK_TURN_MOTION 0x28         /* STALKER_ID_3's motion slot 0 that turns toward Alyssa ... */
+#define AI_ATK_TURN_FRAMES 0x10f        /* ... before this frame */
+// ssBrain_Trace1.
+#define BRAIN_SUBMODE_GLINK BRAIN_SUBMODE_1 /* 1: crossing a group link to its pair pole (BRAIN_PAIR_POLE) */
+#define BRAIN_PAIR_POLE 0x072           /* short: the group link's pair pole a GLINK crossing heads for */
+#define BRAIN_TRACE_DOOR BRAIN_SHADOW_POL /* 0x030: the scene link's door (or shadow polygon) a trace passes
+                                           through (ssAI_GetPoleDoorNo; AI_DOOR_NONE once through) */
+#define AI_DOOR_NONE 0xff
+#define BRAIN_DOOR_FRAME_ALT 0x224      /* u_int: BRAIN_DOOR_MOTION_ALT's frame: the door is passed */
+#define BRAIN_DOOR_FRAME 0x228          /* u_int: BRAIN_DOOR_MOTION's */
+#define TRIG_EVENT_AI_DOOR_SHUT 0x32    /* registered when the door a trace passed has closed (name: guess) */
+// Picks a strike against Character[chara] while an attack stands (Attack1, every AI_SPECIAL_TICKS): sets
+// BRAIN_ATK_PICK and BRAIN_ATK_STEP 1; always 0.
+int ssAI_SetSpecialAttack(struct CHARACTER *chr, short chara);                           // CT3 0x01880f70

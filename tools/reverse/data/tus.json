@@ -1488,7 +1488,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 119..119, 24 functions keyed by their statics, 43 unkeyed; source string sound.c"
   },
   "game/ssBrain_ChgHideAtk1.c": {
-   "notes": "Not reached by a 15 s smoke run (no stalker; the run shows the content warning then the title fade, as before). callcheck MISSING lines are the static helpers holding the calls (ssBrain_PlanRoute, ssBrain_PickAtk, ssBrain_DamageFollow, ssBrain_FollowWarp, ssBrain_EndIfFailed). Next slice: Attack1, Trace1, Approach1, Search1, HideAtk1, Init1 (Search1 reads BRAIN_SEARCH_TIME2, Attack1 BRAIN_ATK_STEP). Guesses f..k in open-items.md.",
+   "notes": "Not reached by a 15 s smoke run (no stalker; the shots show the boot screens as before). callcheck MISSING lines are the static helpers holding the calls (ssBrain_StrikePanic, PlayStrike, AttackStriking, TraceDrawn, TraceNextLink, TraceDoorPassed, PickAtk). Ghidra dropped register arguments in Attack1 (a2 motion, a3 -1 into CompCharaDir) and Trace1 (a1 bank into GetPoleGroupID): read with mipsdis. Next slice: Approach1 (0x0187f000) and Search1 (0x0187fbe0, reads BRAIN_SEARCH_TIME2) -- then the TU is code complete (verify). Guesses l..p in open-items.md.",
    "ranges": [
     [
      "0187b160",
@@ -1505,6 +1505,11 @@
      "date": "2026-11-12 22:59",
      "status": "partial",
      "summary": "slice 2: the setters ssAI_Set{Trace,Attack,Approach,Search}Mode, ssAI_SearchToApproachMode, ssBrain_ChgSearch1 and ssBrain_Damage1; the attack states named as BRAIN_ATK_STATE"
+    },
+    {
+     "date": "2026-11-12 23:17",
+     "status": "partial",
+     "summary": "slice 3: ssBrain_Init1, ssBrain_HideAtk1, ssBrain_Attack1, ssBrain_Trace1 and ssAI_SetSpecialAttack; BRAIN_ATK_STATE named whole but 0x00..0x03 (chain, panic, wSpecial, nextMotion, extraMotion); sub-modes GLINK and AT_POLE"
     }
    ],
    "status": "partial",

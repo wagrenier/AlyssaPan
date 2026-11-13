@@ -2274,6 +2274,24 @@ apply here):
   ssBrain_DamageFollow, ssBrain_FollowWarp, ssBrain_EndIfFailed) holding the calls. Not reached by a smoke
   run. Left: Attack1, Trace1, Approach1, Search1, HideAtk1, Init1.
 
+- (2026-11-12, game/ssBrain_ChgHideAtk1.c slice 3) **partial**: ssBrain_Init1, ssBrain_HideAtk1,
+  ssBrain_Attack1, ssBrain_Trace1 and ssAI_SetSpecialAttack written. BRAIN_ATK_STATE is whole but 0x00..0x03:
+  +0x04 chain (an int; Init1 divides it by 5 once, Attack1 chains into state (u_char)chain near the motion's
+  end), +0x14 panic, +0x18 wSpecial, +0x1e nextMotion, +0x1f extraMotion. BRAIN_SUBMODE 1 is now
+  BRAIN_SUBMODE_GLINK (crossing a group link to BRAIN_PAIR_POLE 0x072), 4 BRAIN_SUBMODE_AT_POLE (a hide
+  attack at its pole). Settled: (k) BRAIN_ATK_STEP (0 none, 1 picked by SetSpecialAttack: play it, 2 played).
+  New guesses: (l) CHARA_HIT_LANDED (0x51c) reads as "no blow pending" rather than "landed": SetSpecialAttack
+  and SetAttackMode set it to 1, Attack1 treats 0 as a blow that just landed (panic x1.6 with the shake, on
+  screen within 400) -- who clears it is the hit TU's; (m) MOTION_REC_HIT_FRAME (motion record +0x24) and
+  CHARA_BHV_W458 / W470 as the motion's current / last frame are read from Attack1 only; (n)
+  TRIG_EVENT_AI_DOOR_SHUT (0x32) and TRIG_VAR_STRIKE_VIBRATE (0x47) named from one use; (o) Trace1 with a
+  sub-mode outside 0..3 turns by an uninitialised direction in the ROM (zeroed here, PORT note); (p) the
+  STALKER_ID_3 turn in Attack1 (slot-0 motion 0x28 before frame 0x10f) passes noMotion -1 (a3 left from an
+  earlier li: the decompiler shows 1). callcheck MISSING lines are the static helpers (ssBrain_StrikePanic,
+  ssBrain_PlayStrike, ssBrain_AttackStriking, ssBrain_TraceDrawn, ssBrain_TraceNextLink,
+  ssBrain_TraceDoorPassed, ssBrain_PickAtk). Not reached by a smoke run (no stalker in 15 s; the shots show
+  the boot screens as before). Left: Approach1, Search1.
+
 - (2026-11-12, game/tiAvoidObject.c slice 6) **code complete, verify**: the last 12 functions --
   LetMonsterInFromShadow, SetMonsterPos, BarrierCheck, SerchCheck, IsTrgWithinAngle, IsGetToGLinkPole,
   SetNextGLinkPolePoint, GetScnLinkPoleID and the group route search (GRS_InitParam, GRS_GetNextDistance,
