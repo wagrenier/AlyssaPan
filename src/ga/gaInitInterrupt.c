@@ -4,6 +4,7 @@
 
 #include "ga/gaInitInterrupt.h"
 
+#include "alyssapan/os/alyssapan_time.h"
 #include "alyssapan/rendering/alyssapan_drawga.h"
 
 #include "game/unassigned_data.h"
@@ -45,8 +46,10 @@ int gaWaitVSync(void)
 
     wait_vsync_state = WAIT_VSYNC_WAITING;
     field = (int)((REG_GS_CSR >> GS_CSR_FIELD_SHIFT) & 1);
+    AlyssaPan_FieldWaitBegin(); // PORT: the profiler's game wait
     while (wait_vsync_state != WAIT_VSYNC_IDLE)
         ;
+    AlyssaPan_FieldWaitEnd(); // PORT
 
     // PORT: DISPFB is never sent to a GS (sceGsPutDispEnv is empty): the host draw module shows the frame
     // drawn since the last swap.

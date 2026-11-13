@@ -14,6 +14,7 @@
 #include "alyssapan/core/config.h"
 #include "alyssapan/core/event_queue.h"
 #include "alyssapan/core/paths.h"
+#include "alyssapan/core/profiler.h"
 #include "alyssapan/core/window.h"
 #include "alyssapan/gpu/device.h"
 #include "alyssapan/io/input_system.h"
@@ -42,6 +43,7 @@ public:
     Window &window() { return *m_window; }
     gpu::Device &device() { return *m_device; }
     rendering::Renderer &renderer() { return *m_renderer; }
+    Profiler &profiler() { return *m_profiler; }
     io::InputSystem &input() { return *m_input; }
 
     // The data folder panel's answer: the game starts as soon as its files are known.
@@ -62,6 +64,7 @@ private:
     std::unique_ptr<gpu::Device> m_device;
     std::unique_ptr<io::InputSystem> m_input;
     std::unique_ptr<ui::Overlay> m_overlay;
+    std::unique_ptr<Profiler> m_profiler;
     std::unique_ptr<rendering::Renderer> m_renderer;
     std::atomic<bool> m_gameStarted{false};
     bool m_running = true;

@@ -3,6 +3,9 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <format>
+#include <optional>
+#include <string>
 #include <utility>
 
 #include "alyssapan/rendering/display_geometry.h"
@@ -554,6 +557,8 @@ void UiCanvas::drawMacroblocks(const void *list, const void *owner, int picture,
 
 void UiCanvas::kick(std::span<const void *const> lists, std::chrono::steady_clock::time_point time)
 {
+    Profiler &profiler = m_renderer.profiler();
+    std::optional<Profiler::Scope> phase(std::in_place, profiler, Profiler::Phase::FrameKick);
     auto frame = m_renderer.takeFreeFrame();
     {
         std::scoped_lock lock(m_lock);
@@ -578,7 +583,14 @@ void UiCanvas::kick(std::span<const void *const> lists, std::chrono::steady_cloc
             source.draws.clear();
         }
     }
+    // The game's frame ends here: one kick per frame the game draws. A slow one says how much it drew.
+    std::string note;
+    if (profiler.stutterThresholdMs() > 0.0)
+        note = std::format("frame {}: {} lists, {} draws, {} vertices", frame->number, lists.size(),
+                           frame->draws.size(), frame->vertices.size());
     m_renderer.submit(std::move(frame));
+    phase.reset();
+    profiler.endFrame(Profiler::Lane::Game, note);
 }
 
 } // namespace alyssapan::rendering

@@ -13,6 +13,7 @@
 #include "sdk/eekernel.h"
 #include "sdk/libdma.h"
 #include "sdk/libgraph.h"
+#include "alyssapan/os/alyssapan_time.h"
 #include "alyssapan/rendering/alyssapan_drawga.h"
 #include "game/unassigned_data.h"
 #include "ga/gaBGT_DrawObject.h"
@@ -2197,8 +2198,10 @@ int main(int argc, char **argv)
 
             // ---- VSync and time ----------------------------------------------------------------
             if (SkipMain == 0 && DemoSkip == 0) {
+                AlyssaPan_FieldWaitBegin(); // PORT: the profiler's game wait
                 while (timer == ga_main_timer)
                     ;
+                AlyssaPan_FieldWaitEnd(); // PORT
             }
             if (SkipMain == 0 && DemoSkip == 0) {
                 gaWaitVSync();

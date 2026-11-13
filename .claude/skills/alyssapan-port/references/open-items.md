@@ -1073,7 +1073,19 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    std::terminate under MinGW (the SEH filter takes it first, hazards.md), so its what() is not logged,
    only the frames; (lg2) the game's own printf (AA_*, the [stub] lines) still goes to stdout only, not
    the file -- RosePan routed it with a force-included macro, which this tree has none of: a seam in
-   sdk/newlib would do it; (lg3) no Settings menu item for the level (ini and env only)); (f) .iso reading, save import / export; (g) RmlUi menus and translations; (h) CI and AlyssaPan's
+   sdk/newlib would do it; (lg3) no Settings menu item for the level (ini and env only)); ~~(e4) profiler
+   phases and stutter attribution~~ (done 2026-11-13 08:05 run, alyssapan/core/profiler.cpp, Claude: the queue
+   was empty and no smoke run reaches a stub, so the run queued cpp-port.md item 12. Seen: a 40 s run with
+   ALYSSAPAN_STUTTER_MS=4 logs 7 game frames over 4 ms of work out of about 1,140 -- the boot, the two
+   movie skips (EE idle ~190 ms each, work 5..12 ms) and title frame 111, which spent 9.3 ms decoding the
+   title's textures on first sight -- and the render thread's screenshot frames (about 240 ms of PNG
+   encoding each); the title draws as before. The first cut timed sceGsSyncV and the EE's idle and read
+   every game frame as 33 ms of work: CT3 spins on flags instead (hazards.md). Open: (pf1) the Frame phases
+   window is unseen -- the shots read the scene target, not the output with the overlay, and the one
+   desktop capture found the game window behind another app; ALYSSAPAN_SHOW_PHASES plus a desktop capture
+   of the game window in front shows it; (pf2) no GPU-time phase (SDL_GPU has no timestamp queries), so a
+   GPU-bound frame shows as swapchain wait; (pf3) the field-wait seam is two PORT calls in game code, kept
+   because the spins are the ROM's own wait); (f) .iso reading, save import / export; (g) RmlUi menus and translations; (h) CI and AlyssaPan's
    own `extern/`. A shim CT3's boot needs earlier (libsdr, the card) moves ahead of TUs when a run hits it.
 3. ~~**io::Disc's path table is root-only**~~ (2026-11-10, game/ArtoolDebugOpen.c): CT3 reads sectors
    through libcdvd and finds the pack with sceCdSearchFile, so the subfolders' files now get sectors and

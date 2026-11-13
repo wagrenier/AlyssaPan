@@ -89,6 +89,18 @@
    "status": "done",
    "task": "The way past the title: after START on NEW the run reaches no stub and the screen stays black with no E_00 / tnXcmd_LoadWait line (open-items item 8, 2026-11-12 08:06). Find where it waits (a probe log in the script dispatcher or gdbrun.py on the START path), fix it if it is host-side or queue the game TU that owns the wait. Probes are stripped before committing."
   },
+  "alyssapan/core/profiler.cpp": {
+   "notes": "Seen: 40 s run at 4 ms logs 7 slow game frames of about 1140 (boot, the two movie skips, title frame 111 with 9.3 ms of texture decoding) and the render thread's screenshot frames (about 240 ms PNG each); title draws as before. CT3 waits for fields by spinning (gaWaitVSync, main's ga_main_timer loop), so the wait is timed through the AlyssaPan_FieldWaitBegin/End seam (PORT calls); EE idle via ee::Kernel::setIdleObserver. Open: pf1 the Frame phases window is unseen (shots read the scene target; the desktop capture had the game behind another window); pf2 no GPU-time phase; pf3 the PORT seam calls in game code.",
+   "sessions": [
+    {
+     "date": "2026-11-13 08:22",
+     "status": "verify",
+     "summary": "Profiler phases and stutter attribution (cpp-port item 12, RosePan rosepan_profiler): core::Profiler with a game lane (field wait, EE idle, textures, frame kick) and a render lane (overlay, upload, record, swapchain wait, submit); Diagnostics > Frame phases; [log] stutter_ms / ALYSSAPAN_STUTTER_MS writes slow frames, attributed, to alyssapan_stutter.log"
+    }
+   ],
+   "status": "verify",
+   "task": "Sibling shim, cpp-port.md To carry over 12 (RosePan rosepan_profiler.cpp, rosepan_ui.cpp 2327): profiler phases and stutter attribution as core::Profiler. Two lanes (the game thread: vblank wait, texture lookups, the frame kick; the render thread: overlay, upload, record, swapchain acquire, submit); a 0.5 s window of per-frame means and maxima shown in Diagnostics > Performance; [log] stutter_ms / ALYSSAPAN_STUTTER_MS appends every slower frame, attributed by phase, to alyssapan_stutter.log in the user directory."
+  },
   "alyssapan/core/title_trace.cpp": {
    "notes": "No code. 90 s run: 2820 frames; 240 s run: 7200 frames, movies m_capcom, m_title, then d02 d04 d03 d01 d01 d04, shots flat grey. The 16:25 stop came from the probe hack. ga/pad_button_read.c is next in the queue; its check should script START after frame 900 and look for TITL. open-items 8 (kk2, kl2).",
    "sessions": [

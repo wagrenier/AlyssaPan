@@ -106,7 +106,9 @@ bool Application::startServices()
     m_input->loadBindings(m_config.ini());
 
     m_overlay = std::make_unique<ui::Overlay>(*this);
-    m_renderer = std::make_unique<rendering::Renderer>(*m_window, *m_device, m_config, m_events, *m_overlay);
+    m_profiler = std::make_unique<Profiler>(m_paths.userDirectory() / "alyssapan_stutter.log", m_config.logging.stutterMs);
+    m_renderer = std::make_unique<rendering::Renderer>(*m_window, *m_device, m_config, m_events, *m_overlay,
+                                                       *m_profiler);
     return true;
 }
 
@@ -117,6 +119,9 @@ void Application::startGame()
 
     log::info("Starting the game");
     io::Disc::instance().mount(m_paths.dataFolder());
+    ee::Kernel::instance().setIdleObserver([&profiler = *m_profiler](std::chrono::steady_clock::duration idle) {
+        profiler.addPhase(Profiler::Phase::EeIdle, idle);
+    });
     ee::Kernel::instance().startMainThread([this] {
         // argv[0] is what the console's loader gave (SYSTEM.CNF's BOOT2): FS2's rx took its boot device from it.
         static char bootPath[] = "cdrom0:\\SLUS_206.33;1";

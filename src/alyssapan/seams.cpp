@@ -9,6 +9,7 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string_view>
 #include <vector>
@@ -48,6 +49,22 @@ void AlyssaPan_SleepNs(uint64_t nanoseconds)
     alyssapan::os::TimedWaiter::sleepFor(std::chrono::nanoseconds(nanoseconds));
 }
 
+namespace
+{
+std::chrono::steady_clock::time_point s_fieldWaitStart;
+}
+
+void AlyssaPan_FieldWaitBegin(void)
+{
+    s_fieldWaitStart = std::chrono::steady_clock::now();
+}
+
+void AlyssaPan_FieldWaitEnd(void)
+{
+    alyssapan::Application::instance().profiler().addPhase(alyssapan::Profiler::Phase::FieldWait,
+                                                           std::chrono::steady_clock::now() - s_fieldWaitStart);
+}
+
 void *AlyssaPan_GetHostPointer(uintptr_t)
 {
     return nullptr; // no emulated EE memory
@@ -69,7 +86,12 @@ void AlyssaPan_DrawUiTexture(const void *list, const void *tim2, int picture)
         return; // the bound one stays
 
     alyssapan::rendering::Renderer &renderer = alyssapan::Application::instance().renderer();
-    renderer.canvas().bindImage(list, renderer.textures().imageOfTim2(tim2, picture));
+    std::shared_ptr<alyssapan::rendering::Image> image;
+    {
+        alyssapan::Profiler::Scope phase(renderer.profiler(), alyssapan::Profiler::Phase::Textures);
+        image = renderer.textures().imageOfTim2(tim2, picture);
+    }
+    renderer.canvas().bindImage(list, std::move(image));
 }
 
 void AlyssaPan_DrawUiSqueeze(const void *list, int on)
@@ -749,11 +771,15 @@ void AlyssaPan_DrawGaTexture(const AlyssaPanGaTexture *texture)
     constexpr std::uint64_t kLog2Mask = 0xf, kPsmMask = 0x3f;
     auto &recorder = alyssapan::rendering::GaMeshRecorder::instance();
     const std::uint64_t tex0 = texture->tex0;
+    alyssapan::rendering::Renderer &renderer = alyssapan::Application::instance().renderer();
+    std::optional<alyssapan::Profiler::Scope> phase(std::in_place, renderer.profiler(),
+                                                    alyssapan::Profiler::Phase::Textures);
     std::shared_ptr<alyssapan::rendering::Image> image =
-        alyssapan::Application::instance().renderer().textures().imageOfGsTexture(
+        renderer.textures().imageOfGsTexture(
             static_cast<int>(tex0 >> kPsmShift & kPsmMask), texture->width, texture->height,
             static_cast<int>(tex0 >> kTwShift & kLog2Mask), static_cast<int>(tex0 >> kThShift & kLog2Mask),
             texture->pixels, texture->clut, (tex0 >> kTccShift & 1) != 0);
+    phase.reset();
     recorder.setTexture(std::move(image), tex0, texture->clamp);
 }
 

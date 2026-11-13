@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-13 07:59 at commit `01a777b` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-13 08:22 at commit `7eca867` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -102,11 +102,12 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: verify 73, done 15, blocked 1
+- 65 TUs: verify 74, done 15, blocked 1
 - next: **None** (nothing on the frontier and no queued TU)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp
 - verify: `alyssapan/core/logger.cpp` 0/0 -- Probed and removed: warning level drops info, abort / terminate / access violation / uncaught throw all logged in work/user/alyssapan.log. Smoke shot unchanged:
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
+- verify: `alyssapan/core/profiler.cpp` 0/0 -- Seen: 40 s run at 4 ms logs 7 slow game frames of about 1140 (boot, the two movie skips, title frame 111 with 9.3 ms of texture decoding) and the render thread'
 - verify: `alyssapan/core/window_modes.cpp` 0/0 -- Seen: the exclusive start over RDP falls back to borderless (content warning pillarboxed 4:3 on the 3:2 desktop); saved position 100,150 restored; 20000,20000 c
 - verify: `alyssapan/gpu/device.cpp` 0/0 -- Seen: vulkan draws the title as direct3d12 does; a bad name warns and falls back; the debug layer starts and the title draws. Unseen: D3D12 debug messages go to
 - verify: `alyssapan/rendering/hdr_output.cpp` 0/0 -- Seen over RDP: off and auto run SDR; scrgb and hdr10 get HDR10 PQ (scRGB refused), and a desktop capture of the window matches the SDR picture. No HDR items in 
@@ -182,6 +183,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-13 08:22 `alyssapan/core/profiler.cpp` verify: Profiler phases and stutter attribution (cpp-port item 12, RosePan rosepan_profiler): core::Profiler with a game lane (field wait, EE idle, textures, frame kick
 - 2026-11-13 07:59 `alyssapan/core/logger.cpp` verify: Log level and failure hooks (cpp-port item 11): [log] level / ALYSSAPAN_LOG_LEVEL filters file and stdout; SDL_assert, std::terminate and abort leave [E] record
 - 2026-11-13 07:29 `alyssapan/core/user_dir.cpp` done: Shim 10: ALYSSAPAN_USER_DIR overrides the user directory (ini, log, cards) in Paths; build.py --run sets work/user so smoke runs never touch the player's settin
 - 2026-11-13 07:22 `alyssapan/rendering/msaa_targets.cpp` verify: MSAA (shim c, last part): rendering::MsaaTargets holds the multisampled scene colour and depth targets at the [display] msaa count (1/2/4/8, env ALYSSAPAN_MSAA,
@@ -189,7 +191,6 @@ Recent sessions:
 - 2026-11-13 06:53 `alyssapan/rendering/hdr_output.cpp` verify: HDR swapchain (shim c part 2): HdrOutput resolves [display] hdr off/auto/scrgb/hdr10 to a supported swapchain composition (SDR fallback), re-applies on display 
 - 2026-11-13 06:34 `alyssapan/gpu/device.cpp` verify: GPU driver choice and debug layer (shim c part 1, MikuPan MikuPan_GPUInit): display gpu_driver and gpu_debug settings with env overrides, Device::create falls b
 - 2026-11-13 04:34 `alyssapan/core/window_modes.cpp` verify: Sibling shim 2(b): exclusive fullscreen (borderless fallback when the display refuses), window position saved and restored or centred, windowed size presets and
-- 2026-11-13 04:08 `game/tiBrain_ChgTrace_BOSS_BALOWS.c` verify: slice 7: tiBrain_Init_BOSS1 and tiBrain_Init_BOSS_SCISSORS_W, the last two stubs: the TU's code is complete
 
 ## Frontier (called by reconstructed code, not written yet)
 

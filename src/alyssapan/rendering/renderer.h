@@ -24,6 +24,7 @@
 #include <SDL3/SDL_gpu.h>
 
 #include "alyssapan/core/config.h"
+#include "alyssapan/core/profiler.h"
 #include "alyssapan/gpu/device.h"
 #include "alyssapan/os/thread.h"
 #include "alyssapan/rendering/display_geometry.h"
@@ -56,13 +57,15 @@ class Screenshotter;
 class Renderer
 {
 public:
-    Renderer(Window &window, gpu::Device &device, Config &config, EventQueue &events, ui::Overlay &overlay);
+    Renderer(Window &window, gpu::Device &device, Config &config, EventQueue &events, ui::Overlay &overlay,
+             Profiler &profiler);
     ~Renderer();
 
     void start();
     void stop();
 
     UiCanvas &canvas() { return m_canvas; }
+    Profiler &profiler() { return m_profiler; }
     TextureStore &textures() { return m_textures; }
 
     // A frame to fill, with its storage from a frame already shown.
@@ -115,6 +118,7 @@ private:
     Config &m_config;
     EventQueue &m_events;
     ui::Overlay &m_overlay;
+    Profiler &m_profiler;
     UiCanvas m_canvas;
     TextureStore m_textures;
 

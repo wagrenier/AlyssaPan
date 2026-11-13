@@ -282,6 +282,7 @@ template <class Archive>
 void LogSettings::serialize(Archive &archive)
 {
     archive("level", level);
+    archive("stutter_ms", stutterMs);
 }
 
 Config::Config() : m_ini(std::make_unique<IniFile>()) {}
@@ -345,6 +346,7 @@ void Config::applyEnvironment()
     apply("ALYSSAPAN_HDR", display.hdrMode);
     apply("ALYSSAPAN_UI_SCALE", ui.scale);
     apply("ALYSSAPAN_LOG_LEVEL", logging.level);
+    apply("ALYSSAPAN_STUTTER_MS", logging.stutterMs);
 }
 
 } // namespace alyssapan

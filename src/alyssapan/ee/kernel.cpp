@@ -115,13 +115,27 @@ void Kernel::dispatch()
     m_current = mostUrgentReady();
     if (m_current == nullptr)
     {
+        if (!m_idleSince)
+            m_idleSince = std::chrono::steady_clock::now();
         m_interruptGate.notify_all();
         return;
+    }
+    if (m_idleSince)
+    {
+        if (m_idleObserver)
+            m_idleObserver(std::chrono::steady_clock::now() - *m_idleSince);
+        m_idleSince.reset();
     }
     m_ready[m_current->priority].pop_front();
     m_current->state = State::Running;
     m_current->run->turn.notify_one();
     m_interruptGate.notify_all();
+}
+
+void Kernel::setIdleObserver(IdleObserver observer)
+{
+    std::scoped_lock lock(m_lock);
+    m_idleObserver = std::move(observer);
 }
 
 void Kernel::block(Lock &lock)

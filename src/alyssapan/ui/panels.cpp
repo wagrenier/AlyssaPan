@@ -717,7 +717,11 @@ private:
 class PerformancePanel final : public Panel
 {
 public:
-    explicit PerformancePanel(Application &application) : m_application(application) {}
+    // ALYSSAPAN_SHOW_PHASES opens Frame phases at start, for runs that have no mouse.
+    explicit PerformancePanel(Application &application)
+        : m_application(application), m_phases(std::getenv("ALYSSAPAN_SHOW_PHASES") != nullptr)
+    {
+    }
 
     void drawMenu() override
     {
@@ -725,6 +729,7 @@ public:
         {
             ImGui::MenuItem("Performance", nullptr, &m_summary);
             ImGui::MenuItem("Frame graph", nullptr, &m_graph);
+            ImGui::MenuItem("Frame phases", nullptr, &m_phases);
             ImGui::EndMenu();
         }
     }
@@ -769,14 +774,73 @@ public:
             }
             ImGui::End();
         }
+
+        if (m_phases)
+            drawPhases();
     }
 
 private:
     static constexpr std::size_t kHistory = 600;
 
+    // Where each thread's frame goes (core/profiler.h): per lane, the frame, its work (the frame less its
+    // waits), then each phase, as the mean per frame and the worst frame of the last half second.
+    void drawPhases()
+    {
+        ImGui::SetNextWindowSize(ImVec2(420.0f, 0.0f), ImGuiCond_FirstUseEver);
+        if (ImGui::Begin("Frame phases", &m_phases))
+        {
+            const Profiler &profiler = m_application.profiler();
+            const Profiler::Stats stats = profiler.stats();
+            constexpr ImGuiTableFlags kTable = ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp;
+            if (ImGui::BeginTable("##phases", 3, kTable))
+            {
+                ImGui::TableSetupColumn("ms per frame");
+                ImGui::TableSetupColumn("mean");
+                ImGui::TableSetupColumn("worst");
+                ImGui::TableHeadersRow();
+                const auto row = [](std::string_view label, const Profiler::Metric &metric, bool indent) {
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn();
+                    if (indent)
+                        ImGui::Indent();
+                    ImGui::TextUnformatted(label.data(), label.data() + label.size());
+                    if (indent)
+                        ImGui::Unindent();
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%.2f", metric.meanMs);
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%.2f", metric.maxMs);
+                };
+                for (std::size_t lane = 0; lane < Profiler::kLaneCount; lane++)
+                {
+                    const Profiler::LaneStats &laneStats = stats.lanes[lane];
+                    const auto laneId = static_cast<Profiler::Lane>(lane);
+                    const std::string title = std::format("{} thread, {} frames", Profiler::name(laneId),
+                                                          laneStats.frames);
+                    row(title, laneStats.frame, false);
+                    row("work", laneStats.work, true);
+                    for (std::size_t phase = 0; phase < Profiler::kPhaseCount; phase++)
+                    {
+                        const auto phaseId = static_cast<Profiler::Phase>(phase);
+                        if (Profiler::laneOf(phaseId) == laneId)
+                            row(Profiler::name(phaseId), laneStats.phases[phase], true);
+                    }
+                }
+                ImGui::EndTable();
+            }
+            if (profiler.stutterThresholdMs() > 0.0)
+                ImGui::TextDisabled("Frames working over %.1f ms go to alyssapan_stutter.log.",
+                                    profiler.stutterThresholdMs());
+            else
+                ImGui::TextDisabled("[log] stutter_ms (or ALYSSAPAN_STUTTER_MS) logs slow frames.");
+        }
+        ImGui::End();
+    }
+
     Application &m_application;
     bool m_summary = false;
     bool m_graph = false;
+    bool m_phases = false;
     std::array<float, kHistory> m_presentHistory{};
     std::array<float, kHistory> m_gameHistory{};
     std::size_t m_cursor = 0;

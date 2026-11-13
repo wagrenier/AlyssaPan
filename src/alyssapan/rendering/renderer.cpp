@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <format>
+#include <optional>
 #include <string>
 #include <thread>
 
@@ -146,8 +147,10 @@ static SDL_GPUCompareOp depthCompareOf(DepthTest test)
     return SDL_GPU_COMPAREOP_ALWAYS;
 }
 
-Renderer::Renderer(Window &window, gpu::Device &device, Config &config, EventQueue &events, ui::Overlay &overlay)
-    : m_window(window), m_device(device), m_config(config), m_events(events), m_overlay(overlay), m_canvas(*this),
+Renderer::Renderer(Window &window, gpu::Device &device, Config &config, EventQueue &events, ui::Overlay &overlay,
+                   Profiler &profiler)
+    : m_window(window), m_device(device), m_config(config), m_events(events), m_overlay(overlay),
+      m_profiler(profiler), m_canvas(*this),
       m_sceneFormat(SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM), m_outputFormat(SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM),
       m_samplers(device)
 {
@@ -560,9 +563,12 @@ void Renderer::renderOnce()
     }
     const bool redraw = newFrame || layoutChanged || samplesChanged;
 
-    m_overlay.beginFrame();
-    m_overlay.draw(*this);
-    m_overlay.endFrame();
+    {
+        Profiler::Scope phase(m_profiler, Profiler::Phase::Overlay);
+        m_overlay.beginFrame();
+        m_overlay.draw(*this);
+        m_overlay.endFrame();
+    }
 
     SDL_GPUCommandBuffer *const commands = SDL_AcquireGPUCommandBuffer(m_device.get());
     if (commands == nullptr)
@@ -571,6 +577,7 @@ void Renderer::renderOnce()
         return;
     }
 
+    std::optional<Profiler::Scope> phase(std::in_place, m_profiler, Profiler::Phase::Upload);
     SDL_GPUCopyPass *const copy = SDL_BeginGPUCopyPass(commands);
     if (!m_whiteUploaded)
     {
@@ -586,6 +593,7 @@ void Renderer::renderOnce()
     }
     SDL_EndGPUCopyPass(copy);
 
+    phase.emplace(m_profiler, Profiler::Phase::Record);
     static const Frame kEmptyFrame;
     if (redraw || m_shown == nullptr)
         recordScene(commands, m_shown != nullptr ? *m_shown : kEmptyFrame, layout);
@@ -610,18 +618,22 @@ void Renderer::renderOnce()
     SDL_GPUTexture *swapchain = nullptr;
     Uint32 swapchainWidth = 0;
     Uint32 swapchainHeight = 0;
+    phase.emplace(m_profiler, Profiler::Phase::SwapchainAcquire);
     if (!SDL_WaitAndAcquireGPUSwapchainTexture(commands, m_window.get(), &swapchain, &swapchainWidth, &swapchainHeight))
     {
         gpu::logGpuError("SDL_AcquireGPUSwapchainTexture");
         SDL_CancelGPUCommandBuffer(commands);
         return;
     }
+    phase.emplace(m_profiler, Profiler::Phase::Record);
     if (swapchain != nullptr)
         m_present->record(commands, m_output.get(), swapchain, swapchainWidth, swapchainHeight);
 
+    phase.emplace(m_profiler, Profiler::Phase::Submit);
     if (!SDL_SubmitGPUCommandBuffer(commands))
         gpu::logGpuError("SDL_SubmitGPUCommandBuffer");
     m_staging.clear();
+    phase.reset();
 
     if (shotDue)
         m_screenshots->write();
@@ -629,6 +641,21 @@ void Renderer::renderOnce()
     if (swapchain == nullptr)
         std::this_thread::sleep_for(kIdleDelay); // minimised: nothing paces this loop
     updateStats(newFrame);
+
+    // A slow present says what it carried: a new game frame (its upload) or a repeat, and how much.
+    if (m_profiler.stutterThresholdMs() > 0.0)
+    {
+        const std::string note =
+            m_shown == nullptr ? std::string("no frame")
+                               : std::format("{} {}: {} draws, {} vertices{}", newFrame ? "frame" : "repeat of",
+                                             m_shown->number, m_shown->draws.size(), m_shown->vertices.size(),
+                                             shotDue ? ", screenshot" : "");
+        m_profiler.endFrame(Profiler::Lane::Render, note);
+    }
+    else
+    {
+        m_profiler.endFrame(Profiler::Lane::Render);
+    }
 }
 
 } // namespace alyssapan::rendering

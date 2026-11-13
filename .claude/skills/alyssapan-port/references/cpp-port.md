@@ -162,7 +162,16 @@ Platform, game-independent (1-5 carried over 2026-11-09, host task `alyssapan/co
     (`crash_report.cpp`) writes its lines into alyssapan.log too (`log::writeFromFault`, try-lock), and names
     GCC's SEH code 0x20474343 as an uncaught C++ exception. CT3 has no assert routine of its own (none in the
     symtab), so RosePan's ROM-marker classification has nothing to carry.
-12. Profiler phases and stutter attribution: RosePan `rosepan_profiler.cpp:103`, `rosepan_ui.cpp:2327`.
+12. ~~Profiler phases and stutter attribution~~ done 2026-11-13 (host task `alyssapan/core/profiler.cpp`, RosePan's
+    `rosepan_profiler.cpp` as `alyssapan::Profiler`, owned by Application, handed to the Renderer): two lanes,
+    the game thread (a frame = one UiCanvas::kick; phases field wait, EE idle, textures, frame kick) and the
+    render thread (a frame = one present; overlay, upload, record, swapchain wait, submit); a frame's work is
+    its wall time less its waits. Field wait is gaWaitVSync's and main's spin (seam `AlyssaPan_FieldWaitBegin /
+    End` in alyssapan_time.h), EE idle comes from `ee::Kernel::setIdleObserver` (dispatch finding no ready
+    thread). Diagnostics > Frame phases shows each lane's mean and worst over 0.5 s (`ALYSSAPAN_SHOW_PHASES`
+    opens it at start); `[log] stutter_ms` / `ALYSSAPAN_STUTTER_MS` (0 = off) appends every frame working
+    longer to `alyssapan_stutter.log` in the user directory, one line with each phase and what the frame
+    carried (draws, vertices, a repeat, a screenshot).
 
 PS2 platform, generic across games:
 13. ~~A real memory card~~ done 2026-11-09: `io::MemoryCards` (RosePan's `sdk/libmc.cpp` as a class; folders

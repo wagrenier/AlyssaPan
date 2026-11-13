@@ -20,6 +20,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <vector>
 
 struct SemaParam;
@@ -78,6 +79,12 @@ public:
     void waitVBlank();
 
     InterruptController &interrupts() { return *m_interrupts; }
+
+    // Told, under the kernel's lock, how long each stretch lasted in which no EE thread ran (every thread
+    // waiting for an interrupt, the vblank, a semaphore): the game's idle, which the profiler takes out of its
+    // work. Set before the game starts; it must be quick.
+    using IdleObserver = std::function<void(std::chrono::steady_clock::duration idle)>;
+    void setIdleObserver(IdleObserver observer);
 
 private:
     friend class InterruptController;
@@ -138,6 +145,8 @@ private:
     std::array<std::deque<Thread *>, 128> m_ready;
     std::vector<Thread *> m_vblankWaiters;
     Thread *m_current = nullptr; // null: every thread waits, an interrupt will ready one
+    IdleObserver m_idleObserver;
+    std::optional<std::chrono::steady_clock::time_point> m_idleSince; // set while m_current is null after a run
     bool m_inInterrupt = false;
     int m_nextThreadId = 1;
     int m_nextSemaId = 1;

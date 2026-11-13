@@ -7,6 +7,15 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-13, scheduled run, profiler) **CT3's game never idles the EE while it waits for a field.**
+  gaWaitVSync spins on wait_vsync_state and main's loop spins on ga_main_timer (both cleared / bumped by the
+  VSync callback), so ee::Kernel never finds every thread waiting: an EE-idle measure reads 0 after boot and
+  a frame looks all work. The profiler times those two spins through AlyssaPan_FieldWaitBegin / _End (PORT
+  calls in ga/gaInitInterrupt.c and game/main.c); any new spin-wait the game turns out to have needs the same
+  pair, or its time shows up as work. The spins also hold a host core each frame (alyssapan_time.h's rule
+  says to sleep there; not changed: it would move the game's timing). Also: the smoke shots are taken on the
+  render thread and cost about 240 ms each (PNG encoding), so every 60th render frame is a stutter in a
+  smoke run -- the stutter log names it ("screenshot").
 - (2026-11-13, scheduled run, logger) **MinGW: an uncaught throw skips std::terminate.** GCC's x64 C++
   exceptions are SEH exceptions (code 0x20474343, 'GCC '): with no catch, the unhandled-exception filter
   (crash_report.cpp) runs and the process ends with 0xc00000ff, so a std::set_terminate hook never sees

@@ -155,6 +155,9 @@ struct UiSettings
 struct LogSettings
 {
     log::Level level = log::Level::Debug;
+    // Frames whose work takes longer go to alyssapan_stutter.log, attributed by phase (core/profiler.h);
+    // 0 writes none.
+    double stutterMs = 0.0;
 
     template <class Archive>
     void serialize(Archive &archive);
