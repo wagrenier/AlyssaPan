@@ -1876,12 +1876,21 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 138..138, 15 functions keyed by their statics, 35 unkeyed; file name from the names"
   },
   "game/tnXcmd.c": {
+   "notes": "Queue refill: only the stale blocked ui_canvas.cpp was queued and nothing on the frontier, so the smallest script-reached todo TU was taken. No smoke run reaches these commands yet; the 15 s run shows the content warning as before. Lever button is SCE_PADRright read raw (not KEY_MAP); PlayerPanicMode 1/0 named from this use; open-items nw1..nw4.",
    "ranges": [
     [
      "018f3cb0",
      "018f3f60"
     ]
    ],
+   "sessions": [
+    {
+     "date": "2026-11-13 01:12",
+     "status": "verify",
+     "summary": "all 8 tn x commands: the lever struggle, the player and monster control locks, PlayerDamage, Probability"
+    }
+   ],
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 140..140, 2 functions keyed by their statics, 6 unkeyed; file name from the names"
   },
   "game/wideXcmd_DebugPrint.c": {

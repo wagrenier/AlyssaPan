@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-13 00:57 at commit `15659a8` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-13 01:12 at commit `5119bfe` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1784**; stubs: **47**
+- reconstructed CT3 functions: **1792**; stubs: **39**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -95,14 +95,14 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/tiBrain_ChgTrace_Ghost.c` | 31 | 0 |
 | `src/game/tiXcmd_TransItem.c` | 93 | 0 |
 | `src/game/tkXDTrg_GetSceneHash.c` | 50 | 0 |
-| `src/game/tnXcmd.c` | 0 | 8 |
+| `src/game/tnXcmd.c` | 8 | 0 |
 | `src/game/wideXcmd_DebugPrint.c` | 109 | 0 |
 | `src/game/wideXcmd_TriggerInit.c` | 51 | 0 |
 | `src/game/xcmd_tn.c` | 59 | 0 |
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 4, verify 63, done 14, blocked 1
+- 65 TUs: todo 3, verify 64, done 14, blocked 1
 - next: **None** (nothing on the frontier and no queued TU)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
@@ -164,6 +164,7 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/tiBrain_ChgTrace_Ghost.c` 31/31 -- Code complete, 0 stubs. Not reached by the smoke run (boot screens and content warning as before): verify once a stage with a ghost runs. Doubts gh11..gh14 in o
 - verify: `game/tiXcmd_TransItem.c` 93/93 -- All 93 functions written. The attack record is a host struct SPATTACK_SCISSORS (tiXcmd_TransItem.h); tiFreeBossData frees its lists first as the ROM. Phase bits
 - verify: `game/tkXDTrg_GetSceneHash.c` 50/50 -- Callcheck MISSING asFindModelPartsID in Ini is the DoorFindPart helper. The part names settle h48 h4c and the kind entries' +4 as SE / TDS parts (open-items.md 
+- verify: `game/tnXcmd.c` 8/8 -- Queue refill: only the stale blocked ui_canvas.cpp was queued and nothing on the frontier, so the smallest script-reached todo TU was taken. No smoke run reache
 - verify: `game/wideXcmd_DebugPrint.c` 109/109 -- All 109 functions written. Nothing on screen reaches it yet (the shot is the warning screen): verify in gameplay. New stubs ssHitAddAttackRequest, ssHit_GetMaxI
 - verify: `game/wideXcmd_TriggerInit.c` 46/46 -- TU code complete, verify: no smoke run reaches the test x command. open-items 1 am decided (Claude): CHARACTER.brain is a handle (slot+1) into CharaBrainHost vi
 - verify: `game/xcmd_tn.c` 57/57 -- All 57 functions written. VistaVision: ON or on brings the bars in, argv[1] 1 slides, a fourth argument makes ON skippable; statics VistaVisionEndCheck, VistaVi
@@ -172,6 +173,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-13 01:12 `game/tnXcmd.c` verify: all 8 tn x commands: the lever struggle, the player and monster control locks, PlayerDamage, Probability
 - 2026-11-13 00:57 `alyssapan/rendering/menu_box.cpp` done: the in-game menu (MENU.BIN, the M101.BIN floor map) keeps the 4:3 box at wide aspects (nu1)
 - 2026-11-13 00:37 `game/tiBrain_ChgTrace_Ghost.c` verify: slice 3: the last 7 ghost-brain functions -- Search_Ghost1/3, Approach_Ghost1, Attack_Ghost1/2/3, Init1; the hold shared with Attack_Ghost4 through the kind's l
 - 2026-11-13 00:19 `game/tiBrain_ChgTrace_Ghost.c` partial: slice 2: 14 ghost-brain functions -- ChgAttack_Ghost1/2/4, ChgApproach_Ghost1/2, ChgSearch_Ghost1/2/3, Damage1/2/3, Attack_Ghost4 (lunge and grab), Approach_Gho
@@ -179,7 +181,6 @@ Recent sessions:
 - 2026-11-12 23:32 `game/ssBrain_ChgHideAtk1.c` verify: slice 4: ssBrain_Approach1 and ssBrain_Search1 -- all 34 functions written, code complete
 - 2026-11-12 23:17 `game/ssBrain_ChgHideAtk1.c` partial: slice 3: ssBrain_Init1, ssBrain_HideAtk1, ssBrain_Attack1, ssBrain_Trace1 and ssAI_SetSpecialAttack; BRAIN_ATK_STATE named whole but 0x00..0x03 (chain, panic, w
 - 2026-11-12 22:59 `game/ssBrain_ChgHideAtk1.c` partial: slice 2: the setters ssAI_Set{Trace,Attack,Approach,Search}Mode, ssAI_SearchToApproachMode, ssBrain_ChgSearch1 and ssBrain_Damage1; the attack states named as B
-- 2026-11-12 22:32 `game/ssBrain_ChgHideAtk1.c` partial: slice 1: the mode changes ssBrain_Chg{HideAtk,Return,Attack,Trace,Approach}1, ssBrain_Return1, the 13 mode transitions and ssAI_SetHideAtkMode; brain words name
 
 ## Frontier (called by reconstructed code, not written yet)
 

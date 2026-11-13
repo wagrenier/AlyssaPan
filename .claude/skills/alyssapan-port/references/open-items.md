@@ -2032,6 +2032,20 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    will show the same spill until added to gaIsMenuBank; (nv3) the map view (SELECT in the menu) and the
    Files / Key items / Options tabs were not opened in this run.
 
+   **game/tnXcmd.c (verify, 2026-11-13 01:10, Claude, scheduled run; queue refill: the pinned queue held
+   only the stale blocked ui_canvas.cpp and tus.py found nothing on the frontier, so the run took the
+   smallest of the four todo TUs whose commands the scripts reach, for the user to overrule):** all 8 x
+   commands (ssXcmd_functions slots 5..12): the lever struggle (LeverClatteringInit / LeverClattering,
+   statics MeterDown 0x01944940, Meter 0x01944944, Timer 0x01944948), the player / monster control locks
+   (TrgCharStopFlag bits 0x1 / 0x8), PlayerDamage, Probability. The 15 s smoke run is unchanged (the
+   content warning, frame 11040); no run reaches these commands yet. Open: (nw1) the lever button is
+   SCE_PADRright (circle, 0x20 in pad_trg_button[0]) read raw, not through KEY_MAP: a remapped pad keeps
+   circle for the lever (the ROM does the same); (nw2) PlayerPanicMode is set 1 by the lever's init and 0
+   at its end (main.c reads it): named from this use, no PLAYER_PANIC_* set yet; (nw3) the lever cuts the
+   event to 16 bits and passes global 0, Probability passes argv[1] / argv[2] whole -- as the ROM; (nw4)
+   TRG_CHAR_STOP_KEYS (0x1) is what tnXcmd_PlayerControllStop sets: the name fits. Left as todo TUs:
+   game/RotateCamera.c, game/hhXcmd_BGM_SE_VOLUME.c, game/tiBrain_ChgTrace_BOSS_BALOWS.c.
+
 ## Decisions
 
 - 2026-11-11 (Claude, scheduled run 19:15, for the user to overrule): **the ga 2D frame stays 4:3.** The
