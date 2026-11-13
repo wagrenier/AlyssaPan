@@ -1,6 +1,5 @@
 {
  "queue": [
-  "game/tiBrain_ChgTrace_BOSS_BALOWS.c",
   "alyssapan/rendering/ui_canvas.cpp"
  ],
  "settings": {
@@ -1752,7 +1751,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 74..74, 14 functions keyed by their statics, 68 unkeyed; file name from the names"
   },
   "game/tiBrain_ChgTrace_BOSS_BALOWS.c": {
-   "notes": "Left: tiBrain_Init_BOSS1 and tiBrain_Init_BOSS_SCISSORS_W (the last two stubs). No smoke run reaches a boss. This run's shots are all black at about 900 frames a second, identical on the unchanged sources (A/B with git stash): the display was not presenting, not a regression (hazards.md 2026-11-13). Open items nz23..nz27: SCISSORS_W is boss chara 6, damage-side names from one use (0x78 pull hits, 0x94 arrow guard, 0x98 chain slack, 0x144 / 0x148 damages, brain 0x266 hit from behind), TRIG_VAR 0x53 is set A's break (-1, 0 caught, 1 counting, 4 lands), the chain-check stack quirk.",
+   "notes": "No smoke run reaches a boss: the shots show the memory-card check, then the grey attract fade, as before. Open items nz28 (both inits set BOSS_STATE 0x02, BOSS1 also 0x40: BOSS_STATE_BOSS1_INIT; SCISSORS_W fills her slice-4 fields, supporting nz23) and nz29 (after the clear the search and attack motions play at 150). The remaining callcheck MISSING lines are earlier slices' helper-wrapped calls (ssTrigRegisterEvent, CheckLOS ...): explain them with callcheck comments when the TU is next touched.",
    "ranges": [
     [
      "01867fb0",
@@ -1789,9 +1788,14 @@
      "date": "2026-11-13 04:01",
      "status": "partial",
      "summary": "slice 6: the nine other mode setters (band tables), tiCheckArrowLevel, tiCheckPlayerINChains, tiBrain_Damage_BOSS1 (chain set times, blows dealt, timers, arrow hits: chain, stagger, push, damage, voices, the mode after) and the table tiDefenseMode (0x01938658)"
+    },
+    {
+     "date": "2026-11-13 04:08",
+     "status": "verify",
+     "summary": "slice 7: tiBrain_Init_BOSS1 and tiBrain_Init_BOSS_SCISSORS_W, the last two stubs: the TU's code is complete"
     }
    ],
-   "status": "partial",
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 80..80, 14 functions keyed by their statics, 55 unkeyed; file name from the names"
   },
   "game/tiBrain_ChgTrace_Ghost.c": {

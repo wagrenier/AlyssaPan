@@ -615,4 +615,7 @@ extern int (*const tiSelSPMotion[BOSS_MODE_KIND_COUNT])(u_char *pick);          
 #define BOSS_VOICE_AXE1_BANK "B_0A04"   /* 0x019341c0: the AXE without BOSS_STATE_BIT_04 */
 #define BALOWS_VOICE_SHOUT 0x0d         /* BALOWS_VOICE_BANK "B_5A09" */
 #define BALOWS_SE_SHOUT 0x1f            /* BALOWS_SE_BANK "E_BAL" */
+// tiBrain_Init_BOSS1 / _SCISSORS_W (slice 7).
+#define BOSS_STATE_BOSS1_INIT (BOSS_STATE_BALOWS_RECOVERED | BOSS_STATE_BALOWS_ATTACKING) /* 0x42: set at init */
+#define BOSS_CLEARED_PLAY_RATE 150      /* after TRIG_EVENT_CLEARED: search and attack motions at 150 */
 void tiBrain_Approach_BOSS1(struct CHARACTER *chr);                                      // CT3 0x01870e00

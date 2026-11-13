@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-13 04:01 at commit `1f185dc` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-13 04:08 at commit `4d322ba` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1864**; stubs: **4**
+- reconstructed CT3 functions: **1866**; stubs: **2**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -91,7 +91,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/ssHitCheckAttackToScn.c` | 37 | 0 |
 | `src/game/ssSetTexUVforCubeMap.c` | 96 | 0 |
 | `src/game/tiAvoidObject.c` | 95 | 0 |
-| `src/game/tiBrain_ChgTrace_BOSS_BALOWS.c` | 69 | 2 |
+| `src/game/tiBrain_ChgTrace_BOSS_BALOWS.c` | 71 | 0 |
 | `src/game/tiBrain_ChgTrace_Ghost.c` | 31 | 0 |
 | `src/game/tiXcmd_TransItem.c` | 93 | 0 |
 | `src/game/tkXDTrg_GetSceneHash.c` | 50 | 0 |
@@ -102,10 +102,9 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: partial 1, verify 66, done 14, blocked 1
-- next: **game/tiBrain_ChgTrace_BOSS_BALOWS.c** (pinned in the queue)
-- pinned queue: game/tiBrain_ChgTrace_BOSS_BALOWS.c, alyssapan/rendering/ui_canvas.cpp
-- partial: `game/tiBrain_ChgTrace_BOSS_BALOWS.c` 66/69 -- Left: tiBrain_Init_BOSS1 and tiBrain_Init_BOSS_SCISSORS_W (the last two stubs). No smoke run reaches a boss. This run's shots are all black at about 900 frames 
+- 65 TUs: verify 67, done 14, blocked 1
+- next: **None** (nothing on the frontier and no queued TU)
+- pinned queue: alyssapan/rendering/ui_canvas.cpp
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
@@ -164,6 +163,7 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/ssHitCheckAttackToScn.c` 37/37 -- All 37 functions written; no smoke run reaches ssCollisionCheck yet (no character before E_00), the title shot is unchanged. CHARACTER.w300[0..3] are EE words o
 - verify: `game/ssSetTexUVforCubeMap.c` 96/96 -- Slice 8, the last: every draw buffer and draw control argument read from the disassembly; statics drawctrl_ssSprite2, passTicks 274, dy 243 as the symtab has th
 - verify: `game/tiAvoidObject.c` 82/82 -- All 82 functions written; the AI does not run at the title, so verify. Open: open-items.md tiAvoidObject.c slice 6 (x) pole flags 0x04 0x08 0x80 and brain words
+- verify: `game/tiBrain_ChgTrace_BOSS_BALOWS.c` 68/69 -- No smoke run reaches a boss: the shots show the memory-card check, then the grey attract fade, as before. Open items nz28 (both inits set BOSS_STATE 0x02, BOSS1
 - verify: `game/tiBrain_ChgTrace_Ghost.c` 31/31 -- Code complete, 0 stubs. Not reached by the smoke run (boot screens and content warning as before): verify once a stage with a ghost runs. Doubts gh11..gh14 in o
 - verify: `game/tiXcmd_TransItem.c` 93/93 -- All 93 functions written. The attack record is a host struct SPATTACK_SCISSORS (tiXcmd_TransItem.h); tiFreeBossData frees its lists first as the ROM. Phase bits
 - verify: `game/tkXDTrg_GetSceneHash.c` 50/50 -- Callcheck MISSING asFindModelPartsID in Ini is the DoorFindPart helper. The part names settle h48 h4c and the kind entries' +4 as SE / TDS parts (open-items.md 
@@ -176,6 +176,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-13 04:08 `game/tiBrain_ChgTrace_BOSS_BALOWS.c` verify: slice 7: tiBrain_Init_BOSS1 and tiBrain_Init_BOSS_SCISSORS_W, the last two stubs: the TU's code is complete
 - 2026-11-13 04:01 `game/tiBrain_ChgTrace_BOSS_BALOWS.c` partial: slice 6: the nine other mode setters (band tables), tiCheckArrowLevel, tiCheckPlayerINChains, tiBrain_Damage_BOSS1 (chain set times, blows dealt, timers, arrow 
 - 2026-11-13 03:41 `game/tiBrain_ChgTrace_BOSS_BALOWS.c` partial: slice 5: Attack_BOSS_VITRIOL, Attack_BOSS_HAMM (grab, rattle, bite, strikes), Approach_BOSS1 (submode end tests, the setter and picker dispatch, shout, side-ste
 - 2026-11-13 03:19 `game/tiBrain_ChgTrace_BOSS_BALOWS.c` partial: slice 4: SCISSORS_W attack (strike, vanish, warp, reappear, special), AXE trace and attack, VITRIOL trace (roar and sprays), tiDefenseMode_AXE, the six tiSelSPM
@@ -183,7 +184,6 @@ Recent sessions:
 - 2026-11-13 02:35 `game/tiBrain_ChgTrace_BOSS_BALOWS.c` partial: slice 2: the BALOWS and SCISSORS_M special traces, tiCalcHPRate / ChargeTime / PlayerHitPoint / BalowsAttackRate, the two defense modes, tiSelSPMotion_BALOWS / 
 - 2026-11-13 02:16 `game/tiBrain_ChgTrace_BOSS_BALOWS.c` partial: slice 1: the 18 boss mode changes (Chg Trace / Attack / Approach for BALOWS, SCISSORS_M / W, AXE, VITRIOL, HAMM; ChgReturn_BOSS1), Trace_BOSS_HAMM, Return_BOSS1
 - 2026-11-13 01:50 `game/hhXcmd_BGM_SE_VOLUME.c` verify: hhXcmd_BGM_SE_VOLUME written: the option menu script's sound command (SET copies trigger event 0xa8 and variables 0x4e/0x4f to the sound buffers, volumes cut to
-- 2026-11-13 01:30 `game/RotateCamera.c` verify: RotateCamera and LockerCamera, the two x commands that turn a bank's parts (bearing to Alyssa; the stick look-around with zoom)
 
 ## Frontier (called by reconstructed code, not written yet)
 

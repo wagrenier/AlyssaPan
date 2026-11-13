@@ -2209,6 +2209,19 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
      with the same odds (kept as rows). The ROM's unsigned arrow damage (ARROW.shootArg2) is u_int here.
    - (nz27) BOSS_STATE_BIT_04 is the defense switch (tiDefenseMode runs only with it; the AXE's arrow guard
      too); the BALOWS bits BOSS_STATE_BALOWS_52_ODD (0x1000000) and _ROAR_DUE (0x4000000) are new.
+   Slice 7 (2026-11-13 04:05, scheduled run): tiBrain_Init_BOSS1 and tiBrain_Init_BOSS_SCISSORS_W --
+   **the TU's code is complete (verify: no smoke run reaches a boss; the run shows the memory-card check,
+   then the grey attract fade, as before)**. tiSelSPMotion_HAMM was already written (slice 2; tus.json
+   lagged). Open from slice 7:
+   - (nz28) Both inits set BOSS_STATE 0x0002 (BOSS_STATE_BALOWS_RECOVERED), Init_BOSS1 also 0x0040
+     (BOSS_STATE_BALOWS_ATTACKING; BOSS_STATE_BOSS1_INIT = 0x42): so 0x02 is "a special not yet used" at
+     the start rather than a recover, and 0x40 holds the first far attack back (nz19's rename is due when
+     the clearer is read). SCISSORS_W's init fills the fields slice 4 named for her (BOSS_INFO_SHOWN_PICK =
+     tnRand(7), BOSS_INFO_SPECIAL_POS = Alyssa's position, BOSS_INFO_WARP_TIMES = 0), which supports nz23
+     (slot 4 of ssAI_BrainInit is SCISSORS_W); the chara number itself is not in the init.
+   - (nz29) After TRIG_EVENT_CLEARED both inits set the search and attack motions' play rate to 150
+     (BOSS_CLEARED_PLAY_RATE): the second round's bosses move faster. The init resets TRIG_VAR 0x53 /
+     0x52 / 5 (and 0x54 / 8 for BOSS1) to -1 and BOSS_INFO 0xe4 (short) to 0.
 
 ## Decisions
 

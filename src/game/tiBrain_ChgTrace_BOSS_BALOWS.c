@@ -4146,18 +4146,64 @@ int tiBrain_Damage_BOSS1(struct CHARACTER *chr)
     return 1;
 }
 
-// ---- stubs (tools/reverse/stubgen.py) ----
+// ---- the brain initialisers (slots 3 and 4 of ssAI_BrainInit, 0x01938580) ----
 
-// stub of CT3 0x01874960
-int tiBrain_Init_BOSS1(struct CHARACTER *chr)
+// After the clear the boss's search and attack motions play at BOSS_CLEARED_PLAY_RATE.
+static void tiBossClearedRate(CHARACTER *chr, const u_char *brain)
 {
-    ALYSSAPAN_STUB("tiBrain_Init_BOSS1", 0x01874960);
-    return {};
+    if (ssTrigCheckEvent(TRIG_EVENT_CLEARED, TRIG_GLOBAL, 0) != 0) {
+        asChangeCharacterMotionSettingPlayRate(chr->id, tiBossBrainShort(brain, BRAIN_SEARCH_MOTION),
+                                               BOSS_CLEARED_PLAY_RATE);
+        asChangeCharacterMotionSettingPlayRate(chr->id, tiBossBrainShort(brain, BRAIN_ATTACK_MOTION),
+                                               BOSS_CLEARED_PLAY_RATE);
+    }
 }
 
-// stub of CT3 0x01874830
-int tiBrain_Init_BOSS_SCISSORS_W(struct CHARACTER *chr)
+// CT3 0x01874830
+// SCISSORS_W's brain: submode 0, BOSS_STATE_BALOWS_RECOVERED, her time-seen slot drawn (tnRand(7)), Alyssa's
+// position kept as the special's, the start motion; the chain and hit variables reset, no warps yet.
+int tiBrain_Init_BOSS_SCISSORS_W(CHARACTER *chr)
 {
-    ALYSSAPAN_STUB("tiBrain_Init_BOSS_SCISSORS_W", 0x01874830);
-    return {};
+    // callcheck: asChangeCharacterMotionSettingPlayRate, ssTrigCheckEvent (tiBossClearedRate)
+    u_char *brain = CharaBrainPtr(chr);
+    short none = 0;
+
+    brain[BRAIN_SUBMODE] = 0;
+    tiBossSetBits(BOSS_STATE_BALOWS_RECOVERED);
+    tiBrainSetInt(brain, BRAIN_BALOWS_ATK_TICKS, 0);
+    tiBossSetInt(BOSS_INFO_SHOWN_PICK, tnRand(7));
+    memcpy(pBossInfo + BOSS_INFO_SPECIAL_POS, Character[Player_BankID].pos, 16);
+    memcpy(pBossInfo + BOSS_INFO_LAST_SHOUT, &none, sizeof(none));
+    asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, tiBossBrainShort(brain, BRAIN_START_MOTION));
+    ssTrigSetVariable(TRIG_VAR_CHAIN_A_BREAK, -1, TRIG_GLOBAL, 0);
+    ssTrigSetVariable(TRIG_VAR_BALOWS_52, -1, TRIG_GLOBAL, 0);
+    ssTrigSetVariable(TRIG_VAR_BALOWS_05, -1, TRIG_GLOBAL, 0);
+    tiBossSetInt(BOSS_INFO_WARP_TIMES, 0);
+    tiBossSetInt(BOSS_INFO_APPROACH_84, 0);
+    tiBossClearedRate(chr, brain);
+    return 0;
+}
+
+// CT3 0x01874960
+// The other bosses' brain (BALOWS, SCISSORS_M, AXE, VITRIOL, HAMM): submode 0, BOSS_STATE_BOSS1_INIT, the
+// start motion; both chain sets' breaks and the fight's variables reset.
+int tiBrain_Init_BOSS1(CHARACTER *chr)
+{
+    // callcheck: asChangeCharacterMotionSettingPlayRate, ssTrigCheckEvent (tiBossClearedRate)
+    u_char *brain = CharaBrainPtr(chr);
+    short none = 0;
+
+    brain[BRAIN_SUBMODE] = 0;
+    tiBossSetBits(BOSS_STATE_BOSS1_INIT);
+    tiBrainSetInt(brain, BRAIN_BALOWS_ATK_TICKS, 0);
+    memcpy(pBossInfo + BOSS_INFO_LAST_SHOUT, &none, sizeof(none));
+    asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, tiBossBrainShort(brain, BRAIN_START_MOTION));
+    ssTrigSetVariable(TRIG_VAR_CHAIN_A_BREAK, -1, TRIG_GLOBAL, 0);
+    ssTrigSetVariable(TRIG_VAR_CHAIN_B_BREAK, -1, TRIG_GLOBAL, 0);
+    ssTrigSetVariable(TRIG_VAR_BALOWS_52, -1, TRIG_GLOBAL, 0);
+    ssTrigSetVariable(TRIG_VAR_BALOWS_05, -1, TRIG_GLOBAL, 0);
+    ssTrigSetVariable(TRIG_VAR_BALOWS_08, -1, TRIG_GLOBAL, 0);
+    tiBossSetInt(BOSS_INFO_APPROACH_84, 0);
+    tiBossClearedRate(chr, brain);
+    return 0;
 }
