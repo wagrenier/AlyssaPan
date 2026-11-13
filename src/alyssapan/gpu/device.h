@@ -94,8 +94,9 @@ public:
     // has to be exact: SDL expects every declared slot to be bound before a draw.
     Shader loadShader(std::string_view name, SDL_GPUShaderStage stage, ShaderResources resources) const;
 
+    // samples > 1 makes a multisampled target (COLOR_TARGET / DEPTH_STENCIL_TARGET usage only).
     Texture createTexture(unsigned width, unsigned height, SDL_GPUTextureFormat format,
-                          SDL_GPUTextureUsageFlags usage) const;
+                          SDL_GPUTextureUsageFlags usage, SDL_GPUSampleCount samples = SDL_GPU_SAMPLECOUNT_1) const;
     Sampler createSampler(const SDL_GPUSamplerCreateInfo &info) const;
     TransferBuffer createUploadBuffer(unsigned size) const;
     TransferBuffer createDownloadBuffer(unsigned size) const;

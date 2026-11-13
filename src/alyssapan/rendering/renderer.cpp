@@ -163,6 +163,8 @@ Renderer::Renderer(Window &window, gpu::Device &device, Config &config, EventQue
     if (!SDL_GPUTextureSupportsFormat(m_device.get(), m_depthFormat, SDL_GPU_TEXTURETYPE_2D,
                                       SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET))
         m_depthFormat = SDL_GPU_TEXTUREFORMAT_D24_UNORM;
+    m_msaa = std::make_unique<MsaaTargets>(m_device, m_sceneFormat, m_depthFormat);
+    m_msaa->update(m_config.display.msaa);
 
     m_white = m_device.createTexture(1, 1, SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM, SDL_GPU_TEXTUREUSAGE_SAMPLER);
     m_hdr = std::make_unique<HdrOutput>(m_device, m_window, m_config);
@@ -250,6 +252,7 @@ void Renderer::ensureTargets(const PictureLayout &layout)
         m_sceneWidth = layout.renderWidth;
         m_sceneHeight = layout.renderHeight;
     }
+    m_msaa->ensure(layout.renderWidth, layout.renderHeight);
     if (!m_output || m_outputWidth != layout.windowWidth || m_outputHeight != layout.windowHeight)
     {
         m_output = m_device.createTexture(static_cast<unsigned>(layout.windowWidth),
@@ -295,7 +298,8 @@ SDL_GPUGraphicsPipeline *Renderer::pipelineFor(PipelineKey key)
     info.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
     info.rasterizer_state.fill_mode = SDL_GPU_FILLMODE_FILL;
     info.rasterizer_state.cull_mode = SDL_GPU_CULLMODE_NONE;
-    info.multisample_state.sample_count = SDL_GPU_SAMPLECOUNT_1;
+    // At the scene's count: a pipeline bakes it, so a change of count empties the cache (renderOnce).
+    info.multisample_state.sample_count = m_msaa->sampleCount();
     info.target_info.color_target_descriptions = &target;
     info.target_info.num_color_targets = 1;
 
@@ -368,15 +372,19 @@ void Renderer::recordDraws(SDL_GPUCommandBuffer *commands, const Frame &frame, c
     if (first == last && !clear)
         return;
 
+    // With MSAA the pass draws into the multisampled target and resolves into the scene texture; the samples are
+    // kept (RESOLVE_AND_STORE) so a later pass over the same frame can load them, as a split scene will.
+    const bool multisampled = m_msaa->active() && m_msaa->color() != nullptr;
     SDL_GPUColorTargetInfo target{};
-    target.texture = m_scene.get();
+    target.texture = multisampled ? m_msaa->color() : m_scene.get();
     target.load_op = clear ? SDL_GPU_LOADOP_CLEAR : SDL_GPU_LOADOP_LOAD;
-    target.store_op = SDL_GPU_STOREOP_STORE;
+    target.store_op = multisampled ? SDL_GPU_STOREOP_RESOLVE_AND_STORE : SDL_GPU_STOREOP_STORE;
+    target.resolve_texture = multisampled ? m_scene.get() : nullptr;
     target.clear_color = {0.0f, 0.0f, 0.0f, 0.0f};
 
     // Cleared with the colour, to 0: the GS's farthest.
     SDL_GPUDepthStencilTargetInfo depth{};
-    depth.texture = m_depth.get();
+    depth.texture = multisampled ? m_msaa->depth() : m_depth.get();
     depth.clear_depth = 0.0f;
     depth.load_op = clear ? SDL_GPU_LOADOP_CLEAR : SDL_GPU_LOADOP_LOAD;
     depth.store_op = SDL_GPU_STOREOP_STORE;
@@ -519,6 +527,8 @@ void Renderer::renderOnce()
     }
     // Between frames: the overlay's Graphics menu may have moved the anisotropy.
     m_samplers.update(m_config.display.anisotropy);
+    // ... and the MSAA count.
+    m_msaa->update(m_config.display.msaa);
 
     const PictureLayout layout = computeLayout(windowWidth, windowHeight, m_config.display);
     const bool layoutChanged = [&] {
@@ -528,6 +538,14 @@ void Renderer::renderOnce()
         return changed;
     }();
     ensureTargets(layout);
+    // A new count (the menu, or targets the device refused at this size): pipelines bake it, and the shown frame
+    // is drawn again at it.
+    const bool samplesChanged = m_msaa->activeCount() != m_pipelineSamples;
+    if (samplesChanged)
+    {
+        m_pipelines.clear();
+        m_pipelineSamples = m_msaa->activeCount();
+    }
 
     bool newFrame = false;
     {
@@ -540,7 +558,7 @@ void Renderer::renderOnce()
             newFrame = true;
         }
     }
-    const bool redraw = newFrame || layoutChanged;
+    const bool redraw = newFrame || layoutChanged || samplesChanged;
 
     m_overlay.beginFrame();
     m_overlay.draw(*this);

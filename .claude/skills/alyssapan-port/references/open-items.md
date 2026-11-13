@@ -1047,8 +1047,14 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    draws as before (no device loss: the linear-only rule holds); the default (1x) at 16:9 draws the same
    pillarboxed title. Open: (an1) nothing on the title is minified at a slant, so the sharper textures
    are unseen -- the first 3D room (floors at grazing angles) shows it; textures have one mip level, so
-   only the anisotropic taps act; (an2) the menu items were not clicked: smoke runs have no mouse). MSAA
-   is the next part of (c)); (d) ~~the real memory card~~ (done 2026-11-09: `io::MemoryCards` behind
+   only the anisotropic taps act; (an2) the menu items were not clicked: smoke runs have no mouse).
+   ~~MSAA~~ (done 2026-11-13 07:14 run, alyssapan/rendering/msaa_targets.cpp, Claude: the queue held only
+   the blocked ui_canvas task, so the run queued the last part of (c). Seen on D3D12: the device grants
+   up to 8x; ALYSSAPAN_MSAA=8 at 4:3 and =4 at 16:9 (1280x720) log the count and draw the same title as
+   the default 1x run. Open: (ms1) the title is textured quads, so the smoothed edges are unseen -- the
+   first 3D room shows them; (ms2) the menu items were not clicked: smoke runs have no mouse; (ms3) the
+   ga draw module's alpha-tested cut-outs (foliage, fences) get no alpha-to-coverage: RosePan has none
+   either; add it if MSAA leaves their edges hard); **(c) is complete**); (d) ~~the real memory card~~ (done 2026-11-09: `io::MemoryCards` behind
    sdk/libmc.cpp; a scratch test wrote, listed and read a save through sceMc* calls; no smoke run reaches
    McInit yet, so the game's own mc_* code has not exercised it), reverb and volume
    groups (YamiPan's SPU2 is next to them), the audio dump; (e) `libsdr` (CT3 calls `sceSdRemote`), newlib

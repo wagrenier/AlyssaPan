@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-13 07:12 at commit `0a291d4` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-13 07:22 at commit `2973cb3` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -102,13 +102,14 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: verify 71, done 14, blocked 1
+- 65 TUs: verify 72, done 14, blocked 1
 - next: **None** (nothing on the frontier and no queued TU)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `alyssapan/core/window_modes.cpp` 0/0 -- Seen: the exclusive start over RDP falls back to borderless (content warning pillarboxed 4:3 on the 3:2 desktop); saved position 100,150 restored; 20000,20000 c
 - verify: `alyssapan/gpu/device.cpp` 0/0 -- Seen: vulkan draws the title as direct3d12 does; a bad name warns and falls back; the debug layer starts and the title draws. Unseen: D3D12 debug messages go to
 - verify: `alyssapan/rendering/hdr_output.cpp` 0/0 -- Seen over RDP: off and auto run SDR; scrgb and hdr10 get HDR10 PQ (scRGB refused), and a desktop capture of the window matches the SDR picture. No HDR items in 
+- verify: `alyssapan/rendering/msaa_targets.cpp` 0/0 -- Seen on D3D12 (device grants up to 8x): MSAA 8x at 4:3 and 4x at 16:9 1280x720 draw the same title as the default 1x run. Unseen: smoothed edges (the title is t
 - verify: `alyssapan/rendering/sampler_table.cpp` 0/0 -- Seen: 16x requested and active on D3D12, the title draws as before at 4:3; 1x at 16:9 draws the same pillarboxed title. Unseen: the sharper textures (nothing on
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
@@ -180,6 +181,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-13 07:22 `alyssapan/rendering/msaa_targets.cpp` verify: MSAA (shim c, last part): rendering::MsaaTargets holds the multisampled scene colour and depth targets at the [display] msaa count (1/2/4/8, env ALYSSAPAN_MSAA,
 - 2026-11-13 07:12 `alyssapan/rendering/sampler_table.cpp` verify: Texture anisotropy (shim c, part 3): rendering::SamplerTable owns the renderer samplers and rebuilds them at the [display] anisotropy level (1/2/4/8/16, env ALY
 - 2026-11-13 06:53 `alyssapan/rendering/hdr_output.cpp` verify: HDR swapchain (shim c part 2): HdrOutput resolves [display] hdr off/auto/scrgb/hdr10 to a supported swapchain composition (SDR fallback), re-applies on display 
 - 2026-11-13 06:34 `alyssapan/gpu/device.cpp` verify: GPU driver choice and debug layer (shim c part 1, MikuPan MikuPan_GPUInit): display gpu_driver and gpu_debug settings with env overrides, Device::create falls b
@@ -187,7 +189,6 @@ Recent sessions:
 - 2026-11-13 04:08 `game/tiBrain_ChgTrace_BOSS_BALOWS.c` verify: slice 7: tiBrain_Init_BOSS1 and tiBrain_Init_BOSS_SCISSORS_W, the last two stubs: the TU's code is complete
 - 2026-11-13 04:01 `game/tiBrain_ChgTrace_BOSS_BALOWS.c` partial: slice 6: the nine other mode setters (band tables), tiCheckArrowLevel, tiCheckPlayerINChains, tiBrain_Damage_BOSS1 (chain set times, blows dealt, timers, arrow 
 - 2026-11-13 03:41 `game/tiBrain_ChgTrace_BOSS_BALOWS.c` partial: slice 5: Attack_BOSS_VITRIOL, Attack_BOSS_HAMM (grab, rattle, bite, strikes), Approach_BOSS1 (submode end tests, the setter and picker dispatch, shout, side-ste
-- 2026-11-13 03:19 `game/tiBrain_ChgTrace_BOSS_BALOWS.c` partial: slice 4: SCISSORS_W attack (strike, vanish, warp, reappear, special), AXE trace and attack, VITRIOL trace (roar and sprays), tiDefenseMode_AXE, the six tiSelSPM
 
 ## Frontier (called by reconstructed code, not written yet)
 

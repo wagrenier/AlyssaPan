@@ -84,6 +84,9 @@ struct DisplaySettings
     // Texture anisotropy on the linear samplers: 1 (off), 2, 4, 8 or 16 (rendering/sampler_table.h rounds
     // other values down to a power of two). Applies on the next frame.
     int anisotropy = 1;
+    // Multisampling of the game's frame: 1 (off), 2, 4 or 8 (rendering/msaa_targets.h rounds other values down
+    // to a power of two and to what the device grants). Applies on the next frame.
+    int msaa = 1;
     // Between two game frames, the cameras, lights, models and bones blend from the older one's places to the newer
     // one's (rendering/frame_blend.h): the game still runs at 25 frames a second, the picture moves at the monitor's
     // rate.

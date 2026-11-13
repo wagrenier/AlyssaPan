@@ -214,6 +214,18 @@
    "status": "done",
    "task": "nu1: the in-game menu (MENU.BIN, M<nnn>.BIN maps) at wide aspects: keep it in the 4:3 box (Decisions 2026-11-11)"
   },
+  "alyssapan/rendering/msaa_targets.cpp": {
+   "notes": "Seen on D3D12 (device grants up to 8x): MSAA 8x at 4:3 and 4x at 16:9 1280x720 draw the same title as the default 1x run. Unseen: smoothed edges (the title is textured quads; the first 3D room shows them) and the menu items (no mouse in smoke runs). Open: alpha-to-coverage for alpha-tested cut-outs (ms3). Shim (c) is complete.",
+   "sessions": [
+    {
+     "date": "2026-11-13 07:22",
+     "status": "verify",
+     "summary": "MSAA (shim c, last part): rendering::MsaaTargets holds the multisampled scene colour and depth targets at the [display] msaa count (1/2/4/8, env ALYSSAPAN_MSAA, clamped to the device maximum for both formats); the scene pass resolves into the scene texture; a count change rebuilds pipelines and redraws; Settings > Graphics lists the counts"
+    }
+   ],
+   "status": "verify",
+   "task": "MSAA (shim c, last part; cpp-port.md item 8, RosePan's SetMsaaSamples): a renderer-owned class holds the multisampled scene colour and depth targets at the [display] msaa sample count (1/2/4/8, env ALYSSAPAN_MSAA), clamped to what the device supports for both formats; scene pipelines are built at that count and the pass resolves into the scene texture; Settings > Graphics lists the counts with the active one. Done when the title draws as before at 1x and with MSAA on, at 4:3 and wide."
+  },
   "alyssapan/rendering/sampler_table.cpp": {
    "notes": "Seen: 16x requested and active on D3D12, the title draws as before at 4:3; 1x at 16:9 draws the same pillarboxed title. Unseen: the sharper textures (nothing on the title is slanted; the first 3D room shows it) and the menu clicks (no mouse in smoke runs). MSAA is the next part of shim c.",
    "sessions": [

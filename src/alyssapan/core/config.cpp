@@ -215,6 +215,7 @@ void DisplaySettings::serialize(Archive &archive)
     archive("gpu_driver", gpuDriver);
     archive("gpu_debug", gpuDebug);
     archive("anisotropy", anisotropy);
+    archive("msaa", msaa);
     archive("hdr", hdrMode);
     archive("hdr_paper_white", hdrPaperWhite);
     archive("hdr_peak", hdrPeak);
@@ -317,6 +318,7 @@ void Config::applyEnvironment()
     apply("ALYSSAPAN_GPU_DRIVER", display.gpuDriver);
     apply("ALYSSAPAN_GPU_DEBUG", display.gpuDebug);
     apply("ALYSSAPAN_ANISOTROPY", display.anisotropy);
+    apply("ALYSSAPAN_MSAA", display.msaa);
     apply("ALYSSAPAN_HDR", display.hdrMode);
     apply("ALYSSAPAN_UI_SCALE", ui.scale);
 }

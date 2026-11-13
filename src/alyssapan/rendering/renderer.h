@@ -28,6 +28,7 @@
 #include "alyssapan/os/thread.h"
 #include "alyssapan/rendering/display_geometry.h"
 #include "alyssapan/rendering/frame.h"
+#include "alyssapan/rendering/msaa_targets.h"
 #include "alyssapan/rendering/sampler_table.h"
 #include "alyssapan/rendering/texture_store.h"
 #include "alyssapan/rendering/ui_canvas.h"
@@ -91,6 +92,8 @@ public:
     SDL_GPUSampler *samplerFor(bool linear, bool repeat) const;
     // The texture samplers and their anisotropy (render thread: the overlay reads the active level).
     const SamplerTable &samplers() const { return m_samplers; }
+    // The scene's multisampling (render thread: the overlay reads the active count).
+    const MsaaTargets &msaa() const { return *m_msaa; }
 
     SDL_GPUTextureFormat outputFormat() const { return m_outputFormat; }
 
@@ -131,6 +134,8 @@ private:
     gpu::Shader m_fragmentShader;
     std::map<PipelineKey, gpu::GraphicsPipeline> m_pipelines;
     SamplerTable m_samplers;
+    std::unique_ptr<MsaaTargets> m_msaa; // after m_depthFormat is chosen
+    int m_pipelineSamples = 1;           // the count m_pipelines were built at
 
     gpu::Buffer m_vertexBuffer;
     gpu::TransferBuffer m_vertexUpload;

@@ -183,12 +183,35 @@ private:
         }
 
         drawAnisotropyItems(display);
+        drawMsaaItems(display);
         drawGpuDriverItems(display);
 
         ImGui::Separator();
         const rendering::Renderer::Stats stats = m_application.renderer().stats();
         ImGui::TextDisabled("  game %.1f fps, shown %.1f", stats.gameRate, stats.presentRate);
         ImGui::EndMenu();
+    }
+
+    // RosePan's MSAA counts: the renderer rebuilds its targets and pipelines on the next frame; counts above what
+    // the device grants for the scene's colour and depth formats are greyed out.
+    void drawMsaaItems(DisplaySettings &display)
+    {
+        ImGui::Separator();
+        ImGui::TextDisabled("Anti-aliasing (MSAA)");
+        const rendering::MsaaTargets &msaa = m_application.renderer().msaa();
+        const int current = rendering::MsaaTargets::countFor(display.msaa);
+        for (int samples = 1; samples <= rendering::MsaaTargets::kMaxSamples; samples *= 2)
+        {
+            const std::string label = samples == 1 ? std::string("Off") : std::format("{}x", samples);
+            if (ImGui::MenuItem(label.c_str(), nullptr, current == samples, samples <= msaa.maxSupported()) &&
+                current != samples)
+            {
+                display.msaa = samples;
+                m_config.save();
+            }
+        }
+        if (msaa.activeCount() != msaa.requestedCount())
+            ImGui::TextDisabled("  active: %dx (the device refused more)", msaa.activeCount());
     }
 
     // RosePan's anisotropy levels: the renderer rebuilds its samplers on the next frame; the active level is 1 when

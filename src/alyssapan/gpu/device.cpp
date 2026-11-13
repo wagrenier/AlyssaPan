@@ -128,7 +128,7 @@ Shader Device::loadShader(std::string_view name, SDL_GPUShaderStage stage, Shade
 }
 
 Texture Device::createTexture(unsigned width, unsigned height, SDL_GPUTextureFormat format,
-                              SDL_GPUTextureUsageFlags usage) const
+                              SDL_GPUTextureUsageFlags usage, SDL_GPUSampleCount samples) const
 {
     SDL_GPUTextureCreateInfo info{};
     info.type = SDL_GPU_TEXTURETYPE_2D;
@@ -138,7 +138,7 @@ Texture Device::createTexture(unsigned width, unsigned height, SDL_GPUTextureFor
     info.height = height;
     info.layer_count_or_depth = 1;
     info.num_levels = 1;
-    info.sample_count = SDL_GPU_SAMPLECOUNT_1;
+    info.sample_count = samples;
 
     SDL_GPUTexture *const texture = SDL_CreateGPUTexture(m_device, &info);
     if (texture == nullptr)

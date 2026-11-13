@@ -129,13 +129,21 @@ Platform, game-independent (1-5 carried over 2026-11-09, host task `alyssapan/co
    `PresentPass` takes the shader path (never the blit) whenever the swapchain is HDR, with paper white,
    peak and expansion from `HdrOutput::fillUniforms`. Smoke shots read the SDR output target, so they
    never show the encoding: a desktop capture does. No HDR menu yet (open-items 2 (c), hdr1).
-8. MSAA and ~~anisotropy~~ with their maxima: same RosePan file (`SetMsaaSamples`, `SetAnisotropy`).
+8. ~~MSAA and anisotropy~~ with their maxima: same RosePan file (`SetMsaaSamples`, `SetAnisotropy`).
    Anisotropy done 2026-11-13 (host task `alyssapan/rendering/sampler_table.cpp`): `rendering::SamplerTable`
    owns the renderer's four samplers (filter x wrap) and rebuilds them on the render thread when
    `[display] anisotropy` (1/2/4/8/16, env `ALYSSAPAN_ANISOTROPY`, rounded down to a power of two) moves;
    only the linear samplers get it, with a linear mip mode (RosePan's rule: D3D12 has one anisotropic
    filter value); a refused sampler falls back to plain and the menu shows the active level; Settings >
-   Graphics > Texture anisotropy. The present pass's upscale sampler is not part of it. MSAA still to come.
+   Graphics > Texture anisotropy. The present pass's upscale sampler is not part of it. MSAA done 2026-11-13
+   (host task `alyssapan/rendering/msaa_targets.cpp`): `rendering::MsaaTargets` (owned by the renderer) holds the
+   multisampled scene colour and depth targets at `[display] msaa` (1/2/4/8, env `ALYSSAPAN_MSAA`, rounded down
+   to a power of two, clamped to the largest count the device grants for both formats, counted upward until the
+   first refusal); the scene pass draws into them and resolves into the scene texture (RESOLVE_AND_STORE, so a
+   later pass can load the samples), so the output blit and the screenshots read the resolved scene unchanged;
+   a change of count empties the pipeline cache (a pipeline bakes its count) and redraws the shown frame; the
+   targets are freed at 1x; `Device::createTexture` takes a sample count. Settings > Graphics > Anti-aliasing
+   (MSAA), counts above the device's maximum greyed.
 9. ~~GPU driver choice and debug layer~~ done 2026-11-13 (host task `alyssapan/gpu/device.cpp`, MikuPan's
    `MikuPan_GPUInit`): `[display] gpu_driver` (SDL's name; empty = SDL chooses) and `gpu_debug`, env
    `ALYSSAPAN_GPU_DRIVER / _DEBUG`; `Device::create(paths, driver, debug)` falls back to SDL's choice with a
