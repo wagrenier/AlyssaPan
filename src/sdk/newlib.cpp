@@ -2,7 +2,8 @@
 
 #include "sdk/newlib.h"
 
-extern "C" char *strupr(char *s)
+// strupr: the game calls it by newlib's name; newlib.h renames it here.
+extern "C" char *newlib_strupr(char *s)
 {
     for (char *p = s; *p != '\0'; ++p) {
         if (*p >= 'a' && *p <= 'z') {

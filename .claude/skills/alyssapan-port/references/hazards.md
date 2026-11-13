@@ -7,6 +7,16 @@ carried over verbatim on 2026-11-09: its tool, file and variable names are YamiP
 
 ## AlyssaPan
 
+- (2026-11-13, the user: "fix the compilation issue for MSVC") **A host shim must not redeclare a C library
+  name the UCRT also declares, and layoutcheck's cl pass must use the build's /MD.** sdk/newlib.h declared
+  newlib's `strupr` plain `extern "C"`; under /MD the UCRT's <string.h> declares it `__declspec(dllimport)`
+  (`_ACRTIMP`), so every game file that included <string.h> after newlib.h failed with C2375 "different
+  linkage" (ArtoolDebugOpen.c, fileio.c, SdMasterVolumeSetSE.c, sound.c), and one that included it first
+  (asXcmd.c) compiled under `/w` but bound its calls to the CRT's locale-dependent strupr. layoutcheck had
+  passed: its cl ran without /MD, where `_ACRTIMP` is empty and the two declarations agree. Fix: newlib.h
+  includes <string.h> first and `#define strupr newlib_strupr` (one ASCII implementation on both
+  compilers, call sites keep the ROM's name); layoutcheck passes /MD. Do the same for any other non-standard
+  libc name the game calls (strlwr, stricmp, ...).
 - (2026-11-13, the user: "the targeted 30fps is always reached, the frametime is awful") **Judge pacing by
   time on screen, never by a frame rate, and never over Remote Desktop.** The game's frames were perfect (a
   swap every 33.37 ms of field time, kicked within 1 ms of the field); the picture was not. Three causes:

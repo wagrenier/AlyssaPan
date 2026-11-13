@@ -202,8 +202,10 @@ def find_vcvars():
 def run_msvc(bat, name, files, defines, incs, prefix, permissive=True):
     OUT.mkdir(parents=True, exist_ok=True)
     rsp = OUT / f'{name}.rsp'
-    opts = ['/nologo', '/MP', '/Zs', '/TP', '/std:c++latest', '/Zc:preprocessor', '/utf-8', '/W1', '/wd4996',
-            '/D_CRT_SECURE_NO_WARNINGS', '/EHsc'] + (['/permissive'] if permissive else [])
+    # /MD as CMake builds: it defines _DLL, which makes the UCRT's declarations __declspec(dllimport) -- a
+    # host redeclaration of one (newlib.h's strupr, 2026-11-13) only clashes with that (C2375).
+    opts = ['/nologo', '/MP', '/Zs', '/TP', '/MD', '/std:c++latest', '/Zc:preprocessor', '/utf-8', '/W1',
+            '/wd4996', '/D_CRT_SECURE_NO_WARNINGS', '/EHsc'] + (['/permissive'] if permissive else [])
     opts += [f'/FI"{prefix}"'] if prefix else []
     opts += [f'/D{d}' for d in defines] + [f'/I"{i}"' for i in incs] + [f'"{f}"' for f in files]
     rsp.write_text('\n'.join(opts) + '\n', encoding='utf-8')
