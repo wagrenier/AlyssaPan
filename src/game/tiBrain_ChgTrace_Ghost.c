@@ -4,6 +4,9 @@
 // the bodies Trace_Ghost1, Return_Ghost1, Search_Ghost2, the initialiser Init3 and the helpers tiGetNearPole
 // and tiCheckAlysStatusForGhost. A ghost fades in and out through CHARACTER.translucentAlpha.
 // Slice 2 (2026-11-13): the Chg{Attack,Approach,Search}_Ghost<n> mode changes, Damage1..3 and Init2.
+// Slice 3 (2026-11-13): the wandering bodies Search_Ghost1 / 3, Approach_Ghost1, and the attacks of the ghosts
+// that wait at their point, Attack_Ghost3 / 2, and the wanderer's, Attack_Ghost1 (sharing Attack_Ghost4's hold);
+// tiBrain_Init1. The TU is complete.
 
 #include "common/alyssapan_stub.h"
 #include "game/tiBrain_ChgTrace_Ghost.h"
@@ -22,6 +25,8 @@
 #include "game/tiAvoidObject.h"
 #include "game/unassigned_data.h"
 #include "game/wideXcmd_DebugPrint.h"
+#include "ga/gaInit3dlib.h"
+#include "ga/gaSinCos.h"
 
 #include <math.h>
 #include <string.h>
@@ -828,20 +833,24 @@ static void tiGhostFadeIn(CHARACTER *chr, const u_char *brain)
 }
 
 // The grab ends: the rest starts and the ghost vanishes (then the search motion).
-static void tiGhostLetGo(const CHARACTER *chr, u_char *brain)
+static void tiGhostLetGo(const CHARACTER *chr, u_char *brain, int bitten)
 {
+    (void)bitten;
     brain[BRAIN_GHOST_REST] = GHOST_REST_GAVE_UP;
     tiBrain_SetInt(brain, BRAIN_GHOST_REST_TICKS, 0);
     asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, GHOST_MOTION_VANISH);
     asChangeMortionInfo_NextMortion(chr->id, GHOST_MOTION_VANISH, GHOST_MOTION_SEARCH, -1);
 }
 
-// Attack_Ghost4 while the attack motion plays: the ghost holds Alyssa (locked, TRIG_EVENT_GHOST_GRAB on,
+// How a ghost lets Alyssa go (Attack_Ghost4: tiGhostLetGo; Attack_Ghost3 / 2 their own).
+typedef void (*GHOST_LET_GO)(const CHARACTER *chr, u_char *brain, int bitten); /* bitten: after the bite */
+
+// Attack_Ghost4 (and 3, 2) while the attack motion plays: the ghost holds Alyssa (locked, TRIG_EVENT_GHOST_GRAB on,
 // on her position, panic rising). She breaks free by the rattle (ControllerClatteringGet 1), or it lets go
 // after BRAIN_GHOST_GRAB_LIMIT ticks or when she is spared; at the first frame, with TRIG_EVENT_PANIC_3,
 // it bites: unless TRIG_EVENT_NO_FATAL_HIT, a barrier charm repels it (TRIG_EVENT_PANIC_OFF_63, the menu
-// stopped, a trace request), else it lets go and locks her in its own mode.
-static void tiGhostHold(CHARACTER *chr, u_char *brain)
+// stopped, a trace request), else it lets go and locks her in its own mode. letGo is the kind's let-go.
+static void tiGhostHold(CHARACTER *chr, u_char *brain, GHOST_LET_GO letGo)
 {
     const CHARACTER *player = &Character[Player_BankID];
     int clatter, ticks, limit;
@@ -855,19 +864,19 @@ static void tiGhostHold(CHARACTER *chr, u_char *brain)
     if (ControllerClatteringGet(clatter) == 1) {
         tiBrain_SetInt(brain, BRAIN_GHOST_CLATTER, -1);
         ssTrigRemoveEvent(TRIG_EVENT_GHOST_GRAB, TRIG_GLOBAL, 0);
-        tiGhostLetGo(chr, brain);
+        letGo(chr, brain, 0);
     } else if (limit < ticks || tiCheckAlysStatusForGhost() != 0) {
         ControllerClatteringFree(clatter);
         tiBrain_SetInt(brain, BRAIN_GHOST_CLATTER, -1);
         ssTrigRemoveEvent(TRIG_EVENT_GHOST_GRAB, TRIG_GLOBAL, 0);
-        tiGhostLetGo(chr, brain);
+        letGo(chr, brain, 0);
     } else if (ticks == 0 && ssTrigCheckEvent(TRIG_EVENT_PANIC_3, TRIG_GLOBAL, 0) != 0) {
         memcpy(&panic, brain + BRAIN_GHOST_GRAB_PANIC, sizeof(panic));
         PanicSet((float)panic, PANIC_RISE_ATTACK + 1);
         tiGhostDropClatter(brain);
         ssTrigRemoveEvent(TRIG_EVENT_GHOST_GRAB, TRIG_GLOBAL, 0);
         if (ssTrigCheckEvent(TRIG_EVENT_NO_FATAL_HIT, TRIG_GLOBAL, 0) != 0) {
-            tiGhostLetGo(chr, brain);
+            letGo(chr, brain, 1);
         } else if (Kekkai_Check() == 0) {
             // PORT: another character leaves the ROM's mode register unset; LOCKED_QUERY changes nothing.
             int mode = chr->id == CHARA_ID_GHOST_1F   ? GHOST_LOCKED_1F
@@ -875,7 +884,7 @@ static void tiGhostHold(CHARACTER *chr, u_char *brain)
                        : chr->id == CHARA_ID_GHOST_1D ? GHOST_LOCKED_1D
                                                       : LOCKED_QUERY;
 
-            tiGhostLetGo(chr, brain);
+            letGo(chr, brain, 1);
             asAlyssaLockedByAnything(mode);
         } else {
             ssTrigRegisterEvent(TRIG_EVENT_PANIC_OFF_63, TRIG_GLOBAL, 0);
@@ -984,7 +993,7 @@ void tiBrain_Attack_Ghost4(CHARACTER *chr)
         return;
     }
     if (ssAI_IsAttackPlaying(chr) != 0)
-        tiGhostHold(chr, brain);
+        tiGhostHold(chr, brain, tiGhostLetGo);
 }
 
 // CT3 0x01879a80
@@ -1023,49 +1032,570 @@ void tiBrain_Approach_Ghost2(CHARACTER *chr)
     }
 }
 
-// ---- stubs (tools/reverse/stubgen.py) ----
+// ---- slice 3 (2026-11-13): the wandering bodies -- Search_Ghost3, Search_Ghost1, Approach_Ghost1 ----
 
-// stub of CT3 0x0187aeb0
-int tiBrain_Init1(struct CHARACTER *chr)
+// The unit vector from `from` to `to` (vsub, vrsqrt over xyz, all four lanes scaled); answers the distance
+// (xyz). PORT: a zero vector stays 0 (the ROM divides by 0).
+static float tiGhostUnit(const float *to, const float *from, float dir[4])
 {
-    ALYSSAPAN_STUB("tiBrain_Init1", 0x0187aeb0);
-    return {};
+    float len2, len;
+    int i;
+
+    for (i = 0; i < 4; i++)
+        dir[i] = to[i] - from[i];
+    len2 = dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2];
+    len = len2 > 0.0f ? sqrtf(len2) : 0.0f;
+    for (i = 0; i < 4; i++)
+        dir[i] = len > 0.0f ? dir[i] / len : 0.0f;
+    return len;
 }
 
-// stub of CT3 0x01879d70
-void tiBrain_Approach_Ghost1(struct CHARACTER *chr)
+// The hover's height (Search_Ghost1 / 3, Approach_Ghost1): after the floor, or with GHOST_FLAG_HEIGHT
+// towards `height` when the caller has one (Search_Ghost3: its pole's), else nothing.
+static void tiGhostHover(CHARACTER *chr, const u_char *brain, const float *height)
 {
-    ALYSSAPAN_STUB("tiBrain_Approach_Ghost1", 0x01879d70);
+    if ((brain[BRAIN_GHOST_FLAGS] & GHOST_FLAG_HEIGHT) == 0)
+        tiGhostFollowFloor(chr);
+    else if (height != NULL)
+        tiGhostRise((float *)chr->pos, *height - ((const float *)chr->pos)[1]);
 }
 
-
-// stub of CT3 0x01879200
-void tiBrain_Attack_Ghost1(struct CHARACTER *chr)
+// Every BRAIN_SEARCH_TIME_BASE ticks the loop SE at Alyssa's distance, then 350 or 700 ticks of quiet
+// (the search and approach bodies' tail).
+static void tiGhostLoopTimer(const CHARACTER *chr, u_char *brain)
 {
-    ALYSSAPAN_STUB("tiBrain_Attack_Ghost1", 0x01879200);
+    int time, base;
+
+    memcpy(&time, brain + BRAIN_SEARCH_TIME, sizeof(time));
+    time += gNextTicksInterval;
+    tiBrain_SetInt(brain, BRAIN_SEARCH_TIME, time);
+    memcpy(&base, brain + BRAIN_SEARCH_TIME_BASE, sizeof(base));
+    if (base < time) {
+        tiGhostPlayLoop(brain, tiGhostToPlayer(chr));
+        tiBrain_SetInt(brain, BRAIN_SEARCH_TIME, 0);
+        tiBrain_SetInt(brain, BRAIN_SEARCH_TIME_BASE, (tnRand(2) + 1) * GHOST_SE_PERIOD);
+    }
 }
 
-// stub of CT3 0x01878960
-void tiBrain_Attack_Ghost2(struct CHARACTER *chr)
+// The one-shot motions the wandering bodies wait out (tiGhostBusy's, with the damage).
+static int tiGhostWanderBusy(const CHARACTER *chr)
 {
-    ALYSSAPAN_STUB("tiBrain_Attack_Ghost2", 0x01878960);
+    return tiGhostBusy(chr, 1);
 }
 
-// stub of CT3 0x01878280
-void tiBrain_Attack_Ghost3(struct CHARACTER *chr)
+// A leg lasts GHOST_LEG_UNIT * (2..4) ticks.
+static void tiGhostNewLegTime(u_char *brain)
 {
-    ALYSSAPAN_STUB("tiBrain_Attack_Ghost3", 0x01878280);
+    tiBrain_SetInt(brain, BRAIN_GHOST_LEG_TICKS, 0);
+    tiBrain_SetInt(brain, BRAIN_GHOST_LEG_LIMIT, (tnRand(3) + 2) * GHOST_LEG_UNIT);
 }
 
-// stub of CT3 0x0187a7b0
-void tiBrain_Search_Ghost1(struct CHARACTER *chr)
+// Approach_Ghost1 sets off from standing still: GHOST_MOTION_SET_OFF, then the search motion.
+static void tiGhostSetOff(const CHARACTER *chr, const u_char *brain)
 {
-    ALYSSAPAN_STUB("tiBrain_Search_Ghost1", 0x0187a7b0);
+    if (brain[BRAIN_SUBMODE] == GHOST_SEARCH_STILL) {
+        asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, GHOST_MOTION_SET_OFF);
+        asChangeMortionInfo_NextMortion(chr->id, GHOST_MOTION_SET_OFF, GHOST_MOTION_SEARCH, -1);
+    }
 }
 
-// stub of CT3 0x0187a2b0
-void tiBrain_Search_Ghost3(struct CHARACTER *chr)
+// A new wander leg: a random heading (gaSetRotMatrixY of 0..359 degrees applied to GHOST_WANDER_AHEAD),
+// unless it turns back from `cur` (the way to the old point), then `cur`; the point is
+// BRAIN_GHOST_WANDER_STEP along it (xyz; w is the heading's, as vmulx.xyz / vadd.xyz leave it). Answers the
+// heading in `cur`; the leg's time starts over.
+static const float GHOST_ORIGIN[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+static const float GHOST_WANDER_AHEAD[4] = {0.0f, 0.0f, 1.0f, 0.0f}; /* rodata 0x01938690 / 0x019386a0 */
+// A random heading: GHOST_WANDER_AHEAD turned by gaSetRotMatrixY through 0..359 degrees (vmula / vmadd).
+static void tiGhostRandomHeading(float head[4])
 {
-    ALYSSAPAN_STUB("tiBrain_Search_Ghost3", 0x0187a2b0);
+    float m[4][4];
+    int i;
+
+    gaSetRotMatrixY(m, tnRand(360) * GHOST_DEGREE);
+    for (i = 0; i < 4; i++)
+        head[i] = m[0][i] * GHOST_WANDER_AHEAD[0] + m[1][i] * GHOST_WANDER_AHEAD[1] +
+                  m[2][i] * GHOST_WANDER_AHEAD[2] + m[3][i] * GHOST_WANDER_AHEAD[3];
 }
 
+static void tiGhostNewLeg(const CHARACTER *chr, u_char *brain, float cur[4])
+{
+    float head[4], point[4];
+    float step = tiBrain_Float(brain, BRAIN_GHOST_WANDER_STEP);
+    int i;
+
+    tiGhostRandomHeading(head);
+    if (gaInnerProductXYZ(cur, head) < 0.0f)
+        memcpy(head, cur, sizeof(head));
+    for (i = 0; i < 3; i++)
+        point[i] = head[i] * step + ((const float *)chr->pos)[i];
+    point[3] = head[3];
+    memcpy(brain + BRAIN_NEXT_POINT, point, sizeof(point));
+    memcpy(cur, head, sizeof(head));
+    tiGhostNewLegTime(brain);
+}
+
+// CT3 0x0187a2b0
+// The search (kind 3), round the ghost poles: fading in; it hovers after the floor (or with
+// GHOST_FLAG_HEIGHT to its pole's height); outside its appear / withdraw motions it heads for its pole
+// (BRAIN_SEARCH_POLE) and, nearer than GHOST_POLE_REACH, takes the next (GHOST_FLAG_POLE_SKIP: a random
+// 0..count-3 on), turns to it, and plays its loop SE on the timer. PORT: a pole word that resolves into
+// no bank leaves the ghost where it is.
+void tiBrain_Search_Ghost3(CHARACTER *chr)
+{
+    u_char *brain = CharaBrainPtr(chr);
+    const CHARA_JUNC *junc = chr->junc;
+    const float *pole;
+    float dir[4];
+    short slot, at;
+    int speed;
+
+    pole = tiGhostEePos(junc->poles[tiBrain_Short(brain, BRAIN_SEARCH_POLE)]);
+    tiGhostFadeIn(chr, brain);
+    tiGhostHover(chr, brain, pole != NULL ? &pole[1] : NULL);
+    slot = tiGhostMotion(chr);
+    if (slot == GHOST_MOTION_WITHDRAW || slot == GHOST_MOTION_APPEAR || pole == NULL)
+        return;
+    if (tiGhostUnit(pole, (const float *)chr->pos, dir) < GHOST_POLE_REACH) {
+        at = tiBrain_Short(brain, BRAIN_SEARCH_POLE);
+        if ((brain[BRAIN_GHOST_FLAGS] & GHOST_FLAG_POLE_SKIP) == 0)
+            at = (short)((at + 1) % junc->poleCount);
+        else
+            at = (short)((at + tnRand(junc->poleCount - 2)) % junc->poleCount);
+        tiBrain_SetShort(brain, BRAIN_SEARCH_POLE, at);
+        pole = tiGhostEePos(junc->poles[at]);
+        if (pole != NULL)
+            tiGhostUnit(pole, (const float *)chr->pos, dir);
+    }
+    memcpy(&speed, brain + BRAIN_TURN_SPEED, sizeof(speed));
+    ssAI_CompCharaDir(chr, dir, speed, 0);
+    tiGhostLoopTimer(chr, brain);
+}
+
+// CT3 0x0187a7b0
+// The search (kind 1), a wander: fading in; outside its one-shot motions it hovers after the floor and,
+// each leg's end (BRAIN_GHOST_LEG_TICKS past BRAIN_GHOST_LEG_LIMIT) or within GHOST_WANDER_REACH of its
+// point, draws of 16: under 12 a new leg (GHOST_SEARCH_WANDER), 12..15 Alyssa's position
+// (GHOST_SEARCH_TO_ALYSSA), both with the search motion. While TRIG_EVENT_GHOST_1D_ON is on (for either
+// ghost, as the ROM) it heads for BRAIN_TRACE_POINT instead (GHOST_SEARCH_TO_TRACE). It turns to its point
+// and plays its loop SE on the timer.
+void tiBrain_Search_Ghost1(CHARACTER *chr)
+{
+    u_char *brain = CharaBrainPtr(chr);
+    float dir[4];
+    float point[4];
+    short slot = tiGhostMotion(chr);
+    int ticks, limit, draw;
+
+    tiGhostFadeIn(chr, brain);
+    if (tiGhostWanderBusy(chr))
+        return;
+    memcpy(&ticks, brain + BRAIN_GHOST_LEG_TICKS, sizeof(ticks));
+    ticks += gNextTicksInterval;
+    tiBrain_SetInt(brain, BRAIN_GHOST_LEG_TICKS, ticks);
+    tiGhostFollowFloor(chr);
+    memcpy(&limit, brain + BRAIN_GHOST_LEG_LIMIT, sizeof(limit));
+    draw = ticks < limit ? GHOST_DRAW_NONE : tnRand(GHOST_DRAW_OF);
+    memcpy(point, brain + BRAIN_NEXT_POINT, sizeof(point));
+    if (tiGhostUnit(point, (const float *)chr->pos, dir) < GHOST_WANDER_REACH)
+        draw = tnRand(GHOST_DRAW_OF);
+    if (ssTrigCheckEvent(TRIG_EVENT_GHOST_1D_ON, TRIG_GLOBAL, 0) != 0) {
+        memcpy(brain + BRAIN_NEXT_POINT, brain + BRAIN_TRACE_POINT, 16);
+        brain[BRAIN_SUBMODE] = GHOST_SEARCH_TO_TRACE;
+    } else if (draw < GHOST_DRAW_WANDER) {
+        tiGhostSearchMotion(chr, slot);
+        tiGhostNewLeg(chr, brain, dir);
+        brain[BRAIN_SUBMODE] = GHOST_SEARCH_WANDER;
+    } else if (draw < GHOST_DRAW_OF) {
+        memcpy(brain + BRAIN_NEXT_POINT, Character[Player_BankID].pos, 16);
+        memcpy(point, brain + BRAIN_NEXT_POINT, sizeof(point));
+        tiGhostUnit(point, (const float *)chr->pos, dir);
+        tiGhostNewLegTime(brain);
+        tiGhostSearchMotion(chr, slot);
+        brain[BRAIN_SUBMODE] = GHOST_SEARCH_TO_ALYSSA;
+    }
+    switch (brain[BRAIN_SUBMODE]) {
+    case GHOST_SEARCH_WANDER:
+    case GHOST_SEARCH_TO_ALYSSA:
+    case GHOST_SEARCH_TO_TRACE: {
+        int speed;
+
+        memcpy(&speed, brain + BRAIN_TURN_SPEED, sizeof(speed));
+        ssAI_CompCharaDir(chr, dir, speed, 0);
+        break;
+    }
+    }
+    tiGhostLoopTimer(chr, brain);
+}
+
+// CT3 0x01879d70
+// The approach (kind 1), a wander that may stand still: fading in; outside its one-shot motions, once it
+// moves (submode not GHOST_SEARCH_STILL) it hovers after the floor and turns to its point. Each leg's end
+// it draws of 16: under 16 - (BRAIN_GHOST_STAY_ODDS_A + _B) a new leg (GHOST_SEARCH_WANDER), the rest
+// Alyssa's position (GHOST_SEARCH_TO_ALYSSA); from standing still both start GHOST_MOTION_SET_OFF, then
+// the search motion. It plays its loop SE on the timer.
+void tiBrain_Approach_Ghost1(CHARACTER *chr)
+{
+    u_char *brain = CharaBrainPtr(chr);
+    float dir[4];
+    float point[4];
+    int ticks, limit, draw, i;
+
+    tiGhostFadeIn(chr, brain);
+    if (tiGhostWanderBusy(chr))
+        return;
+    memcpy(&ticks, brain + BRAIN_GHOST_LEG_TICKS, sizeof(ticks));
+    ticks += gNextTicksInterval;
+    tiBrain_SetInt(brain, BRAIN_GHOST_LEG_TICKS, ticks);
+    memcpy(point, brain + BRAIN_NEXT_POINT, sizeof(point));
+    for (i = 0; i < 4; i++)
+        dir[i] = point[i] - ((const float *)chr->pos)[i];
+    if (brain[BRAIN_SUBMODE] != GHOST_SEARCH_STILL) {
+        int speed;
+
+        tiGhostFollowFloor(chr);
+        tiGhostUnit(dir, GHOST_ORIGIN, dir); /* the way from before the hover, normalised after it */
+        memcpy(&speed, brain + BRAIN_TURN_SPEED, sizeof(speed));
+        ssAI_CompCharaDir(chr, dir, speed, 0);
+    }
+    memcpy(&limit, brain + BRAIN_GHOST_LEG_LIMIT, sizeof(limit));
+    draw = ticks < limit ? GHOST_DRAW_NONE : tnRand(GHOST_DRAW_OF);
+    if (draw < GHOST_DRAW_OF - (brain[BRAIN_GHOST_STAY_ODDS_A] + brain[BRAIN_GHOST_STAY_ODDS_B])) {
+        tiGhostNewLeg(chr, brain, dir);
+        tiGhostSetOff(chr, brain);
+        brain[BRAIN_SUBMODE] = GHOST_SEARCH_WANDER;
+    } else if (draw < GHOST_DRAW_OF) {
+        tiGhostNewLegTime(brain);
+        tiGhostSetOff(chr, brain);
+        memcpy(brain + BRAIN_NEXT_POINT, Character[Player_BankID].pos, 16);
+        brain[BRAIN_SUBMODE] = GHOST_SEARCH_TO_ALYSSA;
+    }
+    tiGhostLoopTimer(chr, brain);
+}
+
+// ---- slice 3: the attacks of the ghosts that wait at their point (Attack_Ghost3, Attack_Ghost2) ----
+
+// The pre-attack's grab: GHOST_MOTION_GRAB_START then GHOST_MOTION_GRAB, GHOST_SE_GRAB, a rattle to break
+// free, the hold's ticks from 0 (Attack_Ghost3 / 2; Attack_Ghost4 adds a height test).
+static void tiGhostGrab(const CHARACTER *chr, u_char *brain)
+{
+    CLATTERING_SET set = {-1, -1, -1, -1};
+
+    asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, GHOST_MOTION_GRAB_START);
+    asChangeMortionInfo_NextMortion(chr->id, GHOST_MOTION_GRAB_START, GHOST_MOTION_GRAB, -1);
+    tiBrain_SetInt(brain, BRAIN_GHOST_SE, SSPlaySE(GHOST_SE_BANK, GHOST_SE_GRAB, 1));
+    tiBrain_SetInt(brain, BRAIN_GHOST_CLATTER, ControllerClatteringSet(&set));
+    tiBrain_SetInt(brain, BRAIN_GHOST_GRAB_TICKS, 0);
+}
+
+// The lunge: GHOST_SE_LUNGE, GHOST_MOTION_LUNGE then GHOST_MOTION_LUNGE2 then the float; the ghost rests.
+static void tiGhostLunge(const CHARACTER *chr, u_char *brain)
+{
+    tiBrain_SetInt(brain, BRAIN_GHOST_SE, SSPlaySE(GHOST_SE_BANK, GHOST_SE_LUNGE, 1));
+    asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, GHOST_MOTION_LUNGE);
+    asChangeMortionInfo_NextMortion(chr->id, GHOST_MOTION_LUNGE, GHOST_MOTION_LUNGE2, -1);
+    asChangeMortionInfo_NextMortion(chr->id, GHOST_MOTION_LUNGE2, GHOST_MOTION_FLOAT, -1);
+    brain[BRAIN_GHOST_REST] = GHOST_REST_GAVE_UP;
+    tiBrain_SetInt(brain, BRAIN_GHOST_REST_TICKS, 0);
+}
+
+// The lunge in flight: within BRAIN_GHOST_HOLD_RANGE it lands on Alyssa (TRIG_EVENT_GHOST_GRAB; the ROM
+// first steps by dir * dist, then overwrites the position with hers), else a BRAIN_GHOST_LUNGE_SPEED step
+// (xyz).
+static void tiGhostFly(CHARACTER *chr, const u_char *brain, const float dir[4], float dist)
+{
+    float *pos = (float *)chr->pos;
+    int i;
+
+    if (dist <= tiBrain_Float(brain, BRAIN_GHOST_HOLD_RANGE)) {
+        memcpy(chr->pos, Character[Player_BankID].pos, 16);
+        ssTrigRegisterEvent(TRIG_EVENT_GHOST_GRAB, TRIG_GLOBAL, 0);
+    } else {
+        float step = tiBrain_Float(brain, BRAIN_GHOST_LUNGE_SPEED);
+
+        for (i = 0; i < 3; i++) /* vmulx.xyz, vadd.xyz: w stays */
+            pos[i] += dir[i] * step;
+    }
+}
+
+// The turn in the pre-attack and the lunge (ssAI_CompCharaDir's last argument 1).
+static void tiGhostTurnFast(CHARACTER *chr, const u_char *brain, float dir[4])
+{
+    int speed;
+
+    memcpy(&speed, brain + BRAIN_TURN_SPEED, sizeof(speed));
+    ssAI_CompCharaDir(chr, dir, speed, 1);
+}
+
+// Any of the action motions (attack, pre-attack, damage, action, post-attack, find, return) plays.
+static int tiGhostActing(CHARACTER *chr)
+{
+    return ssAI_IsAttackPlaying(chr) != 0 || ssAI_IsPreAttackPlaying(chr) != 0 || ssAI_IsDamagePlaying(chr) != 0 ||
+           ssAI_IsActionPlaying(chr) != 0 || ssAI_IsPostAttackPlaying(chr) != 0 || ssAI_IsFindPlaying(chr) != 0 ||
+           ssAI_IsReturnPlaying(chr) != 0;
+}
+
+// The rests count down: GHOST_REST_2 against BRAIN_GHOST_REST2_LIMIT, GHOST_REST_GAVE_UP against
+// BRAIN_GHOST_REST_LIMIT; past it, none.
+static void tiGhostRest(u_char *brain)
+{
+    if (brain[BRAIN_GHOST_REST] == GHOST_REST_2) {
+        if (tiGhostRestOver(brain, BRAIN_GHOST_REST2_TICKS, BRAIN_GHOST_REST2_LIMIT))
+            brain[BRAIN_GHOST_REST] = GHOST_REST_NONE;
+    } else if (brain[BRAIN_GHOST_REST] == GHOST_REST_GAVE_UP) {
+        if (tiGhostRestOver(brain, BRAIN_GHOST_REST_TICKS, BRAIN_GHOST_REST_LIMIT))
+            brain[BRAIN_GHOST_REST] = GHOST_REST_NONE;
+    }
+}
+
+// Attack_Ghost3's let-go: back to the float where it holds her, resting; TRIG_EVENT_GHOST_LET_GO.
+static void tiGhostLetGoStay(const CHARACTER *chr, u_char *brain, int bitten)
+{
+    (void)bitten;
+    asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, GHOST_MOTION_FLOAT);
+    brain[BRAIN_GHOST_REST] = GHOST_REST_GAVE_UP;
+    tiBrain_SetInt(brain, BRAIN_GHOST_REST_TICKS, 0);
+    ssTrigRegisterEvent(TRIG_EVENT_GHOST_LET_GO, TRIG_GLOBAL, 0);
+}
+
+// Attack_Ghost2's let-go: it vanishes (then the float), resting, and fades out (GHOST_ATTACK_FADING by
+// GHOST_POST_FADE a frame).
+static void tiGhostLetGoFade(const CHARACTER *chr, u_char *brain, int bitten)
+{
+    (void)bitten;
+    asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, GHOST_MOTION_VANISH);
+    asChangeMortionInfo_NextMortion(chr->id, GHOST_MOTION_VANISH, GHOST_MOTION_FLOAT, -1);
+    brain[BRAIN_GHOST_REST] = GHOST_REST_GAVE_UP;
+    tiBrain_SetInt(brain, BRAIN_GHOST_REST_TICKS, 0);
+    brain[BRAIN_SUBMODE] = GHOST_ATTACK_FADING;
+    tiBrain_SetFloat(brain, BRAIN_GHOST_HIT_FADE, GHOST_POST_FADE);
+}
+
+// CT3 0x01878280
+// The attack (kind 3) of a ghost that waits at its point (BRAIN_TRACE_POINT): idle, it stays there, its
+// rests count down, and, not resting, within BRAIN_GHOST_GRAB_RANGE and facing Alyssa, it lunges; it turns
+// to her. The pre-attack turns (fast) and grabs her within GHOST_GRAB_REACH; the lunge flies at her; the
+// attack holds her (tiGhostHold), letting go where it is (tiGhostLetGoStay).
+void tiBrain_Attack_Ghost3(CHARACTER *chr)
+{
+    u_char *brain = CharaBrainPtr(chr);
+    float dir[4];
+    float dist;
+    int speed;
+
+    tiGhostDirToPlayer(chr, dir);
+    dist = tiGhostToPlayer(chr);
+    memcpy(&speed, brain + BRAIN_TURN_SPEED, sizeof(speed));
+    if (!tiGhostActing(chr)) {
+        memcpy(chr->pos, brain + BRAIN_TRACE_POINT, 16);
+        tiGhostRest(brain);
+        if (tiCheckAlysStatusForGhost() == 0 && dist < tiBrain_Float(brain, BRAIN_GHOST_GRAB_RANGE) &&
+            brain[BRAIN_GHOST_REST] == GHOST_REST_NONE &&
+            ssAI_IsTrgWithinAngle(dir, chr, tiBrain_Short(brain, BRAIN_GHOST_GRAB_ANGLE)) != 0)
+            tiGhostLunge(chr, brain);
+        ssAI_CompCharaDir(chr, dir, speed, 0);
+    } else if (ssAI_IsPreAttackPlaying(chr) != 0) {
+        tiGhostTurnFast(chr, brain, dir);
+        if (tiCheckAlysStatusForGhost() == 0 && dist < GHOST_GRAB_REACH)
+            tiGhostGrab(chr, brain);
+    } else if (ssAI_IsActionPlaying(chr) != 0) {
+        tiGhostTurnFast(chr, brain, dir);
+        tiGhostFly(chr, brain, dir, dist);
+    } else if (ssAI_IsAttackPlaying(chr) != 0) {
+        tiGhostHold(chr, brain, tiGhostLetGoStay);
+    }
+}
+
+// CT3 0x01878960
+// The attack (kind 2) of a ghost that waits at its point, fading: while shown (submode 0) it fades in by
+// BRAIN_GHOST_ALPHA_STEP; idle it stays at BRAIN_TRACE_POINT, or, fading (GHOST_ATTACK_FADING), fades out by
+// BRAIN_GHOST_HIT_FADE until gone (then shown again). Its rests count down; not resting, within
+// BRAIN_GHOST_GRAB_RANGE and facing Alyssa or within GHOST_ATTACK_NEAR, it lunges by chance
+// (BRAIN_GHOST_LUNGE_CHANCE of 16; 16 under GHOST_FLAG_PANIC_RATE and TRIG_EVENT_PANIC_3), else rests
+// (GHOST_REST_2); farther than GHOST_ATTACK_NEAR it turns to her. The post-attack fades it out; the
+// pre-attack grabs within GHOST_GRAB_REACH; the lunge flies at her; the attack holds her, letting go by
+// vanishing (tiGhostLetGoFade).
+void tiBrain_Attack_Ghost2(CHARACTER *chr)
+{
+    u_char *brain = CharaBrainPtr(chr);
+    float dir[4];
+    float dist;
+
+    tiGhostDirToPlayer(chr, dir);
+    dist = tiGhostToPlayer(chr);
+    if (brain[BRAIN_SUBMODE] == GHOST_ATTACK_SHOWN) {
+        float max = tiBrain_Float(brain, BRAIN_GHOST_ALPHA_MAX);
+
+        if (chr->translucentAlpha < max) {
+            chr->translucentAlpha += tiBrain_Float(brain, BRAIN_GHOST_ALPHA_STEP);
+            if (max < chr->translucentAlpha)
+                chr->translucentAlpha = max;
+        }
+    }
+    if (tiGhostActing(chr)) {
+        if (ssAI_IsPostAttackPlaying(chr) != 0) {
+            brain[BRAIN_SUBMODE] = GHOST_ATTACK_FADING;
+            tiBrain_SetFloat(brain, BRAIN_GHOST_HIT_FADE, GHOST_POST_FADE);
+            chr->translucentAlpha -= GHOST_POST_FADE;
+            if (chr->translucentAlpha < 0.0f)
+                chr->translucentAlpha = 0.0f;
+        } else if (ssAI_IsPreAttackPlaying(chr) != 0) {
+            tiGhostTurnFast(chr, brain, dir);
+            if (tiCheckAlysStatusForGhost() == 0 && dist < GHOST_GRAB_REACH)
+                tiGhostGrab(chr, brain);
+        } else if (ssAI_IsActionPlaying(chr) != 0) {
+            tiGhostTurnFast(chr, brain, dir);
+            tiGhostFly(chr, brain, dir, dist);
+        } else if (ssAI_IsAttackPlaying(chr) != 0) {
+            tiGhostHold(chr, brain, tiGhostLetGoFade);
+        }
+        return;
+    }
+    if (brain[BRAIN_SUBMODE] == GHOST_ATTACK_SHOWN) {
+        memcpy(chr->pos, brain + BRAIN_TRACE_POINT, 16);
+    } else {
+        chr->translucentAlpha -= tiBrain_Float(brain, BRAIN_GHOST_HIT_FADE);
+        if (chr->translucentAlpha < 0.0f) {
+            chr->translucentAlpha = 0.0f;
+            brain[BRAIN_SUBMODE] = GHOST_ATTACK_SHOWN;
+        }
+    }
+    tiGhostRest(brain);
+    if (tiCheckAlysStatusForGhost() == 0 && dist < tiBrain_Float(brain, BRAIN_GHOST_GRAB_RANGE) &&
+        brain[BRAIN_GHOST_REST] == GHOST_REST_NONE &&
+        (ssAI_IsTrgWithinAngle(dir, chr, tiBrain_Short(brain, BRAIN_GHOST_GRAB_ANGLE)) != 0 ||
+         dist < GHOST_ATTACK_NEAR)) {
+        int chance;
+
+        if ((brain[BRAIN_GHOST_FLAGS] & GHOST_FLAG_PANIC_RATE) != 0 &&
+            ssTrigCheckEvent(TRIG_EVENT_PANIC_3, TRIG_GLOBAL, 0) != 0)
+            chance = GHOST_LUNGE_CHANCE_MAX;
+        else
+            chance = brain[BRAIN_GHOST_LUNGE_CHANCE];
+        if (tnRand(GHOST_LUNGE_CHANCE_MAX) < chance) {
+            tiGhostLunge(chr, brain);
+        } else {
+            brain[BRAIN_GHOST_REST] = GHOST_REST_2;
+            tiBrain_SetInt(brain, BRAIN_GHOST_REST2_TICKS, 0);
+        }
+    }
+    if (GHOST_ATTACK_NEAR <= dist) {
+        int speed;
+
+        memcpy(&speed, brain + BRAIN_TURN_SPEED, sizeof(speed));
+        ssAI_CompCharaDir(chr, dir, speed, 0);
+    }
+}
+
+// Attack_Ghost1's let-go: it vanishes (then the search motion), resting; when she broke free or was spared
+// (not after the bite) it notes where it let go (BRAIN_GHOST_LET_GO_AT).
+static void tiGhostLetGoSearch(const CHARACTER *chr, u_char *brain, int bitten)
+{
+    brain[BRAIN_GHOST_REST] = GHOST_REST_GAVE_UP;
+    tiBrain_SetInt(brain, BRAIN_GHOST_REST_TICKS, 0);
+    asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, GHOST_MOTION_VANISH);
+    asChangeMortionInfo_NextMortion(chr->id, GHOST_MOTION_VANISH, GHOST_MOTION_SEARCH, -1);
+    if (!bitten)
+        memcpy(brain + BRAIN_GHOST_LET_GO_AT, chr->pos, 16);
+}
+
+// CT3 0x01879200
+// The attack (kind 1) of a wandering ghost: fading in; outside the lunge it hovers after the floor. Not in
+// a one-shot motion and not resting, between GHOST_ATTACK1_MIN and BRAIN_GHOST_GRAB_RANGE from Alyssa: facing
+// her it lunges by chance (BRAIN_GHOST_LUNGE_CHANCE of 16; 16 under GHOST_FLAG_PANIC_RATE and
+// TRIG_EVENT_PANIC_3; then the search motion), else -- unfaced or the draw lost -- it rests (GHOST_REST_2);
+// farther than GHOST_ATTACK1_TURN it turns to her. Otherwise the post-attack rests; the pre-attack grabs
+// within GHOST_GRAB_REACH and GHOST_GRAB_HEIGHT; the lunge turns and flies at her; the attack holds her,
+// letting go by vanishing (tiGhostLetGoSearch). The rests count down in ChgAttack_Ghost1.
+void tiBrain_Attack_Ghost1(CHARACTER *chr)
+{
+    u_char *brain = CharaBrainPtr(chr);
+    const float *ppos = (const float *)Character[Player_BankID].pos;
+    float dir[4];
+    float dist;
+
+    tiGhostFadeIn(chr, brain);
+    if (ssAI_IsActionPlaying(chr) == 0)
+        tiGhostFollowFloor(chr);
+    tiGhostDirToPlayer(chr, dir);
+    dist = tiGhostToPlayer(chr);
+    if (!tiGhostBusy(chr, 1) && brain[BRAIN_GHOST_REST] == GHOST_REST_NONE) {
+        if (tiCheckAlysStatusForGhost() == 0 && dist < tiBrain_Float(brain, BRAIN_GHOST_GRAB_RANGE) &&
+            GHOST_ATTACK1_MIN < dist) {
+            int lunge = 0;
+
+            if (ssAI_IsTrgWithinAngle(dir, chr, tiBrain_Short(brain, BRAIN_GHOST_GRAB_ANGLE)) != 0) {
+                int chance;
+
+                if ((brain[BRAIN_GHOST_FLAGS] & GHOST_FLAG_PANIC_RATE) != 0 &&
+                    ssTrigCheckEvent(TRIG_EVENT_PANIC_3, TRIG_GLOBAL, 0) != 0)
+                    chance = GHOST_LUNGE_CHANCE_MAX;
+                else
+                    chance = brain[BRAIN_GHOST_LUNGE_CHANCE];
+                lunge = tnRand(GHOST_LUNGE_CHANCE_MAX) < chance;
+            }
+            if (lunge) {
+                tiBrain_SetInt(brain, BRAIN_GHOST_SE, SSPlaySE(GHOST_SE_BANK, GHOST_SE_LUNGE, 1));
+                asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, GHOST_MOTION_LUNGE);
+                asChangeMortionInfo_NextMortion(chr->id, GHOST_MOTION_LUNGE, GHOST_MOTION_LUNGE2, -1);
+                asChangeMortionInfo_NextMortion(chr->id, GHOST_MOTION_LUNGE2, GHOST_MOTION_SEARCH, -1);
+            } else {
+                brain[BRAIN_GHOST_REST] = GHOST_REST_2;
+                tiBrain_SetInt(brain, BRAIN_GHOST_REST2_TICKS, 0);
+            }
+        }
+        if (GHOST_ATTACK1_TURN < dist) {
+            int speed;
+
+            memcpy(&speed, brain + BRAIN_TURN_SPEED, sizeof(speed));
+            ssAI_CompCharaDir(chr, dir, speed, 0);
+        }
+        return;
+    }
+    if (ssAI_IsPostAttackPlaying(chr) != 0) {
+        brain[BRAIN_GHOST_REST] = GHOST_REST_GAVE_UP;
+        tiBrain_SetInt(brain, BRAIN_GHOST_REST_TICKS, 0);
+    } else if (ssAI_IsPreAttackPlaying(chr) != 0) {
+        if (tiCheckAlysStatusForGhost() == 0 && dist < GHOST_GRAB_REACH &&
+            absf(((const float *)chr->pos)[1] - ppos[1]) < GHOST_GRAB_HEIGHT)
+            tiGhostGrab(chr, brain);
+    } else if (ssAI_IsActionPlaying(chr) != 0) {
+        tiGhostTurnFast(chr, brain, dir);
+        tiGhostFly(chr, brain, dir, dist);
+    } else if (ssAI_IsAttackPlaying(chr) != 0) {
+        tiGhostHold(chr, brain, tiGhostLetGoSearch);
+    }
+}
+
+// CT3 0x0187aeb0
+// The wandering ghost's brain (kind 1): no trace request; its first leg (GHOST_INIT1_LEG ticks) runs
+// BRAIN_GHOST_WANDER_STEP from where it starts (BRAIN_TRACE_POINT) on a random heading (GHOST_SEARCH_WANDER);
+// no rest; its alpha now is its fade's ceiling; the loop SE after GHOST_SEARCH_TIME_BASE ticks; the start
+// motion; Z_REI's sounds loaded; GHOST_TRACE_RATE; the damage rate step 5.
+int tiBrain_Init1(CHARACTER *chr)
+{
+    u_char *brain = CharaBrainPtr(chr);
+    float head[4], point[4];
+    float step;
+    int i;
+
+    tiBrain_SetShort(brain, BRAIN_GHOST_TRACE_REQ, 0);
+    tiBrain_SetInt(brain, BRAIN_GHOST_LEG_LIMIT, GHOST_INIT1_LEG);
+    tiBrain_SetInt(brain, BRAIN_GHOST_LEG_TICKS, 0);
+    memcpy(brain + BRAIN_TRACE_POINT, chr->pos, 16);
+    tiGhostRandomHeading(head);
+    step = tiBrain_Float(brain, BRAIN_GHOST_WANDER_STEP);
+    for (i = 0; i < 3; i++) /* vmulx.xyz, vadd.xyz: w is the heading's */
+        point[i] = head[i] * step + tiBrain_Float(brain, BRAIN_TRACE_POINT + 4 * i);
+    point[3] = head[3];
+    memcpy(brain + BRAIN_NEXT_POINT, point, sizeof(point));
+    brain[BRAIN_GHOST_REST] = GHOST_REST_NONE;
+    brain[BRAIN_SUBMODE] = GHOST_SEARCH_WANDER;
+    tiBrain_SetFloat(brain, BRAIN_GHOST_ALPHA_MAX, chr->translucentAlpha);
+    tiBrain_SetInt(brain, BRAIN_SEARCH_TIME, 0);
+    tiBrain_SetInt(brain, BRAIN_SEARCH_TIME_BASE, GHOST_SEARCH_TIME_BASE);
+    asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, tiBrain_Short(brain, BRAIN_START_MOTION));
+    SSLoadSE(GHOST_SE_BANK, 0);
+    brain[BRAIN_TRACE_RATE] = GHOST_TRACE_RATE;
+    tiBrain_SetInt(brain, BRAIN_GHOST_W220, 5);
+    return 0;
+}

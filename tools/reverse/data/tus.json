@@ -1,6 +1,5 @@
 {
  "queue": [
-  "game/tiBrain_ChgTrace_Ghost.c",
   "alyssapan/rendering/ui_canvas.cpp"
  ],
  "settings": {
@@ -1731,7 +1730,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 80..80, 14 functions keyed by their statics, 55 unkeyed; file name from the names"
   },
   "game/tiBrain_ChgTrace_Ghost.c": {
-   "notes": "7 stubs left: Attack_Ghost1/2/3, Approach_Ghost1, Search_Ghost1/3, Init1. Ghost words named in the header (rest 0x181/0x204..0x214, flags 0x183, SE 0x278, grab 0x80..0x9c, events 0x4c/0x55c/0x55d). Doubts gh5..gh10 in open-items. callcheck MISSING lines are calls through static helpers. Not reached by the smoke run (boot screens and content warning as before).",
+   "notes": "Code complete, 0 stubs. Not reached by the smoke run (boot screens and content warning as before): verify once a stage with a ghost runs. Doubts gh11..gh14 in open-items (0x55e named TRIG_EVENT_GHOST_LET_GO beside TRIG_EVENT_BALOWS_2; Search_Ghost1 tests 0x55c for either ghost; reused brain words 0x1b8, 0x22c/0x22e, 0x050 named from these uses; lunge and wander steps are xyz only). gh5/gh6 answered (0x1e4/0x1e8 the wander leg ticks and limit; GHOST_REST_2 set by Attack_Ghost1/2). callcheck MISSING lines are calls through static helpers.",
    "ranges": [
     [
      "01875b10",
@@ -1748,9 +1747,14 @@
      "date": "2026-11-13 00:19",
      "status": "partial",
      "summary": "slice 2: 14 ghost-brain functions -- ChgAttack_Ghost1/2/4, ChgApproach_Ghost1/2, ChgSearch_Ghost1/2/3, Damage1/2/3, Attack_Ghost4 (lunge and grab), Approach_Ghost2, Init2"
+    },
+    {
+     "date": "2026-11-13 00:37",
+     "status": "verify",
+     "summary": "slice 3: the last 7 ghost-brain functions -- Search_Ghost1/3, Approach_Ghost1, Attack_Ghost1/2/3, Init1; the hold shared with Attack_Ghost4 through the kind's let-go; the TU's code is complete"
     }
    ],
-   "status": "partial",
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 81..81, 18 functions keyed by their statics, 13 unkeyed; file name from the names"
   },
   "game/tiXcmd_TransItem.c": {

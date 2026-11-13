@@ -2308,6 +2308,24 @@ apply here):
   hidden): ssBrain_BankDrawOn answers 0 there. callcheck MISSING lines are the static helpers again. Not
   reached by a 15 s smoke run (the shots show the boot screens as before).
 
+- (2026-11-13, game/tiBrain_ChgTrace_Ghost.c slice 3, scheduled run) **code complete, verify**: the last 7 --
+  Search_Ghost3 (round the ghost poles), Search_Ghost1 / Approach_Ghost1 (the wander: legs of
+  BRAIN_GHOST_WANDER_STEP on a random gaSetRotMatrixY heading, or Alyssa's position, by draws of 16),
+  Attack_Ghost3 / 2 (the ghosts that wait at BRAIN_TRACE_POINT and lunge from it; 2 fades out after a let-go),
+  Attack_Ghost1 (the wanderer's lunge and grab), Init1. The hold is shared: tiGhostHold takes the kind's let-go
+  (vanish then search / float in place / vanish then float and fade). Answers: (gh5) 0x1e4 / 0x1e8 are a wander
+  leg's ticks and limit for this kind (BRAIN_GHOST_LEG_TICKS / _LIMIT; Init1 sets 600, a new leg 600..1200), so
+  the drops' copy of 0x1e8 into BRAIN_SEARCH_START is a copy of the leg limit -- still odd, kept as the ROM;
+  (gh6) GHOST_REST_2 is set by Attack_Ghost1 / 2 when the lunge draw loses (Attack_Ghost1 also when unfaced).
+  New doubts: (gh11) Attack_Ghost3 registers 0x55e at every let-go, the id tiXcmd_TransItem.h names
+  TRIG_EVENT_BALOWS_2: named TRIG_EVENT_GHOST_LET_GO here as an alias; the event table's reader decides;
+  (gh12) Search_Ghost1 tests TRIG_EVENT_GHOST_1D_ON (0x55c) for either ghost, as the ROM does; (gh13) the brain
+  words reused under ghost names (0x1b8 the wander step, 0x22c / 0x22e Approach_Ghost1's odds for heading to
+  Alyssa, 0x050 where Attack_Ghost1 let go) are named from these uses; (gh14) the lunge step and the wander
+  points touch xyz only (vmulx.xyz / vadd.xyz: Attack_Ghost4's own step still adds all four lanes, harmless with
+  w 0). callcheck MISSING lines are calls made in the static helpers. Not reached by the 15 s smoke run (boot
+  screens and the content warning, as before): the ghosts need a stage with a ghost.
+
 - (2026-11-13, game/tiBrain_ChgTrace_Ghost.c slice 2, scheduled run) **partial**: 14 more functions --
   ChgAttack_Ghost1 / 2 / 4, ChgApproach_Ghost1 / 2, ChgSearch_Ghost1 / 2 / 3, Damage1 / 2 / 3, Attack_Ghost4
   (the lunge and grab), Approach_Ghost2, Init2 (24 of 31; 7 stubs left: Attack_Ghost1 / 2 / 3,

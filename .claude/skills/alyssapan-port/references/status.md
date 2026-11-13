@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-13 00:19 at commit `b4c428e` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-13 00:37 at commit `bc538c7` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1777**; stubs: **54**
+- reconstructed CT3 functions: **1784**; stubs: **47**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -92,7 +92,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/ssSetTexUVforCubeMap.c` | 96 | 0 |
 | `src/game/tiAvoidObject.c` | 95 | 0 |
 | `src/game/tiBrain_ChgTrace_BOSS_BALOWS.c` | 0 | 34 |
-| `src/game/tiBrain_ChgTrace_Ghost.c` | 24 | 7 |
+| `src/game/tiBrain_ChgTrace_Ghost.c` | 31 | 0 |
 | `src/game/tiXcmd_TransItem.c` | 93 | 0 |
 | `src/game/tkXDTrg_GetSceneHash.c` | 50 | 0 |
 | `src/game/tnXcmd.c` | 0 | 8 |
@@ -102,10 +102,9 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 4, partial 1, verify 62, done 13, blocked 1
-- next: **game/tiBrain_ChgTrace_Ghost.c** (pinned in the queue)
-- pinned queue: game/tiBrain_ChgTrace_Ghost.c, alyssapan/rendering/ui_canvas.cpp
-- partial: `game/tiBrain_ChgTrace_Ghost.c` 24/31 -- 7 stubs left: Attack_Ghost1/2/3, Approach_Ghost1, Search_Ghost1/3, Init1. Ghost words named in the header (rest 0x181/0x204..0x214, flags 0x183, SE 0x278, grab 
+- 65 TUs: todo 4, verify 63, done 13, blocked 1
+- next: **None** (nothing on the frontier and no queued TU)
+- pinned queue: alyssapan/rendering/ui_canvas.cpp
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
@@ -162,6 +161,7 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/ssHitCheckAttackToScn.c` 37/37 -- All 37 functions written; no smoke run reaches ssCollisionCheck yet (no character before E_00), the title shot is unchanged. CHARACTER.w300[0..3] are EE words o
 - verify: `game/ssSetTexUVforCubeMap.c` 96/96 -- Slice 8, the last: every draw buffer and draw control argument read from the disassembly; statics drawctrl_ssSprite2, passTicks 274, dy 243 as the symtab has th
 - verify: `game/tiAvoidObject.c` 82/82 -- All 82 functions written; the AI does not run at the title, so verify. Open: open-items.md tiAvoidObject.c slice 6 (x) pole flags 0x04 0x08 0x80 and brain words
+- verify: `game/tiBrain_ChgTrace_Ghost.c` 31/31 -- Code complete, 0 stubs. Not reached by the smoke run (boot screens and content warning as before): verify once a stage with a ghost runs. Doubts gh11..gh14 in o
 - verify: `game/tiXcmd_TransItem.c` 93/93 -- All 93 functions written. The attack record is a host struct SPATTACK_SCISSORS (tiXcmd_TransItem.h); tiFreeBossData frees its lists first as the ROM. Phase bits
 - verify: `game/tkXDTrg_GetSceneHash.c` 50/50 -- Callcheck MISSING asFindModelPartsID in Ini is the DoorFindPart helper. The part names settle h48 h4c and the kind entries' +4 as SE / TDS parts (open-items.md 
 - verify: `game/wideXcmd_DebugPrint.c` 109/109 -- All 109 functions written. Nothing on screen reaches it yet (the shot is the warning screen): verify in gameplay. New stubs ssHitAddAttackRequest, ssHit_GetMaxI
@@ -172,6 +172,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-13 00:37 `game/tiBrain_ChgTrace_Ghost.c` verify: slice 3: the last 7 ghost-brain functions -- Search_Ghost1/3, Approach_Ghost1, Attack_Ghost1/2/3, Init1; the hold shared with Attack_Ghost4 through the kind's l
 - 2026-11-13 00:19 `game/tiBrain_ChgTrace_Ghost.c` partial: slice 2: 14 ghost-brain functions -- ChgAttack_Ghost1/2/4, ChgApproach_Ghost1/2, ChgSearch_Ghost1/2/3, Damage1/2/3, Attack_Ghost4 (lunge and grab), Approach_Gho
 - 2026-11-12 23:52 `game/tiBrain_ChgTrace_Ghost.c` partial: slice 1: the small ghost-brain functions -- ChgTrace_Ghost, ChgReturn1/2, ChgAttack_Ghost3, Trace_Ghost1, Return_Ghost1, Search_Ghost2, Init3, tiGetNearPole, ti
 - 2026-11-12 23:32 `game/ssBrain_ChgHideAtk1.c` verify: slice 4: ssBrain_Approach1 and ssBrain_Search1 -- all 34 functions written, code complete
@@ -179,7 +180,6 @@ Recent sessions:
 - 2026-11-12 22:59 `game/ssBrain_ChgHideAtk1.c` partial: slice 2: the setters ssAI_Set{Trace,Attack,Approach,Search}Mode, ssAI_SearchToApproachMode, ssBrain_ChgSearch1 and ssBrain_Damage1; the attack states named as B
 - 2026-11-12 22:32 `game/ssBrain_ChgHideAtk1.c` partial: slice 1: the mode changes ssBrain_Chg{HideAtk,Return,Attack,Trace,Approach}1, ssBrain_Return1, the 13 mode transitions and ssAI_SetHideAtkMode; brain words name
 - 2026-11-12 22:22 `alyssapan/rendering/hud_anchor.cpp` done: The HUD (INFO.BIN bank) anchors to the window edges at wide aspects: main_rtn tags its bank, the frame pass moves side-third HUD meshes out by the side band
-- 2026-11-12 21:58 `alyssapan/rendering/ga_wide3d.cpp` done: 3D pass widened at wide aspects: the game culls and clips to the window (AlyssaPan_GaWiden scales gaSet3dlibStruct side planes and viewScaleX), DrawGaFrame draw
 
 ## Frontier (called by reconstructed code, not written yet)
 
