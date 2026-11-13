@@ -69,6 +69,13 @@ void AlyssaPan_DrawUiSqueeze(const void *list, int on);
  * its shape where its place still spreads over the whole display. */
 float AlyssaPan_DrawUiSqueezeFactor(void);
 
+/* Non-zero: the vertices and movie pictures that follow land in a 4:3 box,
+ * the largest the display holds, centred -- the frame pulled towards its
+ * centre in x on a wider display, in y on a narrower one. For what filled
+ * the TV's whole 4:3 picture (a movie): its shape kept at any aspect, bars
+ * around it, never stretched to the window. Zero ends it. */
+void AlyssaPan_DrawUiFit(const void *list, int on);
+
 /* Passes over the whole frame so far, at any aspect: the colour buffer
  * times `factor`, 0..4 (the GS's A = Cd, C = FIX), and pushed away from a
  * colour, (Cd - Cs) * As + Cd (ALPHA_1 0x41, `rgba` as RGBAQ, As on the
@@ -83,11 +90,13 @@ void AlyssaPan_DrawUiVertex(const void *list, const AlyssaPanUiVertex *vertex);
 /* A movie picture: `macroblocks` are the decoded 16 x 16 RGBA32 blocks
  * (0x400 bytes each, alpha 0x80 opaque), `columns` x `rows` of them in
  * column-major order, as the game would have sent them by image transfer,
- * drawn at (x, y) in pixels. The module keeps them as the texture of `owner`
- * (the game's movie object), rebuilt only when `picture` (the count of
- * decoded pictures) moves: decoded at the source, never through GS memory. */
+ * stretched over the frame's rect at (x, y), `width` x `height` pixels (as
+ * the game's sprite stretched it; AlyssaPan_DrawUiFit places it). The module
+ * keeps them as the texture of `owner` (the game's movie object), rebuilt
+ * only when `picture` (the count of decoded pictures) moves: decoded at the
+ * source, never through GS memory. */
 void AlyssaPan_DrawUiMovie(const void *list, const void *owner, int picture, const void *macroblocks,
-                           int columns, int rows, int x, int y);
+                           int columns, int rows, int x, int y, int width, int height);
 
 /* The end of a frame: the packet lists that hold draws, in chain order
  * (= the layer order), as the game's kick would send them on VIF1.

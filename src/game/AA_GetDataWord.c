@@ -177,15 +177,15 @@ int AA_handler_endimage(int channel)
 // picking the field); the host draws the whole frame on each field. The transfer ends at once on the host:
 // the vblank calls AA_handler_endimage after each send, where the ROM's DMAC handler would fire.
 
-// The picture's place in the host frame (UiCanvas: 512 x 512, window 0x7000..0x9000 in 12.4): the movie's
-// 512 x 448 frame, centred. PORT: the ROM's sprite spans the field's 512 x 224 (window 1792..2304 x
-// 1824..2048 with the field's draw env); here the frame's lines are kept, not stretched (open-items.md).
+// The picture's place in the host frame (UiCanvas: 512 x 512, window 0x7000..0x9000 in 12.4): all of it.
+// The ROM's sprite spans the field's 512 x 224 (window 1792..2304 x 1824..2048 with the field's draw env),
+// both fields the 448 lines the TV shows as its whole 4:3 picture. PORT: the host frame fills the window at
+// any aspect, so the picture and its captions are drawn under AlyssaPan_DrawUiFit: the frame's 4:3 box,
+// bars around it on a wider or narrower window, the movie never stretched to the window's shape (the user,
+// 2026-11-13). The fades still cover the whole window, as they covered the whole TV.
 #define AA_HOST_FRAME 0x200
-#define AA_HOST_WINDOW_X0 0x7000                                        /* 1792.0: the frame's left edge */
-#define AA_HOST_WINDOW_Y0 (0x7000 + (AA_HOST_FRAME - AA_RESET_HEIGHT) / 2 * 16)
-#define AA_HOST_WINDOW_X1 0x9000
-#define AA_HOST_WINDOW_Y1 (AA_HOST_WINDOW_Y0 + AA_RESET_HEIGHT * 16)
-#define AA_HOST_FRAME_TOP ((AA_HOST_FRAME - AA_RESET_HEIGHT) / 2)       /* DrawUiMovie's y, in pixels */
+#define AA_HOST_WINDOW_MIN 0x7000                                       /* 1792.0: the frame's left / top */
+#define AA_HOST_WINDOW_MAX 0x9000                                       /* 2304.0: its right / bottom */
 
 // The GS values the ROM's chains carry.
 #define AA_GS_PRIM 0x00
@@ -295,10 +295,11 @@ static void AA_sendImage(sceDmaChan *gif, void *block)
             memcpy(s_gsMoji + AA_MOJI_TIM2_PIXELS, fb, AA_MOJI_FB_BYTES);
     }
 
-    // The picture.
+    // The picture, over the whole 4:3 box.
+    AlyssaPan_DrawUiFit(&s_movieLayer, 1);
     if (s_gsPicture != NULL)
         AlyssaPan_DrawUiMovie(&s_movieLayer, &voBuf, s_gsPictureCount, s_gsPicture, s_gsPictureWidth >> 4,
-                              s_gsPictureHeight >> 4, 0, AA_HOST_FRAME_TOP);
+                              s_gsPictureHeight >> 4, 0, 0, AA_HOST_FRAME, AA_HOST_FRAME);
 
     // The captions: the same rectangle of the caption picture, its clear pixels tested away.
     AlyssaPan_DrawUiTexture(&s_movieLayer, s_gsMoji, 0);
@@ -307,8 +308,9 @@ static void AA_sendImage(sceDmaChan *gif, void *block)
     memcpy(color, &rgbaq, 4);
     AlyssaPan_DrawUiPrim(&s_movieLayer, AA_PRIM_CAPTIONS, color);
     AlyssaPan_DrawUiBegin(&s_movieLayer, ALYSSAPAN_UIV_UV);
-    AA_corner(AA_HOST_WINDOW_X0, AA_HOST_WINDOW_Y0, AA_UV_ORIGIN, AA_UV_ORIGIN);
-    AA_corner(AA_HOST_WINDOW_X1, AA_HOST_WINDOW_Y1, t->width * 16 + AA_UV_ORIGIN, t->height * 16 + AA_UV_ORIGIN);
+    AA_corner(AA_HOST_WINDOW_MIN, AA_HOST_WINDOW_MIN, AA_UV_ORIGIN, AA_UV_ORIGIN);
+    AA_corner(AA_HOST_WINDOW_MAX, AA_HOST_WINDOW_MAX, t->width * 16 + AA_UV_ORIGIN, t->height * 16 + AA_UV_ORIGIN);
+    AlyssaPan_DrawUiFit(&s_movieLayer, 0);
 
     // The fade: Cd * As, and + Cs where the blend's D is Cs.
     rgbaq = t->fadeRgbaq;
@@ -318,8 +320,8 @@ static void AA_sendImage(sceDmaChan *gif, void *block)
         AlyssaPan_DrawUiReg(&s_movieLayer, AA_GS_ALPHA_1, AA_ALPHA_ADD_FIX);
         AlyssaPan_DrawUiPrim(&s_movieLayer, AA_PRIM_FADE, color);
         AlyssaPan_DrawUiBegin(&s_movieLayer, 0);
-        AA_corner(AA_HOST_WINDOW_X0, AA_HOST_WINDOW_X0, 0, 0);
-        AA_corner(AA_HOST_WINDOW_X1, AA_HOST_WINDOW_X1, 0, 0);
+        AA_corner(AA_HOST_WINDOW_MIN, AA_HOST_WINDOW_MIN, 0, 0);
+        AA_corner(AA_HOST_WINDOW_MAX, AA_HOST_WINDOW_MAX, 0, 0);
     }
     AlyssaPan_DrawUiKick(lists, 1);
 }
@@ -482,7 +484,7 @@ void AA_clearGsMem(int r, int g, int b, int w, int h)
     color[3] = 0;
     AlyssaPan_DrawUiPrim(&s_movieLayer, AA_PRIM_SPRITE, color);
     AlyssaPan_DrawUiBegin(&s_movieLayer, 0);
-    AA_corner(AA_HOST_WINDOW_X0, AA_HOST_WINDOW_X0, 0, 0);
-    AA_corner(AA_HOST_WINDOW_X1, AA_HOST_WINDOW_X1, 0, 0);
+    AA_corner(AA_HOST_WINDOW_MIN, AA_HOST_WINDOW_MIN, 0, 0);
+    AA_corner(AA_HOST_WINDOW_MAX, AA_HOST_WINDOW_MAX, 0, 0);
     AlyssaPan_DrawUiKick(lists, 1);
 }

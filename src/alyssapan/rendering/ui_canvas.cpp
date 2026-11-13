@@ -216,7 +216,31 @@ void UiCanvas::setSqueezed(const void *list, bool squeezed)
     // Read before the canvas's lock: the renderer has its own.
     const float factor = squeezeFactor();
     std::scoped_lock lock(m_lock);
-    layer(list).squeeze = squeezed ? factor : 1.0f;
+    Layer &target = layer(list);
+    target.squeezeX = squeezed ? factor : 1.0f;
+    target.squeezeY = 1.0f;
+}
+
+void UiCanvas::setFitted(const void *list, bool fitted)
+{
+    // Read before the canvas's lock: the renderer has its own.
+    const float narrower = m_renderer.layout().aspect / kFrameDisplayAspect;
+    const float factorX = squeezeFactor();
+    const float factorY = narrower < 1.0f ? narrower : 1.0f;
+    std::scoped_lock lock(m_lock);
+    Layer &target = layer(list);
+    target.squeezeX = fitted ? factorX : 1.0f;
+    target.squeezeY = fitted ? factorY : 1.0f;
+}
+
+float UiCanvas::placedX(const Layer &target, float x)
+{
+    return kFrameWidth / 2.0f + (x - kFrameWidth / 2.0f) * target.squeezeX;
+}
+
+float UiCanvas::placedY(const Layer &target, float y)
+{
+    return kFrameHeight / 2.0f + (y - kFrameHeight / 2.0f) * target.squeezeY;
 }
 
 void UiCanvas::begin(const void *list, int format)
@@ -234,9 +258,8 @@ void UiCanvas::addVertex(const void *list, const AlyssaPanUiVertex &vertex)
     Layer &target = layer(list);
 
     Vertex converted{};
-    converted.x = kFrameWidth / 2.0f +
-                  (static_cast<float>(vertex.x) / kWindowUnit - kWindowOrigin - kFrameWidth / 2.0f) * target.squeeze;
-    converted.y = static_cast<float>(vertex.y) / kWindowUnit - kWindowOrigin;
+    converted.x = placedX(target, static_cast<float>(vertex.x) / kWindowUnit - kWindowOrigin);
+    converted.y = placedY(target, static_cast<float>(vertex.y) / kWindowUnit - kWindowOrigin);
     // Past 1 (or under 0) the host's clip space would drop the fragment where the GS clamps it.
     converted.z = std::clamp(static_cast<float>(vertex.z) * target.depthScale, 0.0f, 1.0f);
     if ((target.format & ALYSSAPAN_UIV_UV) != 0)
@@ -525,13 +548,13 @@ void UiCanvas::fillColor(const void *list, std::uint32_t rgba, std::uint8_t fixe
     fillFrame(layer(list), BlendMode::FixedAlpha, rgba, fixedAlpha);
 }
 
-void UiCanvas::drawImage(const void *list, std::shared_ptr<Image> image, float x, float y)
+void UiCanvas::drawImage(const void *list, std::shared_ptr<Image> image, float x, float y, float width, float height)
 {
     std::scoped_lock lock(m_lock);
     Layer &target = layer(list);
 
-    const auto width = static_cast<float>(image->width);
-    const auto height = static_cast<float>(image->height);
+    const auto texelsU = static_cast<float>(image->width);
+    const auto texelsV = static_cast<float>(image->height);
     constexpr std::uint32_t kOpaqueWhite = 0x80808080;
 
     const std::shared_ptr<Image> previous = std::exchange(target.image, std::move(image));
@@ -539,8 +562,8 @@ void UiCanvas::drawImage(const void *list, std::shared_ptr<Image> image, float x
     const bool previousTextured = std::exchange(target.textured, true);
     const bool previousBlended = std::exchange(target.blended, false);
 
-    const Vertex a{x, y, 0.0f, 0.0f, 0.0f, kOpaqueWhite};
-    const Vertex b{x + width, y + height, 0.0f, width, height, kOpaqueWhite};
+    const Vertex a{placedX(target, x), placedY(target, y), 0.0f, 0.0f, 0.0f, kOpaqueWhite};
+    const Vertex b{placedX(target, x + width), placedY(target, y + height), 0.0f, texelsU, texelsV, kOpaqueWhite};
     target.run.clear();
     assemble(target, a);
     assemble(target, b);
@@ -552,7 +575,7 @@ void UiCanvas::drawImage(const void *list, std::shared_ptr<Image> image, float x
 }
 
 void UiCanvas::drawMacroblocks(const void *list, const void *owner, int picture, const void *macroblocks, int columns,
-                               int rows, float x, float y)
+                               int rows, float x, float y, float width, float height)
 {
     constexpr int kBlockSize = 16;
     constexpr std::size_t kBlockRowBytes = kBlockSize * 4;
@@ -586,7 +609,7 @@ void UiCanvas::drawMacroblocks(const void *list, const void *owner, int picture,
         m_movieOwner = owner;
         m_moviePicture = picture;
     }
-    drawImage(list, m_movieImage, x, y);
+    drawImage(list, m_movieImage, x, y, width, height);
 }
 
 void UiCanvas::kick(std::span<const void *const> lists, std::chrono::steady_clock::time_point time)

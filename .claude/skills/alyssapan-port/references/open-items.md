@@ -1024,8 +1024,8 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    title movie's PCM peaks at -6 dBFS; the smoke run (skip on) still ends on the title. So (hh) holds
    (AA_decBs0 built its records on frameCount 0), (hm) holds (core 0's auto-DMA is mixed at BVOL), and (hs)
    holds (the ring retires blocks). Still unseen: captions (no caption file for these two), a movie skip by
-   the pad, the attract movies (data/movie3), (hb)'s 448 -> 512 stretch question (the picture is drawn at
-   native size, centred).
+   the pad, the attract movies (data/movie3). ~~(hb)'s 448 -> 512 stretch question~~ settled 2026-11-13
+   ("Decisions": the picture fills a fitted 4:3 box).
 2. **The siblings' shims (the user's rule of 2026-11-09: "reuse the shims of the other pan projects like
    the windows handling and all the rest")**, as host tasks, in cpp-port.md "To carry over" order, each a
    class: ~~(a) gamecontrollerdb + icon + cursor auto-hide + pause / mute in the background + DPI scale~~
@@ -2305,6 +2305,15 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
      0x52 / 5 (and 0x54 / 8 for BOSS1) to -1 and BOSS_INFO 0xe4 (short) to 0.
 
 ## Decisions
+
+- 2026-11-13 (the user): **movies keep their own shape, never the window's.** Every movie (data/movie1..3,
+  45 files) is a 512 x 448 MPEG whose header says only "square pels" (code 1); the ROM's sprite stretches
+  that picture over the TV's whole 4:3 screen, so 4:3 is the shape. AA_sendImage (AA_GetDataWord.c) draws
+  the picture and captions over the whole frame under AlyssaPan_DrawUiFit (UiCanvas::setFitted): the
+  largest 4:3 box the display holds, centred, pillars on a wider window, bars above and below on a
+  narrower one. This settles (hb): the 448 lines fill the box's height, as the ga path's 448 -> 512. The
+  fades still cover the whole window. Seen: m_capcom.mov at 1280 x 720 lights x 164..1119 of the 960 x 720
+  box at x 160..1120; at 720 x 900, y 180..719 of the 720 x 540 box at y 180..720.
 
 - 2026-11-11 (Claude, scheduled run 19:15, for the user to overrule): **the ga 2D frame stays 4:3.** The
   title's backdrops are quads the size of the GS's 512 x 448 frame (some run a few texels past it, others

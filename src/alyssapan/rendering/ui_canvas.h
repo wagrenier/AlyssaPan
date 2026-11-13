@@ -36,6 +36,10 @@ public:
     // frame's centre. For what is drawn centred; the factor comes from the display's PictureLayout.
     void setSqueezed(const void *list, bool squeezed);
     float squeezeFactor() const; // 1 at 4:3 and narrower, under 1 wider
+    // The vertices and images that follow land in a 4:3 box, the largest that fits the display, centred: the
+    // frame pulled towards its centre in x at a wider display (as setSqueezed), in y at a narrower one. For
+    // what filled the TV's whole picture (a movie): its shape kept, bars around it, never stretched.
+    void setFitted(const void *list, bool fitted);
     // The whole frame times factor, 0..4: what the GS does with Cd as its A and FIX as its C.
     void scaleFrame(const void *list, float factor);
     // The whole frame pushed away from a colour: (Cd - Cs) * As + Cd, as ALPHA_1 0x41 does.
@@ -55,15 +59,15 @@ public:
     void begin(const void *list, int format);
     void addVertex(const void *list, const AlyssaPanUiVertex &vertex);
 
-    // A movie picture, or any image the game replaces each frame: `width` x `height` RGBA8 pixels drawn
-    // at (x, y) in the frame.
-    void drawImage(const void *list, std::shared_ptr<Image> image, float x, float y);
+    // A movie picture, or any image the game replaces each frame: its RGBA8 pixels stretched over the frame's
+    // rect at (x, y), `width` x `height`, placed as the layer's vertices are (setSqueezed, setFitted).
+    void drawImage(const void *list, std::shared_ptr<Image> image, float x, float y, float width, float height);
 
-    // A movie's picture: `columns` x `rows` 16 x 16 RGBA32 macroblocks in column-major order. `picture` counts
-    // the movie's decoded pictures, and the image is only rebuilt when it moves: a movie runs at 25 pictures a
-    // second under a faster game loop, and each image is a GPU texture.
+    // A movie's picture: `columns` x `rows` 16 x 16 RGBA32 macroblocks in column-major order, drawn as drawImage
+    // does. `picture` counts the movie's decoded pictures, and the image is only rebuilt when it moves: a movie
+    // runs at 25 pictures a second under a faster game loop, and each image is a GPU texture.
     void drawMacroblocks(const void *list, const void *owner, int picture, const void *macroblocks, int columns,
-                         int rows, float x, float y);
+                         int rows, float x, float y, float width, float height);
 
     // Ends the frame: these layers, in this order, go to the renderer. `time`: when the field that released the
     // frame was due.
@@ -102,7 +106,8 @@ private:
         int format = 0;
         std::vector<Vertex> run; // the vertices of the open primitive
         unsigned runCount = 0;
-        float squeeze = 1.0f; // of x about the frame's centre
+        float squeezeX = 1.0f; // of x about the frame's centre
+        float squeezeY = 1.0f; // of y, the same
         std::optional<BlendMode> forcedBlend; // a whole-frame pass's, past what the GS context says
         DepthTest depthTest = DepthTest::Off;
         bool depthWrite = false;
@@ -115,6 +120,8 @@ private:
     };
 
     Layer &layer(const void *list);
+    static float placedX(const Layer &target, float x); // a frame point, squeezed as the layer says
+    static float placedY(const Layer &target, float y);
     void emit(Layer &target, std::initializer_list<Vertex> triangleVertices);
     void assemble(Layer &target, const Vertex &vertex);
     void fillFrame(Layer &target, BlendMode blend, std::uint32_t color, std::uint8_t fixedAlpha);

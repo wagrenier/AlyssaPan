@@ -104,6 +104,11 @@ float AlyssaPan_DrawUiSqueezeFactor(void)
     return canvas().squeezeFactor();
 }
 
+void AlyssaPan_DrawUiFit(const void *list, int on)
+{
+    canvas().setFitted(list, on != 0);
+}
+
 void AlyssaPan_DrawUiFrameScale(const void *list, float factor)
 {
     canvas().scaleFrame(list, factor);
@@ -125,10 +130,10 @@ void AlyssaPan_DrawUiVertex(const void *list, const AlyssaPanUiVertex *vertex)
 }
 
 void AlyssaPan_DrawUiMovie(const void *list, const void *owner, int picture, const void *macroblocks, int columns,
-                           int rows, int x, int y)
+                           int rows, int x, int y, int width, int height)
 {
     canvas().drawMacroblocks(list, owner, picture, macroblocks, columns, rows, static_cast<float>(x),
-                             static_cast<float>(y));
+                             static_cast<float>(y), static_cast<float>(width), static_cast<float>(height));
 }
 
 namespace
