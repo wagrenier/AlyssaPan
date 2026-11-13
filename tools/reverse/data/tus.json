@@ -1,5 +1,6 @@
 {
  "queue": [
+  "alyssapan/gpu/device.cpp",
   "alyssapan/rendering/ui_canvas.cpp"
  ],
  "settings": {
@@ -112,6 +113,11 @@
    ],
    "status": "verify",
    "task": "Sibling shim 2(b) / cpp-port.md To carry over 6: exclusive fullscreen, window position saved and restored (centred when unknown or off-screen), windowed size presets, from MikuPan mikupan_renderer.cpp / ui/mikupan_ui_settings.cpp, as Window members"
+  },
+  "alyssapan/gpu/device.cpp": {
+   "claimed": "2026-11-13 06:29",
+   "status": "active",
+   "task": "Shim (c), part 1 (cpp-port.md item 9, MikuPan mikupan_gpu.cpp MikuPan_GPUInit): GPU driver choice and debug layer. [display] gpu_driver (empty = automatic) and gpu_debug, env ALYSSAPAN_GPU_DRIVER / ALYSSAPAN_GPU_DEBUG; Device::create tries the named driver, falls back to automatic; Settings > Graphics lists SDL's drivers (applies on restart)."
   },
   "alyssapan/iop/fsys_server.cpp": {
    "notes": "Banks never needed it: every BIN is in CT3PACK.DAT and loads at boot (INFO, E_GL, 0MH0, ATLD probed through every FSMltLoadProc phase; TrgGLBLSceneDraw past BankReady). The server serves the loose movies; probe: M_CAPCOM.MOV 6569988 bytes at sector 1635587. Not-found answers -1/-1 (module's own answer unread). Shot still black: the draw path is the next task (ui_canvas).",

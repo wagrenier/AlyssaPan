@@ -1023,7 +1023,15 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    refuses the mode change and the fallback to borderless is what ran; (wm2) the presets menu and Centre
    were built but not clicked: smoke runs have no mouse; (wm3) a maximised window saves its last plain
    size and place, not the maximised state -- MikuPan kept none either); (c) the HDR swapchain,
-   MSAA, anisotropy, GPU driver choice; (d) ~~the real memory card~~ (done 2026-11-09: `io::MemoryCards` behind
+   MSAA, anisotropy, GPU driver choice (2026-11-13 04:45 run, Claude: the queue was empty and every TU is
+   verify / done, so the run queued and claimed the host task **alyssapan/gpu/device.cpp** -- the GPU
+   driver choice and debug layer, cpp-port.md item 9, the part of (c) that fits one run; HDR and MSAA
+   follow as their own tasks -- but the run passed its 60 minutes before writing code: no code changed.
+   Plan for the next run: DisplaySettings gains gpuDriver (std::string, empty = automatic) and gpuDebug,
+   serialized as gpu_driver / gpu_debug with env ALYSSAPAN_GPU_DRIVER / _DEBUG; Device::create(paths,
+   driver, debug) tries the named driver and falls back to automatic with a log line (MikuPan_GPUInit);
+   Settings > Graphics lists SDL_GetGPUDriver names plus Automatic and the debug checkbox, applied on
+   restart); (d) ~~the real memory card~~ (done 2026-11-09: `io::MemoryCards` behind
    sdk/libmc.cpp; a scratch test wrote, listed and read a save through sceMc* calls; no smoke run reaches
    McInit yet, so the game's own mc_* code has not exercised it), reverb and volume
    groups (YamiPan's SPU2 is next to them), the audio dump; (e) `libsdr` (CT3 calls `sceSdRemote`), newlib
