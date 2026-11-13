@@ -126,7 +126,7 @@ Platform, game-independent (1-5 carried over 2026-11-09, host task `alyssapan/co
 9. ~~GPU driver choice and debug layer~~ done 2026-11-13 (host task `alyssapan/gpu/device.cpp`, MikuPan's
    `MikuPan_GPUInit`): `[display] gpu_driver` (SDL's name; empty = SDL chooses) and `gpu_debug`, env
    `ALYSSAPAN_GPU_DRIVER / _DEBUG`; `Device::create(paths, driver, debug)` falls back to SDL's choice with a
-   warning when the named driver does not start; Settings > Graphics lists `gpu::availableDrivers()`,
+   warning when the named driver does not start; Settings > Graphics has a drop-down of `gpu::availableDrivers()` (the user, 2026-11-13),
    the debug layer and the running driver (applies on restart).
 10. User-directory override for test runs: ReiPan `reipan/io/reipan_paths.cpp:340` (`REIPAN_USER_DIR`).
 11. Log level and assert hook: RosePan `rosepan/io/rosepan_log.cpp:586`.

@@ -198,18 +198,24 @@ private:
 
         ImGui::Separator();
         ImGui::TextDisabled("GPU driver (applies on restart)");
-        if (ImGui::MenuItem("Automatic", nullptr, display.gpuDriver.empty()))
+        ImGui::SetNextItemWidth(180.0f);
+        const char *const preview = display.gpuDriver.empty() ? "Automatic" : display.gpuDriver.c_str();
+        if (ImGui::BeginCombo("##gpu_driver", preview))
         {
-            display.gpuDriver.clear();
-            m_config.save();
-        }
-        for (const std::string &driver : drivers)
-        {
-            if (ImGui::MenuItem(driver.c_str(), nullptr, display.gpuDriver == driver))
+            if (ImGui::Selectable("Automatic", display.gpuDriver.empty()))
             {
-                display.gpuDriver = driver;
+                display.gpuDriver.clear();
                 m_config.save();
             }
+            for (const std::string &driver : drivers)
+            {
+                if (ImGui::Selectable(driver.c_str(), display.gpuDriver == driver))
+                {
+                    display.gpuDriver = driver;
+                    m_config.save();
+                }
+            }
+            ImGui::EndCombo();
         }
         if (ImGui::MenuItem("Debug layer", nullptr, &display.gpuDebug))
             m_config.save();

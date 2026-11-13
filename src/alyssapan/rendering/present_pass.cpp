@@ -1,6 +1,7 @@
 #include "alyssapan/rendering/present_pass.h"
 
 #include "alyssapan/core/window.h"
+#include "alyssapan/rendering/hdr_output.h"
 
 namespace alyssapan::rendering
 {
@@ -16,14 +17,10 @@ struct PresentUniforms
     float target[4];
 };
 
-constexpr float kOutputSdr = 0.0f;
-constexpr float kDitherStep = 1.0f / 255.0f;
-constexpr float kExpansionShoulder = 2.0f;
-
 } // namespace
 
-PresentPass::PresentPass(gpu::Device &device, Window &window, const Config &config)
-    : m_device(device), m_window(window), m_config(config)
+PresentPass::PresentPass(gpu::Device &device, Window &window, const Config &config, const HdrOutput &hdr)
+    : m_device(device), m_window(window), m_config(config), m_hdr(hdr)
 {
     m_vertexShader = m_device.loadShader("present.vert", SDL_GPU_SHADERSTAGE_VERTEX, {});
     m_fragmentShader =
@@ -74,7 +71,8 @@ SDL_GPUGraphicsPipeline *PresentPass::pipelineFor(SDL_GPUTextureFormat format)
 void PresentPass::record(SDL_GPUCommandBuffer *commands, SDL_GPUTexture *source, SDL_GPUTexture *swapchain,
                          unsigned width, unsigned height)
 {
-    if (gradeIsIdentity())
+    // A plain copy only when nothing changes the values: an HDR swapchain needs the shader's encoding.
+    if (gradeIsIdentity() && !m_hdr.active())
     {
         SDL_GPUBlitInfo blit{};
         blit.source.texture = source;
@@ -104,13 +102,14 @@ void PresentPass::record(SDL_GPUCommandBuffer *commands, SDL_GPUTexture *source,
         return;
 
     const DisplaySettings &display = m_config.display;
-    const PresentUniforms uniforms{
+    PresentUniforms uniforms{
         {display.gradeBrightness, display.gradeContrast, display.gradeGamma, display.gradeSaturation},
-        {1.0f, 1.0f, 0.0f, 0.0f},
-        {kOutputSdr, kDitherStep, kExpansionShoulder, 0.0f},
+        {},
+        {},
         {static_cast<float>(width), static_cast<float>(height), 1.0f / static_cast<float>(width),
          1.0f / static_cast<float>(height)},
     };
+    m_hdr.fillUniforms(uniforms.hdr, uniforms.output);
 
     SDL_BindGPUGraphicsPipeline(pass, pipeline);
     SDL_PushGPUFragmentUniformData(commands, 0, &uniforms, sizeof(uniforms));

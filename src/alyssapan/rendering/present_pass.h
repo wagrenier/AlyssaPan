@@ -15,10 +15,12 @@ class Window;
 namespace alyssapan::rendering
 {
 
+class HdrOutput;
+
 class PresentPass
 {
 public:
-    PresentPass(gpu::Device &device, Window &window, const Config &config);
+    PresentPass(gpu::Device &device, Window &window, const Config &config, const HdrOutput &hdr);
 
     void record(SDL_GPUCommandBuffer *commands, SDL_GPUTexture *source, SDL_GPUTexture *swapchain, unsigned width,
                 unsigned height);
@@ -30,6 +32,7 @@ private:
     gpu::Device &m_device;
     Window &m_window;
     const Config &m_config;
+    const HdrOutput &m_hdr;
     gpu::Shader m_vertexShader;
     gpu::Shader m_fragmentShader;
     gpu::GraphicsPipeline m_pipeline;
