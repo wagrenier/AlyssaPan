@@ -2254,6 +2254,26 @@ apply here):
   ssBrain_EndIfFailed. Left: SetTraceMode, SetAttackMode, SetApproachMode, SetSearchMode, then Attack1,
   Trace1, Approach1, Search1, HideAtk1, ChgSearch1, Damage1, Init1.
 
+- (2026-11-12, game/ssBrain_ChgHideAtk1.c slice 2) **partial**: the setters ssAI_Set{Trace,Attack,Approach,
+  Search}Mode, ssAI_SearchToApproachMode, ssBrain_ChgSearch1 and ssBrain_Damage1 written. Settled from slice
+  1's guesses: (a) 0x038 is the target's room when a mode was set (now BRAIN_PLAYER_ROOM: Set{Search,Attack,
+  Approach}Mode write it); (d) SetSearchMode's argument is keepPole, SetAttackMode's third is how
+  (SET_ATK_QUEUED -1 / FRESH 0 / SEARCH 1). **The "HIDE_ATK records" are the brain's attack states**
+  (BRAIN_ATK_STATE, 0x20 bytes at +0x80, wideXcmd_TriggerInit.c's BRAIN_STATES): slice 1's +0 weight / +1
+  motion at 0x9c are wNear / motion at +0x1c / +0x1d; BRAIN_SUBMODE 3 is "straight to the point"
+  (BRAIN_SUBMODE_DIRECT; 0 = route) in every setter, not only the hide attack's. New guesses: (f)
+  AI_MOTION_KIND2_LOUD (2): the kind of Alyssa's motion a search or trace hears with TRIG_EVENT_AI_D2 -- the
+  meaning is a guess (running?); (g) AI_ALYSSA_STRIKE (0x51): HIT_REC.attack of the strike (who 0) that plays
+  BRAIN_DAMAGE_MOTION -- which of her motions 0x51 is is not looked up; (h) ChgSearch1 strikes from a search
+  when ssAI_IsTrgWithinAngle answers **0** (the ROM's test, kept; maybe the predicate is inverted in its
+  name); (i) SearchToApproachMode plays BRAIN_HIDE_ATK_MOTION (0x252) for a far sighting, so 0x252 is
+  probably a general "alert" motion rather than the hide attack's; (j) SetAttackMode raises CHARA_HIT_LANDED
+  (0x51c) to 1 on entry, against that macro's comment ("set when its blow reached Alyssa"); (k)
+  BRAIN_SEARCH_TIME2 (0x1d8) and BRAIN_ATK_STEP (0x182) are named from their writers only (Search1 / Attack1
+  read them). callcheck MISSING lines are the static helpers (ssBrain_PlanRoute, ssBrain_PickAtk,
+  ssBrain_DamageFollow, ssBrain_FollowWarp, ssBrain_EndIfFailed) holding the calls. Not reached by a smoke
+  run. Left: Attack1, Trace1, Approach1, Search1, HideAtk1, Init1.
+
 - (2026-11-12, game/tiAvoidObject.c slice 6) **code complete, verify**: the last 12 functions --
   LetMonsterInFromShadow, SetMonsterPos, BarrierCheck, SerchCheck, IsTrgWithinAngle, IsGetToGLinkPole,
   SetNextGLinkPolePoint, GetScnLinkPoleID and the group route search (GRS_InitParam, GRS_GetNextDistance,

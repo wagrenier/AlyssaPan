@@ -1821,6 +1821,19 @@ The auto-load at boot (MemorycardAutoLoad, xcmd_tn.c) has its own states (mcMain
   (`ssAI_Chg<Mode>Mode[brain +0x238 + mode]`). The tables (data 0x01938430..0x01938574) hold the brains of
   ssBrain_ChgHideAtk1.c (the plain stalkers, entry 0), tiBrain_ChgTrace_Ghost.c (the ghosts) and
   tiBrain_ChgTrace_BOSS_BALOWS.c (the bosses: HAMM, VITRIOL, AXE, SCISSORS_W / _M, BALOWS).
+- Entering a mode (ssBrain_ChgHideAtk1.c's setters, 2026-11-12): a trace / approach in the target's room
+  goes straight to it when both stand in one hide-pole group (submode 3, BRAIN_SUBMODE_DIRECT) or follows
+  the group route (submode 0: ssAI_GrpRouteSearch, the first group link as BRAIN_TARG_POLE); in another room
+  it heads for the scene link towards it, with a timer of distance / (the brain's speed / 5). A stalker with
+  no room yet (BRAIN_ROOM 0) comes out of its shadow polygon (ssAI_LetMonsterInFromShadow). A search picks a
+  random pole of flag 0x40 and scales its times by the room's grid cells ((cellW + cellD - 600) / 800 + 1).
+  The strikes are the brain's 0x20-byte attack states at +0x80 (BRAIN_ATK_STATE): each has a weight per
+  situation (target bending or down / far / panic / wide room (cellW * cellD > 36000) / near), a pick
+  takes state i with weight / (16 minus the weights before it).
+- ssBrain_Damage1 runs first every frame: the brain's group and room follow chr's, Alyssa's moves re-plan
+  the mode (a warp puts the stalker at the pole she went through: ssAI_SetMonsterPos), then a character's hit
+  takes the frame; Alyssa's strike 0x51 plays the damage motion and, the first frame after, registers
+  TRIG_EVENT_PANIC_STARTED (0xd3). Below y -30000 the brain ends.
 - The kinds by CHARACTER.id: 2..6 the stalkers (scene banks E_02, E_03, E_04 with E_14, E_05 for 5 and 6),
   0x1d..0x1f the ghost kinds (an event each), 0x20 a boss. Each kind has its own motion indices for turn,
   damage and return (`ssAI_Is*Playing`).

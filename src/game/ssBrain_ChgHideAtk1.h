@@ -5,6 +5,9 @@
 
 #include "sdk/scetypes.h"
 
+#include <assert.h>
+#include <stddef.h>
+
 struct CHARACTER;
 // Brain initialiser: slot 0 of the ssAI_BrainInit table (0x01938580).
 int ssBrain_Init1(struct CHARACTER *chr);                                                // CT3 0x01880b60
@@ -33,14 +36,41 @@ int ssAI_SetTraceMode(struct CHARACTER *chr, struct CHARACTER *target);         
 // Brain words this slice reads (names from these uses; tiAvoidObject.h has the rest).
 #define BRAIN_SHOWN 0x002              /* u_char: the stalker is shown (ssBrain_Return1 hides it: ssAI_MonsterDraw 0) */
 #define BRAIN_TRACE_POINT 0x010         /* float[4]: where a trace ends (ssAI_IsGetToPoint in ChgTrace1) */
-#define BRAIN_TRACE_ROOM 0x038          /* u_int: the room a trace ends in; with the bank undrawn, a trace whose
-                                           BRAIN_GOAL_ROOM differs turns to search (guess from that one test) */
-#define BRAIN_HIDE_ATK 0x09c            /* HIDE_ATK records of BRAIN_HIDE_ATK_SIZE: +0 weight (of
-                                           AI_HIDE_ATK_WEIGHT), +1 the motion they skip while waiting in it */
-#define BRAIN_HIDE_ATK_SIZE 0x20
-#define BRAIN_HIDE_ATK_COUNT 0x180      /* u_char: HIDE_ATK records */
-#define BRAIN_HIDE_ATK_PICK 0x181       /* u_char: the record ssAI_SetHideAtkMode picked, BRAIN_HIDE_ATK_NONE */
-#define BRAIN_HIDE_ATK_NONE 0xff
+#define BRAIN_PLAYER_ROOM 0x038         /* u_int: the target's room when a mode was set (Set{Search,Attack,
+                                           Approach}Mode); with the bank undrawn, a trace whose BRAIN_GOAL_ROOM
+                                           differs turns to search */
+// The brain's attack states (wideXcmd_TriggerInit.c BRAIN_STATES: BrainSet copies them in): a stalker's
+// strikes, each with a weight per situation (the weights of one column add up to AI_ATK_WEIGHT; the set
+// picks state i with weight[i] / the weights left) and the reach ChgSearch1 strikes from a search with.
+// Slice 2 (2026-11-12): the fields the setters and ChgSearch1 read; 0x00..0x07, 0x14, 0x15, 0x18, 0x1e,
+// 0x1f not read here.
+typedef struct BRAIN_ATK_STATE {
+    u_char b00[8];
+    float reach;                        /* 0x08: ChgSearch1 strikes from a search within it */
+    float reachPanic;                   /* 0x0c: the same with TRIG_EVENT_PANIC_3 */
+    short angle;                        /* 0x10: ssAI_IsTrgWithinAngle's angle for reach */
+    short anglePanic;                   /* 0x12: for reachPanic */
+    u_char b14[2];
+    u_char wDown;                       /* 0x16: weight when the target bends or is down (from a search) */
+    u_char fromSearch;                  /* 0x17: non-zero: ChgSearch1 may strike with it (the first one) */
+    u_char b18;
+    u_char wFar;                        /* 0x19: from a search, farther than BRAIN_ATK_NEAR */
+    u_char wPanic;                      /* 0x1a: from a search, near, TRIG_EVENT_PANIC_3 */
+    u_char wWide;                       /* 0x1b: from a search, near, in a wide room (AI_ATK_WIDE_ROOM) */
+    u_char wNear;                       /* 0x1c: from a search, near, a small room; ssAI_SetHideAtkMode's */
+    u_char motion;                      /* 0x1d: its motion (skipped while chr waits in BRAIN_END_MOTION) */
+    u_char b1e[2];
+} BRAIN_ATK_STATE;
+static_assert(sizeof(BRAIN_ATK_STATE) == 0x20, "BRAIN_ATK_STATE");
+static_assert(offsetof(BRAIN_ATK_STATE, wDown) == 0x16 && offsetof(BRAIN_ATK_STATE, motion) == 0x1d,
+              "BRAIN_ATK_STATE fields");
+#define BRAIN_ATK_STATES 0x080          /* BRAIN_ATK_STATE[BRAIN_ATK_COUNT] */
+#define BRAIN_ATK_COUNT 0x180           /* u_char */
+#define BRAIN_ATK_PICK 0x181            /* u_char: the state the setters picked, BRAIN_ATK_NONE */
+#define BRAIN_ATK_NONE 0xff
+#define BRAIN_ATK_STEP 0x182            /* u_char: cleared with a pick (read by the attack mode) */
+#define AI_ATK_WEIGHT 16                /* every weight column's total */
+#define AI_ATK_WIDE_ROOM 36000.0f       /* HIT_SCENE_GRID cellW * cellD above it: a wide room */
 #define BRAIN_ATTACK_ON 0x184           /* u_char: cleared with TRIG_EVENT_AI_ATTACK when the attack ends */
 #define BRAIN_ATTACK_RANGE 0x1a4        /* float: approach -> attack within it (|dy| < AI_ATTACK_HEIGHT too) */
 #define BRAIN_ATTACK_LEAVE 0x1a8        /* float: attack -> approach beyond it */
@@ -70,15 +100,70 @@ int ssAI_SetTraceMode(struct CHARACTER *chr, struct CHARACTER *target);         
 #define AI_FOV_MARGIN 0x71c             /* 10 degrees in rot units */
 #define AI_TRACE_ARRIVE 120.0f          /* ChgTrace1: at the trace's end (Alyssa not hiding) */
 #define AI_TRACE_ARRIVE_HIDING 400.0f   /* the same while she hides */
-#define AI_HIDE_ATK_WEIGHT 16           /* the HIDE_ATK weights' total */
 #define SET_HIDE_ATK_POLE 0             /* ssAI_SetHideAtkMode: pick a hide pole */
-#define SET_HIDE_ATK_PICK 1             /* pick a HIDE_ATK record */
+#define SET_HIDE_ATK_PICK 1             /* pick an attack state by wNear */
+
+// ---- slice 2 (2026-11-12): the setters ssAI_Set{Trace,Attack,Approach,Search}Mode ----
+#define BRAIN_SUBMODE_ROUTE 0           /* following a group route: BRAIN_TARG_POLE is the next group link */
+#define BRAIN_SUBMODE_DIRECT BRAIN_SUBMODE_HIDE_POLE /* 3: straight to the point (same group; no route) */
+#define BRAIN_GOAL_GROUP 0x020          /* short: the trace target's hide-pole group (CHARACTER.h100) */
+#define BRAIN_GOAL_BANK 0x022           /* u_char: the trace target's light bank */
+#define BRAIN_SHADOW_POL 0x030          /* s_char: the shadow polygon a stalker with no room comes out of
+                                           (wideXcmd_TriggerInit.c BRAIN_ROOM_ARG) */
+#define BRAIN_PLAYER_GROUP 0x032        /* short: the approach target's CHARACTER.h100 */
+#define BRAIN_PLAYER_BANK 0x034         /* u_char: the target's light bank when a mode was set */
+#define BRAIN_SEARCH_POLE BRAIN_LINK_POLE /* 0x03e: the pole a search goes to */
+#define BRAIN_SEARCH_GROUP 0x040        /* short: its group */
+#define BRAIN_SEARCH_BANK 0x042         /* u_char: chr's light bank then */
+#define BRAIN_SEARCH_ROOM 0x044         /* u_int: chr's room then */
+#define BRAIN_APPROACH_NEAR 0x1b0       /* float: search -> approach within it starts BRAIN_APPROACH_NEAR_MOTION */
+#define BRAIN_HEAR_RANGE 0x1bc          /* float: ChgSearch1 hears within it (x AI_HEAR_FAR: a turn only) */
+#define BRAIN_ATK_NEAR 0x1c4            /* float: SetAttackMode from a search: farther -> wFar */
+#define BRAIN_SEARCH_TIME 0x1d4         /* int: the search's time (BRAIN_SEARCH_TIME_BASE scaled by the room) */
+#define BRAIN_SEARCH_TIME2 0x1d8        /* int: a second time scaled the same way (its use: Search1) */
+#define BRAIN_SEARCH_TIME_BASE 0x1dc    /* int */
+#define BRAIN_SEARCH_TIME2_BASE 0x1e0   /* int */
+#define BRAIN_SEARCH_START 0x1e4        /* int: BRAIN_TICKS when the search began */
+#define BRAIN_APPROACH_SPEED 0x1ec      /* float: BRAIN_APPROACH_TIMER = distance / (it / AI_SPEED_DIV) */
+#define BRAIN_APPROACH_START 0x1f0      /* int: BRAIN_TICKS when the approach was planned */
+#define BRAIN_TRACE_SPEED 0x1f8         /* float: BRAIN_TRACE_TIMER = distance / (it / AI_SPEED_DIV) */
+#define BRAIN_TRACE_START 0x1fc         /* int: BRAIN_TICKS when the trace's timer was set */
+#define BRAIN_START_MOTION 0x23e        /* short: the brain's first motion (wideXcmd_TriggerInit.c BRAIN_MOTION) */
+#define BRAIN_APPROACH_NEAR_MOTION 0x250 /* short: search -> approach within BRAIN_APPROACH_NEAR (then
+                                           BRAIN_APPROACH_MOTION); farther it is BRAIN_HIDE_ATK_MOTION */
+#define AI_SPEED_DIV 5.0f
+#define AI_SEARCH_ROOM_BASE 600.0f      /* SetSearchMode: the times scale by ((cellW + cellD) - it) / */
+#define AI_SEARCH_ROOM_SCALE 800.0f     /*   it + 1 */
+#define SEARCH_POLE_FLAG 0x40           /* SetSearchMode: the hide-pole flag of the poles a search visits */
+// ssBrain_ChgSearch1.
+#define AI_SEARCH_STRIKE_RATE 10        /* per cent a frame: a strike from the search is considered */
+#define AI_MOTION_KIND2_LOUD 2          /* Alyssa's motion record MOTION_REC_KIND2 a search hears (with
+                                           TRIG_EVENT_AI_D2; the kind's meaning is a guess: open-items) */
+#define AI_NOISE_LOUD 2                 /* ssAI_CheckHearingRate's noise: a search within BRAIN_HEAR_RANGE */
+#define AI_NOISE_SOFT 1                 /* a search within BRAIN_HEAR_RANGE * AI_HEAR_FAR; a trace (Damage1)
+                                           within BRAIN_HEAR_RANGE */
+#define AI_HEAR_FAR 3.0f
+// ssBrain_Damage1.
+#define BRAIN_STRUCK 0x003              /* u_char: 1 after Alyssa's AI_ALYSSA_STRIKE hit it; the first frame
+                                           with no hit registers TRIG_EVENT_PANIC_STARTED and clears it */
+#define BRAIN_PLAYER_SHADOW 0x03c       /* s_char: the target's CHARACTER.b102 when noted (a shadow polygon
+                                           id, -1 none): where a warped target is followed from */
+#define BRAIN_DAMAGE_MOTION 0x264       /* short: played when Alyssa's strike lands (then the mode's motion) */
+#define AI_FELL_Y (-30000.0f)           /* below it the stalker fell out of the world: the brain ends */
+#define AI_ALYSSA_STRIKE 0x51           /* HIT_REC.attack of Alyssa's (who 0) strike that staggers a stalker */
+// SetAttackMode's how.
+#define SET_ATK_QUEUED (-1)             /* the state whose motion chr has queued (else BRAIN_START_MOTION) */
+#define SET_ATK_FRESH 0                 /* no state */
+#define SET_ATK_SEARCH 1                /* by the situation's weight (from a search) */
 
 // The modes' setters (-1 when the mode could not be planned). chara is a Character[] index.
 int ssAI_SetHideAtkMode(struct CHARACTER *chr, int what);                                // CT3 0x01880e10
-int ssAI_SetAttackMode(struct CHARACTER *chr, int chara, int fromSearch);                // CT3 0x01881280
+int ssAI_SetAttackMode(struct CHARACTER *chr, int chara, int how);                       // CT3 0x01881280
 int ssAI_SetApproachMode(struct CHARACTER *chr, int chara);                              // CT3 0x01881b10
-int ssAI_SetSearchMode(struct CHARACTER *chr, int a1);                                   // CT3 0x01881f90
+// keepPole: go on to the BRAIN_SEARCH_POLE already chosen (no new pole, the times kept).
+int ssAI_SetSearchMode(struct CHARACTER *chr, int keepPole);                             // CT3 0x01881f90
+// dist: chr's distance to Alyssa (ChgSearch1 passes it in f12).
+int ssAI_SearchToApproachMode(float dist, struct CHARACTER *chr);                        // CT3 0x018827d0
 // The transitions: 0, or -1 when the next mode could not be set (the caller then ends the brain).
 int ssAI_ApproachToHideAtkMode(struct CHARACTER *chr);                                   // CT3 0x01882290
 int ssAI_AttackToHideAtkMode(struct CHARACTER *chr);                                     // CT3 0x018822a0
