@@ -1,6 +1,5 @@
 {
  "queue": [
-  "alyssapan/rendering/hdr_output.cpp",
   "alyssapan/rendering/ui_canvas.cpp"
  ],
  "settings": {
@@ -180,8 +179,15 @@
    "task": "The 3D pass widened at wide aspects (open-items.md item 8 For 3D after it, nr4; the port's first feature). At 16:9 the room is pillarboxed to 4:3 like the title: DrawGaFrame (src/alyssapan/seams.cpp) scissors every ga mesh to gaScissor's 4:3 box, and the game culls and clips to the 4:3 view (gaSet3dlibStruct's side planes for gaObjectClippingCheck, GA_SPR_WORK.viewScaleX for the clip flags and the redraw polygon cut). Widen the view from DisplayGeometry: side planes and viewScaleX by the window's aspect over 4:3, depth-tested meshes and a scene frame's fills drawn past the 4:3 box; 2D (the title, HUD) keeps the 4:3 box. Done when the room fills a 16:9 window with nothing stretched and 4:3 is unchanged."
   },
   "alyssapan/rendering/hdr_output.cpp": {
-   "claimed": "2026-11-13 06:47",
-   "status": "active",
+   "notes": "Seen over RDP: off and auto run SDR; scrgb and hdr10 get HDR10 PQ (scRGB refused), and a desktop capture of the window matches the SDR picture. No HDR items in Settings yet (open-items 2 c hdr1): panels.cpp was being edited by another session. Commit 8367449 (the other session) swept in this run's half-written hdr files; this commit completes them.",
+   "sessions": [
+    {
+     "date": "2026-11-13 06:53",
+     "status": "verify",
+     "summary": "HDR swapchain (shim c part 2): HdrOutput resolves [display] hdr off/auto/scrgb/hdr10 to a supported swapchain composition (SDR fallback), re-applies on display / HDR-state changes, and feeds PresentPass paper white, peak and expansion; env ALYSSAPAN_HDR"
+    }
+   ],
+   "status": "verify",
    "task": "Shim (c), part 2 (cpp-port.md item 7, RosePan rosepan_renderer.cpp ResolveHdrComposition / ApplyHdrComposition / RefreshDisplayHdrInfo): the HDR swapchain. HdrOutput (renderer-owned) reads the window's HDR state (on SDL_EVENT_WINDOW_HDR_STATE_CHANGED), resolves [display] hdr off/auto/scrgb/hdr10 to a swapchain composition the window supports (SDR fallback), applies it with the present mode, and fills PresentPass's hdr/output uniforms (paper white, peak, expansion); Settings > Graphics gets the HDR items; env ALYSSAPAN_HDR."
   },
   "alyssapan/rendering/hud_anchor.cpp": {

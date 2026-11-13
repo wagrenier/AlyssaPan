@@ -120,8 +120,15 @@ Platform, game-independent (1-5 carried over 2026-11-09, host task `alyssapan/co
    corner is still on a display, else centred; Settings > Display > Window size (MikuPan's presets, 4:3
    and wide, larger than the display disabled; leave fullscreen, un-maximise, centre) and "Centre the
    window"; test runs set `ALYSSAPAN_WINDOW_MODE / _X / _Y`.
-7. The HDR swapchain (scRGB / HDR10, display headroom): RosePan `rosepan_renderer.cpp`
-   (`SetHdrMode`, `GetHdrDisplayInfo`); the settings and PresentPass exist, the swapchain is SDR.
+7. ~~The HDR swapchain~~ done 2026-11-13 (host task `alyssapan/rendering/hdr_output.cpp`, RosePan's
+   `ResolveHdrComposition` / `ApplyHdrComposition` / `RefreshDisplayHdrInfo` as `rendering::HdrOutput`, owned
+   by the renderer): `[display] hdr` off / auto / scrgb / hdr10 (env `ALYSSAPAN_HDR`); auto needs the
+   window's display to report HDR on; a named mode tries its composition, then the other, then SDR, each
+   through `SDL_WindowSupportsGPUSwapchainComposition`; `Renderer::applyPresentMode` sets composition and
+   present mode together and re-runs on `SDL_EVENT_WINDOW_HDR_STATE_CHANGED` / `_DISPLAY_CHANGED`;
+   `PresentPass` takes the shader path (never the blit) whenever the swapchain is HDR, with paper white,
+   peak and expansion from `HdrOutput::fillUniforms`. Smoke shots read the SDR output target, so they
+   never show the encoding: a desktop capture does. No HDR menu yet (open-items 2 (c), hdr1).
 8. MSAA and anisotropy with their maxima: same RosePan file (`SetMsaaSamples`, `SetAnisotropy`).
 9. ~~GPU driver choice and debug layer~~ done 2026-11-13 (host task `alyssapan/gpu/device.cpp`, MikuPan's
    `MikuPan_GPUInit`): `[display] gpu_driver` (SDL's name; empty = SDL chooses) and `gpu_debug`, env

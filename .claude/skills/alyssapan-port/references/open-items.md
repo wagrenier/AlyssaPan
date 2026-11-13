@@ -1030,7 +1030,19 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    with the debug layer and the title draws. Open: (gd1) D3D12's debug layer reports through
    OutputDebugString, not the log, so "no validation messages" is unseen -- a run under a debugger or
    with Vulkan's layers installed would show them; (gd2) the Graphics menu items were not clicked:
-   smoke runs have no mouse. HDR, then MSAA / anisotropy, are the next parts of (c)); (d) ~~the real memory card~~ (done 2026-11-09: `io::MemoryCards` behind
+   smoke runs have no mouse. ~~HDR~~ (done 2026-11-13 06:45 run, alyssapan/rendering/hdr_output.cpp, Claude: the queue
+   was empty again, so the run queued the next part of (c). Seen over RDP (display HDR off, SDR white
+   80 nits, headroom 1): hdr=off and auto run SDR; scrgb and hdr10 both get **HDR10 PQ** (D3D12 refuses
+   scRGB on this window, so scrgb falls to its second choice), and a desktop capture of the window shows
+   the same picture as SDR: the compositor tone-maps the PQ output back correctly, nothing washed out or
+   dark; Vulkan with auto runs SDR. Open: (hdr1) no Settings > Graphics HDR items yet (mode, paper white,
+   peak, expansion, knee, the running composition): panels.cpp was being edited by another session this
+   run, so the menu waits for the next run -- the env var and the ini drive it meanwhile; (hdr2) scRGB
+   itself is unseen and so is the highlight expansion on a real HDR display (headroom 1 here: the lift
+   has nowhere to go); (hdr3) the 06:28 session's commit 8367449 swept this run's half-written
+   hdr_output.* and present_pass changes in with its own (git add -A while two sessions shared the
+   tree), so 8367449 alone does not build; the next commit completes it. MSAA / anisotropy are the next
+   parts of (c)); (d) ~~the real memory card~~ (done 2026-11-09: `io::MemoryCards` behind
    sdk/libmc.cpp; a scratch test wrote, listed and read a save through sceMc* calls; no smoke run reaches
    McInit yet, so the game's own mc_* code has not exercised it), reverb and volume
    groups (YamiPan's SPU2 is next to them), the audio dump; (e) `libsdr` (CT3 calls `sceSdRemote`), newlib

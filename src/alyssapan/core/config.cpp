@@ -315,6 +315,7 @@ void Config::applyEnvironment()
     apply("ALYSSAPAN_PRESENT_MODE", display.presentMode);
     apply("ALYSSAPAN_GPU_DRIVER", display.gpuDriver);
     apply("ALYSSAPAN_GPU_DEBUG", display.gpuDebug);
+    apply("ALYSSAPAN_HDR", display.hdrMode);
     apply("ALYSSAPAN_UI_SCALE", ui.scale);
 }
 

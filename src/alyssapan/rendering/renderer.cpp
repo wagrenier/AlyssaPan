@@ -13,6 +13,7 @@
 #include "alyssapan/core/event_queue.h"
 #include "alyssapan/core/logger.h"
 #include "alyssapan/core/window.h"
+#include "alyssapan/rendering/hdr_output.h"
 #include "alyssapan/rendering/present_pass.h"
 #include "alyssapan/rendering/screenshotter.h"
 #include "alyssapan/ui/overlay.h"
@@ -179,7 +180,8 @@ Renderer::Renderer(Window &window, gpu::Device &device, Config &config, EventQue
         m_depthFormat = SDL_GPU_TEXTUREFORMAT_D24_UNORM;
 
     m_white = m_device.createTexture(1, 1, SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM, SDL_GPU_TEXTUREUSAGE_SAMPLER);
-    m_present = std::make_unique<PresentPass>(m_device, m_window, m_config);
+    m_hdr = std::make_unique<HdrOutput>(m_device, m_window, m_config);
+    m_present = std::make_unique<PresentPass>(m_device, m_window, m_config, *m_hdr);
     m_screenshots = std::make_unique<Screenshotter>(m_device);
     applyPresentMode();
 }
@@ -237,8 +239,7 @@ void Renderer::applyPresentMode()
     SDL_GPUPresentMode mode = sdlPresentMode(m_config.display.presentMode);
     if (!SDL_WindowSupportsGPUPresentMode(m_device.get(), m_window.get(), mode))
         mode = SDL_GPU_PRESENTMODE_VSYNC;
-    if (!SDL_SetGPUSwapchainParameters(m_device.get(), m_window.get(), SDL_GPU_SWAPCHAINCOMPOSITION_SDR, mode))
-        gpu::logGpuError("SDL_SetGPUSwapchainParameters");
+    m_hdr->apply(mode);
 }
 
 void Renderer::threadMain()
@@ -518,7 +519,19 @@ void Renderer::renderOnce()
         return;
     }
 
-    m_events.drain([this](const SDL_Event &event) { m_overlay.processEvent(event); });
+    bool displayChanged = false;
+    m_events.drain([this, &displayChanged](const SDL_Event &event) {
+        // The window moved to another display, or HDR was switched in the OS: Auto follows it, and an automatic
+        // paper white follows the OS's SDR level.
+        if (event.type == SDL_EVENT_WINDOW_HDR_STATE_CHANGED || event.type == SDL_EVENT_WINDOW_DISPLAY_CHANGED)
+            displayChanged = true;
+        m_overlay.processEvent(event);
+    });
+    if (displayChanged)
+    {
+        m_hdr->refreshDisplay();
+        applyPresentMode();
+    }
 
     const PictureLayout layout = computeLayout(windowWidth, windowHeight, m_config.display);
     const bool layoutChanged = [&] {

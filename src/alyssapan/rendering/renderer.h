@@ -48,6 +48,7 @@ namespace alyssapan::rendering
 // The GPU's blend for a pipeline.
 SDL_GPUColorTargetBlendState blendStateOf(PipelineKey key);
 class PresentPass;
+class HdrOutput;
 class Screenshotter;
 
 class Renderer
@@ -80,8 +81,11 @@ public:
     };
     Stats stats() const;
 
-    // Applies the settings the swapchain depends on (from the render thread: the overlay).
+    // Applies the settings the swapchain depends on, the present mode and the HDR composition (from the render
+    // thread: the overlay, a display change).
     void applyPresentMode();
+
+    const HdrOutput &hdr() const { return *m_hdr; }
 
     SDL_GPUSampler *samplerFor(bool linear, bool repeat) const;
 
@@ -131,6 +135,7 @@ private:
     std::vector<gpu::TransferBuffer> m_staging;
     bool m_whiteUploaded = false;
 
+    std::unique_ptr<HdrOutput> m_hdr;
     std::unique_ptr<PresentPass> m_present;
     std::unique_ptr<Screenshotter> m_screenshots;
 
