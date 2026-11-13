@@ -637,6 +637,15 @@ Read with `vudis.py 18ff430 335 --all` (mind hazards.md's vudis misprints). Micr
   2..6.5M), its pieces on a 512x128 texture, the panic ornament top left. Nothing in the GS state marks it
   as 2D; the host knows it by its bank's file (AlyssaPan_DrawGaBank, a PORT line in main_rtn) and anchors
   its side-third pieces to the window edges at wide aspects (seams.cpp gaAnchorOf).
+- **The in-game menu is MENU.BIN and the area's floor map (2026-11-13, host task menu_box.cpp).** With the
+  menu open (START in a room), main_rtn draws bank 0 = MENU.BIN (tabs, item grid, text box, the clover,
+  32x32 / 64x64 icons) and bank 4 = M101.BIN (Guest Wing 1F: the parchment, the circle, the map), both
+  depth-tested like the room, plus INFO.BIN; the room's banks stop drawing. The map's parchment is a quad
+  of frame x -265..473 (another -308..515), centred on the map rather than on the frame: the ROM's frame is
+  512 wide, so it covers it, but nothing reaches the left of a wide window. The pack has maps M101..M110,
+  M203..M208, M301..M313, M401..M416, M502..M504 (floor digit first); MAYN, MCLS, MT1A/B, MT2D, MT3D, MT4A
+  are other M-names not yet seen drawn. The host gives these banks GaMeshRecorder::BankRole::Menu and keeps
+  them in the 4:3 box (seams.cpp gaIsMenuBank, gaWidened(mesh, draw)).
 - **The widened 3D view (2026-11-12, host task ga_wide3d.cpp).** The ROM's projection is kept; the canvas
   squeezes the 512-wide frame about its centre into the 4:3 box, so a point past the frame's edge lands in
   a wide window's side band. What stopped it showing was the game's 4:3 view: gaSet3dlibStruct's left /

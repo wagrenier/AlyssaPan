@@ -348,6 +348,15 @@ bool gaWidened(const GaDraw &draw)
     return draw.depthOnly || draw.depth == DepthTest::GreaterOrEqual || draw.depth == DepthTest::Greater;
 }
 
+// The in-game menu is such an overlay (open-items.md nu1): MENU.BIN and the floor map (M101.BIN ..) draw
+// depth-tested like the room, and the map's parchment is a quad of frame x -265..473 centred on the map, so
+// widened it reached past the box on the right and ended short of the window on the left. Its banks keep
+// the 4:3 box with the title (Decisions 2026-11-11): black pillars, nothing stretched.
+bool gaWidened(const alyssapan::rendering::GaMeshRecorder::Mesh &mesh, const GaDraw &draw)
+{
+    return mesh.role != alyssapan::rendering::GaMeshRecorder::BankRole::Menu && gaWidened(draw);
+}
+
 // Where a HUD mesh goes at a wide aspect (open-items.md nt1). The HUD is the INFO.BIN bank's (the panic
 // ornament top left), drawn through main_rtn like the room: depth-tested at one flat Z near the eye, from
 // the ROM's 4:3 view, so the canvas would keep it in the 4:3 box while the widened 3D view fills the
@@ -517,7 +526,7 @@ void DrawGaFrame(const std::vector<alyssapan::rendering::GaMeshRecorder::Mesh> &
     bool scene = false;
     for (const GaMeshRecorder::Mesh &mesh : meshes) {
         if (!mesh.fill && !mesh.depthClear && mesh.copy == GaMeshRecorder::Mesh::Copy::None &&
-            gaWidened(gaDrawOf(mesh.gs, mesh.image != nullptr))) {
+            gaWidened(mesh, gaDrawOf(mesh.gs, mesh.image != nullptr))) {
             scene = true;
             break;
         }
@@ -550,8 +559,10 @@ void DrawGaFrame(const std::vector<alyssapan::rendering::GaMeshRecorder::Mesh> &
         const int tfx = static_cast<int>(mesh.tex0 >> kTex0TfxShift) & kTex0TfxMask;
         const bool texelAlpha = (mesh.tex0 >> kTex0TccShift & 1) != 0;
         // The HUD's pieces in a side third anchor to that window edge (gaAnchorOf).
-        const float anchorShift = mesh.hud ? gaAnchorShift(gaAnchorOf(mesh), ui.squeezeFactor()) : 0.0f;
-        ui.setRegister(list, kRegScissor1, gaWidened(draw) || anchorShift != 0.0f ? wide : boxed);
+        const float anchorShift = mesh.role == GaMeshRecorder::BankRole::Hud
+                                      ? gaAnchorShift(gaAnchorOf(mesh), ui.squeezeFactor())
+                                      : 0.0f;
+        ui.setRegister(list, kRegScissor1, gaWidened(mesh, draw) || anchorShift != 0.0f ? wide : boxed);
         ui.setRegister(list, kRegAlpha1, draw.alpha);
         ui.setRegister(list, kRegTest1, draw.test);
         ui.setRegister(list, kRegFrame1, draw.frame);
@@ -692,11 +703,36 @@ void AlyssaPan_DrawGaTarget(int toDisplay)
     alyssapan::rendering::GaMeshRecorder::instance().setTarget(toDisplay != 0);
 }
 
+namespace
+{
+// The in-game menu's banks, found by a probe of the open menu (open-items.md nu1): MENU.BIN (bank 0 then)
+// and the floor map of the area, M<floor><nn>.BIN (bank 4; the pack has M101..M504). MAYN, MCLS and MT*
+// are not matched: what they hold is not yet seen.
+bool gaIsMenuBank(std::string_view file)
+{
+    constexpr std::string_view kMenuFile = "MENU.BIN";
+    constexpr std::string_view kMapSuffix = ".BIN";
+    constexpr std::size_t kMapDigits = 3;
+    if (file == kMenuFile)
+        return true;
+    if (file.size() != 1 + kMapDigits + kMapSuffix.size() || file.front() != 'M' || !file.ends_with(kMapSuffix))
+        return false;
+    return std::all_of(file.begin() + 1, file.begin() + 1 + kMapDigits,
+                       [](char c) { return c >= '0' && c <= '9'; });
+}
+} // namespace
+
 void AlyssaPan_DrawGaBank(int bank, const char *file)
 {
+    using Role = alyssapan::rendering::GaMeshRecorder::BankRole;
     // The HUD's bank (the panic ornament top left), found by a probe on the NEW path (open-items.md nt1).
     constexpr std::string_view kHudFile = "INFO.BIN";
-    alyssapan::rendering::GaMeshRecorder::instance().setBank(bank, file != nullptr && kHudFile == file);
+    Role role = Role::Scene;
+    if (file != nullptr && kHudFile == file)
+        role = Role::Hud;
+    else if (file != nullptr && gaIsMenuBank(file))
+        role = Role::Menu;
+    alyssapan::rendering::GaMeshRecorder::instance().setBank(bank, role);
 }
 
 void AlyssaPan_DrawGaClearDepth(void)

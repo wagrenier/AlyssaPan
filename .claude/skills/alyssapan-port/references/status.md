@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-13 00:37 at commit `bc538c7` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-13 00:57 at commit `15659a8` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -102,7 +102,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 4, verify 63, done 13, blocked 1
+- 65 TUs: todo 4, verify 63, done 14, blocked 1
 - next: **None** (nothing on the frontier and no queued TU)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
@@ -172,6 +172,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-13 00:57 `alyssapan/rendering/menu_box.cpp` done: the in-game menu (MENU.BIN, the M101.BIN floor map) keeps the 4:3 box at wide aspects (nu1)
 - 2026-11-13 00:37 `game/tiBrain_ChgTrace_Ghost.c` verify: slice 3: the last 7 ghost-brain functions -- Search_Ghost1/3, Approach_Ghost1, Attack_Ghost1/2/3, Init1; the hold shared with Attack_Ghost4 through the kind's l
 - 2026-11-13 00:19 `game/tiBrain_ChgTrace_Ghost.c` partial: slice 2: 14 ghost-brain functions -- ChgAttack_Ghost1/2/4, ChgApproach_Ghost1/2, ChgSearch_Ghost1/2/3, Damage1/2/3, Attack_Ghost4 (lunge and grab), Approach_Gho
 - 2026-11-12 23:52 `game/tiBrain_ChgTrace_Ghost.c` partial: slice 1: the small ghost-brain functions -- ChgTrace_Ghost, ChgReturn1/2, ChgAttack_Ghost3, Trace_Ghost1, Return_Ghost1, Search_Ghost2, Init3, tiGetNearPole, ti
@@ -179,7 +180,6 @@ Recent sessions:
 - 2026-11-12 23:17 `game/ssBrain_ChgHideAtk1.c` partial: slice 3: ssBrain_Init1, ssBrain_HideAtk1, ssBrain_Attack1, ssBrain_Trace1 and ssAI_SetSpecialAttack; BRAIN_ATK_STATE named whole but 0x00..0x03 (chain, panic, w
 - 2026-11-12 22:59 `game/ssBrain_ChgHideAtk1.c` partial: slice 2: the setters ssAI_Set{Trace,Attack,Approach,Search}Mode, ssAI_SearchToApproachMode, ssBrain_ChgSearch1 and ssBrain_Damage1; the attack states named as B
 - 2026-11-12 22:32 `game/ssBrain_ChgHideAtk1.c` partial: slice 1: the mode changes ssBrain_Chg{HideAtk,Return,Attack,Trace,Approach}1, ssBrain_Return1, the 13 mode transitions and ssAI_SetHideAtkMode; brain words name
-- 2026-11-12 22:22 `alyssapan/rendering/hud_anchor.cpp` done: The HUD (INFO.BIN bank) anchors to the window edges at wide aspects: main_rtn tags its bank, the frame pass moves side-third HUD meshes out by the side band
 
 ## Frontier (called by reconstructed code, not written yet)
 

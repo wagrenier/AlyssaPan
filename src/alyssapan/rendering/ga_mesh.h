@@ -50,12 +50,21 @@ public:
         std::uint64_t alpha = 0;  // ALPHA_1
     };
 
+    // What a bank's meshes are to the host's wide frame (seams.cpp AlyssaPan_DrawGaBank). PORT: the host's
+    // roles, found by file name; the ROM draws every bank through the same 4:3 frame.
+    enum class BankRole : std::uint8_t
+    {
+        Scene, // the room, the characters: widened with the 3D view when depth-tested
+        Hud,   // INFO.BIN: anchored to the window's edges
+        Menu,  // the in-game menu (MENU.BIN, the floor maps M<nnn>.BIN): 2D, kept in the 4:3 box
+    };
+
     struct Mesh
     {
         int light = 0;
         int flags = 0;
-        int bank = -1;    // the bank main_rtn drew it from (AlyssaPan_DrawGaBank), -1 none
-        bool hud = false; // that bank is the HUD's, INFO.BIN: anchored to the window's edges
+        int bank = -1; // the bank main_rtn drew it from (AlyssaPan_DrawGaBank), -1 none
+        BankRole role = BankRole::Scene;
         std::vector<Vertex> vertices;
         std::vector<std::uint16_t> triangles; // three vertex indices each
         std::vector<bool> drawn;              // per triangle: not dropped by the variant's cull
@@ -101,10 +110,10 @@ public:
     void setRegister(int reg, std::uint64_t value);
     void setTarget(bool toDisplay);
     // The bank main_rtn draws (alyssapan_drawga.h AlyssaPan_DrawGaBank): the meshes after it carry it.
-    void setBank(int bank, bool hud)
+    void setBank(int bank, BankRole role)
     {
         m_bank = bank;
-        m_hud = hud;
+        m_role = role;
     }
 
     // The game's frame ends at gaWaitVSync's swap (alyssapan_drawga.h AlyssaPan_DrawGaSwap): what was
@@ -141,7 +150,7 @@ private:
     std::uint64_t m_closeField = 0;
     GsState m_gs;
     int m_bank = -1;
-    bool m_hud = false;
+    BankRole m_role = BankRole::Scene;
     bool m_loggedFirst = false;
     bool m_loggedTexture = false;
     bool m_loggedCopy = false;

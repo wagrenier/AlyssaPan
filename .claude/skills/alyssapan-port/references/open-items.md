@@ -2005,14 +2005,32 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    (GaMeshRecorder::Mesh bank / hud) and DrawGaFrame moves an INFO.BIN mesh centred in the frame's left or
    right third out by the side band, scissored to the window (seams.cpp gaAnchorOf / gaAnchorShift).
    Seen: at 1280x720 the ornament sits 12 px from the window's top-left corner (frame 1260), as it sits
-   12 px from the 4:3 picture's corner at 640x480; the room is unchanged. Open: (nu1) the in-game menu
+   12 px from the 4:3 picture's corner at 640x480; the room is unchanged. Open: ~~(nu1) the in-game menu
    (START, frame 1440) at 16:9: its backdrop is widened on the right (depth-tested, reaches past the box)
    but ends about 100 px short of the left edge (black band) -- the menu bank's own width task; the
-   ornament now sits at the window corner over that band; (nu2) the HUD's slide-in starts past the frame's
+   ornament now sits at the window corner over that band~~ done 2026-11-13 (menu_box.cpp, below); (nu2) the HUD's slide-in starts past the frame's
    left edge (x -443..-287 in one frame), so it now slides in from the window edge; (nu3) only INFO.BIN is
    anchored: other HUD-like banks (item pickups, prompts) are centred or boxed until seen; (nu4) the bank
    tag is main_rtn's; draws outside main_rtn (particles, fades, the ghost passes) carry the last bank
    main_rtn set, so a non-main_rtn draw after INFO.BIN would be tagged as HUD -- none seen.
+
+   **alyssapan/rendering/menu_box.cpp (done, 2026-11-13 00:58, Claude, scheduled run, host task; queue
+   refill: the pinned queue held only the stale blocked ui_canvas.cpp and tus.py found nothing on the
+   frontier -- the four todo TUs left, RotateCamera.c, hhXcmd_BGM_SE_VOLUME.c, tnXcmd.c and
+   tiBrain_ChgTrace_BOSS_BALOWS.c, score 0 with no hits -- so the run took nu1, the width task the HUD run
+   named).** A probe of the open menu (build.py --run 62 --pad "600:START*10,800:START*10,1200:START*10,
+   1400:START*10", 1280x720) showed it is bank 0 MENU.BIN and bank 4 M101.BIN (the floor map), depth-tested
+   like the room, the parchment a quad of frame x -265..473 (architecture.md "The in-game menu"): widened, it
+   reached past the box on the right and stopped about 100 px short of the left edge. Claude's call, from the
+   Decisions of 2026-11-11 (the ga 2D frame stays 4:3), for the user to overrule: the menu's banks are
+   tagged BankRole::Menu by file name (MENU.BIN, M + 3 digits + .BIN) and keep the 4:3 box. Seen: at
+   1280x720 the menu is pillarboxed, black bands both sides, nothing cut or stretched, same picture as at
+   640x480; 4:3 unchanged. Open: (nv1) the INFO.BIN ornament stays anchored to the window corner, so with
+   the menu open it sits over the left pillar, half outside the menu's box -- either box the HUD while a
+   Menu bank draws, or leave it (it is what the HUD does in the room); (nv2) MAYN, MCLS, MT1A/B, MT2D, MT3D,
+   MT4A are M-names not matched: if one is a menu screen (the map view after SELECT, the file reader) it
+   will show the same spill until added to gaIsMenuBank; (nv3) the map view (SELECT in the menu) and the
+   Files / Key items / Options tabs were not opened in this run.
 
 ## Decisions
 

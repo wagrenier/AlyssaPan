@@ -166,6 +166,18 @@
    "status": "done",
    "task": "Anchor the in-room 2D HUD to the window edges at wide aspects (open-items.md nt1): the 3D pass is widened, the HUD ornament stays at the 4:3 box corner. Host task, DisplayGeometry anchoring."
   },
+  "alyssapan/rendering/menu_box.cpp": {
+   "notes": "Probe of the open menu: banks 0 MENU.BIN and 4 M101.BIN, depth-tested like the room, the parchment a quad of frame x -265..473, so widened it spilled right and stopped short on the left. GaMeshRecorder::BankRole (Scene, Hud, Menu) replaces the hud flag; seams.cpp gaIsMenuBank tags MENU.BIN and M+3 digits; gaWidened(mesh, draw) boxes Menu meshes. Seen at 1280x720: menu pillarboxed, same as 640x480; 4:3 unchanged. Open nv1..nv3 in open-items (HUD ornament over the pillar, other M-names, map view and tabs not opened). last.png is the 16:9 menu shot of this run (the run's own last.png was empty, ks2).",
+   "sessions": [
+    {
+     "date": "2026-11-13 00:57",
+     "status": "done",
+     "summary": "the in-game menu (MENU.BIN, the M101.BIN floor map) keeps the 4:3 box at wide aspects (nu1)"
+    }
+   ],
+   "status": "done",
+   "task": "nu1: the in-game menu (MENU.BIN, M<nnn>.BIN maps) at wide aspects: keep it in the 4:3 box (Decisions 2026-11-11)"
+  },
   "alyssapan/rendering/title_wide.cpp": {
    "notes": "Probe: the backdrops are frame-sized quads (-24..522) and larger ones (sky -460..970, fog -150..660) the ROM leaves to SCISSOR_1; squeezed at 16:9 their edges were the seams. gaScissor clips the ga list to the 4:3 box (Decisions 2026-11-11, from YamiPan's textured backdrops stay 4:3). The lighter band: sky and fog meshes use REGION_REPEAT MSK 0x7f over st -0.7..1.7, drawn as clamp; gaSampling crops the cell (TextureStore::regionOf) and repeats it, shifting u v by whole cells past 0. Shots at 1024x768, 1280x720, 1680x720 after 50 s: same title in the 4:3 box, clouds and tower silhouette across the frame, no seams, no flat band. Not handled: a mesh mixing repeat and clamp axes (none on the title).",
    "sessions": [
