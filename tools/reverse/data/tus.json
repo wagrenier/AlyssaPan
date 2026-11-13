@@ -154,6 +154,18 @@
    "status": "done",
    "task": "The 3D pass widened at wide aspects (open-items.md item 8 For 3D after it, nr4; the port's first feature). At 16:9 the room is pillarboxed to 4:3 like the title: DrawGaFrame (src/alyssapan/seams.cpp) scissors every ga mesh to gaScissor's 4:3 box, and the game culls and clips to the 4:3 view (gaSet3dlibStruct's side planes for gaObjectClippingCheck, GA_SPR_WORK.viewScaleX for the clip flags and the redraw polygon cut). Widen the view from DisplayGeometry: side planes and viewScaleX by the window's aspect over 4:3, depth-tested meshes and a scene frame's fills drawn past the 4:3 box; 2D (the title, HUD) keeps the 4:3 box. Done when the room fills a 16:9 window with nothing stretched and 4:3 is unchanged."
   },
+  "alyssapan/rendering/hud_anchor.cpp": {
+   "notes": "Seen at 1280x720 frame 1260: the panic ornament 12 px from the window corner, as at 640x480; room unchanged. Open nu1 menu backdrop short of the left edge at 16:9, nu2 slide-in from the window edge, nu3 only INFO.BIN anchored, nu4 bank tag is main_rtn's only (open-items.md item 8).",
+   "sessions": [
+    {
+     "date": "2026-11-12 22:22",
+     "status": "done",
+     "summary": "The HUD (INFO.BIN bank) anchors to the window edges at wide aspects: main_rtn tags its bank, the frame pass moves side-third HUD meshes out by the side band"
+    }
+   ],
+   "status": "done",
+   "task": "Anchor the in-room 2D HUD to the window edges at wide aspects (open-items.md nt1): the 3D pass is widened, the HUD ornament stays at the 4:3 box corner. Host task, DisplayGeometry anchoring."
+  },
   "alyssapan/rendering/title_wide.cpp": {
    "notes": "Probe: the backdrops are frame-sized quads (-24..522) and larger ones (sky -460..970, fog -150..660) the ROM leaves to SCISSOR_1; squeezed at 16:9 their edges were the seams. gaScissor clips the ga list to the 4:3 box (Decisions 2026-11-11, from YamiPan's textured backdrops stay 4:3). The lighter band: sky and fog meshes use REGION_REPEAT MSK 0x7f over st -0.7..1.7, drawn as clamp; gaSampling crops the cell (TextureStore::regionOf) and repeats it, shifting u v by whole cells past 0. Shots at 1024x768, 1280x720, 1680x720 after 50 s: same title in the 4:3 box, clouds and tower silhouette across the frame, no seams, no flat band. Not handled: a mesh mixing repeat and clamp axes (none on the title).",
    "sessions": [

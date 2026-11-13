@@ -229,6 +229,8 @@ bool GaMeshRecorder::record(const AlyssaPanGaObject &object)
 
     Mesh mesh;
     mesh.light = object.light;
+    mesh.bank = m_bank;
+    mesh.hud = m_hud;
     mesh.flags = object.flags;
     mesh.gsReg70 = object.gsReg70;
     mesh.gsReg78 = object.gsReg78;

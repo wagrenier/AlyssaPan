@@ -7,8 +7,10 @@
 #include <cstdint>
 #include <cmath>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <span>
+#include <string_view>
 #include <vector>
 
 #include "alyssapan/alyssapan_memory.h"
@@ -299,9 +301,9 @@ enum GaTfx
 };
 constexpr std::uint8_t kGsOne = 0x80; // a vertex colour of 1.0 on the GS's scale
 
-std::uint16_t gaCanvasX(float windowX)
+std::uint16_t gaCanvasX(float windowX, float anchorShift = 0.0f)
 {
-    const float x = (windowX / kGaWindowUnit - kGaCentreX + kCanvasCentre) * kGaWindowUnit;
+    const float x = (windowX / kGaWindowUnit - kGaCentreX + kCanvasCentre + anchorShift) * kGaWindowUnit;
     return static_cast<std::uint16_t>(std::clamp(x, 0.0f, kWindowMax));
 }
 
@@ -344,6 +346,75 @@ bool gaWidened(const GaDraw &draw)
 {
     using alyssapan::rendering::DepthTest;
     return draw.depthOnly || draw.depth == DepthTest::GreaterOrEqual || draw.depth == DepthTest::Greater;
+}
+
+// Where a HUD mesh goes at a wide aspect (open-items.md nt1). The HUD is the INFO.BIN bank's (the panic
+// ornament top left), drawn through main_rtn like the room: depth-tested at one flat Z near the eye, from
+// the ROM's 4:3 view, so the canvas would keep it in the 4:3 box while the widened 3D view fills the
+// window. The user's rule anchors 2D to the window from DisplayGeometry (the canvas's squeeze): a HUD mesh
+// centred in the frame's left third keeps its distance to the left edge, one in the right third to the
+// right edge, the middle third (centred messages) stays centred. PORT: the host's anchors; the ROM has one
+// 512-wide frame. Other banks' 2D (the in-game menu, the title) keeps the 4:3 box (Decisions 2026-11-11).
+enum class GaAnchor
+{
+    Centre,
+    Left,
+    Right,
+};
+
+constexpr float kAnchorThird = kCanvasFrameWidth / 6.0f; // a third of the frame, from its centre
+
+// A mesh's drawn x extent in frame pixels about the frame's centre.
+struct GaExtent
+{
+    float x0 = std::numeric_limits<float>::max();
+    float x1 = std::numeric_limits<float>::lowest();
+
+    bool empty() const { return x0 > x1; }
+};
+
+GaExtent gaExtentOf(const alyssapan::rendering::GaMeshRecorder::Mesh &mesh)
+{
+    GaExtent e;
+    for (std::size_t t = 0; t < mesh.drawn.size(); ++t) {
+        if (!mesh.drawn[t])
+            continue;
+        for (int k = 0; k < 3; ++k) {
+            const auto &v = mesh.vertices[mesh.triangles[t * 3 + k]];
+            const float x = v.screen[0] / kGaWindowUnit - kGaCentreX;
+            e.x0 = std::min(e.x0, x);
+            e.x1 = std::max(e.x1, x);
+        }
+    }
+    return e;
+}
+
+GaAnchor gaAnchorOf(const alyssapan::rendering::GaMeshRecorder::Mesh &mesh)
+{
+    const GaExtent e = gaExtentOf(mesh);
+    if (e.empty())
+        return GaAnchor::Centre;
+    const float centre = (e.x0 + e.x1) / 2.0f;
+    if (centre <= -kAnchorThird)
+        return GaAnchor::Left;
+    if (centre >= kAnchorThird)
+        return GaAnchor::Right;
+    return GaAnchor::Centre;
+}
+
+// The anchored mesh's move in frame pixels: half the width the squeeze adds on each side.
+float gaAnchorShift(GaAnchor anchor, float squeeze)
+{
+    const float band = kCanvasFrameWidth / 2.0f * (1.0f / squeeze - 1.0f);
+    switch (anchor) {
+    case GaAnchor::Left:
+        return -band;
+    case GaAnchor::Right:
+        return band;
+    case GaAnchor::Centre:
+        break;
+    }
+    return 0.0f;
 }
 
 // CLAMP_1's wrap modes, and REGION_REPEAT's fields: u = (u & MINU) | MAXU, v = (v & MINV) | MAXV.
@@ -478,7 +549,9 @@ void DrawGaFrame(const std::vector<alyssapan::rendering::GaMeshRecorder::Mesh> &
         const GaSampling sampling = textured ? gaSampling(mesh) : GaSampling{};
         const int tfx = static_cast<int>(mesh.tex0 >> kTex0TfxShift) & kTex0TfxMask;
         const bool texelAlpha = (mesh.tex0 >> kTex0TccShift & 1) != 0;
-        ui.setRegister(list, kRegScissor1, gaWidened(draw) ? wide : boxed);
+        // The HUD's pieces in a side third anchor to that window edge (gaAnchorOf).
+        const float anchorShift = mesh.hud ? gaAnchorShift(gaAnchorOf(mesh), ui.squeezeFactor()) : 0.0f;
+        ui.setRegister(list, kRegScissor1, gaWidened(draw) || anchorShift != 0.0f ? wide : boxed);
         ui.setRegister(list, kRegAlpha1, draw.alpha);
         ui.setRegister(list, kRegTest1, draw.test);
         ui.setRegister(list, kRegFrame1, draw.frame);
@@ -511,7 +584,7 @@ void DrawGaFrame(const std::vector<alyssapan::rendering::GaMeshRecorder::Mesh> &
                             out.rgba[3] = kGsOne;
                     }
                     // PORT: HIGHLIGHT / HIGHLIGHT2 (Ct x Cf + Af) are drawn as MODULATE until a screen needs them.
-                    out.x = gaCanvasX(v.screen[0]);
+                    out.x = gaCanvasX(v.screen[0], anchorShift);
                     out.y = gaCanvasY(v.screen[1]);
                     // The GS clamps Z to its buffer's range (a float past 2^32 has no integer to cast to).
                     out.z = static_cast<std::uint32_t>(std::clamp(v.screen[2], 0.0f, draw.zMax));
@@ -617,6 +690,13 @@ void AlyssaPan_DrawGaRegister(int reg, uint64_t value)
 void AlyssaPan_DrawGaTarget(int toDisplay)
 {
     alyssapan::rendering::GaMeshRecorder::instance().setTarget(toDisplay != 0);
+}
+
+void AlyssaPan_DrawGaBank(int bank, const char *file)
+{
+    // The HUD's bank (the panic ornament top left), found by a probe on the NEW path (open-items.md nt1).
+    constexpr std::string_view kHudFile = "INFO.BIN";
+    alyssapan::rendering::GaMeshRecorder::instance().setBank(bank, file != nullptr && kHudFile == file);
 }
 
 void AlyssaPan_DrawGaClearDepth(void)

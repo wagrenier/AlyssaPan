@@ -54,6 +54,8 @@ public:
     {
         int light = 0;
         int flags = 0;
+        int bank = -1;    // the bank main_rtn drew it from (AlyssaPan_DrawGaBank), -1 none
+        bool hud = false; // that bank is the HUD's, INFO.BIN: anchored to the window's edges
         std::vector<Vertex> vertices;
         std::vector<std::uint16_t> triangles; // three vertex indices each
         std::vector<bool> drawn;              // per triangle: not dropped by the variant's cull
@@ -98,6 +100,12 @@ public:
     // buffer is a display frame (AlyssaPan_DrawGaTarget): the meshes after them draw under them.
     void setRegister(int reg, std::uint64_t value);
     void setTarget(bool toDisplay);
+    // The bank main_rtn draws (alyssapan_drawga.h AlyssaPan_DrawGaBank): the meshes after it carry it.
+    void setBank(int bank, bool hud)
+    {
+        m_bank = bank;
+        m_hud = hud;
+    }
 
     // The game's frame ends at gaWaitVSync's swap (alyssapan_drawga.h AlyssaPan_DrawGaSwap): what was
     // recorded since the last one becomes the last frame's. Answers true when there was anything (the
@@ -132,6 +140,8 @@ private:
     std::vector<Mesh> m_last;
     std::uint64_t m_closeField = 0;
     GsState m_gs;
+    int m_bank = -1;
+    bool m_hud = false;
     bool m_loggedFirst = false;
     bool m_loggedTexture = false;
     bool m_loggedCopy = false;

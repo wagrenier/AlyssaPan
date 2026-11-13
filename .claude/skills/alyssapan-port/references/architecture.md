@@ -632,6 +632,11 @@ Read with `vudis.py 18ff430 335 --all` (mind hazards.md's vudis misprints). Micr
   fill at FIX 0x80: the fade-in waits on the global script's WAIT_ANIM for Alyssa's motion 0, which loops
   under ANIM_CTRL_HOLD (open-items.md nq5 / nq6). The room shots of earlier runs were the first half of a
   split frame, drawn before the fill.
+- **The HUD is the INFO.BIN bank (2026-11-12, host task hud_anchor.cpp).** main_rtn draws it with the room
+  (bank 5 on the NEW path): depth-tested (ZTST GEQUAL) at one flat Z near the eye (about 7.3M; the room
+  2..6.5M), its pieces on a 512x128 texture, the panic ornament top left. Nothing in the GS state marks it
+  as 2D; the host knows it by its bank's file (AlyssaPan_DrawGaBank, a PORT line in main_rtn) and anchors
+  its side-third pieces to the window edges at wide aspects (seams.cpp gaAnchorOf).
 - **The widened 3D view (2026-11-12, host task ga_wide3d.cpp).** The ROM's projection is kept; the canvas
   squeezes the 512-wide frame about its centre into the 4:3 box, so a point past the frame's edge lands in
   a wide window's side band. What stopped it showing was the game's 4:3 view: gaSet3dlibStruct's left /

@@ -1986,14 +1986,33 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    and a scene frame's fills over the whole canvas, the rest in gaScissor's 4:3 box. Seen: at 1280x720 the
    window room (frame 2880) and the dining room (1260) fill the width with the 4:3 shot's middle unchanged
    and nothing stretched; the content warning stays pillarboxed; at 4:3 the shots match the run before.
-   Left: (nt1) the HUD ornament (top left) stays at the 4:3 box's corner -- anchoring the 2D HUD to the
-   window edge (DisplayGeometry) is the next width task; (nt2) the title's tower is a 3D scene, so it now
+   Left: ~~(nt1) the HUD ornament (top left) stays at the 4:3 box's corner~~ done 2026-11-12 22:20
+   (alyssapan/rendering/hud_anchor.cpp, below); (nt2) the title's tower is a 3D scene, so it now
    widens too: at 16:9 frame 600 the cloud layer's far corners look darker at the bottom right (the sky
    mesh's edge?) -- compare with work/ref/TITL; (nt3) "widened" is a host heuristic (ZTST GEQUAL /
    GREATER, or a depth-only pass), not a ROM flag; (nt4) Clipping_Portal's narrowed planes (portal rooms,
    Clipping_System 1) are not widened: a room behind a portal may show cut sides at 16:9 -- widen its
    left / right tangents the same way if a portal room shows it; (nt5) any game code that culls by screen
    x elsewhere (particles, billboards, shadows) is not yet found.
+
+   **alyssapan/rendering/hud_anchor.cpp (done, 2026-11-12 22:20, Claude, scheduled run, host task; queue
+   refill: the pinned queue held only the stale blocked ui_canvas.cpp, no stub is reached past NEW, so the
+   run took nt1, the width task the run before named).** The HUD is the **INFO.BIN** bank (bank 5 on the
+   NEW path), drawn by main_rtn like the room: depth-tested (ZTST GEQUAL) at one flat Z near the eye
+   (about 7.3M against the room's 2..6.5M), 512x128 texture -- so no GS state tells it from 3D, and the
+   bounds / cover heuristics tried first did nothing (a probe showed why). main_rtn now tells the host its
+   bank and file (PORT: AlyssaPan_DrawGaBank(bank, BankInfo[bank].name)); the recorder tags each mesh
+   (GaMeshRecorder::Mesh bank / hud) and DrawGaFrame moves an INFO.BIN mesh centred in the frame's left or
+   right third out by the side band, scissored to the window (seams.cpp gaAnchorOf / gaAnchorShift).
+   Seen: at 1280x720 the ornament sits 12 px from the window's top-left corner (frame 1260), as it sits
+   12 px from the 4:3 picture's corner at 640x480; the room is unchanged. Open: (nu1) the in-game menu
+   (START, frame 1440) at 16:9: its backdrop is widened on the right (depth-tested, reaches past the box)
+   but ends about 100 px short of the left edge (black band) -- the menu bank's own width task; the
+   ornament now sits at the window corner over that band; (nu2) the HUD's slide-in starts past the frame's
+   left edge (x -443..-287 in one frame), so it now slides in from the window edge; (nu3) only INFO.BIN is
+   anchored: other HUD-like banks (item pickups, prompts) are centred or boxed until seen; (nu4) the bank
+   tag is main_rtn's; draws outside main_rtn (particles, fades, the ghost passes) carry the last bank
+   main_rtn set, so a non-main_rtn draw after INFO.BIN would be tagged as HUD -- none seen.
 
 ## Decisions
 

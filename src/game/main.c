@@ -13,6 +13,7 @@
 #include "sdk/eekernel.h"
 #include "sdk/libdma.h"
 #include "sdk/libgraph.h"
+#include "alyssapan/rendering/alyssapan_drawga.h"
 #include "game/unassigned_data.h"
 #include "ga/gaBGT_DrawObject.h"
 #include "ga/gaDma.h"
@@ -1177,6 +1178,7 @@ void main_rtn(int bank, int mode, int chara, u_int flags, int charaIndex, void *
     int zonlyParts = -1;
     u_int pass = flags & MAIN_RTN_PASS_MASK;
     int i;
+    AlyssaPan_DrawGaBank(bank, BankInfo[bank].name); /* PORT: the host tags this bank's meshes (the HUD) */
 
     if (chara != 0) {
         lightBank = Character[charaIndex].lightBank;

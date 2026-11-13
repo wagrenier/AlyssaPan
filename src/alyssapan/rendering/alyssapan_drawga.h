@@ -151,6 +151,11 @@ void AlyssaPan_DrawGaRegister(int reg, uint64_t value);
  * not drawn. */
 void AlyssaPan_DrawGaTarget(int toDisplay);
 
+/* The bank main_rtn draws and its file (BankInfo[].name): the host tags the
+ * meshes after it, so the frame pass can tell the HUD (INFO.BIN) apart and
+ * anchor it to the window's edges at wide aspects. */
+void AlyssaPan_DrawGaBank(int bank, const char *file);
+
 /* The Z buffer cleared and the colour left alone, in draw order: where the
  * ROM draws the frame-clear sprite depth-only (ssBGT_ZBufferClear, before
  * each global bank). */
