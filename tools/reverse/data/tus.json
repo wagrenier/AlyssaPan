@@ -1488,7 +1488,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 119..119, 24 functions keyed by their statics, 43 unkeyed; source string sound.c"
   },
   "game/ssBrain_ChgHideAtk1.c": {
-   "notes": "Not reached by a 15 s smoke run (no stalker; the shots show the boot screens as before). callcheck MISSING lines are the static helpers holding the calls (ssBrain_StrikePanic, PlayStrike, AttackStriking, TraceDrawn, TraceNextLink, TraceDoorPassed, PickAtk). Ghidra dropped register arguments in Attack1 (a2 motion, a3 -1 into CompCharaDir) and Trace1 (a1 bank into GetPoleGroupID): read with mipsdis. Next slice: Approach1 (0x0187f000) and Search1 (0x0187fbe0, reads BRAIN_SEARCH_TIME2) -- then the TU is code complete (verify). Guesses l..p in open-items.md.",
+   "notes": "Approach1 is the Trace1 walk toward the player room with a play rate by distance (800); Search1 adds the look-around at a search pole and the hidden wait BRAIN_SEARCH_TIME2. Helpers ssBrain_ComeIn (shared hidden come-in tail) and ssBrain_ScaleSearchTimes (also used by SetSearchMode). Guesses q..t in open-items.md (AI_ROOM_OUTSIDE 0x083060c1 with bank -2, BRAIN_SEARCH_COUNTDOWN setter elsewhere, Random2 flag 0x10, PORT guard for BankInfo past the array). callcheck MISSING lines are the static helpers. Not reached by a 15 s smoke run: shots show the boot screens as before.",
    "ranges": [
     [
      "0187b160",
@@ -1510,9 +1510,14 @@
      "date": "2026-11-12 23:17",
      "status": "partial",
      "summary": "slice 3: ssBrain_Init1, ssBrain_HideAtk1, ssBrain_Attack1, ssBrain_Trace1 and ssAI_SetSpecialAttack; BRAIN_ATK_STATE named whole but 0x00..0x03 (chain, panic, wSpecial, nextMotion, extraMotion); sub-modes GLINK and AT_POLE"
+    },
+    {
+     "date": "2026-11-12 23:32",
+     "status": "verify",
+     "summary": "slice 4: ssBrain_Approach1 and ssBrain_Search1 -- all 34 functions written, code complete"
     }
    ],
-   "status": "partial",
+   "status": "verify",
    "why": "tumap.py (bootstrap 5): symtab local chunks 82..82, 2 functions keyed by their statics, 32 unkeyed; file name from the names"
   },
   "game/ssCalcInversMatrix2.c": {

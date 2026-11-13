@@ -127,7 +127,8 @@ static_assert(offsetof(BRAIN_ATK_STATE, chain) == 0x04 && offsetof(BRAIN_ATK_STA
 #define BRAIN_HEAR_RANGE 0x1bc          /* float: ChgSearch1 hears within it (x AI_HEAR_FAR: a turn only) */
 #define BRAIN_ATK_NEAR 0x1c4            /* float: SetAttackMode from a search: farther -> wFar */
 #define BRAIN_SEARCH_TIME 0x1d4         /* int: the search's time (BRAIN_SEARCH_TIME_BASE scaled by the room) */
-#define BRAIN_SEARCH_TIME2 0x1d8        /* int: a second time scaled the same way (its use: Search1) */
+#define BRAIN_SEARCH_TIME2 0x1d8        /* int: a second time scaled the same way: Search1's hidden stalker
+                                           waits it out (BRAIN_SEARCH_TIME when it hides) before coming in */
 #define BRAIN_SEARCH_TIME_BASE 0x1dc    /* int */
 #define BRAIN_SEARCH_TIME2_BASE 0x1e0   /* int */
 #define BRAIN_SEARCH_START 0x1e4        /* int: BRAIN_TICKS when the search began */
@@ -222,3 +223,17 @@ int ssAI_SearchToAttackMode(struct CHARACTER *chr);                             
 // Picks a strike against Character[chara] while an attack stands (Attack1, every AI_SPECIAL_TICKS): sets
 // BRAIN_ATK_PICK and BRAIN_ATK_STEP 1; always 0.
 int ssAI_SetSpecialAttack(struct CHARACTER *chr, short chara);                           // CT3 0x01880f70
+
+// ---- slice 4 (2026-11-12): ssBrain_Approach1, ssBrain_Search1 ----
+#define BRAIN_APPROACH_RATE_NEAR 0x22c  /* u_char: the approach motion's play rate within AI_APPROACH_NEAR */
+#define BRAIN_APPROACH_RATE_FAR 0x22d   /* u_char: farther */
+#define AI_APPROACH_NEAR 800.0f
+#define BRAIN_SEARCH_COUNTDOWN 0x218    /* int: Search1 takes 1 a frame; below 1 the search turns to return
+                                           (its setter: not in this TU) */
+#define BRAIN_LOOK_MOTION 0x25c         /* short: at a search pole, looking around (then the search motion) */
+#define BRAIN_LOOK_MOTION_ALT 0x25e     /* short: the other look, at even odds */
+#define AI_LOOK_CHANCE 50               /* ssTrigCheckRandom's per cent: BRAIN_LOOK_MOTION, else _ALT */
+#define AI_SEARCH_HIDDEN_WAIT 2000      /* BRAIN_SEARCH_TIME2 when a hidden stalker leaves its room through a
+                                           link to an undrawn bank (its own undrawn too) or out of every bank */
+#define AI_ROOM_OUTSIDE 0x083060c1u     /* BRAIN_LINK_ROOM / CHARACTER.roomHash of a scene link leading out of
+                                           every bank (pole flag HIDE_POLE_FLAG_OWN_GROUP, 4, on the pair pole) */

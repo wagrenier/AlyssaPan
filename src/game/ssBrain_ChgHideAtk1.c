@@ -3,7 +3,7 @@
 // Slice 1 (2026-11-12): the mode changes ssBrain_Chg{HideAtk,Return,Attack,Trace,Approach}1, ssBrain_Return1,
 // every transition and ssAI_SetHideAtkMode. Slice 2 (2026-11-12): the setters Set{Trace,Attack,Approach,
 // Search}Mode, SearchToApproachMode, ChgSearch1 and Damage1. Slice 3 (2026-11-12): Init1, HideAtk1,
-// Attack1, Trace1 and SetSpecialAttack. Left: Approach1, Search1 (stubs below).
+// Attack1, Trace1 and SetSpecialAttack. Slice 4 (2026-11-12): Approach1 and Search1 -- the code is complete.
 
 #include "common/alyssapan_stub.h"
 #include "game/ssBrain_ChgHideAtk1.h"
@@ -1021,6 +1021,18 @@ int ssAI_SetApproachMode(CHARACTER *chr, int chara)
     return 0;
 }
 
+// The search times scaled by a bank's room (SetSearchMode, Search1): base * (((cellW + cellD) -
+// AI_SEARCH_ROOM_BASE) / AI_SEARCH_ROOM_SCALE + 1), and the search starts now.
+static void ssBrain_ScaleSearchTimes(u_char *brain, int bank)
+{
+    const HIT_SCENE_GRID *grid = ssBrain_Grid(bank);
+    float scale = ((grid->cellW + grid->cellD) - AI_SEARCH_ROOM_BASE) / AI_SEARCH_ROOM_SCALE + 1.0f;
+
+    ssBrain_SetInt(brain, BRAIN_SEARCH_TIME, (int)((float)ssBrain_Int(brain, BRAIN_SEARCH_TIME_BASE) * scale));
+    ssBrain_SetInt(brain, BRAIN_SEARCH_TIME2, (int)((float)ssBrain_Int(brain, BRAIN_SEARCH_TIME2_BASE) * scale));
+    ssBrain_SetInt(brain, BRAIN_SEARCH_START, ssBrain_Int(brain, BRAIN_TICKS));
+}
+
 // CT3 0x01881f90
 // Search. With no room yet the stalker comes out of its shadow polygon. Else a random search pole of chr's
 // bank (or the one kept), straight there in its group or by route; a new search scales its times by the
@@ -1029,9 +1041,8 @@ int ssAI_SetSearchMode(CHARACTER *chr, int keepPole)
 {
     u_char *brain = CharaBrainPtr(chr);
     CHARACTER *player = &Character[Player_BankID];
-    const HIT_SCENE_GRID *grid;
     float pole[4];
-    float d, scale;
+    float d;
     short p;
 
     brain[BRAIN_MODE] = SS_AI_SEARCH;
@@ -1067,11 +1078,7 @@ int ssAI_SetSearchMode(CHARACTER *chr, int keepPole)
     }
     if (keepPole != 0)
         return 0;
-    grid = ssBrain_Grid(brain[BRAIN_SEARCH_BANK]);
-    scale = ((grid->cellW + grid->cellD) - AI_SEARCH_ROOM_BASE) / AI_SEARCH_ROOM_SCALE + 1.0f;
-    ssBrain_SetInt(brain, BRAIN_SEARCH_TIME, (int)((float)ssBrain_Int(brain, BRAIN_SEARCH_TIME_BASE) * scale));
-    ssBrain_SetInt(brain, BRAIN_SEARCH_TIME2, (int)((float)ssBrain_Int(brain, BRAIN_SEARCH_TIME2_BASE) * scale));
-    ssBrain_SetInt(brain, BRAIN_SEARCH_START, ssBrain_Int(brain, BRAIN_TICKS));
+    ssBrain_ScaleSearchTimes(brain, brain[BRAIN_SEARCH_BANK]);
     return 0;
 }
 
@@ -1979,18 +1986,634 @@ int ssAI_SetSpecialAttack(CHARACTER *chr, short chara)
     return 0;
 }
 
-// ---- stubs (tools/reverse/stubgen.py) ----
+// ---- slice 4 (2026-11-12): ssBrain_Approach1, ssBrain_Search1 ----
 
-// stub of CT3 0x0187f000
-void ssBrain_Approach1(struct CHARACTER *chr)
+// Approach1's and Search1's hidden stalker, its time up: it comes in through the shadow Alyssa warped by
+// (BRAIN_PLAYER_SHADOW) or the door of the scene link nearest chr into her bank, playing `motion`.
+static void ssBrain_ComeIn(CHARACTER *chr, u_char *brain, short motion)
 {
-    ALYSSAPAN_STUB("ssBrain_Approach1", 0x0187f000);
+    int bank = brain[BRAIN_BANK];
+    u_char door;
+
+    if (ssAI_IsGetShadowPol((u_char)(s_char)brain[BRAIN_PLAYER_SHADOW], bank) == 0) {
+        short pole = ssAI_GetScnLinkPoleID((const float *)chr->pos, (u_int)ssBrain_Int(brain, BRAIN_ROOM),
+                                           brain[BRAIN_PLAYER_BANK]);
+
+        if (pole == -1) {
+            ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+            return;
+        }
+        door = ssAI_GetPoleDoorNo(pole, brain[BRAIN_PLAYER_BANK]);
+    } else {
+        door = brain[BRAIN_PLAYER_SHADOW];
+    }
+    brain[BRAIN_TRACE_DOOR] = door;
+    if (ssAI_LetMonsterInFromShadow(chr, (u_char)bank, brain[BRAIN_PLAYER_BANK], (s_char)door, motion) == -1)
+        ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
 }
 
-
-// stub of CT3 0x0187fbe0
-void ssBrain_Search1(struct CHARACTER *chr)
+// Approach1's walk with chr's bank drawn: towards Alyssa in her room (DIRECT), else to the scene's end pole
+// and through its scene link (SCN_LINK); between groups by route (ROUTE to a group link, GLINK across it).
+static void ssBrain_ApproachDrawn(CHARACTER *chr, u_char *brain)
 {
-    ALYSSAPAN_STUB("ssBrain_Search1", 0x0187fbe0);
+    CHARACTER *player = &Character[Player_BankID];
+    int bank = brain[BRAIN_BANK];
+    float targ[4], pos[4];
+    // PORT: zeroed; a sub-mode the switch does not know turns by the ROM's stale stack.
+    float dir[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+    short group;
+    int r;
+
+    if (ssBrain_Int(brain, BRAIN_ROOM) == ssBrain_Int(brain, BRAIN_PLAYER_ROOM)) {
+        group = ssBrain_Short(brain, BRAIN_PLAYER_GROUP);
+        memcpy(targ, player->pos, sizeof(targ));
+    } else {
+        if (ssBrain_Short(brain, BRAIN_SCN_END_POLE) == -1) {
+            if (brain[BRAIN_SUBMODE] != BRAIN_SUBMODE_ROUTE && brain[BRAIN_SUBMODE] != BRAIN_SUBMODE_DIRECT) {
+                ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+                return;
+            }
+            if (ssAI_SetApproachMode(chr, Player_BankID) == -1) {
+                ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+                return;
+            }
+        }
+        group = ssAI_GetPoleGroupID(ssBrain_Short(brain, BRAIN_SCN_END_POLE), bank);
+        ssAI_GetPolePos(targ, ssBrain_Short(brain, BRAIN_SCN_END_POLE), bank);
+    }
+    if (ssAI_IsWaitPlaying(chr) != 0)
+        asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, ssBrain_Short(brain, BRAIN_APPROACH_MOTION));
+    if (brain[BRAIN_SHOWN] == 0) {
+        ssAI_MonsterDraw(chr, 1);
+        brain[BRAIN_SHOWN] = 1;
+    }
+    switch (brain[BRAIN_SUBMODE]) {
+    case BRAIN_SUBMODE_DIRECT:
+        if (ssBrain_Short(brain, BRAIN_POLE_GROUP) != group) {
+            ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+            return;
+        }
+        if (ssBrain_Short(brain, BRAIN_TARG_POLE) != -1) {
+            ssAI_GRS_InitParam(bank);
+            ssBrain_SetShort(brain, BRAIN_TARG_POLE, -1);
+        }
+        if (ssBrain_Int(brain, BRAIN_ROOM) != ssBrain_Int(brain, BRAIN_PLAYER_ROOM) && ssAI_IsGetToScnEndPole(chr) != 0) {
+            short end = ssBrain_Short(brain, BRAIN_SCN_END_POLE);
+            short pair;
+
+            brain[BRAIN_TRACE_DOOR] = ssAI_GetPoleDoorNo(end, bank);
+            ssBrain_SetShort(brain, BRAIN_TARG_POLE, ssAI_GetPairScnLinkPoleID(end, bank));
+            pair = ssBrain_Short(brain, BRAIN_TARG_POLE);
+            if (pair == -1) {
+                ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+                return;
+            }
+            ssAI_GetPolePos(pos, pair, bank);
+            memcpy(brain + BRAIN_NEXT_POINT, pos, sizeof(pos));
+            memcpy(brain + BRAIN_SCN_NEXT_POINT, pos, sizeof(pos));
+            brain[BRAIN_LINK_BANK] = (u_char)ssAI_GetPoleScnBnkID(pair, bank);
+            if ((s_char)brain[BRAIN_LINK_BANK] == -1) {
+                ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+                return;
+            }
+            ssBrain_SetInt(brain, BRAIN_LINK_ROOM, (int)ssAI_GetPoleScnName(pair, bank));
+            brain[BRAIN_SUBMODE] = BRAIN_SUBMODE_SCN_LINK;
+        }
+        // Unlike Trace1, the ROM turns towards the target on the frame the scene link is taken too.
+        ssBrain_DirTo(dir, chr, targ);
+        break;
+    case BRAIN_SUBMODE_SCN_LINK:
+        if (ssBrain_Int(brain, BRAIN_LINK_ROOM) == ssBrain_Int(brain, BRAIN_ROOM) && ssAI_IsGetToScnNextPoint(chr) != 0) {
+            brain[BRAIN_TRACE_DOOR] = AI_DOOR_NONE;
+            if (ssAI_SetApproachMode(chr, Player_BankID) == -1) {
+                ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+                return;
+            }
+        }
+        if (ssAI_IsDoorOpenPlaying(chr) != 0) {
+            r = ssAI_IsDoorOpenFull((s_char)brain[BRAIN_TRACE_DOOR]);
+            if (r == -1) {
+                ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+                return;
+            }
+            if (r != 0) {
+                asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, ssBrain_Short(brain, BRAIN_DOOR_MOTION_END));
+                asChangeMortionInfo_NextMortion(chr->id, ssBrain_Short(brain, BRAIN_DOOR_MOTION_END),
+                                                ssBrain_Short(brain, BRAIN_APPROACH_MOTION), -1);
+            }
+        }
+        ssBrain_DirTo(dir, chr, (const float *)(brain + BRAIN_SCN_NEXT_POINT));
+        break;
+    case BRAIN_SUBMODE_GLINK:
+        if (ssAI_GetPoleGroupID(ssBrain_Short(brain, BRAIN_PAIR_POLE), bank) == ssBrain_Short(brain, BRAIN_POLE_GROUP)) {
+            r = ssAI_IsGetToGLinkPole(chr, ssBrain_Short(brain, BRAIN_PAIR_POLE), bank);
+            if (r == -1) {
+                ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+                return;
+            }
+            if (r != 0) {
+                if (group == ssBrain_Short(brain, BRAIN_POLE_GROUP)) {
+                    brain[BRAIN_SUBMODE] = BRAIN_SUBMODE_DIRECT;
+                    ssAI_GRS_InitParam(bank);
+                    ssBrain_SetShort(brain, BRAIN_TARG_POLE, -1);
+                } else {
+                    short next = ssAI_GRS_PopFront(bank);
+
+                    if (next == -1) {
+                        ssBrain_SetShort(brain, BRAIN_TARG_POLE, -1);
+                    } else {
+                        ssBrain_SetShort(brain, BRAIN_TARG_POLE,
+                                         ssAI_GetGLinkPolID(ssBrain_Short(brain, BRAIN_POLE_GROUP), next, bank));
+                        if (ssBrain_Short(brain, BRAIN_TARG_POLE) == -1) {
+                            // No link to the next group: the approach is planned again.
+                            if (ssAI_SetApproachMode(chr, Player_BankID) == -1)
+                                ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+                            return;
+                        }
+                        if (ssAI_SetNextGLinkPolePoint(ssBrain_Short(brain, BRAIN_TARG_POLE), bank, chr, targ) == -1) {
+                            ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+                            return;
+                        }
+                    }
+                    brain[BRAIN_SUBMODE] = BRAIN_SUBMODE_ROUTE;
+                }
+            }
+        }
+        ssBrain_DirTo(dir, chr, (const float *)(brain + BRAIN_NEXT_POINT));
+        break;
+    case BRAIN_SUBMODE_ROUTE:
+        if (ssBrain_Short(brain, BRAIN_POLE_GROUP) == group) {
+            ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+            return;
+        }
+        if (ssBrain_Short(brain, BRAIN_TARG_POLE) == -1 && ssAI_SetApproachMode(chr, Player_BankID) == -1) {
+            ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+            return;
+        }
+        r = ssAI_IsGetToGLinkPole(chr, ssBrain_Short(brain, BRAIN_TARG_POLE), bank);
+        if (r == -1) {
+            ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+            return;
+        }
+        if (r != 0) {
+            short pair = ssAI_GetPairGrpLinkPoleID(ssBrain_Short(brain, BRAIN_TARG_POLE), bank);
+
+            ssBrain_SetShort(brain, BRAIN_TARG_POLE, pair);
+            ssBrain_SetShort(brain, BRAIN_PAIR_POLE, pair);
+            if (ssBrain_Short(brain, BRAIN_PAIR_POLE) == -1 ||
+                ssAI_SetNextGLinkPolePoint(ssBrain_Short(brain, BRAIN_TARG_POLE), bank, chr, targ) == -1) {
+                ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+                return;
+            }
+            brain[BRAIN_SUBMODE] = BRAIN_SUBMODE_GLINK;
+        }
+        ssBrain_DirTo(dir, chr, (const float *)(brain + BRAIN_NEXT_POINT));
+        break;
+    }
+    if (ssAI_IsForwardPlaying(chr) != 0 || ssAI_IsRotationPlaying(chr) != 0)
+        ssAI_CompCharaDir(chr, dir, ssBrain_Int(brain, BRAIN_TURN_SPEED), 0);
+}
+
+// CT3 0x0187f000
+// Approaching Alyssa: the approach motion plays faster within AI_APPROACH_NEAR. With chr's bank drawn it
+// walks (ssBrain_ApproachDrawn). Undrawn it is hidden: the route to her scene link is planned and timed
+// (BRAIN_APPROACH_TIMER); when the time is up it comes in (ssBrain_ComeIn). Crossing a scene link it waits
+// for the door motion to pass its frame, or for the door to close to go on.
+void ssBrain_Approach1(CHARACTER *chr)
+{
+    u_char *brain = CharaBrainPtr(chr);
+    CHARACTER *player = &Character[Player_BankID];
+    int bank;
+    int r;
+
+    asChangeCharacterMotionSettingPlayRate(chr->id, ssBrain_Short(brain, BRAIN_APPROACH_MOTION),
+                                           ssBrain_DistTo(chr, (const float *)player->pos) < AI_APPROACH_NEAR
+                                               ? brain[BRAIN_APPROACH_RATE_NEAR]
+                                               : brain[BRAIN_APPROACH_RATE_FAR]);
+    bank = brain[BRAIN_BANK];
+    if (ssBrain_BankDrawn(bank)) {
+        ssBrain_ApproachDrawn(chr, brain);
+        return;
+    }
+    if (ssAI_IsDoorOpenPlaying(chr) == 0 && ssAI_IsWaitPlaying(chr) == 0)
+        asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, ssBrain_Short(brain, BRAIN_END_MOTION));
+    if (brain[BRAIN_SHOWN] != 0) {
+        float targ[4];
+        float d;
+        short pole, next;
+
+        ssAI_MonsterDraw(chr, 0);
+        brain[BRAIN_SHOWN] = 0;
+        pole = ssAI_GetScnLinkPoleID((const float *)player->pos, (u_int)ssBrain_Int(brain, BRAIN_PLAYER_ROOM), bank);
+        if (pole == -1) {
+            ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+            return;
+        }
+        ssAI_GetPolePos(targ, pole, bank);
+        d = ssAI_GrpRouteSearch((const float *)chr->pos, targ, ssBrain_Short(brain, BRAIN_POLE_GROUP),
+                                ssAI_GetPoleGroupID(pole, bank), bank);
+        if (d == AI_ROUTE_NONE) {
+            ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+            return;
+        }
+        next = ssAI_GRS_PopFront(bank);
+        if (next == -1) {
+            ssBrain_SetShort(brain, BRAIN_TARG_POLE, -1);
+        } else {
+            ssBrain_SetShort(brain, BRAIN_TARG_POLE,
+                             ssAI_GetGLinkPolID(ssBrain_Short(brain, BRAIN_POLE_GROUP), next, bank));
+            if (ssBrain_Short(brain, BRAIN_TARG_POLE) == -1 ||
+                ssAI_SetNextGLinkPolePoint(ssBrain_Short(brain, BRAIN_TARG_POLE), bank, chr, targ) == -1) {
+                ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+                return;
+            }
+        }
+        ssBrain_SetTimer(brain, BRAIN_APPROACH_TIMER, BRAIN_APPROACH_SPEED, BRAIN_APPROACH_START, d);
+    }
+    if (brain[BRAIN_SUBMODE] != BRAIN_SUBMODE_SCN_LINK) {
+        if (ssBrain_Int(brain, BRAIN_TICKS) - ssBrain_Int(brain, BRAIN_APPROACH_START) <
+            ssBrain_Int(brain, BRAIN_APPROACH_TIMER))
+            return;
+        ssBrain_ComeIn(chr, brain, ssBrain_Short(brain, BRAIN_APPROACH_MOTION));
+        return;
+    }
+    if (ssAI_IsDoorPushOpenPlaying(chr) != 0) {
+        if (ssAI_IsMortionFramePassed(chr, ssBrain_Short(brain, BRAIN_DOOR_MOTION),
+                                      (u_int)ssBrain_Int(brain, BRAIN_DOOR_FRAME)) != 0)
+            ssBrain_TraceDoorPassed(chr, brain);
+        return;
+    }
+    if (ssAI_IsDoorPullOpenPlaying(chr) != 0) {
+        if (ssAI_IsMortionFramePassed(chr, ssBrain_Short(brain, BRAIN_DOOR_MOTION_ALT),
+                                      (u_int)ssBrain_Int(brain, BRAIN_DOOR_FRAME_ALT)) != 0)
+            ssBrain_TraceDoorPassed(chr, brain);
+        return;
+    }
+    r = ssAI_IsDoorClose((s_char)brain[BRAIN_TRACE_DOOR]);
+    if (r == -1) {
+        ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+        return;
+    }
+    if (r != 0) {
+        brain[BRAIN_TRACE_DOOR] = AI_DOOR_NONE;
+        ssBrain_SetInt(brain, BRAIN_APPROACH_TIMER, 0);
+        brain[BRAIN_SUBMODE] = BRAIN_SUBMODE_ROUTE;
+    }
+}
+
+// PORT: BankInfo[] has BANK_MAX entries; the ROM also reads it for AI_BANK_NONE (past the array).
+static int ssBrain_BankDrawOn(int bank)
+{
+    return bank < BANK_MAX ? BankInfo[bank].drawOn : 0;
+}
+
+// Search1's door motion through a scene link: once the door is fully open, the end motion, then the search
+// motion; once the motion passed its frame, a door that closed registers TRIG_EVENT_AI_DOOR_SHUT.
+static int ssBrain_SearchDoor(CHARACTER *chr, const u_char *brain, int motionOff, int frameOff)
+{
+    int r = ssAI_IsDoorOpenFull((s_char)brain[BRAIN_TRACE_DOOR]);
+
+    if (r == -1)
+        return -1;
+    if (r != 0) {
+        asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, ssBrain_Short(brain, BRAIN_DOOR_MOTION_END));
+        asChangeMortionInfo_NextMortion(chr->id, ssBrain_Short(brain, BRAIN_DOOR_MOTION_END),
+                                        ssBrain_Short(brain, BRAIN_SEARCH_MOTION), -1);
+    }
+    if (ssAI_IsMortionFramePassed(chr, ssBrain_Short(brain, motionOff), (u_int)ssBrain_Int(brain, frameOff)) == 0)
+        return 0;
+    r = ssAI_IsDoorClose((s_char)brain[BRAIN_TRACE_DOOR]);
+    if (r == -1)
+        return -1;
+    if (r != 0)
+        ssTrigRegisterEvent(TRIG_EVENT_AI_DOOR_SHUT, TRIG_GLOBAL, TRIG_ANY_BANK);
+    return 0;
+}
+
+// Search1 at its search pole. An ordinary pole: chr looks around (one of two motions, even odds); with the
+// search time up it heads for Alyssa -- in her room a shadow pole's scene-link pair (none: any search pole,
+// and BRAIN_SEARCH_TIME -1), else her room's scene link -- else for another search pole. A scene-link pole:
+// through its door (a closed one of HIDE_POLE_FLAG_CROSS_BANK plays a door motion) to the pair pole.
+static void ssBrain_SearchAtPole(CHARACTER *chr, u_char *brain)
+{
+    int bank = brain[BRAIN_BANK];
+    short spole = ssBrain_Short(brain, BRAIN_SEARCH_POLE);
+    int sbank = brain[BRAIN_SEARCH_BANK];
+    float pos[4];
+    short pair;
+
+    if (ssAI_CheckPoleFlg(spole, sbank, HIDE_POLE_FLAG_SCN_LINK) == 0) {
+        short look = ssTrigCheckRandom(AI_LOOK_CHANCE) == 0 ? ssBrain_Short(brain, BRAIN_LOOK_MOTION_ALT)
+                                                            : ssBrain_Short(brain, BRAIN_LOOK_MOTION);
+        short p;
+
+        asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, look);
+        asChangeMortionInfo_NextMortion(chr->id, look, ssBrain_Short(brain, BRAIN_SEARCH_MOTION), -1);
+        if (ssBrain_Int(brain, BRAIN_SEARCH_TIME) < ssBrain_Int(brain, BRAIN_TICKS) - ssBrain_Int(brain, BRAIN_SEARCH_START)) {
+            if (ssBrain_Int(brain, BRAIN_ROOM) == ssBrain_Int(brain, BRAIN_PLAYER_ROOM)) {
+                p = ssAI_GetNextTargPoleRandom2(bank, spole, HIDE_POLE_FLAG_SHADOW);
+                ssBrain_SetShort(brain, BRAIN_SEARCH_POLE, p);
+                if (p == -1) {
+                    ssBrain_SetInt(brain, BRAIN_SEARCH_TIME, -1);
+                    p = ssAI_GetNextTargPoleRandom(bank, -1, SEARCH_POLE_FLAG);
+                } else {
+                    p = ssAI_GetPairScnLinkPoleID(p, bank);
+                }
+            } else {
+                p = ssAI_GetScnLinkPoleID((const float *)chr->pos, (u_int)ssBrain_Int(brain, BRAIN_PLAYER_ROOM), bank);
+            }
+        } else {
+            p = ssAI_GetNextTargPoleRandom(bank, spole, SEARCH_POLE_FLAG);
+        }
+        ssBrain_SetShort(brain, BRAIN_SEARCH_POLE, p);
+        if (p == -1 || ssAI_SetSearchMode(chr, 1) == -1)
+            ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+        return;
+    }
+    brain[BRAIN_TRACE_DOOR] = ssAI_GetPoleDoorNo(spole, sbank);
+    if (ssAI_CheckPoleFlg(spole, sbank, HIDE_POLE_FLAG_CROSS_BANK) != 0) {
+        int r = ssAI_IsDoorClose((s_char)brain[BRAIN_TRACE_DOOR]);
+
+        if (r == -1) {
+            ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+            return;
+        }
+        if (r != 0) {
+            short door = ssAI_CheckPoleFlg(spole, sbank, HIDE_POLE_FLAG_DOOR_ALT) != 0
+                             ? ssBrain_Short(brain, BRAIN_DOOR_MOTION_ALT)
+                             : ssBrain_Short(brain, BRAIN_DOOR_MOTION);
+
+            asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, door);
+            asChangeMortionInfo_NextMortion(chr->id, door, ssBrain_Short(brain, BRAIN_DOOR_MOTION_END), -1);
+            asChangeMortionInfo_NextMortion(chr->id, ssBrain_Short(brain, BRAIN_DOOR_MOTION_END),
+                                            ssBrain_Short(brain, BRAIN_SEARCH_MOTION), -1);
+        }
+    }
+    pair = ssAI_GetPairScnLinkPoleID(ssBrain_Short(brain, BRAIN_TARG_POLE), bank);
+    ssBrain_SetShort(brain, BRAIN_TARG_POLE, pair);
+    ssBrain_SetShort(brain, BRAIN_SEARCH_POLE, pair);
+    if (pair == -1) {
+        ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+        return;
+    }
+    ssAI_GetPolePos(pos, pair, bank);
+    memcpy(brain + BRAIN_NEXT_POINT, pos, sizeof(pos));
+    memcpy(brain + BRAIN_SCN_NEXT_POINT, pos, sizeof(pos));
+    if (ssAI_CheckPoleFlg(pair, bank, HIDE_POLE_FLAG_OWN_GROUP) == 0) {
+        brain[BRAIN_LINK_BANK] = (u_char)ssAI_GetPoleScnBnkID(pair, bank);
+        if ((s_char)brain[BRAIN_LINK_BANK] == -1) {
+            ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+            return;
+        }
+        ssBrain_SetInt(brain, BRAIN_LINK_ROOM, (int)ssAI_GetPoleScnName(pair, bank));
+    } else {
+        // The link leads out of every bank (flag 4 here; tiAvoidObject.h's name is from its other use).
+        brain[BRAIN_LINK_BANK] = AI_BANK_NONE;
+        ssBrain_SetInt(brain, BRAIN_LINK_ROOM, (int)AI_ROOM_OUTSIDE);
+    }
+    brain[BRAIN_SUBMODE] = BRAIN_SUBMODE_SCN_LINK;
+}
+
+// Search1 with chr's bank drawn: shown (placed on a random pole when it has no group), it walks to its
+// search pole by route (ROUTE, GLINK) or straight (DIRECT, ssBrain_SearchAtPole there), and through a scene
+// link (SCN_LINK): into the next room, which restarts the search, or out of every bank, where it hides.
+static void ssBrain_SearchDrawn(CHARACTER *chr, u_char *brain)
+{
+    int bank = brain[BRAIN_BANK];
+    float pos[4];
+    // PORT: zeroed; a sub-mode the switch does not know turns by the ROM's stale stack.
+    float dir[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+    int r;
+
+    if (ssAI_IsWaitPlaying(chr) != 0)
+        asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, ssBrain_Short(brain, BRAIN_SEARCH_MOTION));
+    if (brain[BRAIN_SHOWN] == 0) {
+        ssAI_MonsterDraw(chr, 1);
+        brain[BRAIN_SHOWN] = 1;
+        if (ssBrain_Short(brain, BRAIN_POLE_GROUP) == -1) {
+            short pole = ssAI_GetNextTargPoleRandom(bank, -1, (u_char)-1);
+
+            if (pole == -1) {
+                ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+                return;
+            }
+            ssAI_GetPolePos(pos, pole, bank);
+            if (ssAI_SetMonsterPos(chr, pos, ssAI_GetPoleGroupID(pole, bank), 0, 0, 0) == -1 ||
+                ssAI_SetSearchMode(chr, 0) == -1) {
+                ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+                return;
+            }
+        }
+    }
+    switch (brain[BRAIN_SUBMODE]) {
+    case BRAIN_SUBMODE_DIRECT:
+        if (ssAI_IsGetToPole(chr, ssBrain_Short(brain, BRAIN_SEARCH_POLE), brain[BRAIN_SEARCH_BANK]) != 0) {
+            ssBrain_SearchAtPole(chr, brain);
+            return;
+        }
+        ssAI_GetPolePos(pos, ssBrain_Short(brain, BRAIN_SEARCH_POLE), bank);
+        ssBrain_DirTo(dir, chr, pos);
+        break;
+    case BRAIN_SUBMODE_SCN_LINK: {
+        u_int room;
+
+        if (ssAI_IsDoorPushOpenPlaying(chr) != 0)
+            r = ssBrain_SearchDoor(chr, brain, BRAIN_DOOR_MOTION, BRAIN_DOOR_FRAME);
+        else if (ssAI_IsDoorPullOpenPlaying(chr) != 0)
+            r = ssBrain_SearchDoor(chr, brain, BRAIN_DOOR_MOTION_ALT, BRAIN_DOOR_FRAME_ALT);
+        else
+            r = 0;
+        if (r == -1) {
+            ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+            return;
+        }
+        room = (u_int)ssBrain_Int(brain, BRAIN_LINK_ROOM);
+        if (room == AI_ROOM_OUTSIDE) {
+            if (ssAI_IsGetToNextPoint(chr) != 0) {
+                chr->roomHash = AI_ROOM_OUTSIDE;
+                chr->lightBank = (short)(s_char)AI_BANK_NONE;
+                ssAI_MonsterDraw(chr, 0);
+                brain[BRAIN_SHOWN] = 0;
+                asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, ssBrain_Short(brain, BRAIN_END_MOTION));
+            }
+        } else if (room == (u_int)ssBrain_Int(brain, BRAIN_ROOM) && ssAI_IsGetToNextPoint(chr) != 0) {
+            brain[BRAIN_TRACE_DOOR] = AI_DOOR_NONE;
+            if (ssAI_SetSearchMode(chr, 0) == -1) {
+                ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+                return;
+            }
+        }
+        ssBrain_DirTo(dir, chr, (const float *)(brain + BRAIN_SCN_NEXT_POINT));
+        break;
+    }
+    case BRAIN_SUBMODE_GLINK:
+        if (ssAI_GetPoleGroupID(ssBrain_Short(brain, BRAIN_TARG_POLE), bank) == ssBrain_Short(brain, BRAIN_POLE_GROUP)) {
+            r = ssAI_IsGetToGLinkPole(chr, ssBrain_Short(brain, BRAIN_TARG_POLE), bank);
+            if (r == -1) {
+                ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+                return;
+            }
+            if (r != 0) {
+                short next = ssAI_GRS_PopFront(bank);
+
+                if (next == -1) {
+                    if (ssBrain_Short(brain, BRAIN_SEARCH_GROUP) != ssBrain_Short(brain, BRAIN_POLE_GROUP)) {
+                        ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+                        return;
+                    }
+                    ssBrain_SetShort(brain, BRAIN_TARG_POLE, ssBrain_Short(brain, BRAIN_SEARCH_POLE));
+                    brain[BRAIN_SUBMODE] = BRAIN_SUBMODE_DIRECT;
+                } else {
+                    ssBrain_SetShort(brain, BRAIN_TARG_POLE,
+                                     ssAI_GetGLinkPolID(ssBrain_Short(brain, BRAIN_POLE_GROUP), next, bank));
+                    if (ssBrain_Short(brain, BRAIN_TARG_POLE) == -1) {
+                        // No link to the next group: the search is planned again.
+                        if (ssAI_SetSearchMode(chr, 0) == -1)
+                            ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+                        return;
+                    }
+                    ssAI_GetPolePos(pos, ssBrain_Short(brain, BRAIN_SEARCH_POLE), bank);
+                    if (ssAI_SetNextGLinkPolePoint(ssBrain_Short(brain, BRAIN_TARG_POLE), bank, chr, pos) == -1) {
+                        ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+                        return;
+                    }
+                    brain[BRAIN_SUBMODE] = BRAIN_SUBMODE_ROUTE;
+                }
+            }
+        }
+        ssBrain_DirTo(dir, chr, (const float *)(brain + BRAIN_NEXT_POINT));
+        break;
+    case BRAIN_SUBMODE_ROUTE:
+        r = ssAI_IsGetToGLinkPole(chr, ssBrain_Short(brain, BRAIN_TARG_POLE), bank);
+        if (r == -1) {
+            ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+            return;
+        }
+        if (r != 0) {
+            ssBrain_SetShort(brain, BRAIN_TARG_POLE, ssAI_GetPairGrpLinkPoleID(ssBrain_Short(brain, BRAIN_TARG_POLE), bank));
+            if (ssBrain_Short(brain, BRAIN_TARG_POLE) == -1) {
+                ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+                return;
+            }
+            ssAI_GetPolePos(pos, ssBrain_Short(brain, BRAIN_SEARCH_POLE), bank);
+            if (ssAI_SetNextGLinkPolePoint(ssBrain_Short(brain, BRAIN_TARG_POLE), bank, chr, pos) == -1) {
+                ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+                return;
+            }
+            brain[BRAIN_SUBMODE] = BRAIN_SUBMODE_GLINK;
+        }
+        ssBrain_DirTo(dir, chr, (const float *)(brain + BRAIN_NEXT_POINT));
+        break;
+    }
+    if (ssAI_IsForwardPlaying(chr) != 0 || ssAI_IsDoorOpenPlaying(chr) != 0 || ssAI_IsRotationPlaying(chr) != 0)
+        ssAI_CompCharaDir(chr, dir, ssBrain_Int(brain, BRAIN_TURN_SPEED), 0);
+}
+
+// Search1's hidden stalker crossing a scene link: it leaves its room and group (chr->h100 too) and waits to
+// come in -- AI_SEARCH_HIDDEN_WAIT, or the search times rescaled by its own bank's room when that is drawn.
+static void ssBrain_SearchLeftRoom(CHARACTER *chr, u_char *brain, int rescale)
+{
+    if (rescale) {
+        ssBrain_ScaleSearchTimes(brain, brain[BRAIN_BANK]);
+    } else {
+        ssBrain_SetInt(brain, BRAIN_SEARCH_TIME2, AI_SEARCH_HIDDEN_WAIT);
+        ssBrain_SetInt(brain, BRAIN_SEARCH_START, ssBrain_Int(brain, BRAIN_TICKS));
+    }
+    ssBrain_SetShort(brain, BRAIN_POLE_GROUP, -1);
+    chr->h100 = -1;
+    brain[BRAIN_TRACE_DOOR] = AI_DOOR_NONE;
+    brain[BRAIN_SUBMODE] = BRAIN_SUBMODE_ROUTE;
+}
+
+// Search1's hidden door through a scene link, once its motion passed the frame: a door that closed
+// registers TRIG_EVENT_AI_DOOR_SHUT; a stalker out of every bank takes the link's room and bank (the
+// room it left kept as roomHashPrev); else the brain ends unless its bank is drawn.
+static void ssBrain_SearchHiddenDoorPassed(CHARACTER *chr, u_char *brain)
+{
+    int r = ssAI_IsDoorClose((s_char)brain[BRAIN_TRACE_DOOR]);
+
+    if (r == -1) {
+        ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+        return;
+    }
+    if (r != 0)
+        ssTrigRegisterEvent(TRIG_EVENT_AI_DOOR_SHUT, TRIG_GLOBAL, TRIG_ANY_BANK);
+    if (brain[BRAIN_BANK] == AI_BANK_NONE) {
+        chr->lightBank = brain[BRAIN_LINK_BANK];
+        chr->roomHashPrev = chr->roomHash;
+        chr->roomHash = (u_long)(u_int)ssBrain_Int(brain, BRAIN_LINK_ROOM);
+        return;
+    }
+    if (BankInfo[brain[BRAIN_BANK]].drawOn == 1)
+        return;
+    ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+}
+
+// CT3 0x0187fbe0
+// Searching. BRAIN_SEARCH_COUNTDOWN runs down a frame at a time: at 0 the stalker returns. With chr's bank
+// drawn it searches (ssBrain_SearchDrawn). Out of every bank, or undrawn, it is hidden: its wait
+// (BRAIN_SEARCH_TIME2, from the search time when it hid) over, it comes in (ssBrain_ComeIn); crossing a
+// scene link, it leaves its room when the far bank is not drawn, else waits on the door.
+void ssBrain_Search1(CHARACTER *chr)
+{
+    u_char *brain = CharaBrainPtr(chr);
+    int bank;
+    int r;
+
+    ssBrain_SetInt(brain, BRAIN_SEARCH_COUNTDOWN, ssBrain_Int(brain, BRAIN_SEARCH_COUNTDOWN) - 1);
+    if (ssBrain_Int(brain, BRAIN_SEARCH_COUNTDOWN) < 1) {
+        if (ssAI_SearchToReturnMode(chr) == -1)
+            ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+        return;
+    }
+    bank = brain[BRAIN_BANK];
+    if (bank != AI_BANK_NONE && ssBrain_BankDrawOn(bank) != 0) {
+        ssBrain_SearchDrawn(chr, brain);
+        return;
+    }
+    if (ssAI_IsDoorOpenPlaying(chr) == 0 && ssAI_IsWaitPlaying(chr) == 0)
+        asCharacterMortionChangeRequest(chr->id, CHARA_MOTION_REQ_PLAY, ssBrain_Short(brain, BRAIN_END_MOTION));
+    if (brain[BRAIN_SHOWN] != 0) {
+        ssAI_MonsterDraw(chr, 0);
+        brain[BRAIN_SHOWN] = 0;
+        ssBrain_SetInt(brain, BRAIN_SEARCH_TIME2, ssBrain_Int(brain, BRAIN_SEARCH_TIME));
+        ssBrain_SetInt(brain, BRAIN_SEARCH_START, ssBrain_Int(brain, BRAIN_TICKS));
+    }
+    if (brain[BRAIN_SUBMODE] != BRAIN_SUBMODE_SCN_LINK) {
+        if (ssBrain_Int(brain, BRAIN_TICKS) - ssBrain_Int(brain, BRAIN_SEARCH_START) < ssBrain_Int(brain, BRAIN_SEARCH_TIME2))
+            return;
+        ssBrain_ComeIn(chr, brain, ssBrain_Short(brain, BRAIN_SEARCH_MOTION));
+        return;
+    }
+    if (brain[BRAIN_LINK_BANK] == AI_BANK_NONE) {
+        ssBrain_SearchLeftRoom(chr, brain, 0);
+        return;
+    }
+    if (ssBrain_BankDrawOn(brain[BRAIN_LINK_BANK]) == 0) {
+        ssBrain_SearchLeftRoom(chr, brain, ssBrain_BankDrawOn(bank) >= 1);
+        return;
+    }
+    if (ssAI_IsDoorPushOpenPlaying(chr) != 0) {
+        if (ssAI_IsMortionFramePassed(chr, ssBrain_Short(brain, BRAIN_DOOR_MOTION),
+                                      (u_int)ssBrain_Int(brain, BRAIN_DOOR_FRAME)) != 0)
+            ssBrain_SearchHiddenDoorPassed(chr, brain);
+        return;
+    }
+    if (ssAI_IsDoorPullOpenPlaying(chr) != 0) {
+        if (ssAI_IsMortionFramePassed(chr, ssBrain_Short(brain, BRAIN_DOOR_MOTION_ALT),
+                                      (u_int)ssBrain_Int(brain, BRAIN_DOOR_FRAME_ALT)) != 0)
+            ssBrain_SearchHiddenDoorPassed(chr, brain);
+        return;
+    }
+    r = ssAI_IsDoorClose((s_char)brain[BRAIN_TRACE_DOOR]);
+    if (r == -1) {
+        ssAI_ForceBrainEnd(chr, ssBrain_Short(brain, BRAIN_END_MOTION));
+        return;
+    }
+    if (r != 0) {
+        brain[BRAIN_TRACE_DOOR] = AI_DOOR_NONE;
+        ssBrain_SetInt(brain, BRAIN_SEARCH_TIME2, 0);
+        brain[BRAIN_SUBMODE] = BRAIN_SUBMODE_ROUTE;
+    }
 }
 

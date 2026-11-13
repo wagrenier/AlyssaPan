@@ -1,6 +1,6 @@
 # AlyssaPan status (generated)
 
-Generated 2026-11-12 23:17 at commit `af8de00` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
+Generated 2026-11-12 23:33 at commit `6ab9631` by `tools/reverse/status.py` (`refresh.py` runs it). Do not edit by hand.
 
 ## Ghidra seeding (one-time: sections.py --apply, libmatch.py --apply)
 
@@ -30,7 +30,7 @@ Least-named game-code regions (64 KB blocks):
 
 ## Reconstruction (src/)
 
-- reconstructed CT3 functions: **1751**; stubs: **78**
+- reconstructed CT3 functions: **1753**; stubs: **76**
 
 | file | reconstructed | stubs |
 |---|---|---|
@@ -85,7 +85,7 @@ Least-named game-code regions (64 KB blocks):
 | `src/game/main2.c` | 18 | 0 |
 | `src/game/movie.c` | 20 | 0 |
 | `src/game/sound.c` | 73 | 0 |
-| `src/game/ssBrain_ChgHideAtk1.c` | 32 | 2 |
+| `src/game/ssBrain_ChgHideAtk1.c` | 34 | 0 |
 | `src/game/ssCalcInversMatrix2.c` | 5 | 0 |
 | `src/game/ssGrpPortalCheck.c` | 74 | 0 |
 | `src/game/ssHitCheckAttackToScn.c` | 37 | 0 |
@@ -102,10 +102,9 @@ Least-named game-code regions (64 KB blocks):
 
 ## Translation units (one session each: `tus.py`)
 
-- 65 TUs: todo 5, partial 1, verify 61, done 13, blocked 1
-- next: **game/ssBrain_ChgHideAtk1.c** (continuing a partial TU)
+- 65 TUs: todo 5, verify 62, done 13, blocked 1
+- next: **None** (nothing on the frontier and no queued TU)
 - pinned queue: alyssapan/rendering/ui_canvas.cpp
-- partial: `game/ssBrain_ChgHideAtk1.c` 32/34 -- Not reached by a 15 s smoke run (no stalker; the shots show the boot screens as before). callcheck MISSING lines are the static helpers holding the calls (ssBra
 - verify: `alyssapan/core/movie_skip.cpp` 0/0 -- AlyssaPan_SkipMovies seam (src/alyssapan/core/movie_skip.h/.cpp) reads the config's skip_intro (ALYSSAPAN_SKIP_INTRO; off for players); AA_movie takes the PORT 
 - verify: `ga/gaBGT_DrawObject.c` 9/9 -- Game code complete. Host draw-module work left (open-items item 4 slice 4): texture, depth, fog, frame end, CT3 window origin in UiCanvas, light1 lighting, bill
 - verify: `ga/gaDma.c` 16/16 -- Complete code, nothing on screen shows it yet (shot black, as before). The queue was empty: refilled in smoke-run stub order (gaVifInit, gaInitDrawObject, gaIni
@@ -156,6 +155,7 @@ Least-named game-code regions (64 KB blocks):
 - verify: `game/main2.c` 18/18 -- Smoke run leaves main2 and runs the frame loop with no crash; the shot stays black because FSMltLoad (fileio.c) is a stub so no bank loads. PORT BankReady skips
 - verify: `game/movie.c` 20/21 -- Playback kept in the ROM shape: host EE kernel runs the decoder thread and vblank handler, sdk/libmpeg decodes, the picture goes through AA_GetDataWord.c displa
 - verify: `game/sound.c` 69/69 -- All 69 written. SSLoadSEfromLoadPoint takes the bank image (BankInfo +0x1c); All_table_TBL[bank] is image + 0x80, so the old +0xd4 record is ALL_TABLE.sound, wo
+- verify: `game/ssBrain_ChgHideAtk1.c` 34/34 -- Approach1 is the Trace1 walk toward the player room with a play rate by distance (800); Search1 adds the look-around at a search pole and the hidden wait BRAIN_
 - verify: `game/ssCalcInversMatrix2.c` 5/5 -- No smoke run reaches the attack collision yet (the title scene draws as before). HIT_DATA gains material (+0x19b) and hp (+0x19e), HIT_OBJ damage (+0xde), SS_OB
 - verify: `game/ssGrpPortalCheck.c` 59/59 -- Code complete. The black screen was the ga objects' +0x38 word (EE address of the part's partsPos, the ambient light0 adds) left 0 by the ssSetAmbColorToAllObj 
 - verify: `game/ssHitCheckAttackToScn.c` 37/37 -- All 37 functions written; no smoke run reaches ssCollisionCheck yet (no character before E_00), the title shot is unchanged. CHARACTER.w300[0..3] are EE words o
@@ -171,6 +171,7 @@ Least-named game-code regions (64 KB blocks):
 
 Recent sessions:
 
+- 2026-11-12 23:32 `game/ssBrain_ChgHideAtk1.c` verify: slice 4: ssBrain_Approach1 and ssBrain_Search1 -- all 34 functions written, code complete
 - 2026-11-12 23:17 `game/ssBrain_ChgHideAtk1.c` partial: slice 3: ssBrain_Init1, ssBrain_HideAtk1, ssBrain_Attack1, ssBrain_Trace1 and ssAI_SetSpecialAttack; BRAIN_ATK_STATE named whole but 0x00..0x03 (chain, panic, w
 - 2026-11-12 22:59 `game/ssBrain_ChgHideAtk1.c` partial: slice 2: the setters ssAI_Set{Trace,Attack,Approach,Search}Mode, ssAI_SearchToApproachMode, ssBrain_ChgSearch1 and ssBrain_Damage1; the attack states named as B
 - 2026-11-12 22:32 `game/ssBrain_ChgHideAtk1.c` partial: slice 1: the mode changes ssBrain_Chg{HideAtk,Return,Attack,Trace,Approach}1, ssBrain_Return1, the 13 mode transitions and ssAI_SetHideAtkMode; brain words name
@@ -178,7 +179,6 @@ Recent sessions:
 - 2026-11-12 21:58 `alyssapan/rendering/ga_wide3d.cpp` done: 3D pass widened at wide aspects: the game culls and clips to the window (AlyssaPan_GaWiden scales gaSet3dlibStruct side planes and viewScaleX), DrawGaFrame draw
 - 2026-11-12 21:32 `alyssapan/core/alyssa_pose.cpp` done: Screenshot test passes: Alyssa posed with head, arms and skirt after NEW, at 4:3 and 16:9 (3D pillarboxed until the widened 3D pass)
 - 2026-11-12 17:34 `alyssapan/core/alyssa_pose.cpp` partial: Motion 0 freeze settled: a gdb artefact; smoke runs reach the room (opening shots draw) and Alyssa slot 0 loops at 1000 ticks a call under ANIM_CTRL_HOLD; the b
-- 2026-11-12 17:13 `alyssapan/core/alyssa_pose.cpp` partial: Black frames after NEW named: a held OUT2_BLACK fade from the skipped opening movie; the script fade-in never comes because Alyssa motion 0 (slot 0) is frozen a
 
 ## Frontier (called by reconstructed code, not written yet)
 

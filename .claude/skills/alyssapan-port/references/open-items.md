@@ -2291,6 +2291,22 @@ apply here):
   ssBrain_PlayStrike, ssBrain_AttackStriking, ssBrain_TraceDrawn, ssBrain_TraceNextLink,
   ssBrain_TraceDoorPassed, ssBrain_PickAtk). Not reached by a smoke run (no stalker in 15 s; the shots show
   the boot screens as before). Left: Approach1, Search1.
+- (2026-11-12, game/ssBrain_ChgHideAtk1.c slice 4) **code complete, verify**: ssBrain_Approach1 and
+  ssBrain_Search1 written; all 34 functions of the TU are C. Approach1 is Trace1's walk with Alyssa's room
+  (BRAIN_PLAYER_ROOM / _GROUP) as the goal and the play rate by distance (BRAIN_APPROACH_RATE_NEAR / _FAR
+  within / beyond 800); Search1 adds the look-around at a search pole (BRAIN_LOOK_MOTION / _ALT, even odds)
+  and the hidden stalker's wait BRAIN_SEARCH_TIME2 (settles its use). The hidden "time up, come in" tail of
+  Approach1 and Search1 is one helper (ssBrain_ComeIn); SetSearchMode's time scaling is now
+  ssBrain_ScaleSearchTimes (Search1 rescales the same way). Guesses: (q) AI_ROOM_OUTSIDE (0x083060c1) with
+  BRAIN_LINK_BANK AI_BANK_NONE marks a scene link out of every bank -- Search1 sets them when the pair pole
+  has flag 4 (named HIDE_POLE_FLAG_OWN_GROUP from LetMonsterInFromShadow: the flag means more than that),
+  and a stalker reaching that link's point takes roomHash 0x083060c1 and lightBank -2; which room hashes to
+  it is unread; (r) BRAIN_SEARCH_COUNTDOWN (+0x218) is run down by Search1 a frame at a time, its setter is
+  in another TU; (s) Search1 picks the next pole in Alyssa's room by ssAI_GetNextTargPoleRandom2 with flag
+  0x10 (HIDE_POLE_FLAG_SHADOW) and then takes that pole's scene-link pair: the flag's meaning for Random2
+  is open; (t) PORT: BankInfo[AI_BANK_NONE] is read past the array in the ROM (Search1, its own bank -2 while
+  hidden): ssBrain_BankDrawOn answers 0 there. callcheck MISSING lines are the static helpers again. Not
+  reached by a 15 s smoke run (the shots show the boot screens as before).
 
 - (2026-11-12, game/tiAvoidObject.c slice 6) **code complete, verify**: the last 12 functions --
   LetMonsterInFromShadow, SetMonsterPos, BarrierCheck, SerchCheck, IsTrgWithinAngle, IsGetToGLinkPole,
