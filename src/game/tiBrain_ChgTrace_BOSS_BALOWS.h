@@ -300,7 +300,111 @@ void tiCalcPlayerHitPoint(int damage, struct CHARACTER *chr);                   
 void tiCalcBalowsAttackRate(float dist, int *rate0, int *rate1, int *rate2);             // CT3 0x01874a70
 int tiDefenseMode_BALOWS(struct CHARACTER *chr, const u_char *hit, u_char *react);       // CT3 0x01871b70
 int tiDefenseMode_SCISSORS_MAN(struct CHARACTER *chr, const u_char *hit, u_char *react); // CT3 0x01871be0
-int tiSelSPMotion_BALOWS(void);                                                          // CT3 0x01872240
-int tiSelSPMotion_HAMM(void);                                                            // CT3 0x01872880
+// ---- slice 4: the AXE's defense, the special motion pickers ----
+#define BOSS_HIT_DIR 0x20               /* float[4]: the blow's direction (the AXE turns from it) */
+#define AXE_GUARD_DOT 0.3f              /* facing . blow above it: from behind (no guard outside the special) */
+#define AXIS_Y 2                        /* tiGetDegFromVec's axis argument the bosses pass */
+#define ANGLE_UNITS_PER_DEGREE 0xb6     /* CHARACTER.rot units: 65536 / 360 */
+// The AXE's motions a blow lands in unguarded before the game was cleared (tiDefenseMode_AXE): its three
+// strikes and two more (0x2c, 0x30: their starters unread).
+#define AXE_MOTION_OPEN_2C 0x2c
+#define AXE_MOTION_OPEN_30 0x30
+#define AXE_MOTION_DOWN 0x33            /* attack state 3's strike (Alyssa down): end 0x35, landed 0x34 */
+#define AXE_MOTION_DOWN_END 0x35
+#define AXE_MOTION_DOWN_HIT 0x34
+#define AXE_MOTION_ATK_0 0x44           /* attack state 0's: end 0x2e, landed 0x2d */
+#define AXE_MOTION_ATK_0_END 0x2e
+#define AXE_MOTION_ATK_0_HIT 0x2d
+#define AXE_MOTION_ATK_1 0x45           /* attack state 1's: end 0x32, landed 0x31 */
+#define AXE_MOTION_ATK_1_END 0x32
+#define AXE_MOTION_ATK_1_HIT 0x31
+#define AXE_ATK_0 0
+#define AXE_ATK_1 1
+#define AXE_ATK_DOWN 3
+#define BOSS_SP_BEHIND_DOT 0.5f         /* the pickers' "behind Alyssa" test (both dots above it) */
+#define SCISSORS_M_SP_CHAIN_FAR 300.0f  /* a holding chain's first part farther from Alyssa: SP_PICK_CHAIN */
+#define BOSS_VITRIOL_CHARA 3            /* tiSelSPMotion_VITRIOL reads Character[3]'s hp (the ROM's fixed address) */
+// The special motion picks (*pick); what each starts is read where the pick is used.
+#define SP_PICK_1 1
+#define SP_PICK_BEHIND 2
+#define SP_PICK_VITRIOL 4
+#define SP_PICK_CHAIN 7
+// SCISSORS_W's attack (tiBrain_Attack_BOSS_SCISSORS_W): strike, vanish, warp, reappear.
+#define SCISSORS_W_MOTION_ATK_0 0x28    /* attack state 0's strike, then SCISSORS_W_MOTION_ATK_0_END on a landed blow */
+#define SCISSORS_W_MOTION_ATK_0_END 0x29
+#define SCISSORS_W_MOTION_ATK_1 0x2b    /* attack state 1's */
+#define SCISSORS_W_MOTION_ATK_1_END 0x2c
+#define SCISSORS_W_MOTION_DOWN 0x2e     /* attack state 3's: Alyssa down */
+#define SCISSORS_W_MOTION_DOWN_END 0x2f
+#define SCISSORS_W_MOTION_VANISH BOSS_SCISSORS_W_MOTION_APPROACH /* 0x38: every strike ends in it */
+#define SCISSORS_W_MOTION_HIDDEN 0x39   /* out of sight: the warp, then the attack motion or the special */
+#define SCISSORS_W_MOTION_SPECIAL 0x3a
+#define SCISSORS_W_MOTION_SPECIAL_WAIT 0x3f /* waits for TRIG_VAR_BALOWS_52 SCISSORS_W_VAR_52_DONE */
+#define SCISSORS_W_MOTION_SPECIAL_END 0x40
+#define SCISSORS_W_ATK_0 0
+#define SCISSORS_W_ATK_1 1
+#define SCISSORS_W_ATK_DOWN 3
+#define SCISSORS_W_PICK_STRIKE 1        /* BRAIN_ATK_PICK: a strike runs (the vanish requested from afar too) */
+#define SCISSORS_W_PICK_ENDED 2         /*   its end motion played (the voice said) */
+#define SCISSORS_W_PICK_HIDDEN 3        /*   vanished: the warp is due */
+#define SCISSORS_W_REACH 150.0f         /* nearer and within state 0's angle: a strike */
+#define SCISSORS_W_EYE_Y 30.0f          /* the warp's look beside Alyssa starts this far above her feet */
+#define SCISSORS_W_SIDE_LOOK 200.0f     /*   and runs this far; the boss lands SCISSORS_W_SIDE_LAND along it */
+#define SCISSORS_W_SIDE_LAND 120.0f
+#define SCISSORS_W_WARP_NEAR_HITS 6     /* BOSS_INFO_HITS_70 from here on: the warps seek Alyssa */
+#define SCISSORS_W_SPECIAL_FAR 300.0f   /* the special only farther than this from Alyssa */
+#define SCISSORS_W_STILL 60.0f          /*   and Alyssa moved less than this since the last warp */
+#define SCISSORS_W_SPECIAL_SHOWN 0x385  /*   and the boss was seen at least this long */
+#define SCISSORS_W_SHOWN_FOREVER 99999999 /* the special's end: the next pick vanishes at once */
+#define SCISSORS_W_VAR_52_DONE 999      /* TRIG_VAR_BALOWS_52's value that ends the special's wait */
+#define SCISSORS_W_VOICE_BANK SCISSORS_M_VOICE_BANK /* "B_4B02" (0x01934138) */
+#define SCISSORS_W_VOICE_END 0x0f       /* a strike's end motion */
+#define SCISSORS_W_VOICE_SPECIAL 0x11
+#define SCISSORS_W_VOICE_WARP 0x12      /* on 3 of 10 warps */
+#define SCISSORS_W_SE_BANK "E_SWO"      /* 0x01934168 */
+#define SCISSORS_W_SE_WARP 0x1c         /* on 3 more of 10 warps */
+#define BOSS_STATE_SCISSORS_W_SPECIAL_DONE 0x10000 /* ends SCISSORS_W_MOTION_SPECIAL_WAIT (its setter unread) */
+#define BOSS_STATE_SCISSORS_W_SPECIAL 0x20000 /* set as the special starts, cleared at its end motion */
+#define BOSS_INFO_SHOWN_TICKS 0x20      /* int: SCISSORS_W: time seen since reappearing (its counter unread) */
+#define BOSS_INFO_HIDDEN_TICKS BOSS_INFO_HAMM_28 /* int 0x28: SCISSORS_W: time hidden (its counter unread) */
+#define BOSS_INFO_HIDDEN_DELAY 0x38     /* int: SCISSORS_W: hidden longer than this: she reappears */
+#define BOSS_INFO_SHOWN_PICK 0x6c       /* int: tnRand(7): the BOSS_INFO_THRESHOLDS slot of her time seen */
+#define BOSS_INFO_WARP_TIMES 0xc8       /* int: warps since the last special */
+#define BOSS_INFO_WARP_INDEX 0xcc       /* int: the warp point she stands at */
+// The AXE's trace (its special: run where Alyssa stood, turn, strike).
+#define AXE_MOTION_SPECIAL_2B 0x2b      /* a special strike motion (its starter unread) */
+#define AXE_MOTION_SPECIAL_HIT 0x2f     /* the special's strike, then the search motion */
+#define AXE_MOTION_SPECIAL_HIT_VOICED 0x37 /* the same with AXE_VOICE_SPECIAL (BOSS_STATE_BIT_04, odds by hp) */
+#define AXE_RUN_NEAR 500.0f             /* the run goes on within this of BOSS_INFO_SPECIAL_POS */
+#define AXE_RUN_LOOK 100.0f             /*   until a wall this far ahead */
+#define AXE_TURN_AIM_DOT 0.99f          /* facing . to-Alyssa at least this: the strike */
+#define AXE_TURN_BACK_DOT -0.8f         /*   below this: BOSS_AXE_MOTION_BACKSTEP (the turn-about) */
+#define AXE_VAR_52_END 1                /* TRIG_VAR_BALOWS_52's value that ends the AXE's special (set back to -1) */
+#define AXE_VOICE_BANK "B_3D03"         /* 0x01934190 */
+#define AXE_VOICE_SPECIAL 0x0a
+// VITRIOL's trace (the special: roar, then up to five acid sprays). BRAIN_ATK_PICK is the step.
+#define VITRIOL_MOTION_SPRAY 0x3b       /* a spray: on a hit VITRIOL_MOTION_SPRAY_HIT, else the attack motion */
+#define VITRIOL_MOTION_RETREAT 0x3d     /* ends the special (then the search motion) */
+#define VITRIOL_MOTION_SPRAY_HIT 0x3e   /* after a landed spray (VITRIOL_SE_SPRAY_HIT) */
+#define VITRIOL_MOTION_ROAR 0x3f        /* step 0's, turning to Alyssa */
+#define VITRIOL_ATK_SPRAY 2             /* the attack state whose timer and .panic the spray uses */
+#define VITRIOL_STEP_DONE 99            /* the step after a landed spray or the retreat (then none) */
+#define VITRIOL_SPRAY_REACH 200.0f      /* in line: nearer, facing her (VITRIOL_SPRAY_DOT), in sight */
+#define VITRIOL_SPRAY_DOT 0.99f
+#define VITRIOL_SPRAY_NEAR 75.0f        /* steps 1..3 spray this near whatever the line */
+#define VITRIOL_ROAR_DOT 0.95f          /* step 0 roars once facing her this well */
+#define VITRIOL_94_ROAR 0x14            /* BOSS_INFO_HAMM_94 while VITRIOL roars (0x95 restores it) */
+#define BOSS_INFO_VITRIOL_TURN 0xac     /* int[], by step (2..6: 0xb4 = BOSS_INFO_B4 ...): a spray's turning time */
+#define VITRIOL_SE_BANK "E_RYUSAN"      /* 0x01934198 */
+#define VITRIOL_SE_SPRAY_HIT 0x1b
+#define VITRIOL_VOICE_BANK "B_2D01"     /* 0x019341a8 */
+#define VITRIOL_VOICE_ROAR 0x0a
+int tiDefenseMode_AXE(struct CHARACTER *chr, const u_char *hit, u_char *react);          // CT3 0x01871c70
+int tiSelSPMotion_BALOWS(u_char *pick);                                                  // CT3 0x01872240
+int tiSelSPMotion_SCISSORS_M(u_char *pick);                                              // CT3 0x01872250
+int tiSelSPMotion_AXE2(u_char *pick);                                                    // CT3 0x018724a0
+int tiSelSPMotion_AXE1(u_char *pick);                                                    // CT3 0x018725d0
+int tiSelSPMotion_VITRIOL(u_char *pick);                                                 // CT3 0x01872750
+int tiSelSPMotion_HAMM(u_char *pick);                                                    // CT3 0x01872880
 void tiSetChainData(int i, int setB);                                                    // CT3 0x01875930
 void tiSetChainFlag(int i, int on, int setB);                                            // CT3 0x01875630

@@ -1752,7 +1752,7 @@
    "why": "tumap.py (bootstrap 5): symtab local chunks 74..74, 14 functions keyed by their statics, 68 unkeyed; file name from the names"
   },
   "game/tiBrain_ChgTrace_BOSS_BALOWS.c": {
-   "notes": "2 functions written; tiBrain_Attack_BOSS_SCISSORS_W (0x0186b7a0, 0xda0 bytes) is the next run's first job, then the AXE / VITRIOL / HAMM attacks. Smoke run unchanged (content warning, fade, black at the end); no run reaches a boss. Open items nz10..nz13: the bosses' reading of BRAIN_ATK_STATE, shared phase bits 0x40 / 0x800, the grab heal and the ClatteringGet argument Ghidra dropped, the blood part write.",
+   "notes": "10 functions written (the whole brief slice); 20 left: Attack_BOSS_VITRIOL / HAMM, Init_BOSS1 / SCISSORS_W, Approach_BOSS1, Damage_BOSS1 and the rest. Smoke run unchanged (memory-card check, fade, grey at the end); no run reaches a boss. Open items nz14..nz17: the pickers take (u_char *pick) for their data table, SCISSORS_W's shown / hidden timers and the 0x52 handshake variable, Ghidra-dropped motion arguments, BOSS_INFO_VITRIOL_TURN indexing.",
    "ranges": [
     [
      "01867fb0",
@@ -1774,6 +1774,11 @@
      "date": "2026-11-13 02:55",
      "status": "partial",
      "summary": "slice 3: BALOWS and SCISSORS_M attack bodies (the grab and its rattle, the blood throw, the swing, charge, stamp, down hit; the SCISSORS_M slash combos, thrust and stab)"
+    },
+    {
+     "date": "2026-11-13 03:19",
+     "status": "partial",
+     "summary": "slice 4: SCISSORS_W attack (strike, vanish, warp, reappear, special), AXE trace and attack, VITRIOL trace (roar and sprays), tiDefenseMode_AXE, the six tiSelSPMotion pickers"
     }
    ],
    "status": "partial",

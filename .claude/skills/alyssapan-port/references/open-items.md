@@ -2139,6 +2139,29 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
      TRIG_EVENT_GHOST_1D_ON: one global event, two readers, meaning to settle.
    - (nz13) The blood part (BOSS_INFO_BLOOD_PART, part + 0x40) gets PARTS_ANIM_BASE_POS and flags 3; with
      no part set the port skips the write (the ROM writes through null).
+   **Slice 4 (2026-11-13, scheduled run 03:05):** tiBrain_Attack_BOSS_SCISSORS_W, Trace / Attack_BOSS_AXE,
+   Trace_BOSS_VITRIOL, tiDefenseMode_AXE and the six tiSelSPMotion_* written (the brief's whole slice).
+   Left: 20 functions (Attack_BOSS_VITRIOL / HAMM, Init_BOSS1 / SCISSORS_W, Approach_BOSS1, Damage_BOSS1
+   and the rest of the brief's list). Smoke run unchanged (memory-card check, fade, grey at the end); no
+   boss reached. Open:
+   - (nz14) The tiSelSPMotion_* and tiDefenseMode_* have no caller in the port yet (a function table in
+     data, probably BOSS_SETUP's): the pickers now take (u_char *pick) -- BALOWS / HAMM too, which ignore
+     it -- so one pointer type fits the table; the picks (SP_PICK_1 / _BEHIND 2 / _VITRIOL 4 / _CHAIN 7)
+     are named by value until the caller that uses them is read.
+   - (nz15) SCISSORS_W: BOSS_INFO 0x20 (time seen), 0x28 (time hidden; BOSS_INFO_HAMM_28 for HAMM) are read
+     against BOSS_INFO_THRESHOLDS[0x6c] / 0x38 but their counters are elsewhere (unread); 0x28 shared
+     with HAMM's word suggests a generic per-boss timer. BOSS_STATE 0x10000 (ends the special's wait) has
+     no setter read yet; TRIG_VAR_BALOWS_52 (0x52) is also the AXE's (1 ends its special) and
+     SCISSORS_W's (999 ends its wait): a generic boss/scene handshake variable, rename when the scene
+     scripts are read. The hidden test reads CHARACTER_FLAG_SHADOW (0x40000000, half of main2.c's
+     CHARA_FLAGS_DRAWN) as "drawn".
+   - (nz16) Ghidra dropped the third argument of asCharacterMortionChangeRequest where a trace replays its
+     attack / search motion; the AXE trace's disassembly shows lh a2,0x246(s0) kept live (BRAIN_ATTACK_MOTION),
+     and VITRIOL's are written the same way (attack motion; search motion when Alyssa is dead) by that
+     pattern, not checked instruction by instruction. VITRIOL's trace has an unreachable case for motion 5
+     (tiCalcPlayerHitPoint 20) outside its busy list: left out.
+   - (nz17) BOSS_INFO_VITRIOL_TURN (0xac) is indexed by the step (2..6) after the increment: 0xb4..0xc4,
+     the last word being BOSS_INFO_WARP_COUNT; read as the ROM does.
 
 ## Decisions
 
