@@ -200,6 +200,10 @@ private:
         ImGui::TextDisabled("Anti-aliasing (MSAA)");
         const rendering::MsaaTargets &msaa = m_application.renderer().msaa();
         const int current = rendering::MsaaTargets::countFor(display.msaa);
+        // Its own ID scope: the anisotropy list's items carry the same labels ("Off", "2x"..), and ImGui IDs
+        // items by label, so the two lists' items would share IDs (ImGui's conflicting-ID error, and a click
+        // on one taken by the other).
+        ImGui::PushID("msaa");
         for (int samples = 1; samples <= rendering::MsaaTargets::kMaxSamples; samples *= 2)
         {
             const std::string label = samples == 1 ? std::string("Off") : std::format("{}x", samples);
@@ -210,6 +214,7 @@ private:
                 m_config.save();
             }
         }
+        ImGui::PopID();
         if (msaa.activeCount() != msaa.requestedCount())
             ImGui::TextDisabled("  active: %dx (the device refused more)", msaa.activeCount());
     }
@@ -221,6 +226,7 @@ private:
         ImGui::Separator();
         ImGui::TextDisabled("Texture anisotropy");
         const int current = rendering::SamplerTable::levelFor(display.anisotropy);
+        ImGui::PushID("anisotropy"); // the MSAA list's labels are the same (drawMsaaItems)
         for (int level = 1; level <= rendering::SamplerTable::kMaxAnisotropy; level *= 2)
         {
             const std::string label = level == 1 ? std::string("Off") : std::format("{}x", level);
@@ -230,6 +236,7 @@ private:
                 m_config.save();
             }
         }
+        ImGui::PopID();
         const rendering::SamplerTable &samplers = m_application.renderer().samplers();
         if (samplers.activeLevel() != samplers.requestedLevel())
             ImGui::TextDisabled("  active: %dx (the device refused more)", samplers.activeLevel());
