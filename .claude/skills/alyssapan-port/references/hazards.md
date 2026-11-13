@@ -613,6 +613,19 @@ When a callee's known prototype takes an argument the call shows without, read `
 And a `// callcheck:` annotation is read from its own line only: list the helper-made calls one comment
 line each (a wrapped list leaves the later lines MISSING).
 
+### Game code builds with `-w`: a macro redefined with another value wins silently (2026-11-13)
+**Symptom** (the user: "the character is always moving forward and seems to be ignoring my keys"):
+Alyssa walks one way for good, released or pushed; menus and buttons work. **Cause:**
+wideXcmd_DebugPrint.h defined `PAD_STICK_LX` / `_LY` as the byte offsets 0x1e / 0x1f, then
+ga/pad_button_read.h (included later through unassigned_data.h) redefined them as the stick indices 2 / 3.
+`-w` hid GCC's "redefined" warning, so asCharacterMoveByPad read `PAD_DATA.pad02` (always 0): a stick
+pinned in one corner, h0a = PAD_MOVE_ON every frame, facing fixed. This was open item (ns1). **Fix:** read
+`pad[0].stick[PAD_STICK_LX]` (ga's names). **Check:** preprocess every TU from compile_commands.json
+without `-w` (`g++ ... -E -o NUL`, MinGW's bin on PATH) and grep `redefined`. After the fix two remain,
+both harmless: CAMERA_SHARED (6 both ways) and the shadow stock's own GA_OBJ_INDICES (0x48, the index
+count) against gaBGT_DrawObject.h's (0x50, the index pointer) in ahRelocateSunPs2ObjectArry.c. A new
+`#define` of a common name needs that grep first.
+
 ## From the siblings (2026-11-09 digest of MioPan, ReiPan, RosePan, MikuPan)
 
 - **Ghidra misses functions even with symbols**: code reached only through data (dispatch tables,

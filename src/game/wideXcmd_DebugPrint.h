@@ -480,8 +480,7 @@ void asCharacterMoveByPad(CHARACTER *ch, PIA_KEY *key, int dir);                
 
 // ---- the pad move (asCharacterMoveByPad / _UD, 2026-11-10; names from these uses) ----------------------
 #define KEY_MAP_STICK_DEAD 34           /* KEY_MAP[34]: the stick's dead zone around 0x80 (a signed byte) */
-#define PAD_STICK_LX 0x1e               /* pad[0]: the stick byte the move reads as x (PAD_DATA.stick[2]) */
-#define PAD_STICK_LY 0x1f               /* ... as y (stick[3]) */
+// The move reads pad[0].stick[PAD_STICK_LX / _LY] (ga/pad_button_read.h; the ROM's pad + 0x1e / 0x1f).
 #define PAD_STICK_CENTRE 0x80
 #define PAD_STICK_MIN_LEN 100.0f        /* below: no move (_UD tests the y byte itself against it, as the ROM) */
 #define PAD_STICK_SCALE 128.0f

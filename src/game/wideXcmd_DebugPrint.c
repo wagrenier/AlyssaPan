@@ -55,6 +55,7 @@
 #include "game/unassigned_data.h"
 #include "game/wideXcmd_TriggerInit.h"
 #include "ga/gaInit3dlib.h"
+#include "ga/pad_button_read.h"
 #include "ga/gaSinCos.h"
 
 #include <math.h>
@@ -3164,11 +3165,6 @@ static float PadStickAxis(u_int v, u_int lo, u_int hi)
     return 0.0f;
 }
 
-static u_int PadStickByte(int off)
-{
-    return ((const u_char *)&pad[0])[off];
-}
-
 // The VU's xyz normalise (vmul, the sum, vrsqrt, vmulq); w kept. PORT: a zero vector stays zero (the
 // VU's rsqrt of 0 gives its largest float, times 0: zero too; the host would make NaN).
 static void PadNormalize3(float *out, const float *v)
@@ -3184,7 +3180,7 @@ static void PadNormalize3(float *out, const float *v)
 // CT3 0x018fa940
 void asCharacterMoveByPadUD(PIA_KEY *key)
 {
-    u_int y = PadStickByte(PAD_STICK_LY);
+    u_int y = pad[0].stick[PAD_STICK_LY];
     u_int dead = KEY_MAP[KEY_MAP_STICK_DEAD];
     float v = 0.0f;
     // the ROM tests the byte itself against the move's minimum length (not its distance from the centre)
@@ -3203,8 +3199,8 @@ void asCharacterMoveByPadUD(PIA_KEY *key)
 // her (no turn then while it stays set). The move itself is the motion's (root motion): only CHARA_PAD_MOVE.
 void asCharacterMoveByPad(CHARACTER *ch, PIA_KEY *key, int dir)
 {
-    u_int x = PadStickByte(PAD_STICK_LX);
-    u_int y = PadStickByte(PAD_STICK_LY);
+    u_int x = pad[0].stick[PAD_STICK_LX];
+    u_int y = pad[0].stick[PAD_STICK_LY];
     int dead = (s_char)KEY_MAP[KEY_MAP_STICK_DEAD];
     u_int lo = (PAD_STICK_CENTRE - dead) & 0xff;
     u_int hi = (PAD_STICK_CENTRE + dead) & 0xff;

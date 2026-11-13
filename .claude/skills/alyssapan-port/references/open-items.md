@@ -2031,8 +2031,13 @@ is unknown (no source string). The method is in reconstruction.md "CT3" for the 
    (14 before); shots 3100 / 3600 show her plaid skirt and no spike.
 
    Left:
-   - (ns1) She stands at the window in a running pose and the scripted pad's stick did not move her in
-     these runs; not looked into (the opening may still hold control).
+   - ~~(ns1) She stands at the window in a running pose and the scripted pad's stick did not move her in
+     these runs; not looked into (the opening may still hold control).~~ **Settled 2026-11-13
+     (interactive, the user: "always moving forward and ignoring my keys"):** asCharacterMoveByPad read
+     PAD_DATA bytes 2 / 3 (a `PAD_STICK_LX` / `_LY` redefinition hidden by `-w`, hazards.md), so the
+     stick read as pinned in one corner. Now it reads `pad[0].stick[PAD_STICK_LX / _LY]`; a scripted
+     run stands still at a centred stick and turns and walks with LSUP / LSLEFT / LSDOWN, stopping on
+     release.
    - (ns2) CellBList keeps the ROM's 2-byte cell stride, so one cell's second moving shape overwrites the
      next cell's first, as the ROM's would. Whether that is the ROM's real behaviour (or the low RAM is
      something else's) is unproven.
