@@ -2308,6 +2308,24 @@ apply here):
   hidden): ssBrain_BankDrawOn answers 0 there. callcheck MISSING lines are the static helpers again. Not
   reached by a 15 s smoke run (the shots show the boot screens as before).
 
+- (2026-11-13, game/tiBrain_ChgTrace_Ghost.c slice 2, scheduled run) **partial**: 14 more functions --
+  ChgAttack_Ghost1 / 2 / 4, ChgApproach_Ghost1 / 2, ChgSearch_Ghost1 / 2 / 3, Damage1 / 2 / 3, Attack_Ghost4
+  (the lunge and grab), Approach_Ghost2, Init2 (24 of 31; 7 stubs left: Attack_Ghost1 / 2 / 3,
+  Approach_Ghost1, Search_Ghost1 / 3, Init1). The ghost words are named in tiBrain_ChgTrace_Ghost.h (rest
+  0x181 / 0x204..0x214, flags 0x183, SE 0x278, grab 0x80..0x9c, events 0x4c / 0x55c / 0x55d, characters
+  0x1d..0x1f, motions, Z_REI sounds); BRAIN_GHOST_W204 is now BRAIN_GHOST_REST_TICKS. tiMoveU / tiMoveD are
+  the TU's sdata statics (15, 3). Doubts: (gh5) the drops copy the brain word 0x1e8 (ssBrain's
+  BRAIN_APPROACH_TIMER) into BRAIN_SEARCH_START: for the ghost 0x1e8 may be a tick base, name from these uses
+  only; (gh6) GHOST_REST_2 (2) is counted by ChgSearch_Ghost1 but no setter is read yet (one of the 7 left?);
+  (gh7) GHOST_FLAG_HEIGHT (0x02): Attack_Ghost4 rises to Alyssa's height under it, Approach_Ghost2 then keeps
+  its own -- the flag's meaning is a guess; (gh8) asAlyssaLockedByAnything modes 5 / 6 / 7 (GHOST_LOCKED_1D..
+  _1F) at the bite: wideXcmd_DebugPrint.h names only 0..4, the reader decides; PORT: another character leaves
+  the ROM's mode register unset, the port passes LOCKED_QUERY; (gh9) Damage1 PORT: lightBank -1 counts as not
+  drawn (the ROM reads BankInfo[-1]); (gh10) the decompiler dropped SSPlaySE's third argument and
+  asCharacterMortionChangeRequest's index on several calls: a2 read from the disassembly (1, and 3 =
+  GHOST_MOTION_SEARCH, the register the slot compare left). callcheck MISSING lines are calls made through
+  the static helpers. Not reached by the 15 s smoke run (boot screens and the content warning, as before).
+
 - (2026-11-13, game/tiBrain_ChgTrace_Ghost.c slice 1, scheduled run) **partial**: queue refill (Claude, for the
   user to overrule): the queue held only the stale blocked ui_canvas.cpp and no stub is reached on the NEW path,
   so the run took the next brain TU after ssBrain_ChgHideAtk1.c. Written: ChgTrace_Ghost (empty), ChgReturn1 / 2,
