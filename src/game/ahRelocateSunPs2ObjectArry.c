@@ -25,6 +25,7 @@
 #include "game/ssGrpPortalCheck.h"
 #include "game/unassigned_data.h"
 #include "game/wideXcmd_DebugPrint.h"
+#include "alyssapan/rendering/alyssapan_drawga.h"
 
 // ---- the file relocator (CT3 0x0183e280..0x01842290) ----
 //
@@ -3655,6 +3656,9 @@ void asShadowStart(void)
     }
     gaBGT_ExecDrawCtrlData_VIF1(&gaDC_EBclear_B_2753);
     gaBGT_ExecDrawCommandData_VIF1(&dc_EBclear_C_2757);
+    // PORT: the clear sprite on the host: the shadow count back to none (alyssapan_drawga.h); the volume's
+    // faces drawn into the shadow buffer from here are counted.
+    AlyssaPan_DrawGaShadowStart();
 }
 
 // CT3 0x018444b0
@@ -3714,8 +3718,8 @@ void asDrawShadowVolume(int bank)
 // ---- the volume's stock (slice 13, 2026-11-10) ----
 //
 // asShadowPolygonPositions hands asStockShadowVolume the volume's quads one by one (four position
-// qwords each), as plus or minus faces. Two of a sign make one ga object (ShadowVolume2: 4 vertices
-// in, 8 indices); a lone one left at the flush makes a ShadowVolume1 object (2 / 4). The bank's shadow
+// qwords each), as plus or minus faces. Two of a sign make one ga object (ShadowVolume2: 4 triangles,
+// 8 vertices); a lone one left at the flush makes a ShadowVolume1 object (2 / 4). The bank's shadow
 // table gives the three buffers: the objects (SV_OBJ_SIZE each), the positions (8 qwords an object)
 // and the normals (a VIF header, then 8 qwords: one normal per vertex).
 
@@ -3726,23 +3730,78 @@ void asDrawShadowVolume(int bank)
 #define SV_POSITIONS_SIZE 0x80          /* per object: 2 quads x 4 qwords */
 #define SV_NORMALS_SIZE 0x90            /* per object: the UNPACK header, then 8 qwords */
 #define SV_QUAD_VERTS 4
-// ga draw object words the stock sets (the gaBGT_DrawObject TU owns the layout).
-#define GA_OBJ_VERTS 0x44               /* vertices in */
-#define GA_OBJ_INDICES 0x48             /* indices */
-#define GA_OBJ_INDEX_DATA 0x50
+// ga draw object words the stock sets (ga/gaBGT_DrawObject.h's GA_OBJ_PRIM_COUNT, _VERTEX_COUNT, _INDICES,
+// _ST and _COLOURS; the gaBGT_DrawObject TU owns the layout).
 #define GA_OBJ_POSITIONS 0x60
 #define GA_OBJ_NORMALS 0x64
-#define GA_OBJ_TEX_ST 0x68
 #define GA_OBJ_COLORS 0x6c
 
-// The ROM's templates (sdata). PORT: the index, ST and colour data are left as their EE addresses in
-// the objects (asShadowStart's tex_attr_A precedent): the gaBGT_DrawObject TU resolves them.
+// The ROM's templates (sdata). PORT: the index, ST and colour data, the ambient qword, the light work and
+// the matrices stay the EE addresses the template holds (asShadowStart's tex_attr_A precedent); the ga
+// object readers resolve them through ExeEePtr (game/ct3_types.h GaObjEePtr), whose table is below.
 #define SV1_VERTEX_INDEX_DATA 0x01937a90u       /* ShadowVolume1_vertex_index_data */
 #define SV1_TEX_ST_DATA_VIFCODE 0x019379c0u     /* ShadowVolume1_tex_st_data_vifcode */
 #define SV1_VERTEX_COLOR_DATA_VIFCODE 0x01937a40u /* ShadowVolume1_vertex_color_data_vifcode */
 #define SV2_VERTEX_INDEX_DATA 0x01937ab0u       /* ShadowVolume2_vertex_index_data */
 #define SV2_TEX_ST_DATA_VIFCODE 0x019379f0u     /* ShadowVolume2_tex_st_data_vifcode */
 #define SV2_VERTEX_COLOR_DATA_VIFCODE 0x01937a60u /* ShadowVolume2_vertex_color_data_vifcode */
+#define AMBIENT_SHADOW_VOLUME_COLOR 0x01937820u /* ambient_ShadowVolume_color */
+#define SHADOW_VOLUME_LIGHT_WORK_DATA 0x01937830u /* ShadowVolume_light_work_data */
+#define MATRIX_GLOBAL_VIEW 0x01941840u          /* matrix_global_view (sbss) */
+#define SV_LIGHT_WORK_SIZE 0x190
+#define SV_MATRIX_SIZE 0x40
+
+// sdata 0x01937820 ambient_ShadowVolume_color: the volume objects' position qword, the ambient the light0
+// program adds to each vertex colour (RGB 0x80, alpha 0).
+alignas(16) static const float ambient_ShadowVolume_color[4] = { 128.0f, 128.0f, 128.0f, 0.0f };
+// sdata 0x019379c0 / 0x019379f0: ShadowVolume1/2_tex_st_data_vifcode (STCYCL, STMASK, UNPACK V2-32 of 4 / 8
+// with the mask) and the ST data after them (ShadowVolume1/2_tex_st_data, zeros).
+alignas(16) static const u_int ShadowVolume1_tex_st_data_vifcode[12] = { 0x20, 0x10101010u, 0, 0x74040080u };
+alignas(16) static const u_int ShadowVolume2_tex_st_data_vifcode[20] = { 0x20, 0x10101010u, 0, 0x74080080u };
+// sdata 0x01937a40 / 0x01937a60: ShadowVolume1/2_vertex_color_data_vifcode (UNPACK V4-8, signed, of 4 / 8)
+// and the colours after them (ShadowVolume1/2_vertex_color_data: every vertex 0x20 grey at alpha 0x20).
+#define SV_COLOR 0x20202020u
+alignas(16) static const u_int ShadowVolume1_vertex_color_data_vifcode[8] = {
+    0, 0, 0, 0x6e040100u, SV_COLOR, SV_COLOR, SV_COLOR, SV_COLOR };
+alignas(16) static const u_int ShadowVolume2_vertex_color_data_vifcode[12] = {
+    0, 0, 0, 0x6e080100u, SV_COLOR, SV_COLOR, SV_COLOR, SV_COLOR, SV_COLOR, SV_COLOR, SV_COLOR, SV_COLOR };
+// sdata 0x01937a90 / 0x01937ab0: ShadowVolume1/2_vertex_index_data, a primitive's four halfwords each (qword
+// offsets of its vertices): a quad (0 1 2 3) is (0 1 2) and (2 3 0); the second quad of ShadowVolume2 is
+// 4..7. The fourth halfwords are the ROM's (no reader takes them).
+alignas(16) static const u_short ShadowVolume1_vertex_index_data[12] = {
+    0x00, 0x10, 0x20, 0x00, 0x20, 0x30, 0x00, 0x30 };
+alignas(16) static const u_short ShadowVolume2_vertex_index_data[20] = {
+    0x00, 0x10, 0x20, 0x00, 0x20, 0x30, 0x00, 0x30, 0x40, 0x50, 0x60, 0x60, 0x60, 0x70, 0x40, 0x90 };
+
+// PORT: the program's data a ga object word can name (game/ct3_types.h ExeEePtr): each table's EE address,
+// size and host copy. An address inside a table answers the same place in the copy.
+typedef struct EXE_DATA_TABLE {
+    u_int ee;
+    u_int size;
+    const void *host;
+} EXE_DATA_TABLE;
+
+const void *ExeEePtr(u_int ee)
+{
+    const EXE_DATA_TABLE tables[] = {
+        { AMBIENT_SHADOW_VOLUME_COLOR, sizeof(ambient_ShadowVolume_color), ambient_ShadowVolume_color },
+        { SHADOW_VOLUME_LIGHT_WORK_DATA, SV_LIGHT_WORK_SIZE, ShadowVolume_light_work_data },
+        { SV1_TEX_ST_DATA_VIFCODE, sizeof(ShadowVolume1_tex_st_data_vifcode), ShadowVolume1_tex_st_data_vifcode },
+        { SV2_TEX_ST_DATA_VIFCODE, sizeof(ShadowVolume2_tex_st_data_vifcode), ShadowVolume2_tex_st_data_vifcode },
+        { SV1_VERTEX_COLOR_DATA_VIFCODE, sizeof(ShadowVolume1_vertex_color_data_vifcode),
+          ShadowVolume1_vertex_color_data_vifcode },
+        { SV2_VERTEX_COLOR_DATA_VIFCODE, sizeof(ShadowVolume2_vertex_color_data_vifcode),
+          ShadowVolume2_vertex_color_data_vifcode },
+        { SV1_VERTEX_INDEX_DATA, sizeof(ShadowVolume1_vertex_index_data), ShadowVolume1_vertex_index_data },
+        { SV2_VERTEX_INDEX_DATA, sizeof(ShadowVolume2_vertex_index_data), ShadowVolume2_vertex_index_data },
+        { MATRIX_GLOBAL_VIEW, SV_MATRIX_SIZE, matrix_global_view },
+    };
+    for (u_int i = 0; i < sizeof(tables) / sizeof(tables[0]); i++) {
+        if (ee >= tables[i].ee && ee < tables[i].ee + tables[i].size)
+            return (const u_char *)tables[i].host + (ee - tables[i].ee);
+    }
+    return NULL;
+}
 // sdata 0x01937b80 / 0x01937b90: ShadowVolume1/2_normal_data_vifcode, UNPACK V4-32 of 4 / 8 qwords.
 static const u_int ShadowVolume1_normal_data_vifcode[4] = { 0, 0, 0, 0x6c048000u };
 static const u_int ShadowVolume2_normal_data_vifcode[4] = { 0, 0, 0, 0x6c088000u };
@@ -3796,21 +3855,21 @@ static void SvQuadNormals(float (*dst)[4], const float (*q)[4])
 // One object at lpGA from quads[0..count-1] (1: ShadowVolume1, 2: ShadowVolume2) of kind `kind`.
 static void SvStockObject(const float (*quads)[SV_QUAD_VERTS][4], int count, int kind)
 {
-    u_int verts = count == 2 ? 4 : 2, indices = count == 2 ? 8 : 4;
+    u_int prims = count == 2 ? 4 : 2, verts = count == 2 ? 8 : 4;
     gaCopyObject2(lpGA_3180, ShadowVolumeObjectTemplate);
     memcpy(lpSVWN_3182, count == 2 ? ShadowVolume2_normal_data_vifcode : ShadowVolume1_normal_data_vifcode, 16);
-    memcpy(lpGA_3180 + GA_OBJ_VERTS, &verts, 4);
-    memcpy(lpGA_3180 + GA_OBJ_INDICES, &indices, 4);
+    memcpy(lpGA_3180 + GA_OBJ_PRIM_COUNT, &prims, 4);
+    memcpy(lpGA_3180 + GA_OBJ_VERTEX_COUNT, &verts, 4);
     {
         u_int idx = count == 2 ? SV2_VERTEX_INDEX_DATA : SV1_VERTEX_INDEX_DATA;
         u_int st = count == 2 ? SV2_TEX_ST_DATA_VIFCODE : SV1_TEX_ST_DATA_VIFCODE;
         u_int col = count == 2 ? SV2_VERTEX_COLOR_DATA_VIFCODE : SV1_VERTEX_COLOR_DATA_VIFCODE;
         u_int pos = BankEeAddr(svStockBank, lpSVWP_3181);
         u_int nrm = BankEeAddr(svStockBank, lpSVWN_3182);
-        memcpy(lpGA_3180 + GA_OBJ_INDEX_DATA, &idx, 4);
+        memcpy(lpGA_3180 + GA_OBJ_INDICES, &idx, 4);
         memcpy(lpGA_3180 + GA_OBJ_POSITIONS, &pos, 4);
         memcpy(lpGA_3180 + GA_OBJ_NORMALS, &nrm, 4);
-        memcpy(lpGA_3180 + GA_OBJ_TEX_ST, &st, 4);
+        memcpy(lpGA_3180 + GA_OBJ_ST, &st, 4);
         memcpy(lpGA_3180 + GA_OBJ_COLORS, &col, 4);
     }
     lpGA_3180[SV_OBJ_KIND] = (u_char)kind;
@@ -4376,6 +4435,66 @@ static void ShadowFan(u_long *p, u_long rgbaq, u_int uvC, u_long xyzC, u_int uv1
     gaBGT_ExecDrawCommandData_VIF1((GA_DRAWCOMMAND_DATA *)p);
 }
 
+// PORT: the overlay as the host draws it (alyssapan_drawga.h AlyssaPan_DrawGaShadowOverlay): the primitives
+// the ROM's packets kick, as triangles in GS frame pixels, Gouraud colours as their RGBAQ. The split pass's
+// 56 sprites, all one colour, are one quad over the frame; a fan (centre, three corners) is two triangles.
+#define SHADOW_OVERLAY_TRIANGLES (SHADOW_FAN_COUNT * 2)
+#define SHADOW_OVERLAY_ALPHA 0x80       /* the packets' RGBAQ alpha */
+typedef struct SHADOW_OVERLAY {
+    AlyssaPanGaShadowVertex v[SHADOW_OVERLAY_TRIANGLES * 3];
+    int triangles;
+} SHADOW_OVERLAY;
+
+static AlyssaPanGaShadowVertex ShadowOverlayVertex(int x, int y, const u_char *rgb)
+{
+    AlyssaPanGaShadowVertex v;
+    v.x = (float)x;
+    v.y = (float)y;
+    v.rgba[0] = rgb[0];
+    v.rgba[1] = rgb[1];
+    v.rgba[2] = rgb[2];
+    v.rgba[3] = SHADOW_OVERLAY_ALPHA;
+    return v;
+}
+
+static void ShadowOverlayTriangle(SHADOW_OVERLAY *ov, AlyssaPanGaShadowVertex a, AlyssaPanGaShadowVertex b,
+                                  AlyssaPanGaShadowVertex c)
+{
+    AlyssaPanGaShadowVertex *out = &ov->v[ov->triangles++ * 3];
+    out[0] = a;
+    out[1] = b;
+    out[2] = c;
+}
+
+// A fan as the TRIFAN kicks it: (centre, 1, 2), (centre, 2, 3); the corners black (SHADOW_RGBAQ_BLACK).
+static void ShadowOverlayFan(SHADOW_OVERLAY *ov, const u_char *rgb, int cx, int cy, int x1, int y1, int x2, int y2,
+                             int x3, int y3)
+{
+    static const u_char black[3] = { 0, 0, 0 };
+    AlyssaPanGaShadowVertex c = ShadowOverlayVertex(cx, cy, rgb);
+    ShadowOverlayTriangle(ov, c, ShadowOverlayVertex(x1, y1, black), ShadowOverlayVertex(x2, y2, black));
+    ShadowOverlayTriangle(ov, c, ShadowOverlayVertex(x2, y2, black), ShadowOverlayVertex(x3, y3, black));
+}
+
+// A draw control's ALPHA_1 FIX, and what a fold sprite adds or takes away: its colour times that FIX.
+static int ShadowCtrlFix(const GA_DRAWCTRL_DATA *ctrl)
+{
+    return (int)(ctrl->alpha.data >> 32 & 0xff);
+}
+
+static int ShadowFoldAmount(const GA_DRAWCOMMAND_DATA *sprite, const GA_DRAWCTRL_DATA *ctrl)
+{
+    return (int)(sprite->rgbaq & 0xff) * ShadowCtrlFix(ctrl) >> 7;
+}
+
+// The overlay to the host, under the control the ROM sent it with and the two fold sprites' amounts.
+static void ShadowOverlayDraw(const SHADOW_OVERLAY *ov, int lighten, const GA_DRAWCTRL_DATA *ctrl)
+{
+    AlyssaPan_DrawGaShadowOverlay(ov->v, ov->triangles, lighten, ShadowCtrlFix(ctrl),
+                                  ShadowFoldAmount(&dc_EBclear_E_2768, &gaDC_EBclear_D_2764),
+                                  ShadowFoldAmount(&dc_EBclear_G_2773, &gaDC_EBclear_F_2769));
+}
+
 // CT3 0x01846360
 // The end of a bank's shadow pass (comment above). A negative bank sends drawbuffer_0 only.
 // callcheck: __fixdfdi, dpmul, fptodp (the sprite set-up's double maths: the compiler's runtime)
@@ -4441,7 +4560,24 @@ void asShadowEnd(int bank)
                 asFS_2787[i][ASFS_RGBAQ] = rgbaq;
                 gaBGT_ExecDrawCommandData_VIF1((GA_DRAWCOMMAND_DATA *)asFS_2787[i]);
             }
+            {
+                // PORT: the sprites on the host, one quad over the frame in their colour.
+                SHADOW_OVERLAY ov;
+                const u_char rgb[3] = { (u_char)(bi->shadowColor[0] * level / 100),
+                                        (u_char)(bi->shadowColor[1] * level / 100),
+                                        (u_char)(bi->shadowColor[2] * level / 100) };
+                AlyssaPanGaShadowVertex tl = ShadowOverlayVertex(0, 0, rgb);
+                AlyssaPanGaShadowVertex tr = ShadowOverlayVertex(SHADOW_SCREEN_W, 0, rgb);
+                AlyssaPanGaShadowVertex bl = ShadowOverlayVertex(0, SHADOW_SCREEN_H, rgb);
+                AlyssaPanGaShadowVertex br = ShadowOverlayVertex(SHADOW_SCREEN_W, SHADOW_SCREEN_H, rgb);
+                ov.triangles = 0;
+                ShadowOverlayTriangle(&ov, tl, tr, bl);
+                ShadowOverlayTriangle(&ov, tr, br, bl);
+                ShadowOverlayDraw(&ov, lighten, lighten ? &gaDC_EBclearW_2780 : &gaDC_EBclearB_2779);
+            }
         } else {
+            SHADOW_OVERLAY ov;                  /* PORT: the fans on the host */
+            ov.triangles = 0;
             alignas(16) float v[4];
             float sx, sy, hi;
             int xSide = SHADOW_FAN_SIDE_IN, ySide = SHADOW_FAN_SIDE_IN, ring;
@@ -4506,31 +4642,40 @@ void asShadowEnd(int bank)
                                         (u_char)((bi->shadowColor[2] * level / 100) >> ring), 0x80, SHADOW_Q_ONE);
                 u_int uvC = asDR_UV(u, v16);
                 u_long xyzC = asDR_XYZ2(ix, iy, 0);
+                const u_char rgb[3] = { (u_char)((bi->shadowColor[0] * level / 100) >> ring),
+                                        (u_char)((bi->shadowColor[1] * level / 100) >> ring),
+                                        (u_char)((bi->shadowColor[2] * level / 100) >> ring) };
                 if (xSide != SHADOW_FAN_SIDE_LOW && ySide != SHADOW_FAN_SIDE_LOW) {        /* top left */
                     ShadowFan((u_long *)block, col, uvC, xyzC, asDR_UV(u0, v16), asDR_XYZ2(0, iy, 0),
                               asDR_UV(u0, v0), asDR_XYZ2(0, 0, 0), asDR_UV(u, v0), asDR_XYZ2(ix, 0, 0),
                               asDR_XYZ3(ix, 0, 0));
+                    ShadowOverlayFan(&ov, rgb, ix, iy, 0, iy, 0, 0, ix, 0);
                     block += SHADOW_FAN_SIZE;
                 }
                 if (xSide != SHADOW_FAN_SIDE_HIGH && ySide != SHADOW_FAN_SIDE_LOW) {       /* top right */
                     ShadowFan((u_long *)block, col, uvC, xyzC, asDR_UV(u, v0), asDR_XYZ2(ix, 0, 0),
                               asDR_UV(u1, v0), asDR_XYZ2(SHADOW_SCREEN_W, 0, 0), asDR_UV(u1, v16),
                               asDR_XYZ2(SHADOW_SCREEN_W, iy, 0), asDR_XYZ3(SHADOW_SCREEN_W, iy, 0));
+                    ShadowOverlayFan(&ov, rgb, ix, iy, ix, 0, SHADOW_SCREEN_W, 0, SHADOW_SCREEN_W, iy);
                     block += SHADOW_FAN_SIZE;
                 }
                 if (xSide != SHADOW_FAN_SIDE_LOW && ySide != SHADOW_FAN_SIDE_HIGH) {       /* bottom left */
                     ShadowFan((u_long *)block, col, uvC, xyzC, asDR_UV(u, v1), asDR_XYZ2(ix, SHADOW_SCREEN_H, 0),
                               asDR_UV(u0, v1), asDR_XYZ2(0, SHADOW_SCREEN_H, 0), asDR_UV(u0, v16),
                               asDR_XYZ2(0, iy, 0), asDR_XYZ3(0, iy, 0));
+                    ShadowOverlayFan(&ov, rgb, ix, iy, ix, SHADOW_SCREEN_H, 0, SHADOW_SCREEN_H, 0, iy);
                     block += SHADOW_FAN_SIZE;
                 }
                 if (xSide != SHADOW_FAN_SIDE_HIGH && ySide != SHADOW_FAN_SIDE_HIGH) {      /* bottom right */
                     ShadowFan((u_long *)block, col, uvC, xyzC, asDR_UV(u1, v16), asDR_XYZ2(SHADOW_SCREEN_W, iy, 0),
                               asDR_UV(u1, v1), asDR_XYZ2(SHADOW_SCREEN_W, SHADOW_SCREEN_H, 0), asDR_UV(u, v1),
                               asDR_XYZ2(ix, SHADOW_SCREEN_H, 0), asDR_XYZ3(ix, SHADOW_SCREEN_H, 0));
+                    ShadowOverlayFan(&ov, rgb, ix, iy, SHADOW_SCREEN_W, iy, SHADOW_SCREEN_W, SHADOW_SCREEN_H, ix,
+                                     SHADOW_SCREEN_H);
                     block += SHADOW_FAN_SIZE;
                 }
             }
+            ShadowOverlayDraw(&ov, lighten, lighten ? &gaDC_EBclearW_2808 : &gaDC_EBclearB_2807);
         }
     }
     gaBGT_ExecDBufferData_VIF1(&drawbuffer_0);

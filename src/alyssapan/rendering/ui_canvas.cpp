@@ -288,6 +288,7 @@ DrawCall UiCanvas::stateOf(const Layer &source)
     draw.pipeline.mask = source.depthOnly ? ColorMask::None : colorMaskOf(source.frame);
     draw.pipeline.depth = source.depthTest;
     draw.pipeline.depthWrite = source.depthTest != DepthTest::Off && source.depthWrite;
+    draw.pipeline.stencil = source.stencil;
     draw.image = source.textured ? source.image : nullptr;
     draw.scissor = source.scissor;
     draw.linearFilter = ((source.tex1 >> 5) & 1) != 0;
@@ -442,9 +443,10 @@ void UiCanvas::fillFrame(Layer &target, BlendMode blend, std::uint32_t color, st
     const std::uint64_t previousFrame = std::exchange(target.frame, static_cast<std::uint64_t>(kFbmskAlpha) << 32);
     target.forcedBlend = blend;
 
-    // A whole-frame pass neither tests nor writes depth.
+    // A whole-frame pass neither tests nor writes depth, nor counts shadows.
     const DepthTest previousDepth = std::exchange(target.depthTest, DepthTest::Off);
     const bool previousDepthWrite = std::exchange(target.depthWrite, false);
+    const StencilMode previousStencil = std::exchange(target.stencil, StencilMode::Off);
 
     const Vertex a{0.0f, 0.0f, 0.0f, 0.0f, 0.0f, color};
     const Vertex b{kFrameWidth, kFrameHeight, 0.0f, 0.0f, 0.0f, color};
@@ -452,6 +454,7 @@ void UiCanvas::fillFrame(Layer &target, BlendMode blend, std::uint32_t color, st
     assemble(target, a);
     assemble(target, b);
 
+    target.stencil = previousStencil;
     target.depthWrite = previousDepthWrite;
     target.depthTest = previousDepth;
     target.forcedBlend.reset();
@@ -526,6 +529,7 @@ void UiCanvas::clearDepth(const void *list)
     const DepthTest previousDepth = std::exchange(target.depthTest, DepthTest::Always);
     const bool previousDepthWrite = std::exchange(target.depthWrite, true);
     const bool previousDepthOnly = std::exchange(target.depthOnly, true);
+    const StencilMode previousStencil = std::exchange(target.stencil, StencilMode::Off);
 
     const Vertex a{0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0};
     const Vertex b{kFrameWidth, kFrameHeight, 0.0f, 0.0f, 0.0f, 0};
@@ -533,6 +537,42 @@ void UiCanvas::clearDepth(const void *list)
     assemble(target, a);
     assemble(target, b);
 
+    target.stencil = previousStencil;
+    target.depthOnly = previousDepthOnly;
+    target.depthWrite = previousDepthWrite;
+    target.depthTest = previousDepth;
+    target.test = previousTest;
+    target.blended = previousBlended;
+    target.textured = previousTextured;
+    target.primitive = previousPrimitive;
+}
+
+void UiCanvas::setStencil(const void *list, StencilMode mode)
+{
+    std::scoped_lock lock(m_lock);
+    layer(list).stencil = mode;
+}
+
+void UiCanvas::resetStencil(const void *list)
+{
+    std::scoped_lock lock(m_lock);
+    Layer &target = layer(list);
+    const Primitive previousPrimitive = std::exchange(target.primitive, Primitive::Sprite);
+    const bool previousTextured = std::exchange(target.textured, false);
+    const bool previousBlended = std::exchange(target.blended, false);
+    const std::uint64_t previousTest = std::exchange(target.test, 0);
+    const DepthTest previousDepth = std::exchange(target.depthTest, DepthTest::Off);
+    const bool previousDepthWrite = std::exchange(target.depthWrite, false);
+    const bool previousDepthOnly = std::exchange(target.depthOnly, true); // no colour
+    const StencilMode previousStencil = std::exchange(target.stencil, StencilMode::ShadowReset);
+
+    const Vertex a{0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0};
+    const Vertex b{kFrameWidth, kFrameHeight, 0.0f, 0.0f, 0.0f, 0};
+    target.run.clear();
+    assemble(target, a);
+    assemble(target, b);
+
+    target.stencil = previousStencil;
     target.depthOnly = previousDepthOnly;
     target.depthWrite = previousDepthWrite;
     target.depthTest = previousDepth;

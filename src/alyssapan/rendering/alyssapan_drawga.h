@@ -185,4 +185,39 @@ void AlyssaPan_DrawGaBank(int bank, const char *file);
  * each global bank). */
 void AlyssaPan_DrawGaClearDepth(void);
 
+/* The shadow pass (added 2026-11-15), the native side of asShadowStart,
+ * asDrawShadowVolume and asShadowEnd (game/ahRelocateSunPs2ObjectArry.c;
+ * architecture.md "The shadow overlay"). The ROM points the draw buffer at
+ * its shadow buffer (GS 0xc0000), clears it to 0x80 and draws the volume's
+ * faces into it against the frame's Z (GEQUAL, no Z write): a plus face
+ * Cd - Cs * As, a minus face Cs * As + Cd. Two full-screen sprites fold
+ * the result (+ foldAdd, then - foldSubtract, each clamped to 0..255), and
+ * the buffer, read as a texture under MODULATE, is laid over the display
+ * frame by primitives of colour Cv blended Cd - Cs * FIX (lighten:
+ * Cs * FIX + Cd). The host keeps the count in its stencil buffer and draws
+ * the overlay where the count is above none, by the amount the ROM's
+ * arithmetic gives one face's count: no shadow buffer, no GS memory.
+ *
+ * Start: the count back to none (the buffer's clear). The ga objects drawn
+ * from here while the draw buffer is not a display frame are the volume's
+ * faces, their ALPHA_1 saying which way each counts. */
+void AlyssaPan_DrawGaShadowStart(void);
+
+/* One overlay vertex: x, y in pixels of the 512 x 448 GS frame (the
+ * frame's edges, 0 and 512 / 448, are the window's at any aspect; a point
+ * inside it moves with the widened 3D view), rgba the vertex colour Cv. */
+typedef struct AlyssaPanGaShadowVertex
+{
+    float x;
+    float y;
+    uint8_t rgba[4];
+} AlyssaPanGaShadowVertex;
+
+/* The overlay, in draw order: count triangles (3 x count vertices,
+ * Gouraud), blended under ALPHA_1's alphaFix (0..255, 0x80 = 1.0),
+ * darkening the frame or with lighten set brightening it, where the volume
+ * left a count. foldAdd / foldSubtract: the fold sprites' colours. */
+void AlyssaPan_DrawGaShadowOverlay(const AlyssaPanGaShadowVertex *vertices, int count, int lighten, int alphaFix,
+                                   int foldAdd, int foldSubtract);
+
 #endif /* ALYSSAPAN_DRAWGA_H */

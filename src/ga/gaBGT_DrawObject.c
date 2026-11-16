@@ -48,10 +48,10 @@
 // The GIFtag at GA_SPR_WORK 0x90: the set-ups put NLOOP = the primitive count, with EOP.
 #define GIFTAG_EOP 0x8000
 
-// PORT: a relocated word of the object's bank as a host pointer.
+// PORT: a relocated word of the object's bank as a host pointer (or of the program's own data: GaObjEePtr).
 static const void *ObjEePtr(int bank, const u_char *obj, int offset)
 {
-    return BankEePtr(bank, *(const u_int *)(obj + offset));
+    return GaObjEePtr(bank, *(const u_int *)(obj + offset));
 }
 
 // The stores both nc2 set-ups make into the 3dlib header before building the chain.

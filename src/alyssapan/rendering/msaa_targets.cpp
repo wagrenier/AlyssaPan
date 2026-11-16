@@ -29,11 +29,18 @@ SDL_GPUSampleCount sdlSampleCount(int samples)
 MsaaTargets::MsaaTargets(gpu::Device &device, SDL_GPUTextureFormat colorFormat, SDL_GPUTextureFormat depthFormat)
     : m_device(device), m_colorFormat(colorFormat), m_depthFormat(depthFormat)
 {
+    // SDL's D3D12 backend asks about a depth-stencil format's shader-view format (R32_FLOAT_X8X24_TYPELESS for
+    // D32_FLOAT_S8_UINT, R24_UNORM_X8_TYPELESS for D24), which has no multisampling, so it answers no for every
+    // count the format itself has (2026-11-15: up to 8x for D32_FLOAT on one device, none for D32_FLOAT_S8_UINT).
+    // For such a format the colour's counts stand: a count the device refuses fails at creation, and ensure()
+    // then runs at 1x.
+    const bool stencilFormat = m_depthFormat == SDL_GPU_TEXTUREFORMAT_D32_FLOAT_S8_UINT ||
+                               m_depthFormat == SDL_GPU_TEXTUREFORMAT_D24_UNORM_S8_UINT;
     for (int samples = 2; samples <= kMaxSamples; samples *= 2)
     {
         const SDL_GPUSampleCount count = sdlSampleCount(samples);
         if (!SDL_GPUTextureSupportsSampleCount(m_device.get(), m_colorFormat, count) ||
-            !SDL_GPUTextureSupportsSampleCount(m_device.get(), m_depthFormat, count))
+            (!stencilFormat && !SDL_GPUTextureSupportsSampleCount(m_device.get(), m_depthFormat, count)))
             break; // counts are supported downward, not in gaps
         m_maxSupported = samples;
     }

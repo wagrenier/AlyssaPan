@@ -653,7 +653,8 @@ code after the last [E]):
   shadow volume (0xc0000), the HQDOF samples (0xa8000, eight renders of the scene from shifted eyes), the
   capture / export targets, the translucent characters and the ghosts (EFFECT_FBUF_ADDRESS). The host is
   told which (`AlyssaPan_DrawGaTarget`) and draws nothing off-screen, except the characters and ghosts,
-  which the port composites on the frame (Clipping_Portal.c's PORT).
+  which the port composites on the frame (Clipping_Portal.c's PORT), and the shadow volume, which it
+  counts in its stencil (2026-11-15: "The shadow overlay" below).
 - **The GS state is the ga packets' A+D pairs** (`AlyssaPan_DrawGaRegister`, from gaBGT_ExecDBufferData_VIF1
   and gaBGT_ExecDrawCtrlData_VIF1, read by register address -- main_rtn's per-entry controls come from the
   bank's data): FRAME_1 FBMSK, ZBUF_1 PSM / ZMSK, PRMODE (gsinit's PRMODECONT 0: ABE / TME / IIP come from
@@ -1884,6 +1885,20 @@ The auto-load at boot (MemorycardAutoLoad, xcmd_tn.c) has its own states (mcMain
   at the centre and black at the screen corners; a side whose anchor left the screen is not drawn. The
   fans' packets live in the bank's _SunAlloc'd shadow block (BankInfo +0x58, 0x280 bytes; +0x70 = 1).
   screen_0 = {0, 0, 512, 448, 256, 224, 0.832, 0.94, 512, 5, 40000, 16777215}.
+- **The numbers (2026-11-15, from the ROM's sdata):** a volume object is light0, variant 2 (no cull),
+  every vertex colour 0x20 (ShadowVolume1/2_vertex_color_data, a signed UNPACK V4-8) plus the ambient
+  ambient_ShadowVolume_color (0x80, 0x80, 0x80, 0): RGBA 0xa0 / 0x20, so a face adds or subtracts
+  0xa0 x 0x20 >> 7 = 0x28. The fold (+0x60, -0xe0, FIX 0x80) leaves 0x1f for any net count of one face
+  or more, 0 otherwise: the buffer is binary. The overlay (MODULATE, FIX 0xff) then takes
+  (0x1f x Cv >> 7) x 0xff >> 7 off the frame: 29 at Alyssa's level 25 (Cv 0x3f). Shadows are switched on
+  only by the room scripts' TRIG_CMD_SHADOW_ATTACH at camera cuts (hazards.md).
+- **On the host (2026-11-15):** asShadowStart calls AlyssaPan_DrawGaShadowStart (the stencil back to 0x80);
+  the objects drawn while the draw buffer is the shadow buffer are recorded as volume meshes, counted +1 /
+  -1 by their draw control's blend, depth-tested GEQUAL against the frame, no colour; asShadowEnd hands
+  the overlay's primitives (one quad for the split pass, two triangles a fan) with Cv, FIX and the fold
+  amounts to AlyssaPan_DrawGaShadowOverlay, drawn where the stencil is above 0x80 (seams.cpp DrawGaShadow).
+  The overlay's frame edges go to the window's edges at any aspect; the fans' centre moves with the 3D
+  view. The volume objects' exe words resolve through ExeEePtr (ct3_types.h GaObjEePtr).
 - **asCheckAnimationFlamePassing_S** is the triggers' "animation passed frame N" test: BEHAVIOR_TRACK
   +0x1c (time1c) holds last frame's frame (high half) and this frame's (low half); forward tracks pass
   (last, now], backward [now, last), each wrapping past the end; a character's motion asks the

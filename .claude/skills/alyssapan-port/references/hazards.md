@@ -678,10 +678,31 @@ ga/pad_button_read.h (included later through unassigned_data.h) redefined them a
 `-w` hid GCC's "redefined" warning, so asCharacterMoveByPad read `PAD_DATA.pad02` (always 0): a stick
 pinned in one corner, h0a = PAD_MOVE_ON every frame, facing fixed. This was open item (ns1). **Fix:** read
 `pad[0].stick[PAD_STICK_LX]` (ga's names). **Check:** preprocess every TU from compile_commands.json
-without `-w` (`g++ ... -E -o NUL`, MinGW's bin on PATH) and grep `redefined`. After the fix two remain,
-both harmless: CAMERA_SHARED (6 both ways) and the shadow stock's own GA_OBJ_INDICES (0x48, the index
-count) against gaBGT_DrawObject.h's (0x50, the index pointer) in ahRelocateSunPs2ObjectArry.c. A new
+without `-w` (`g++ ... -E -o NUL`, MinGW's bin on PATH) and grep `redefined`. After the fix two remained,
+both harmless: CAMERA_SHARED (6 both ways) and the shadow stock's own GA_OBJ_INDICES (0x48) against
+gaBGT_DrawObject.h's (0x50) in ahRelocateSunPs2ObjectArry.c -- gone 2026-11-15: the stock now uses the
+header's names (0x44 is the primitive count, 0x48 the vertex count, 0x50 the index pointer). A new
 `#define` of a common name needs that grep first.
+
+### Shadows: off until a camera cut, dropped on the host, seams, and SDL's MSAA query (2026-11-15)
+**Symptom** (the user: "fix shadows, they seem to be partly broken"): Alyssa cast no shadow; the rooms'
+baked shading was all there was. **Causes, in the order found:** (1) a smoke run that stands still never
+sees one: shadows are switched on only by TRIG_CMD_SHADOW_ATTACH (1500) in the room scripts' camera-cut
+actors (0A01: plane-entry detectors 50..57 under room detector 46; actor 102), so every bank keeps
+shadowVec w 0 / level 0xff until Alyssa crosses a cut -- walk her (`--pad` with LSLEFT.. after NEW) before
+judging. (2) The host dropped the whole pass: the volume draws to GS 0xc0000 (not a display frame, so
+not recorded) and the overlay is GIF sprites / fans the host never draws. (3) The volume objects keep the
+template's exe words (index / ST / colour tables, ambient_ShadowVolume_color, matrix_global_view), which
+BankEePtr turned into pointers past the bank. **Fixes:** GaObjEePtr / ExeEePtr (ct3_types.h); the native
+pass counts in the stencil (alyssapan_drawga.h AlyssaPan_DrawGaShadow*, architecture.md "The shadow
+overlay"). (4) The first picture had light seams inside the shadow: each lit caster face gets its own
+prism, the wall two faces share is stocked twice with opposite signs, split on different diagonals, and
+the host's depth test of the two copies differs in the last bit where the wall meets the floor. The host
+now splits each volume quad on the diagonal through its least corner and sorts each triangle's corners
+(seams.cpp DrawGaShadow). (5) The stencil format turned MSAA off ("up to 1x"): SDL's D3D12
+SupportsSampleCount asks about a depth-stencil format's shader-view format (R32_FLOAT_X8X24_TYPELESS),
+which has no MSAA. MsaaTargets trusts the colour's counts for a stencil format; creation still fails over
+to 1x if the device refuses.
 
 ## From the siblings (2026-11-09 digest of MioPan, ReiPan, RosePan, MikuPan)
 

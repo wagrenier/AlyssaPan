@@ -64,12 +64,26 @@ enum class DepthTest : std::uint8_t
     Greater,
 };
 
+// The stencil's part in CT3's shadow pass (alyssapan_drawga.h AlyssaPan_DrawGaShadow*). The ROM counts shadow-
+// volume faces into a GS frame cleared to 0x80 and lays the folded count over the display frame; the host
+// keeps the count in the stencil buffer instead, from the same 0x80 (kShadowStencilBase). Off: every other draw.
+enum class StencilMode : std::uint8_t
+{
+    Off,
+    ShadowReset,     // the count back to kShadowStencilBase (asShadowStart's clear sprite)
+    ShadowIncrement, // a minus face (ALPHA_1 Cs * As + Cd): +1 where it passes the depth test
+    ShadowDecrement, // a plus face (Cd - Cs * As): -1
+    ShadowTest,      // drawn only where the count is above kShadowStencilBase (the overlay)
+};
+constexpr std::uint8_t kShadowStencilBase = 0x80;
+
 struct PipelineKey
 {
     BlendMode blend = BlendMode::None;
     ColorMask mask = ColorMask::All;
     DepthTest depth = DepthTest::Off;
     bool depthWrite = false; // ZBUF_1's ZMSK clear
+    StencilMode stencil = StencilMode::Off;
 
     auto operator<=>(const PipelineKey &) const = default;
 };

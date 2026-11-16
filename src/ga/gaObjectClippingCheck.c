@@ -51,8 +51,8 @@ int gaObjectClippingCheck(u_char *obj)
 {
     GA_SPR_WORK *spr = SPR_WORK;
     const GA_3DLIB_WORK *lib = (const GA_3DLIB_WORK *)SCRATCHPAD(spr->work3dlibEE - SCRATCHPAD_EE_BASE);
-    // PORT: the matrix word is a relocated EE address of the object's bank (as gaBGT_DrawObject reads it).
-    const float *m = (const float *)BankEePtr(BankOfHostPtr(obj), *(const u_int *)(obj + GA_OBJ_MATRIX));
+    // PORT: the matrix word is a relocated EE address of the object's bank, or matrix_global_view's (GaObjEePtr).
+    const float *m = (const float *)GaObjEePtr(BankOfHostPtr(obj), *(const u_int *)(obj + GA_OBJ_MATRIX));
     const float *p = (const float *)(obj + GA_OBJ_SPHERE_CENTER);
     float r = *(const float *)(obj + GA_OBJ_SPHERE_RADIUS);
     float v[4], tanZ[4], outer[4], inner[4];

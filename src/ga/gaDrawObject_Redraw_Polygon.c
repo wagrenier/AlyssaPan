@@ -87,10 +87,11 @@ static u_char *GsPacketPtr(u_int ee, u_int n)
     return ga_div_redraw_gspacket_work + off;
 }
 
-// A relocated word of the object's bank (NULL for 0, or when the object is in no bank).
+// A relocated word of the object's bank, or of the program's own data (GaObjEePtr; NULL for 0, or when the
+// object is in no bank).
 static const void *ObjEePtr(int bank, u_int ee)
 {
-    return bank >= 0 ? BankEePtr(bank, ee) : NULL;
+    return bank >= 0 ? GaObjEePtr(bank, ee) : NULL;
 }
 
 // ---- VU0 macro operations ----

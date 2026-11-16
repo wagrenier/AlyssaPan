@@ -905,6 +905,23 @@ static inline void *BankEePtr(int bank, u_int ee)
 }
 // A relocated word of bank `bank` as a host pointer of type T (ALL_TABLE's fields, the draw lists).
 #define BANK_PTR(T, bank, ee) ((T)BankEePtr((bank), (ee)))
+// PORT (2026-11-15, shadows): an EE word of a bank's ga draw object that names the program's own data instead
+// of the bank's. The shadow volume objects asStockShadowVolume builds in the bank keep the ROM template's
+// words: its sdata tables (indices, ST, colours, the ambient qword, the light work) and matrix_global_view.
+// ExeEePtr answers the host copy holding such an address (ahRelocateSunPs2ObjectArry.c keeps the table),
+// NULL for one no TU has registered; GaObjEePtr is what the ga object readers resolve a word with.
+#define CT3_EXE_EE_LO 0x01810000u       /* the ELF's link address: the bank slots end below it */
+#define CT3_EXE_EE_HI 0x02000000u       /* the end of EE RAM */
+const void *ExeEePtr(u_int ee);
+static inline void *GaObjEePtr(int bank, u_int ee)
+{
+    if (ee >= CT3_EXE_EE_LO && ee < CT3_EXE_EE_HI) {
+        const void *exe = ExeEePtr(ee);
+        if (exe != NULL)
+            return (void *)exe;
+    }
+    return BankEePtr(bank, ee);
+}
 // The other way: the EE address a host pointer into bank `bank` had (TrgCharacterShapeSet's leg parts).
 static inline u_int BankEeAddr(int bank, const void *host)
 {

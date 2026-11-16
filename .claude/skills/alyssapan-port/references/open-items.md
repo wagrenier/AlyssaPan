@@ -3155,6 +3155,18 @@ apply here):
 
 ## Done
 
+- 2026-11-15 (interactive, the user: "fix shadows, they seem to be partly broken"): the characters' cast
+  shadows. The host now runs the shadow pass natively (alyssapan_drawga.h AlyssaPan_DrawGaShadowStart /
+  _Overlay; architecture.md "The shadow overlay", hazards.md): the volume's faces count in the stencil from
+  0x80, and the overlay takes the ROM's arithmetic off the frame where the count is above it. The volume
+  objects' exe words resolve (ct3_types.h GaObjEePtr). Seen: in the fireplace room (0A02) Alyssa's shadow
+  falls away from the fire, at 4:3 and at 16:9 with 8x MSAA. Doubts: (sh1) the stencil keeps one count for
+  all shadowed pixels: T is one face's fold (0x1f for CT3's 0x28 a face, so exact here); a volume colour
+  under 0x20 would make deeper counts darker on the ROM; (sh2) a volume triangle with a vertex behind the eye
+  is dropped (GaMeshRecorder::cull), which would break the count if the camera ever sits inside or behind a
+  volume: not seen; (sh3) the overlay leaves the frame's alpha as it was (the ROM writes 0x80 over the
+  whole screen); (sh4) only the fan pass (mode 2, Alyssa in 0A02) has been seen; the split pass is written
+  the same way and unseen.
 - 2026-11-13 (interactive, the user: "when the model stop moving the vertices of her belly becomes
   wrong"): Alyssa's waist, standing. StrawBlendFrame's `float ts[2]` took QuatSlerp's ts[3] write
   (hazards.md), so the waist straw's middle vertices were turned about 60 degrees about her spine: the

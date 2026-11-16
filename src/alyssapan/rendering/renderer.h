@@ -137,6 +137,7 @@ private:
     gpu::Texture m_scene;
     gpu::Texture m_depth; // the scene's, the 3D draws' (the GS's Z buffer)
     SDL_GPUTextureFormat m_depthFormat = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
+    bool m_hasStencil = false; // m_depthFormat has a stencil: the shadow pass can count (frame.h StencilMode)
     gpu::Texture m_output;
     gpu::Texture m_white;
     int m_sceneWidth = 0;

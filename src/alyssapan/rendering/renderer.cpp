@@ -147,6 +147,33 @@ static SDL_GPUCompareOp depthCompareOf(DepthTest test)
     return SDL_GPU_COMPAREOP_ALWAYS;
 }
 
+// The shadow pass's stencil (frame.h StencilMode), against the reference kShadowStencilBase. A volume face counts
+// on either side: the ROM picks the sign by the face's draw control, not by its winding. The counts saturate as
+// the GS's 8-bit colour does.
+static SDL_GPUStencilOpState stencilOpsOf(StencilMode mode)
+{
+    SDL_GPUStencilOpState ops{SDL_GPU_STENCILOP_KEEP, SDL_GPU_STENCILOP_KEEP, SDL_GPU_STENCILOP_KEEP,
+                              SDL_GPU_COMPAREOP_ALWAYS};
+    switch (mode)
+    {
+    case StencilMode::Off:
+        break;
+    case StencilMode::ShadowReset:
+        ops.pass_op = SDL_GPU_STENCILOP_REPLACE;
+        break;
+    case StencilMode::ShadowIncrement:
+        ops.pass_op = SDL_GPU_STENCILOP_INCREMENT_AND_CLAMP;
+        break;
+    case StencilMode::ShadowDecrement:
+        ops.pass_op = SDL_GPU_STENCILOP_DECREMENT_AND_CLAMP;
+        break;
+    case StencilMode::ShadowTest:
+        ops.compare_op = SDL_GPU_COMPAREOP_LESS; // reference < stored: the count is above the base
+        break;
+    }
+    return ops;
+}
+
 Renderer::Renderer(Window &window, gpu::Device &device, Config &config, EventQueue &events, ui::Overlay &overlay,
                    Profiler &profiler)
     : m_window(window), m_device(device), m_config(config), m_events(events), m_overlay(overlay),
@@ -160,12 +187,25 @@ Renderer::Renderer(Window &window, gpu::Device &device, Config &config, EventQue
 
     m_samplers.update(m_config.display.anisotropy);
 
-    // A float depth over the GS's 1 / z-shaped Z keeps its precision where the GS has it (D32 is everywhere
-    // SDL_GPU runs; D24 the fallback).
-    m_depthFormat = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
-    if (!SDL_GPUTextureSupportsFormat(m_device.get(), m_depthFormat, SDL_GPU_TEXTURETYPE_2D,
-                                      SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET))
-        m_depthFormat = SDL_GPU_TEXTUREFORMAT_D24_UNORM;
+    // A float depth over the GS's 1 / z-shaped Z keeps its precision where the GS has it, with a stencil for the
+    // shadow pass's count (StencilMode). SDL_GPU guarantees one of the two stencil formats; without either
+    // (never seen) the depth stays and the shadows are not drawn.
+    const auto depthSupported = [this](SDL_GPUTextureFormat format) {
+        return SDL_GPUTextureSupportsFormat(m_device.get(), format, SDL_GPU_TEXTURETYPE_2D,
+                                            SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET);
+    };
+    m_hasStencil = true;
+    m_depthFormat = SDL_GPU_TEXTUREFORMAT_D32_FLOAT_S8_UINT;
+    if (!depthSupported(m_depthFormat))
+        m_depthFormat = SDL_GPU_TEXTUREFORMAT_D24_UNORM_S8_UINT;
+    if (!depthSupported(m_depthFormat))
+    {
+        m_hasStencil = false;
+        m_depthFormat = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
+        if (!depthSupported(m_depthFormat))
+            m_depthFormat = SDL_GPU_TEXTUREFORMAT_D24_UNORM;
+        log::warning("renderer: no depth-stencil format; the shadows are not drawn");
+    }
     m_msaa = std::make_unique<MsaaTargets>(m_device, m_sceneFormat, m_depthFormat);
     m_msaa->update(m_config.display.msaa);
 
@@ -272,6 +312,8 @@ SDL_GPUGraphicsPipeline *Renderer::pipelineFor(PipelineKey key)
 {
     if (const auto found = m_pipelines.find(key); found != m_pipelines.end())
         return found->second.get();
+    if (key.stencil != StencilMode::Off && !m_hasStencil)
+        return nullptr; // no stencil to count in: the shadow pass is skipped
 
     SDL_GPUVertexBufferDescription buffer{};
     buffer.slot = 0;
@@ -295,6 +337,15 @@ SDL_GPUGraphicsPipeline *Renderer::pipelineFor(PipelineKey key)
     info.depth_stencil_state.enable_depth_test = key.depth != DepthTest::Off;
     info.depth_stencil_state.enable_depth_write = key.depth != DepthTest::Off && key.depthWrite;
     info.depth_stencil_state.compare_op = depthCompareOf(key.depth);
+    if (key.stencil != StencilMode::Off)
+    {
+        constexpr Uint8 kAllBits = 0xff;
+        info.depth_stencil_state.enable_stencil_test = true;
+        info.depth_stencil_state.front_stencil_state = stencilOpsOf(key.stencil);
+        info.depth_stencil_state.back_stencil_state = stencilOpsOf(key.stencil);
+        info.depth_stencil_state.compare_mask = kAllBits;
+        info.depth_stencil_state.write_mask = kAllBits;
+    }
     info.vertex_shader = m_vertexShader.get();
     info.fragment_shader = m_fragmentShader.get();
     info.vertex_input_state.vertex_buffer_descriptions = &buffer;
@@ -394,8 +445,12 @@ void Renderer::recordDraws(SDL_GPUCommandBuffer *commands, const Frame &frame, c
     depth.clear_depth = 0.0f;
     depth.load_op = clear ? SDL_GPU_LOADOP_CLEAR : SDL_GPU_LOADOP_LOAD;
     depth.store_op = SDL_GPU_STOREOP_STORE;
-    depth.stencil_load_op = SDL_GPU_LOADOP_DONT_CARE;
-    depth.stencil_store_op = SDL_GPU_STOREOP_DONT_CARE;
+    // The shadow pass's count starts at its base, as the ROM's shadow buffer is cleared to it.
+    depth.clear_stencil = kShadowStencilBase;
+    depth.stencil_load_op = !m_hasStencil ? SDL_GPU_LOADOP_DONT_CARE
+                            : clear       ? SDL_GPU_LOADOP_CLEAR
+                                          : SDL_GPU_LOADOP_LOAD;
+    depth.stencil_store_op = m_hasStencil ? SDL_GPU_STOREOP_STORE : SDL_GPU_STOREOP_DONT_CARE;
 
     SDL_GPURenderPass *const pass = SDL_BeginGPURenderPass(commands, &target, 1, &depth);
     if (pass == nullptr)
@@ -403,6 +458,8 @@ void Renderer::recordDraws(SDL_GPUCommandBuffer *commands, const Frame &frame, c
         gpu::logGpuError("SDL_BeginGPURenderPass(scene)");
         return;
     }
+    if (m_hasStencil)
+        SDL_SetGPUStencilReference(pass, kShadowStencilBase);
 
     if (first != last)
     {

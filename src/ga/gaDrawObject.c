@@ -191,8 +191,8 @@ static GA_LOCAL_VERTEX *BeginView(u_char *obj, u_int packetEE, const float **m, 
     u_char *head = SprPtr(packetEE);
 
     *n = *(const u_int *)(obj + GA_OBJ_VERTEX_COUNT);
-    *pos = (const float *)BankEePtr(bank, *(const u_int *)(obj + GA_OBJ_POSITIONS));
-    *m = (const float *)BankEePtr(bank, *(const u_int *)(obj + GA_OBJ_MATRIX));
+    *pos = (const float *)GaObjEePtr(bank, *(const u_int *)(obj + GA_OBJ_POSITIONS));
+    *m = (const float *)GaObjEePtr(bank, *(const u_int *)(obj + GA_OBJ_MATRIX));
     spr->stPacketEE = packetEE + GA_VERTEX_BLOCK_HEAD + *n * 0x10;
     return (GA_LOCAL_VERTEX *)(head + GA_VERTEX_BLOCK_HEAD);
 }
@@ -315,7 +315,7 @@ static void RemakeClipped(u_char *obj, u_int packetEE, int withNear)
     int bank = BankOfHostPtr(obj);
     u_char flags = obj[GA_OBJ_FLAGS];
     GA_LOCAL_VERTEX *v = LocalVertices(spr);
-    const u_long *in = (const u_long *)BankEePtr(bank, *(const u_int *)(obj + GA_OBJ_INDICES));
+    const u_long *in = (const u_long *)GaObjEePtr(bank, *(const u_int *)(obj + GA_OBJ_INDICES));
     u_long *out = (u_long *)(SprPtr(packetEE) + 0x20);
     u_int prims = *(const u_int *)(obj + GA_OBJ_PRIM_COUNT);
     int sided = !(flags & GA_OBJ_FLAG_DOUBLE_SIDED);
@@ -376,7 +376,7 @@ void gaDrawObject_RemakeIndex(u_char *obj, u_int packetEE)
     int bank = BankOfHostPtr(obj);
     u_char flags = obj[GA_OBJ_FLAGS];
     GA_LOCAL_VERTEX *v = LocalVertices(spr);
-    const u_long *in = (const u_long *)BankEePtr(bank, *(const u_int *)(obj + GA_OBJ_INDICES));
+    const u_long *in = (const u_long *)GaObjEePtr(bank, *(const u_int *)(obj + GA_OBJ_INDICES));
     u_long *out = (u_long *)(SprPtr(packetEE) + 0x20);
     u_int prims = *(const u_int *)(obj + GA_OBJ_PRIM_COUNT);
     u_int accept, count = 0, t;
@@ -531,9 +531,9 @@ static void DivSource(DIV_SOURCE *src, const u_char *obj)
     u_int normalsEE = *(const u_int *)(obj + GA_OBJ_NORMALS);
 
     src->view = LocalVertices(SPR_WORK);
-    src->normals = normalsEE ? (const u_char *)BankEePtr(bank, normalsEE) + 0x10 : NULL;
-    src->st = (const u_char *)BankEePtr(bank, *(const u_int *)(obj + GA_OBJ_ST)) + 0x10;
-    src->rgba = (const u_char *)BankEePtr(bank, *(const u_int *)(obj + GA_OBJ_COLOURS)) + 0x10;
+    src->normals = normalsEE ? (const u_char *)GaObjEePtr(bank, normalsEE) + 0x10 : NULL;
+    src->st = (const u_char *)GaObjEePtr(bank, *(const u_int *)(obj + GA_OBJ_ST)) + 0x10;
+    src->rgba = (const u_char *)GaObjEePtr(bank, *(const u_int *)(obj + GA_OBJ_COLOURS)) + 0x10;
     src->primTableEE = *(const u_int *)(obj + GA_OBJ_PRIM_TABLE) + 0x10;
     src->stage = SprPtr(SCRATCHPAD_EE_BASE + GA_SPR_DIV_STAGE);
 }

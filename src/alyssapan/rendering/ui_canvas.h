@@ -56,6 +56,10 @@ public:
     void setAlphaFailPass(const void *list, bool failPass);
     // The whole frame's depth back to 0, the farthest, the colour untouched: the GS's depth-only clear sprite.
     void clearDepth(const void *list);
+    // The stencil's part in the draws that follow (frame.h StencilMode: CT3's shadow pass), and the whole
+    // frame's count back to its base, colour and depth untouched (the shadow buffer's clear).
+    void setStencil(const void *list, StencilMode mode);
+    void resetStencil(const void *list);
     void begin(const void *list, int format);
     void addVertex(const void *list, const AlyssaPanUiVertex &vertex);
 
@@ -114,6 +118,7 @@ private:
         bool depthOnly = false;
         float depthScale = 0.0f;
         bool alphaFailPass = false;
+        StencilMode stencil = StencilMode::Off;
 
         std::vector<Vertex> vertices;
         std::vector<DrawCall> draws;

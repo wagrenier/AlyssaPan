@@ -99,6 +99,14 @@ public:
         int copyHeight = 0;
         std::array<float, 4> copyRect{}; // x0, y0, x1, y1
         std::uint8_t copyFix = 0;
+
+        // The shadow pass (alyssapan_drawga.h AlyssaPan_DrawGaShadow*): the count back to none, a volume
+        // mesh (counted, not drawn), or the overlay. The overlay's triangles are in vertices / triangles,
+        // screen x, y in GS frame pixels and drawRgba what each vertex takes off the frame (or adds to it).
+        enum class Shadow : std::uint8_t { None, Start, Volume, Overlay };
+        Shadow shadow = Shadow::None;
+        int shadowSign = 0;         // Volume: +1 a minus face (Cs * As + Cd), -1 a plus face (Cd - Cs * As)
+        bool shadowLighten = false; // Overlay: Cs * FIX + Cd instead of Cd - Cs * FIX
     };
 
     // The texture the objects after it draw with (alyssapan_drawga.h AlyssaPan_DrawGaTexture): the ROM's
@@ -123,9 +131,10 @@ public:
     // caller draws lastFrame()); a frame with nothing drawn leaves the display as it is.
     bool swap();
 
-    // An object in draw order. Drawn to a GS frame that is not a display frame (the shadow buffer, the
-    // effect buffer's HQDOF samples ..), it is not kept: the host has no such frame. The record calls answer
-    // true when they closed a frame by the field instead of a swap (closeWithoutSwap).
+    // An object in draw order. Drawn to a GS frame that is not a display frame (the effect buffer's HQDOF
+    // samples ..), it is not kept: the host has no such frame; during a shadow pass it is a volume face
+    // (Shadow::Volume). The record calls answer true when they closed a frame by the field instead of a swap
+    // (closeWithoutSwap).
     bool record(const AlyssaPanGaObject &object);
 
     // A full-screen fill in draw order (alyssapan_drawga.h AlyssaPan_DrawGaFill).
@@ -136,6 +145,12 @@ public:
 
     // The Z buffer cleared in draw order (alyssapan_drawga.h AlyssaPan_DrawGaClearDepth).
     bool recordDepthClear();
+
+    // The shadow pass in draw order (alyssapan_drawga.h AlyssaPan_DrawGaShadowStart / _Overlay): from the
+    // start, objects drawn off the display frames are the volume's faces; the overlay closes the pass.
+    bool recordShadowStart();
+    bool recordShadowOverlay(const AlyssaPanGaShadowVertex *vertices, int count, bool lighten, int alphaFix,
+                             int foldAdd, int foldSubtract);
 
     const std::vector<Mesh> &lastFrame() const { return m_last; }
 
@@ -157,6 +172,9 @@ private:
     bool m_loggedTexture = false;
     bool m_loggedCopy = false;
     bool m_loggedSwapless = false;
+    bool m_loggedShadow = false;
+    bool m_shadowPass = false; // between a shadow start and its overlay
+    int m_shadowStep = 0;      // what one volume face adds to the ROM's buffer: Cs * As of its colour
     std::shared_ptr<Image> m_image;
     std::uint64_t m_tex0 = 0;
     std::uint64_t m_clamp = 0;

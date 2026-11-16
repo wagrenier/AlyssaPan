@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstring>
 #include <limits>
+#include <utility>
 
 #include "alyssapan/core/logger.h"
 #include "alyssapan/ee/interrupts.h"
@@ -37,6 +38,7 @@ constexpr std::uint64_t kSwaplessFields = 10;
 
 constexpr int kLights = 4; // per kind: four directional, four point (a lane each)
 constexpr int kRgba = 4;
+constexpr std::uint8_t kGsOne = 0x80; // a colour or alpha of 1.0 on the GS's scale
 
 // The VU's zero flag: it flushes denormals, so a result under the smallest normal float counts as zero.
 bool vuZero(float x)
@@ -323,6 +325,7 @@ void GaMeshRecorder::setTarget(bool toDisplay)
 bool GaMeshRecorder::close(std::uint64_t field)
 {
     m_closeField = field;
+    m_shadowPass = false; // a shadow pass ends within its frame (asShadowEnd); none carries over
     if (m_frame.empty())
         return false;
     m_last.swap(m_frame);
@@ -388,10 +391,71 @@ bool GaMeshRecorder::recordCopy(const Mesh &copy)
     return frameEnded;
 }
 
+bool GaMeshRecorder::recordShadowStart()
+{
+    const bool frameEnded = closeWithoutSwap();
+    m_shadowPass = true;
+    m_shadowStep = 0;
+    Mesh mesh;
+    mesh.shadow = Mesh::Shadow::Start;
+    m_frame.push_back(std::move(mesh));
+    return frameEnded;
+}
+
+// The ROM's shadow buffer, per channel (architecture.md "The shadow overlay"): cleared to 0x80, a face adds or
+// subtracts its Cs * As (m_shadowStep), each step clamped to a byte; the fold adds foldAdd and subtracts
+// foldSubtract (FIX 0x80), clamped again. The texel T is that of one face's net count; the overlay's
+// MODULATE gives T * Cv / 0x80 and its blend that times FIX / 0x80, each clamped and truncated as the GS does.
+// PORT: the stencil holds the count, and every count above none takes one face's T. CT3's volume faces
+// (ShadowVolume_vertex_color_data 0x20 + ambient_ShadowVolume_color 0x80 at alpha 0x20: 0x28 a face) fold
+// to the buffer's top, 0x1f, from one face on, so no count differs.
+bool GaMeshRecorder::recordShadowOverlay(const AlyssaPanGaShadowVertex *vertices, int count, bool lighten,
+                                         int alphaFix, int foldAdd, int foldSubtract)
+{
+    constexpr int kByteMax = 0xff;
+    constexpr int kGsOneShift = 7;          // 0x80 is 1.0
+    constexpr int kShadowBufferClear = 0x80; // asShadowStart's clear sprite (dc_EBclear_C, RGBA 0x80808080)
+    const bool frameEnded = closeWithoutSwap();
+    const bool wasPass = std::exchange(m_shadowPass, false);
+    const int counted = std::min(kShadowBufferClear + m_shadowStep, kByteMax);
+    const int folded = std::min(counted + foldAdd, kByteMax);
+    const int texel = std::max(folded - foldSubtract, 0);
+    if (!wasPass || texel == 0 || count <= 0 || vertices == nullptr)
+        return frameEnded;
+
+    Mesh mesh;
+    mesh.shadow = Mesh::Shadow::Overlay;
+    mesh.shadowLighten = lighten;
+    mesh.vertices.resize(static_cast<std::size_t>(count) * 3);
+    for (std::size_t i = 0; i < mesh.vertices.size(); ++i) {
+        const AlyssaPanGaShadowVertex &in = vertices[i];
+        Vertex &v = mesh.vertices[i];
+        v.screen[0] = in.x;
+        v.screen[1] = in.y;
+        for (int c = 0; c < 3; ++c) {
+            const int modulated = std::min(texel * in.rgba[c] >> kGsOneShift, kByteMax);
+            v.drawRgba[c] = static_cast<std::uint8_t>(std::min(modulated * alphaFix >> kGsOneShift, kByteMax));
+        }
+        v.drawRgba[3] = kGsOne; // As 1.0: the canvas's blend takes the colour as it is
+        mesh.triangles.push_back(static_cast<std::uint16_t>(i));
+    }
+    mesh.drawn.assign(static_cast<std::size_t>(count), true);
+    if (!m_loggedShadow) {
+        m_loggedShadow = true;
+        const Vertex &v0 = mesh.vertices.front();
+        log::info("[ga] first shadow overlay: {} triangles, {} by {} {} {} (a face {:#x}, texel {:#x}, FIX {:#x})",
+                  count, lighten ? "lightened" : "darkened", v0.drawRgba[0], v0.drawRgba[1], v0.drawRgba[2],
+                  m_shadowStep, texel, alphaFix);
+    }
+    m_frame.push_back(std::move(mesh));
+    return frameEnded;
+}
+
 bool GaMeshRecorder::record(const AlyssaPanGaObject &object)
 {
     const bool frameEnded = closeWithoutSwap();
-    if (object.vertexCount <= 0 || object.positions == nullptr || !m_gs.toDisplay)
+    const bool volume = !m_gs.toDisplay && m_shadowPass;
+    if (object.vertexCount <= 0 || object.positions == nullptr || (!m_gs.toDisplay && !volume))
         return frameEnded;
 
     Mesh mesh;
@@ -442,6 +506,16 @@ bool GaMeshRecorder::record(const AlyssaPanGaObject &object)
 
     project(mesh, object);
     cull(mesh);
+
+    if (volume) {
+        // A volume face counts the way its draw control blends (asDrawShadowVolume's SDW_drawctrl_A / _S);
+        // what it adds to the ROM's buffer is its colour times its alpha (both faces share the template's).
+        constexpr int kGsOneShift = 7;
+        mesh.shadow = Mesh::Shadow::Volume;
+        mesh.shadowSign = blendModeOf(m_gs.alpha) == BlendMode::Subtractive ? -1 : 1;
+        const Vertex &v0 = mesh.vertices.front();
+        m_shadowStep = std::max(m_shadowStep, v0.drawRgba[0] * v0.drawRgba[3] >> kGsOneShift);
+    }
 
     if (!m_loggedFirst) {
         m_loggedFirst = true;

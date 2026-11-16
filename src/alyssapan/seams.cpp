@@ -2,6 +2,7 @@
 // Carried over from YamiPan without FS2's 3D, shadow and whole-frame effect seams (cpp-port.md "Left in
 // YamiPan"): CT3's own draw modules add theirs here when their TUs are read.
 #include <algorithm>
+#include <array>
 #include <bit>
 #include <chrono>
 #include <cstdint>
@@ -12,6 +13,7 @@
 #include <optional>
 #include <span>
 #include <string_view>
+#include <tuple>
 #include <vector>
 
 #include "alyssapan/alyssapan_memory.h"
@@ -358,6 +360,23 @@ std::uint64_t gaScissor(float squeeze)
     return x0 | x1 << kScissorX1Shift | y1 << kScissorY1Shift; // y0 = 0
 }
 
+// A shadow overlay vertex's x (alyssapan_drawga.h AlyssaPanGaShadowVertex, GS frame pixels) on the canvas: the
+// frame's edges at the window's, as the overlay covers what the widened 3D view covers; a point inside the
+// frame (a fan's centre: the shadow's anchor, which the game projects as the 3D view does) squeezed with the
+// meshes.
+std::uint16_t gaShadowCanvasX(float frameX, float squeeze)
+{
+    const float half = kCanvasFrameWidth / 2.0f;
+    if (frameX <= 0.0f || frameX >= kCanvasFrameWidth)
+        frameX = half + (frameX - half) / squeeze;
+    return gaCanvasX((kGaCentreX - half + frameX) * kGaWindowUnit);
+}
+
+std::uint16_t gaShadowCanvasY(float frameY)
+{
+    return gaCanvasY((kGaCentreY - kGaFrameHeight / 2.0f + frameY) * kGaWindowUnit);
+}
+
 // The whole canvas: what the widened 3D pass draws into (DisplayGeometry's picture, at any aspect).
 std::uint64_t gaScissorWide()
 {
@@ -536,6 +555,101 @@ GaSampling gaSampling(const alyssapan::rendering::GaMeshRecorder::Mesh &mesh)
     return sampling;
 }
 
+// A shadow pass entry (GaMeshRecorder::Mesh::Shadow; alyssapan_drawga.h AlyssaPan_DrawGaShadow*), over the whole
+// canvas as the widened 3D view: the stencil's count reset to its base; a volume mesh counted where it passes the
+// frame's depth (the ROM's GEQUAL, no Z write, no colour); the overlay drawn where the count is above the base,
+// its vertex colours taken off the frame (Cd - Cs) or added to it.
+void DrawGaShadow(alyssapan::rendering::UiCanvas &ui, const void *list,
+                  const alyssapan::rendering::GaMeshRecorder::Mesh &mesh, std::uint64_t wide)
+{
+    using alyssapan::rendering::DepthTest;
+    using alyssapan::rendering::StencilMode;
+    using Shadow = alyssapan::rendering::GaMeshRecorder::Mesh::Shadow;
+    // ALPHA_1 (A, B, C, D at 0, 2, 4, 6): Cd - Cs * As (A 0, B Cs, C As, D Cd) and Cs * As + Cd.
+    constexpr std::uint64_t kAlphaSubtract = 2 | 0 << 2 | 0 << 4 | 1 << 6;
+    constexpr std::uint64_t kAlphaAdd = 0 | 2 << 2 | 0 << 4 | 1 << 6;
+
+    ui.setRegister(list, kRegScissor1, wide);
+    switch (mesh.shadow) {
+    case Shadow::None:
+        return;
+    case Shadow::Start:
+        ui.resetStencil(list);
+        return;
+    case Shadow::Volume: {
+        const GaDraw draw = gaDrawOf(mesh.gs, false);
+        ui.setRegister(list, kRegTest1, 0);
+        ui.setRegister(list, kRegFrame1, 0);
+        ui.setDepth(list, draw.depth, false, true, 1.0f / draw.zMax);
+        ui.setStencil(list, mesh.shadowSign > 0 ? StencilMode::ShadowIncrement : StencilMode::ShadowDecrement);
+        ui.setPrimitive(list, kPrimTriangle, nullptr);
+        ui.begin(list, ALYSSAPAN_UIV_RGBAQ);
+        const auto vertexAt = [&](std::size_t index) {
+            const auto &v = mesh.vertices[index];
+            AlyssaPanUiVertex out{};
+            out.x = gaCanvasX(v.screen[0]);
+            out.y = gaCanvasY(v.screen[1]);
+            out.z = static_cast<std::uint32_t>(std::clamp(v.screen[2], 0.0f, draw.zMax));
+            return out;
+        };
+        const auto before = [](const AlyssaPanUiVertex &a, const AlyssaPanUiVertex &b) {
+            return std::tie(a.x, a.y, a.z) < std::tie(b.x, b.y, b.z);
+        };
+        const auto emit = [&](AlyssaPanUiVertex a, AlyssaPanUiVertex b, AlyssaPanUiVertex c) {
+            std::array<AlyssaPanUiVertex, 3> tri{a, b, c};
+            std::sort(tri.begin(), tri.end(), before);
+            for (const AlyssaPanUiVertex &v : tri)
+                ui.addVertex(list, v);
+        };
+        // PORT: asShadowPolygonPositions gives each lit face of the caster its own prism, so the wall two
+        // neighbouring faces share is stocked twice, once counting up and once down, and must cancel. The
+        // two copies run the edge in opposite directions, and the quads (far a, near a, near b, far b) are
+        // split along different diagonals ((0 1 2) (2 3 0)): where the wall meets the floor, the host's
+        // depth test of the two then differs in the last bit, and the count leaves light seams across the
+        // shadow. Split on the diagonal through the quad's least corner, each triangle's corners in one
+        // order: both copies then rasterize alike, as the ROM's buffer needs.
+        const std::size_t count = mesh.drawn.size();
+        for (std::size_t t = 0; t < count; ++t) {
+            const std::uint16_t *tri = &mesh.triangles[t * 3];
+            const bool quad = t + 1 < count && mesh.drawn[t] && mesh.drawn[t + 1] && tri[3] == tri[2] &&
+                              tri[5] == tri[0];
+            if (quad) {
+                const std::array<AlyssaPanUiVertex, 4> q{vertexAt(tri[0]), vertexAt(tri[1]), vertexAt(tri[2]),
+                                                         vertexAt(tri[4])};
+                const auto least = std::min_element(q.begin(), q.end(), before) - q.begin();
+                const std::size_t d = static_cast<std::size_t>(least) & 1; // 0: diagonal q0-q2, 1: q1-q3
+                emit(q[d], q[d + 1], q[d + 2]);
+                emit(q[d], q[d + 2], q[(d + 3) & 3]);
+                ++t;
+                continue;
+            }
+            if (mesh.drawn[t])
+                emit(vertexAt(tri[0]), vertexAt(tri[1]), vertexAt(tri[2]));
+        }
+        break;
+    }
+    case Shadow::Overlay: {
+        const float squeeze = ui.squeezeFactor();
+        ui.setRegister(list, kRegAlpha1, mesh.shadowLighten ? kAlphaAdd : kAlphaSubtract);
+        ui.setRegister(list, kRegTest1, 0);
+        ui.setRegister(list, kRegFrame1, kFrameFbmskAlpha); // PORT: the frame's alpha is left as it was
+        ui.setDepth(list, DepthTest::Off, false, false, 0.0f);
+        ui.setStencil(list, StencilMode::ShadowTest);
+        ui.setPrimitive(list, kPrimTriangle | kPrimGouraud | kPrimBlended, nullptr);
+        ui.begin(list, ALYSSAPAN_UIV_RGBAQ);
+        for (const auto &v : mesh.vertices) {
+            AlyssaPanUiVertex out{};
+            out.x = gaShadowCanvasX(v.screen[0], squeeze);
+            out.y = gaShadowCanvasY(v.screen[1]);
+            std::memcpy(out.rgba, v.drawRgba.data(), sizeof(out.rgba));
+            ui.addVertex(list, out);
+        }
+        break;
+    }
+    }
+    ui.setStencil(list, StencilMode::Off);
+}
+
 // One game frame (gaWaitVSync's swap to the next: GaMeshRecorder::swap) goes to the canvas as one layer, as
 // the VU1 program would have sent it (window coordinates and Z, RGBAQ, ST), each mesh with the texture bound
 // and the GS state set when it came (gaDrawOf): depth-tested against the frame's Z buffer, cleared where the
@@ -564,6 +678,10 @@ void DrawGaFrame(const std::vector<alyssapan::rendering::GaMeshRecorder::Mesh> &
     ui.setRegister(list, kRegScissor1, boxed);
     ui.setRegister(list, kRegTex11, kGaTex1Linear);
     for (const GaMeshRecorder::Mesh &mesh : meshes) {
+        if (mesh.shadow != GaMeshRecorder::Mesh::Shadow::None) {
+            DrawGaShadow(ui, list, mesh, wide);
+            continue;
+        }
         if (mesh.fill) {
             // Over the whole frame: the window in a scene, else gaScissor's 4:3 box as the GS's window holds it.
             ui.setRegister(list, kRegScissor1, scene ? wide : boxed);
@@ -767,6 +885,21 @@ void AlyssaPan_DrawGaClearDepth(void)
 {
     auto &recorder = alyssapan::rendering::GaMeshRecorder::instance();
     if (recorder.recordDepthClear())
+        DrawGaFrame(recorder.lastFrame());
+}
+
+void AlyssaPan_DrawGaShadowStart(void)
+{
+    auto &recorder = alyssapan::rendering::GaMeshRecorder::instance();
+    if (recorder.recordShadowStart())
+        DrawGaFrame(recorder.lastFrame());
+}
+
+void AlyssaPan_DrawGaShadowOverlay(const AlyssaPanGaShadowVertex *vertices, int count, int lighten, int alphaFix,
+                                   int foldAdd, int foldSubtract)
+{
+    auto &recorder = alyssapan::rendering::GaMeshRecorder::instance();
+    if (recorder.recordShadowOverlay(vertices, count, lighten != 0, alphaFix, foldAdd, foldSubtract))
         DrawGaFrame(recorder.lastFrame());
 }
 
