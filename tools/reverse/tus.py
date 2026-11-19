@@ -525,8 +525,8 @@ def cmd_queue(args):
 
 
 def progress_shot(key, claimed):
-    """Copy the session's last smoke-run screenshot to progress/<time>_<tu>.png (committed with the TU),
-    so the screen's history can be browsed per TU. Only a shot taken since the claim counts."""
+    """Copy the session's last smoke-run screenshot to progress/<time>_<tu>.png (gitignored: game imagery
+    stays local), so the screen's history can be browsed per TU. Only a shot taken since the claim counts."""
     last = alyssapan.WORK / 'shots' / 'last.png'
     if not last.exists():
         return None
@@ -633,6 +633,8 @@ def cmd_finish(args):
             raise SystemExit('layout lint failed (see above): add the static_asserts or a "layout: host" note')
     e = M.db['tus'].setdefault(key, {})
     shot = progress_shot(key, e.get('claimed'))
+    if shot:
+        print(f'screen kept locally: {shot}')
     e['status'] = status
     e.pop('claimed', None)
     e.pop('prev_status', None)
@@ -671,8 +673,6 @@ def cmd_finish(args):
         body += ['Reconstructed: ' + ', '.join(rec), '']
     if stubbed:
         body += ['Stubbed: ' + ', '.join(stubbed), '']
-    if shot:
-        body += [f'Screen: {shot}', '']
     if os.environ.get('ALYSSAPAN_SESSION_ID'):
         body += [f'Session: {os.environ["ALYSSAPAN_SESSION_ID"]}', '']
     body.append(coauthor)

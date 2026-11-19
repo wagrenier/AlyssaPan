@@ -14,6 +14,9 @@ SCPS_*
 # Regenerated reversing intermediates (Ghidra dumps, features, stages, shots, logs, instance cache)
 tools/reverse/work/
 
+# Per-session screenshots of the game (tus.py finish): kept locally, never published
+progress/
+
 # Python
 __pycache__/
 *.pyc

@@ -23,3 +23,8 @@ to `tools/reverse/work/shots/`.
 
 The data folder is your disc's root: the one with `DATA\CT3PACK.DAT` and `IOP\` in it. AlyssaPan asks for it
 on first launch, or reads `ALYSSAPAN_DATA_DIR`; settings are in `%APPDATA%\Mikompilation\AlyssaPan\alyssapan.ini`.
+
+## License
+
+AlyssaPan is licensed under the [GNU AGPL v3](LICENSE), as are MikuPan and MioPan, whose PC layer it carries.
+Clock Tower 3 is the property of its respective owners. This project is not affiliated with or endorsed by them.
